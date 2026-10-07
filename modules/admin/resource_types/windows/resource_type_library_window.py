@@ -10,7 +10,6 @@ separate dialogs — those relational fields don't fit a flat CSV/wizard.
 from __future__ import annotations
 
 import math
-import tempfile
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -22,6 +21,7 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
     QDialog,
+    QFileDialog,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -44,6 +44,7 @@ from utils.edit_window_kit import (
     ImportWizard,
     PillDelegate,
     PaginationControls,
+    default_export_directory,
     run_async,
     write_export_file,
 )
@@ -551,7 +552,13 @@ class ResourceTypeLibraryWindow(QWidget):
             rows = list(self._all_records)
 
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        path = Path(tempfile.gettempdir()) / f"resource-types-{scope}-{timestamp}.{file_format}"
+        suggested_name = f"resource-types-{scope}-{timestamp}.{file_format}"
+        default_path = default_export_directory() / suggested_name
+        file_filter = "CSV Files (*.csv);;Excel Workbook (*.xlsx);;All Files (*)"
+        path_text, _ = QFileDialog.getSaveFileName(self, "Export Resource Types", str(default_path), file_filter)
+        if not path_text:
+            return
+        path = Path(path_text).with_suffix(f".{file_format}")
 
         def _task() -> dict[str, Any]:
             write_export_file(path, rows, fields, _FIELD_LABELS, file_format)

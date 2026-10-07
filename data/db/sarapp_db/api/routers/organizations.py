@@ -140,6 +140,28 @@ def _enrich_organization(doc: dict[str, Any]) -> dict[str, Any]:
         payload["effective_rank_structure_name"] = structure.get("name") if structure else None
     else:
         payload["effective_rank_structure_name"] = None
+
+    default_structure_id = payload.get("default_rank_structure_id")
+    if default_structure_id is not None:
+        default_structure = _rank_structures_repo().find_one({"int_id": default_structure_id})
+        payload["default_rank_structure_name"] = default_structure.get("name") if default_structure else None
+    else:
+        payload["default_rank_structure_name"] = None
+
+    parent_id = payload.get("parent_organization_id")
+    if parent_id is not None:
+        parent = org_repo.find_one({"int_id": parent_id})
+        payload["parent_organization_name"] = parent.get("name") if parent else None
+    else:
+        payload["parent_organization_name"] = None
+
+    org_type_id = payload.get("organization_type_id")
+    if org_type_id is not None:
+        org_type = _org_types_repo().find_one({"int_id": org_type_id})
+        payload["organization_type_name"] = org_type.get("name") if org_type else None
+    else:
+        payload["organization_type_name"] = None
+
     return payload
 
 

@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import csv
 import math
-import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -90,6 +89,7 @@ except ImportError:  # pragma: no cover - fallback when QtConcurrent watcher is 
 
 from notifications.models import Notification
 from notifications.services import get_notifier
+from utils.edit_window_kit import default_export_directory
 
 from modules.logistics.vehicle.panels.vehicle_edit_window import VehicleEditDialog, VehicleRepository
 
@@ -891,10 +891,11 @@ class VehicleExportDialog(QDialog):
 
         field_options = [
             ("ID", "id", True),
+            ("Vehicle ID", "vehicle_id", True),
             ("License Plate", "license_plate", True),
             ("VIN", "vin", True),
             ("Vehicle (Year Make Model)", "vehicle", True),
-            ("Cap", "capacity", True),
+            ("Capacity", "capacity", True),
             ("Type", "type", True),
             ("Status", "status", True),
             ("Tags", "tags", True),
@@ -956,7 +957,7 @@ class ImportContext:
 
 
 TARGET_FIELDS: list[tuple[str, str, bool]] = [
-    ("id", "Vehicle ID", False),
+    ("vehicle_id", "Vehicle ID", False),
     ("license_plate", "License Plate", True),
     ("vin", "VIN", True),
     ("year", "Year", False),
@@ -1861,6 +1862,16 @@ class VehicleInventoryPanel(QWidget):
                 if record:
                     selected_records.append(record.raw)
 
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        scope_slug = scope.replace(" ", "-")
+        suggested_name = f"vehicles-{scope_slug}-{timestamp}.{file_format}"
+        default_path = default_export_directory() / suggested_name
+        file_filter = "CSV Files (*.csv);;Excel Workbook (*.xlsx);;All Files (*)"
+        path_text, _ = QFileDialog.getSaveFileName(self, "Export Vehicles", str(default_path), file_filter)
+        if not path_text:
+            return
+        path = Path(path_text).with_suffix(f".{file_format}")
+
         params = {
             "db_path": getattr(self.repository, "_db_path", None),
             "filters": self.filter_bar.filters(),
@@ -1872,6 +1883,7 @@ class VehicleInventoryPanel(QWidget):
             "selected": selected_records,
             "type_labels": self._type_labels,
             "status_labels": self._status_labels,
+            "path": path,
         }
 
         self.export_button.setEnabled(False)
@@ -1920,11 +1932,7 @@ class VehicleInventoryPanel(QWidget):
             VehicleInventoryPanel._create_vehicle_record(row, type_labels, status_labels) for row in rows
         ]
 
-        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        scope_slug = scope.replace(" ", "-")
-        filename = f"vehicles-{scope_slug}-{timestamp}.{fmt}"
-        path = Path(tempfile.gettempdir()) / filename
-
+        path = params["path"]
         VehicleInventoryPanel._write_export_file(path, records, fields, fmt)
 
         return {"path": str(path), "count": len(records), "scope": scope, "format": fmt}
@@ -1953,10 +1961,11 @@ class VehicleInventoryPanel(QWidget):
     def _field_label(field: str) -> str:
         mapping = {
             "id": "ID",
+            "vehicle_id": "Vehicle ID",
             "license_plate": "License Plate",
             "vin": "VIN",
             "vehicle": "Vehicle (Year Make Model)",
-            "capacity": "Cap",
+            "capacity": "Capacity",
             "type": "Type",
             "status": "Status",
             "tags": "Tags",

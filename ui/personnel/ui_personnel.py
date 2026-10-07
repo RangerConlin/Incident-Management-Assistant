@@ -31,6 +31,7 @@ from utils.edit_window_kit import (
     ExportDialog,
     FieldSpec,
     ImportWizard,
+    default_export_directory as _default_export_directory,
     run_async,
     write_export_file,
 )
@@ -72,15 +73,6 @@ from modules.personnel.catalog_io import (
     parse_certifications as _parse_certifications,
     personnel_export_row as _personnel_export_row,
 )
-
-
-def _default_export_directory() -> Path:
-    documents = QtCore.QStandardPaths.writableLocation(
-        QtCore.QStandardPaths.StandardLocation.DocumentsLocation
-    )
-    if documents:
-        return Path(documents)
-    return Path.home() / "Documents"
 
 
 def _list_master_organizations() -> list[dict[str, Any]]:

@@ -1,0 +1,197 @@
+Name,Short Name,Parent Organization Name,Organization Type Name,Callsign Prefix,External ID,Notes,Sort Order,Active
+Civil Air Patrol,CAP,,Volunteer Organization,,cap,,1,Yes
+Michigan Wing,MIWG,Civil Air Patrol,Volunteer Organization,,cap_mi_wing,,2,Yes
+Michigan Wing Headquarters,MI-001,Michigan Wing,Volunteer Organization,,cap_mi_001,Selfridge ANGB,3,Yes
+Owosso Composite Squadron,MI-002,Michigan Wing,Volunteer Organization,,cap_mi_002,Owosso,4,Yes
+Livingston Composite Squadron,MI-007,Michigan Wing,Volunteer Organization,,cap_mi_007,Howell,5,Yes
+Kalamazoo Composite Squadron,MI-009,Michigan Wing,Volunteer Organization,,cap_mi_009,Portage,6,Yes
+Blue Water Composite Squadron,MI-011,Michigan Wing,Volunteer Organization,,cap_mi_011,Shelby Township,7,Yes
+Wolverine Composite Flight,MI-015,Michigan Wing,Volunteer Organization,,cap_mi_015,Benton Harbor,8,Yes
+Phoenix Senior Flight,MI-021,Michigan Wing,Volunteer Organization,,cap_mi_021,Mason,9,Yes
+Copper Country Composite Squadron,MI-022,Michigan Wing,Volunteer Organization,,cap_mi_022,Calumet,10,Yes
+Sanilac Flight,MI-036,Michigan Wing,Volunteer Organization,,cap_mi_036,Cass City,11,Yes
+Adrian Composite Squadron,MI-059,Michigan Wing,Volunteer Organization,,cap_mi_059,Adrian,12,Yes
+Monroe Composite Squadron,MI-063,Michigan Wing,Volunteer Organization,,cap_mi_063,Monroe,13,Yes
+Sixgate Composite Squadron,MI-068,Michigan Wing,Volunteer Organization,,cap_mi_068,Farmington Hills,14,Yes
+South Oakland Cadet Squadron,MI-073,Michigan Wing,Volunteer Organization,,cap_mi_073,Farmington,15,Yes
+Lt Col Keehn Composite Squadron,MI-075,Michigan Wing,Volunteer Organization,,cap_mi_075,Flushing,16,Yes
+Highpoint Composite Squadron,MI-094,Michigan Wing,Volunteer Organization,,cap_mi_094,Cadillac,17,Yes
+Bay de Noc Flight,MI-096,Michigan Wing,Volunteer Organization,,cap_mi_096,Escanaba,18,Yes
+The Detroit 100th Composite Squadron,MI-100,Michigan Wing,Volunteer Organization,,cap_mi_100,Detroit,19,Yes
+Van Dyke Cadet Squadron,MI-117,Michigan Wing,Volunteer Organization,,cap_mi_117,Fraser,20,Yes
+Lakeshore 119 Composite Squadron,MI-119,Michigan Wing,Volunteer Organization,,cap_mi_119,Muskegon,21,Yes
+Traverse City Composite Squadron,MI-131,Michigan Wing,Volunteer Organization,,cap_mi_131,Traverse City,22,Yes
+Al Johnson Legacy Cadet Squadron,MI-135,Michigan Wing,Volunteer Organization,,cap_mi_135,Holland,23,Yes
+Cass River Composite Squadron,MI-165,Michigan Wing,Volunteer Organization,,cap_mi_165,Caro,24,Yes
+176th Selfridge Composite Squadron,MI-176,Michigan Wing,Volunteer Organization,,cap_mi_176,Selfridge ANGB,25,Yes
+Livonia Thunderbolt Composite Squadron,MI-183,Michigan Wing,Volunteer Organization,,cap_mi_183,Livonia,26,Yes
+Grand Rapids Senior Squadron,MI-190,Michigan Wing,Volunteer Organization,,cap_mi_190,Grand Rapids,27,Yes
+Bishop Airport Senior Squadron,MI-192,Michigan Wing,Volunteer Organization,,cap_mi_192,Flint,28,Yes
+Dickinson County Composite Squadron,MI-201,Michigan Wing,Volunteer Organization,,cap_mi_201,Kingsford,29,Yes
+Jackson Composite Squadron,MI-214,Michigan Wing,Volunteer Organization,,cap_mi_214,Jackson,30,Yes
+Ionia Flight,MI-222,Michigan Wing,Volunteer Organization,,cap_mi_222,Ionia,31,Yes
+Oakland Composite Squadron,MI-238,Michigan Wing,Volunteer Organization,,cap_mi_238,Pontiac,32,Yes
+Major Joe Koch Memorial Cadet Squadron,MI-241,Michigan Wing,Volunteer Organization,,cap_mi_241,Columbiaville,33,Yes
+Thunder Bay Flight,MI-243,Michigan Wing,Volunteer Organization,,cap_mi_243,Alpena,34,Yes
+Kellogg Field Senior Squadron,MI-248,Michigan Wing,Volunteer Organization,,cap_mi_248,Battle Creek,35,Yes
+Battle Creek Flight,MI-250,Michigan Wing,Volunteer Organization,,cap_mi_250,Battle Creek,36,Yes
+Scott M. Burgess Composite Squadron,MI-257,Michigan Wing,Volunteer Organization,,cap_mi_257,Grand Ledge,37,Yes
+Willow Run Composite Squadron,MI-260,Michigan Wing,Volunteer Organization,,cap_mi_260,Ypsilanti,38,Yes
+Bay City Cadet Squadron,MI-261,Michigan Wing,Volunteer Organization,,cap_mi_261,Bay City,39,Yes
+Grand Rapids Metro Cadet Squadron,MI-265,Michigan Wing,Volunteer Organization,,cap_mi_265,Grand Rapids,40,Yes
+Mustang Cadet Squadron,MI-271,Michigan Wing,Volunteer Organization,,cap_mi_271,New Hudson,41,Yes
+Lapeer Composite Squadron,MI-276,Michigan Wing,Volunteer Organization,,cap_mi_276,Lapeer,42,Yes
+Au Sable Valley Cadet Squadron,MI-277,Michigan Wing,Volunteer Organization,,cap_mi_277,Cadillac,43,Yes
+Chippewa County Composite Flight,MI-394,Michigan Wing,Volunteer Organization,,cap_mi_394,Sault Ste. Marie,44,Yes
+South Lyon Cadet Squadron,MI-437,Michigan Wing,Volunteer Organization,,cap_mi_437,South Lyon,45,Yes
+Gaylord Senior Squadron,MI-610,Michigan Wing,Volunteer Organization,,cap_mi_610,Grayling,46,Yes
+Maj Kevin A Adams Memorial Composite Squadron,MI-655,Michigan Wing,Volunteer Organization,,cap_mi_655,Ann Arbor,47,Yes
+Michigan Wing State Legislative Squadron,MI-999,Michigan Wing,Volunteer Organization,,cap_mi_999,Lansing,48,Yes
+Illinois Wing,ILWG,Civil Air Patrol,Volunteer Organization,,cap_il_wing,,49,Yes
+Illinois Wing Headquarters,IL-001,Illinois Wing,Volunteer Organization,,cap_il_001,Beecher,50,Yes
+Peoria Composite Squadron,IL-004,Illinois Wing,Volunteer Organization,,cap_il_004,Peoria,51,Yes
+Quad City Squadron,IL-008,Illinois Wing,Volunteer Organization,,cap_il_008,Moline,52,Yes
+Springfield Composite Squadron,IL-036,Illinois Wing,Volunteer Organization,,cap_il_036,Springfield,53,Yes
+Lake County Composite Squadron,IL-042,Illinois Wing,Volunteer Organization,,cap_il_042,Lake County,54,Yes
+Palwaukee Composite Squadron,IL-049,Illinois Wing,Volunteer Organization,,cap_il_049,Wheeling,55,Yes
+Shawnee Composite Squadron,IL-061,Illinois Wing,Volunteer Organization,,cap_il_061,Marion,56,Yes
+Magnus Composite Squadron,IL-067,Illinois Wing,Volunteer Organization,,cap_il_067,North Riverside,57,Yes
+Woodfield Composite Squadron,IL-075,Illinois Wing,Volunteer Organization,,cap_il_075,Schaumburg,58,Yes
+Col Compton Composite Squadron,IL-090,Illinois Wing,Volunteer Organization,,cap_il_090,Evanston,59,Yes
+Col Shorty Powers Composite Squadron,IL-189,Illinois Wing,Volunteer Organization,,cap_il_189,Bolingbrook,60,Yes
+Scott Composite Squadron,IL-205,Illinois Wing,Volunteer Organization,,cap_il_205,Scott AFB,61,Yes
+McLean County Composite Squadron,IL-240,Illinois Wing,Volunteer Organization,,cap_il_240,Bloomington,62,Yes
+Rockford Composite Squadron,IL-251,Illinois Wing,Volunteer Organization,,cap_il_251,Rockford,63,Yes
+DeKalb County Composite Squadron,IL-271,Illinois Wing,Volunteer Organization,,cap_il_271,DeKalb,64,Yes
+Fox Valley Composite Squadron,IL-274,Illinois Wing,Volunteer Organization,,cap_il_274,West Chicago,65,Yes
+Lake in the Hills Composite Squadron,IL-282,Illinois Wing,Volunteer Organization,,cap_il_282,Lake in the Hills,66,Yes
+Illinois Valley Cadet Squadron,IL-284,Illinois Wing,Volunteer Organization,,cap_il_284,Peru,67,Yes
+286th Composite Squadron,IL-286,Illinois Wing,Volunteer Organization,,cap_il_286,East Alton,68,Yes
+Chicago Senior Squadron,IL-312,Illinois Wing,Volunteer Organization,,cap_il_312,Chicago,69,Yes
+Thunder Composite Squadron,IL-317,Illinois Wing,Volunteer Organization,,cap_il_317,Monee,70,Yes
+Champaign Composite Squadron,IL-327,Illinois Wing,Volunteer Organization,,cap_il_327,Urbana,71,Yes
+Houbolt Composite Squadron,IL-329,Illinois Wing,Volunteer Organization,,cap_il_329,Joliet,72,Yes
+Cornelius Coffey Composite Squadron,IL-332,Illinois Wing,Volunteer Organization,,cap_il_332,South Holland,73,Yes
+Whiteside County Composite Squadron,IL-334,Illinois Wing,Volunteer Organization,,cap_il_334,Rock Falls,74,Yes
+Illinois Legislative Squadron,IL-999,Illinois Wing,Volunteer Organization,,cap_il_999,Beecher,75,Yes
+Indiana Wing,INWG,Civil Air Patrol,Volunteer Organization,,cap_in_wing,,76,Yes
+Indiana Wing Headquarters,IN-001,Indiana Wing,Volunteer Organization,,cap_in_001,Columbus,77,Yes
+Monroe County Composite Squadron,IN-002,Indiana Wing,Volunteer Organization,,cap_in_002,Bloomington,78,Yes
+Valparaiso Composite Squadron,IN-036,Indiana Wing,Volunteer Organization,,cap_in_036,Valparaiso,79,Yes
+St Joe Valley Cadet Squadron,IN-049,Indiana Wing,Volunteer Organization,,cap_in_049,Nappanee,80,Yes
+Col James H. Kasler Senior Squadron,IN-069,Indiana Wing,Volunteer Organization,,cap_in_069,Greenwood,81,Yes
+Lafayette Composite Squadron,IN-084,Indiana Wing,Volunteer Organization,,cap_in_084,Lafayette,82,Yes
+Ferrier Cadet Squadron,IN-085,Indiana Wing,Volunteer Organization,,cap_in_085,Camden,83,Yes
+Grant County Cadet Flight,IN-086,Indiana Wing,Volunteer Organization,,cap_in_086,Gas City,84,Yes
+Weir Cook Cadet Squadron,IN-123,Indiana Wing,Volunteer Organization,,cap_in_123,Indianapolis,85,Yes
+Falcon Composite Squadron,IN-126,Indiana Wing,Volunteer Organization,,cap_in_126,New Albany,86,Yes
+La Porte Senior Squadron,IN-144,Indiana Wing,Volunteer Organization,,cap_in_144,La Porte,87,Yes
+181st Composite Squadron,IN-181,Indiana Wing,Volunteer Organization,,cap_in_181,Terre Haute,88,Yes
+Shelbyville Composite Squadron,IN-184,Indiana Wing,Volunteer Organization,,cap_in_184,Shelbyville,89,Yes
+Indianapolis Senior Squadron,IN-193,Indiana Wing,Volunteer Organization,,cap_in_193,Fishers,90,Yes
+Fort Wayne Composite Squadron,IN-201,Indiana Wing,Volunteer Organization,,cap_in_201,Fort Wayne,91,Yes
+205th Composite Squadron,IN-205,Indiana Wing,Volunteer Organization,,cap_in_205,Muncie,92,Yes
+Eagle Composite Squadron,IN-206,Indiana Wing,Volunteer Organization,,cap_in_206,Carmel,93,Yes
+Bakalar Composite Squadron,IN-214,Indiana Wing,Volunteer Organization,,cap_in_214,Columbus,94,Yes
+Patoka Valley Cadet Squadron,IN-216,Indiana Wing,Volunteer Organization,,cap_in_216,Huntingburg,95,Yes
+River City Cadet Squadron,IN-220,Indiana Wing,Volunteer Organization,,cap_in_220,Evansville,96,Yes
+Anderson Composite Squadron,IN-223,Indiana Wing,Volunteer Organization,,cap_in_223,Anderson,97,Yes
+Fort Benjamin Harrison Composite Squadron,IN-228,Indiana Wing,Volunteer Organization,,cap_in_228,Greenfield,98,Yes
+Michigan City Composite Squadron,IN-306,Indiana Wing,Volunteer Organization,,cap_in_306,Michigan City,99,Yes
+Titan Cadet Squadron,IN-802,Indiana Wing,Volunteer Organization,,cap_in_802,Indianapolis,100,Yes
+Anderson Preparatory Academy Cadet Squadron,IN-803,Indiana Wing,Volunteer Organization,,cap_in_803,Anderson,101,Yes
+John Adams High School Cadet Squadron,IN-806,Indiana Wing,Volunteer Organization,,cap_in_806,South Bend,102,Yes
+Nester Cadet Squadron,IN-807,Indiana Wing,Volunteer Organization,,cap_in_807,Indianapolis,103,Yes
+Indiana Legislative Squadron,IN-999,Indiana Wing,Volunteer Organization,,cap_in_999,Indianapolis,104,Yes
+Kentucky Wing,KYWG,Civil Air Patrol,Volunteer Organization,,cap_ky_wing,,105,Yes
+Kentucky Wing Headquarters,KY-001,Kentucky Wing,Volunteer Organization,,cap_ky_001,Frankfort,106,Yes
+Paducah Cadet Squadron,KY-011,Kentucky Wing,Volunteer Organization,,cap_ky_011,Paducah,107,Yes
+Louisville Cadet Squadron,KY-039,Kentucky Wing,Volunteer Organization,,cap_ky_039,Louisville,108,Yes
+Boone County Cadet Squadron,KY-050,Kentucky Wing,Volunteer Organization,,cap_ky_050,Boone County,109,Yes
+Bowling Green Senior Squadron,KY-057,Kentucky Wing,Volunteer Organization,,cap_ky_057,Bowling Green,110,Yes
+Frankfort Cadet Squadron,KY-058,Kentucky Wing,Volunteer Organization,,cap_ky_058,Frankfort,111,Yes
+73rd Senior Squadron,KY-073,Kentucky Wing,Volunteer Organization,,cap_ky_073,Cincinnati,112,Yes
+Stuart Powell Cadet Squadron,KY-122,Kentucky Wing,Volunteer Organization,,cap_ky_122,Danville,113,Yes
+Heartland Composite Squadron,KY-131,Kentucky Wing,Volunteer Organization,,cap_ky_131,Elizabethtown,114,Yes
+Bowman Field Senior Squadron,KY-214,Kentucky Wing,Volunteer Organization,,cap_ky_214,Louisville,115,Yes
+Fort Campbell Composite Squadron,KY-216,Kentucky Wing,Volunteer Organization,,cap_ky_216,Clarksville,116,Yes
+Blue Grass Senior Squadron,KY-221,Kentucky Wing,Volunteer Organization,,cap_ky_221,Lexington,117,Yes
+Van Meter Cadet Squadron,KY-222,Kentucky Wing,Volunteer Organization,,cap_ky_222,Lexington,118,Yes
+Owensboro Composite Squadron,KY-223,Kentucky Wing,Volunteer Organization,,cap_ky_223,Owensboro,119,Yes
+Elkhorn Cadet Squadron,KY-225,Kentucky Wing,Volunteer Organization,,cap_ky_225,Georgetown,120,Yes
+Southern Kentucky Cadet Squadron,KY-300,Kentucky Wing,Volunteer Organization,,cap_ky_300,Bowling Green,121,Yes
+Lake Cumberland Cadet Squadron,KY-357,Kentucky Wing,Volunteer Organization,,cap_ky_357,Somerset,122,Yes
+Fleming County High School Covered Bridge Cadet Squadron,KY-802,Kentucky Wing,Volunteer Organization,,cap_ky_802,Flemingsburg,123,Yes
+Legislative Squadron,KY-999,Kentucky Wing,Volunteer Organization,,cap_ky_999,Frankfort,124,Yes
+Ohio Wing,OHWG,Civil Air Patrol,Volunteer Organization,,cap_oh_wing,,125,Yes
+Ohio Wing Headquarters,OH-001,Ohio Wing,Volunteer Organization,,cap_oh_001,Columbus,126,Yes
+Lorain County Composite Squadron,OH-003,Ohio Wing,Volunteer Organization,,cap_oh_003,Elyria,127,Yes
+Toledo ANGB Composite Squadron,OH-016,Ohio Wing,Volunteer Organization,,cap_oh_016,Swanton,128,Yes
+Wood County Senior Squadron,OH-018,Ohio Wing,Volunteer Organization,,cap_oh_018,Bowling Green,129,Yes
+Wright Patterson Composite Squadron,OH-037,Ohio Wing,Volunteer Organization,,cap_oh_037,Wright Patterson AFB,130,Yes
+Youngstown ARS Composite Squadron,OH-051,Ohio Wing,Volunteer Organization,,cap_oh_051,Vienna,131,Yes
+Lunken Cadet Squadron,OH-078,Ohio Wing,Volunteer Organization,,cap_oh_078,Blue Ash,132,Yes
+Columbus Senior Squadron,OH-085,Ohio Wing,Volunteer Organization,,cap_oh_085,Columbus,133,Yes
+96th Composite Squadron,OH-096,Ohio Wing,Volunteer Organization,,cap_oh_096,Stow,134,Yes
+Don Gentile Composite Squadron 709,OH-114,Ohio Wing,Volunteer Organization,,cap_oh_114,Sidney,135,Yes
+Rickenbacker ANGB Squadron,OH-121,Ohio Wing,Volunteer Organization,,cap_oh_121,Columbus,136,Yes
+Cuyahoga County Cadet Squadron,OH-131,Ohio Wing,Volunteer Organization,,cap_oh_131,Brecksville,137,Yes
+Columbus Composite Squadron,OH-139,Ohio Wing,Volunteer Organization,,cap_oh_139,Columbus,138,Yes
+Lt Col Jerome P. Ashman Composite Squadron,OH-145,Ohio Wing,Volunteer Organization,,cap_oh_145,Maineville,139,Yes
+Licking County Composite Squadron,OH-157,Ohio Wing,Volunteer Organization,,cap_oh_157,Newark,140,Yes
+Mansfield 177th Squadron,OH-177,Ohio Wing,Volunteer Organization,,cap_oh_177,Mansfield,141,Yes
+Springfield ANGB Composite Squadron,OH-178,Ohio Wing,Volunteer Organization,,cap_oh_178,Springfield,142,Yes
+Dayton Aero Cadet Squadron 706,OH-197,Ohio Wing,Volunteer Organization,,cap_oh_197,Troy,143,Yes
+Medina County Skyhawks Composite Squadron,OH-219,Ohio Wing,Volunteer Organization,,cap_oh_219,Medina,144,Yes
+Victor A. Hammond Composite Squadron,OH-234,Ohio Wing,Volunteer Organization,,cap_oh_234,Marysville,145,Yes
+Lakefront Senior Squadron,OH-236,Ohio Wing,Volunteer Organization,,cap_oh_236,Cleveland,146,Yes
+Lt Col James R. Sanders Senior Squadron,OH-244,Ohio Wing,Volunteer Organization,,cap_oh_244,Cincinnati,147,Yes
+Frank H. Kettlewood Composite Squadron,OH-252,Ohio Wing,Volunteer Organization,,cap_oh_252,Painesville,148,Yes
+Akron-Canton Senior Flying Squadron,OH-275,Ohio Wing,Volunteer Organization,,cap_oh_275,North Canton,149,Yes
+Akron-Canton Composite Squadron,OH-278,Ohio Wing,Volunteer Organization,,cap_oh_278,North Canton,150,Yes
+Clermont County Composite Squadron,OH-279,Ohio Wing,Volunteer Organization,,cap_oh_279,Batavia,151,Yes
+Wright Brothers Composite Squadron,OH-284,Ohio Wing,Volunteer Organization,,cap_oh_284,Miamisburg,152,Yes
+Pathfinder Cadet Squadron,OH-288,Ohio Wing,Volunteer Organization,,cap_oh_288,Middletown,153,Yes
+Knox County Composite Squadron,OH-299,Ohio Wing,Volunteer Organization,,cap_oh_299,Mount Vernon,154,Yes
+Galion Cadet Squadron,OH-802,Ohio Wing,Volunteer Organization,,cap_oh_802,Galion,155,Yes
+Ohio Wing Legislative Squadron,OH-999,Ohio Wing,Volunteer Organization,,cap_oh_999,Columbus,156,Yes
+Wisconsin Wing,WIWG,Civil Air Patrol,Volunteer Organization,,cap_wi_wing,,157,Yes
+Wisconsin Wing Headquarters,WI-001,Wisconsin Wing,Volunteer Organization,,cap_wi_001,Madison,158,Yes
+Timmerman Composite Squadron,WI-002,Wisconsin Wing,Volunteer Organization,,cap_wi_002,Milwaukee,159,Yes
+Sheboygan Composite Squadron,WI-013,Wisconsin Wing,Volunteer Organization,,cap_wi_013,Sheboygan,160,Yes
+La Crosse Composite Squadron,WI-037,Wisconsin Wing,Volunteer Organization,,cap_wi_037,La Crosse,161,Yes
+West Bend Composite Squadron,WI-046,Wisconsin Wing,Volunteer Organization,,cap_wi_046,West Bend,162,Yes
+Waukesha Composite Squadron,WI-048,Wisconsin Wing,Volunteer Organization,,cap_wi_048,Waukesha,163,Yes
+Tri-County Composite Squadron,WI-049,Wisconsin Wing,Volunteer Organization,,cap_wi_049,Menominee,164,Yes
+Wild River Composite Squadron,WI-053,Wisconsin Wing,Volunteer Organization,,cap_wi_053,Hayward,165,Yes
+Fox Cities Composite Squadron,WI-055,Wisconsin Wing,Volunteer Organization,,cap_wi_055,Appleton,166,Yes
+Col R. C. Jaye Memorial Composite Squadron,WI-057,Wisconsin Wing,Volunteer Organization,,cap_wi_057,Watertown,167,Yes
+R. I. Bong Senior Squadron,WI-058,Wisconsin Wing,Volunteer Organization,,cap_wi_058,Superior,168,Yes
+Racine Senior Support Squadron,WI-059,Wisconsin Wing,Volunteer Organization,,cap_wi_059,Racine,169,Yes
+Milwaukee Composite Squadron 5,WI-061,Wisconsin Wing,Volunteer Organization,,cap_wi_061,Milwaukee,170,Yes
+Milwaukee 10th Senior Support Squadron,WI-086,Wisconsin Wing,Volunteer Organization,,cap_wi_086,Milwaukee,171,Yes
+Eagle River Composite Squadron,WI-135,Wisconsin Wing,Volunteer Organization,,cap_wi_135,Eagle River,172,Yes
+Ozaukee Composite Squadron,WI-144,Wisconsin Wing,Volunteer Organization,,cap_wi_144,Ozaukee County,173,Yes
+Green County Senior Flight,WI-151,Wisconsin Wing,Volunteer Organization,,cap_wi_151,Green County,174,Yes
+153rd Madison Composite Squadron,WI-153,Wisconsin Wing,Volunteer Organization,,cap_wi_153,Madison,175,Yes
+156th WISTAC Senior Flight,WI-156,Wisconsin Wing,Volunteer Organization,,cap_wi_156,Milwaukee,176,Yes
+Eau Claire Composite Squadron,WI-161,Wisconsin Wing,Volunteer Organization,,cap_wi_161,Eau Claire,177,Yes
+Brown County Senior Squadron,WI-169,Wisconsin Wing,Volunteer Organization,,cap_wi_169,Green Bay,178,Yes
+Stevens Point Composite Squadron,WI-183,Wisconsin Wing,Volunteer Organization,,cap_wi_183,Stevens Point,179,Yes
+WALCO Composite Squadron,WI-184,Wisconsin Wing,Volunteer Organization,,cap_wi_184,Elkhorn,180,Yes
+Door County Composite Squadron,WI-197,Wisconsin Wing,Volunteer Organization,,cap_wi_197,Sturgeon Bay,181,Yes
+Wisconsin Legislative Squadron,WI-999,Wisconsin Wing,Volunteer Organization,,cap_wi_999,Wisconsin,182,Yes
+Other CAP Wing (outside Great Lakes Region),CAP-Other,Civil Air Patrol,Volunteer Organization,,cap_other,,183,Yes
+State of Michigan,,,State,,mi_state,,184,Yes
+Michigan State Police,MSP,State of Michigan,Law Enforcement,,mi_state_police,,185,Yes
+Michigan Department of Natural Resources - Law Enforcement Division,DNR,State of Michigan,Law Enforcement,,mi_dnr_le,,186,Yes
+"Michigan Department of Environment, Great Lakes, and Energy",EGLE,State of Michigan,,,mi_egle,,187,Yes
+Michigan Department of Agriculture and Rural Development,MDARD,State of Michigan,,,mi_mdard,,188,Yes
+Other Michigan State Agency,Other,State of Michigan,,,mi_state_other,,189,Yes
+Civilian / Unaffiliated,,,,,civilian,,190,Yes
+Civilian Volunteer (Unaffiliated),,Civilian / Unaffiliated,Volunteer Organization,,civilian_volunteer,,191,Yes
+General Public Volunteer,,Civilian / Unaffiliated,Volunteer Organization,,civilian_public_volunteer,,192,Yes
+Family / Friend of Subject,,Civilian / Unaffiliated,,,civilian_family,,193,Yes
+Private Citizen / Bystander,,Civilian / Unaffiliated,,,civilian_bystander,,194,Yes
+Media / Press,,Civilian / Unaffiliated,,,civilian_media,,195,Yes
+Other / Not Listed,Other,,,,other,,196,Yes

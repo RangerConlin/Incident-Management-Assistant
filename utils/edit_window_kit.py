@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Optional, Sequence
 
-from PySide6.QtCore import QModelIndex, QObject, Qt, QThread, QTimer, Signal
+from PySide6.QtCore import QModelIndex, QObject, QStandardPaths, Qt, QThread, QTimer, Signal
 from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -604,6 +604,16 @@ class ExportDialog(QDialog):
 
     def use_current_order(self) -> bool:
         return self.ordering_checkbox.isChecked()
+
+
+def default_export_directory() -> Path:
+    """Where a catalog export's save dialog should start: the user's
+    Documents folder, falling back to ~/Documents if the platform can't
+    report one (e.g. running headless)."""
+    documents = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.DocumentsLocation)
+    if documents:
+        return Path(documents)
+    return Path.home() / "Documents"
 
 
 def write_export_file(

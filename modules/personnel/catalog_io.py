@@ -72,7 +72,7 @@ def format_certifications(certs: Any, catalog_by_id: Optional[dict[int, dict[str
     for cert in certs:
         if not isinstance(cert, dict):
             continue
-        cert_type_id = cert.get("cert_type_id") or cert.get("id")
+        cert_type_id = cert.get("cert_type_id") or cert.get("id") or cert.get("certification_type_id")
         if cert_type_id in (None, ""):
             continue
         try:
@@ -151,11 +151,28 @@ def parse_certifications(value: Any, catalog_by_code: Optional[dict[str, int]] =
 def personnel_export_row(doc: dict[str, Any], catalog_by_id: Optional[dict[int, dict[str, Any]]] = None) -> dict[str, Any]:
     emergency = doc.get("emergency_info") or {}
     contact = doc.get("contact_info") or {}
+
+    full_name = clean_text(doc.get("name") or doc.get("full_name"))
+    first_name = clean_text(doc.get("first_name"))
+    last_name = clean_text(doc.get("last_name"))
+    if not first_name and not last_name and full_name:
+        name_parts = full_name.split(None, 1)
+        first_name = name_parts[0]
+        last_name = name_parts[1] if len(name_parts) > 1 else ""
+
+    is_medic = doc.get("is_medic")
+    if is_medic is None:
+        is_medic = doc.get("medic")
+
+    certs = doc.get("certifications")
+    if certs is None:
+        certs = doc.get("certs")
+
     return {
-        "person_id": clean_text(doc.get("person_id")),
-        "name": clean_text(doc.get("name")),
-        "first_name": clean_text(doc.get("first_name")),
-        "last_name": clean_text(doc.get("last_name")),
+        "person_id": clean_text(doc.get("person_id") or doc.get("personnel_id")),
+        "name": full_name,
+        "first_name": first_name,
+        "last_name": last_name,
         "callsign": clean_text(doc.get("callsign")),
         "primary_role": clean_text(doc.get("primary_role") or doc.get("role") or doc.get("title")),
         "rank": clean_text(doc.get("rank")),
@@ -165,7 +182,7 @@ def personnel_export_row(doc: dict[str, Any], catalog_by_id: Optional[dict[int, 
         "email": clean_text(doc.get("email")),
         "phone": clean_text(doc.get("phone")),
         "radio_id": clean_text(doc.get("radio_id")),
-        "is_medic": "Yes" if bool_from_value(doc.get("is_medic")) else "No",
+        "is_medic": "Yes" if bool_from_value(is_medic) else "No",
         "notes": clean_text(doc.get("notes")),
         "photo_url": clean_text(doc.get("photo_url")),
         "emergency_primary_name": clean_text(emergency.get("primary_name")),
@@ -186,7 +203,7 @@ def personnel_export_row(doc: dict[str, Any], catalog_by_id: Optional[dict[int, 
         "contact_secondary_phone": clean_text(contact.get("secondary_phone")),
         "contact_pager_id": clean_text(contact.get("pager_id")),
         "contact_notes": clean_text(contact.get("notes")),
-        "certifications": format_certifications(doc.get("certifications"), catalog_by_id),
+        "certifications": format_certifications(certs, catalog_by_id),
     }
 
 

@@ -8,7 +8,6 @@ column, pagination footer, import wizard, and export dialog with async export.
 from __future__ import annotations
 
 import logging
-import tempfile
 from dataclasses import dataclass, field as dc_field
 from datetime import datetime
 from pathlib import Path
@@ -21,6 +20,7 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
     QDialogButtonBox,
+    QFileDialog,
     QFormLayout,
     QFrame,
     QHBoxLayout,
@@ -44,6 +44,7 @@ from utils.edit_window_kit import (
     ImportWizard,
     PillDelegate,
     PaginationControls,
+    default_export_directory,
     run_async,
     write_export_file,
 )
@@ -574,7 +575,13 @@ class EquipmentEditPanel(QWidget):
             rows = list(self._all_rows)
 
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        path = Path(tempfile.gettempdir()) / f"equipment-{scope}-{timestamp}.{file_format}"
+        suggested_name = f"equipment-{scope}-{timestamp}.{file_format}"
+        default_path = default_export_directory() / suggested_name
+        file_filter = "CSV Files (*.csv);;Excel Workbook (*.xlsx);;All Files (*)"
+        path_text, _ = QFileDialog.getSaveFileName(self, "Export Equipment", str(default_path), file_filter)
+        if not path_text:
+            return
+        path = Path(path_text).with_suffix(f".{file_format}")
 
         def _task() -> dict[str, Any]:
             write_export_file(path, rows, fields, _FIELD_LABELS, file_format)

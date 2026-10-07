@@ -1,0 +1,19 @@
+Name,Description,Sort Order,Active
+Air Agency,Aviation-focused public safety or regulatory agency,10,Yes
+Ground SAR,Ground search and rescue organizations,20,Yes
+Law Enforcement,"Police, sheriff, or patrol agencies",30,Yes
+Fire/Rescue,Fire service and rescue organizations,40,Yes
+EMS,Emergency medical services organizations,50,Yes
+Government,General government organizations,60,Yes
+Volunteer Organization,Volunteer-run organizations,70,Yes
+NGO,Non-governmental organizations,80,Yes
+Federal,Federal/national level organizations,90,Yes
+State,State or provincial organizations,100,Yes
+County,County or regional organizations,110,Yes
+Municipal,City or municipal organizations,120,Yes
+Military,Military organizations,130,Yes
+Private Contractor,Private companies/contractors,140,Yes
+Amateur Radio,Amateur radio/ARES/RACES groups,150,Yes
+Aviation Support,Air support/aviation assistance units,160,Yes
+Communications Unit,Radio/comms units and shops,170,Yes
+Other,Other/uncategorized organizations,180,Yes

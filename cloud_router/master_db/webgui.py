@@ -75,6 +75,11 @@ class CollectionSpec:
     import_payload_fn: Optional[Callable[[dict[str, str]], dict[str, Any]]] = None
     form_row_fn: Optional[Callable[[dict[str, Any]], dict[str, Any]]] = None
     form_payload_fn: Optional[Callable[[dict[str, str]], dict[str, Any]]] = None
+    # Per-field override for the list-table cell's displayed text — e.g.
+    # showing a foreign key's resolved name instead of its raw int id.
+    # Keyed by FieldSpec.name; falls back to the raw field value when a
+    # field has no entry here.
+    list_cell_fn: Optional[Callable[[dict[str, Any], str], Any]] = None
 
 
 def _field_keys(spec: CollectionSpec) -> list[str]:
@@ -209,6 +214,21 @@ def _org_type_id_by_name(name: Any) -> int | None:
     return None
 
 
+def _organization_id_by_name(name: Any) -> int | None:
+    from sarapp_db.api.routers import organizations as organizations_router
+
+    wanted = str(name or "").strip().lower()
+    if not wanted:
+        return None
+    for row in organizations_router.list_organizations(search=""):
+        if str(row.get("name") or "").strip().lower() == wanted:
+            try:
+                return int(row.get("int_id"))
+            except (TypeError, ValueError):
+                return None
+    return None
+
+
 def _rank_structure_id_by_name(name: Any) -> int | None:
     from sarapp_db.api.routers import organizations as organizations_router
 
@@ -224,6 +244,22 @@ def _rank_structure_id_by_name(name: Any) -> int | None:
     return None
 
 
+def _organization_list_cell(doc: dict[str, Any], field_name: str) -> Any:
+    if field_name == "parent_organization_id":
+        return doc.get("parent_organization_name") or doc.get(field_name)
+    if field_name == "organization_type_id":
+        return doc.get("organization_type_name") or doc.get(field_name)
+    if field_name == "default_rank_structure_id":
+        return doc.get("default_rank_structure_name") or doc.get("effective_rank_structure_name") or doc.get(field_name)
+    return doc.get(field_name)
+
+
+def _rank_structure_list_cell(doc: dict[str, Any], field_name: str) -> Any:
+    if field_name == "organization_type_id":
+        return doc.get("organization_type_name") or doc.get(field_name)
+    return doc.get(field_name)
+
+
 def _rank_structure_import_payload(row: dict[str, str]) -> dict[str, Any]:
     payload = _coerce_fields_payload(_rank_structure_fields(), row)
     org_type_name = row.get("organization_type_name")
@@ -237,6 +273,12 @@ def _organization_import_payload(row: dict[str, str]) -> dict[str, Any]:
     structure_name = row.get("default_rank_structure_name")
     if structure_name and payload.get("default_rank_structure_id") is None:
         payload["default_rank_structure_id"] = _rank_structure_id_by_name(structure_name)
+    type_name = row.get("organization_type_name")
+    if type_name and payload.get("organization_type_id") is None:
+        payload["organization_type_id"] = _org_type_id_by_name(type_name)
+    parent_name = row.get("parent_organization_name")
+    if parent_name and payload.get("parent_organization_id") is None:
+        payload["parent_organization_id"] = _organization_id_by_name(parent_name)
     return payload
 
 
@@ -264,9 +306,9 @@ def _organization_fields() -> list[FieldSpec]:
     return [
         FieldSpec("name", "Name"),
         FieldSpec("short_name", "Short Name"),
-        FieldSpec("parent_organization_id", "Parent Organization ID", value_type="int"),
-        FieldSpec("organization_type_id", "Organization Type ID", value_type="int"),
-        FieldSpec("default_rank_structure_id", "Default Rank Structure ID", value_type="int"),
+        FieldSpec("parent_organization_id", "Parent Organization ID", input_type="select_fk", value_type="int"),
+        FieldSpec("organization_type_id", "Organization Type ID", input_type="select_fk", value_type="int"),
+        FieldSpec("default_rank_structure_id", "Default Rank Structure ID", input_type="select_fk", value_type="int"),
         FieldSpec("callsign_prefix", "Callsign Prefix"),
         FieldSpec("external_id", "External ID"),
         FieldSpec("notes", "Notes", input_type="textarea"),
@@ -458,6 +500,7 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
                 "organization_type_name": "Organization Type Name",
             },
             import_payload_fn=_rank_structure_import_payload,
+            list_cell_fn=_rank_structure_list_cell,
         ),
         CollectionSpec(
             key="organizations",
@@ -470,14 +513,18 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
             update_fn=organizations_router.update_organization,
             delete_fn=organizations_router.delete_organization,
             export_fields=[
-                "name", "short_name", "parent_organization_id", "organization_type_id",
+                "name", "short_name", "parent_organization_id", "parent_organization_name",
+                "organization_type_id", "organization_type_name",
                 "default_rank_structure_id", "default_rank_structure_name",
                 "callsign_prefix", "external_id", "notes", "sort_order", "is_active",
             ],
             export_field_labels={
+                "parent_organization_name": "Parent Organization Name",
+                "organization_type_name": "Organization Type Name",
                 "default_rank_structure_name": "Default Rank Structure Name",
             },
             import_payload_fn=_organization_import_payload,
+            list_cell_fn=_organization_list_cell,
         ),
         CollectionSpec(
             key="ranks",
@@ -633,6 +680,9 @@ def _page(title: str, body: str, request: Request) -> HTMLResponse:
     input[type=text], input[type=password], input[type=file], textarea, select {{ font:inherit; padding:9px 10px; border-radius:6px; border:1px solid #405160; background:var(--field); color:var(--text); width:100%; }}
     input:focus, textarea:focus, select:focus {{ outline:2px solid rgba(103,183,255,.35); border-color:var(--accent); }}
     select:disabled {{ color:#74808d; background:#141a20; cursor:not-allowed; }}
+    .fk-select-filter {{ margin-bottom:4px; }}
+    .back-link {{ margin:0 0 14px; }}
+    .back-link a {{ color:var(--muted); font-size:.9rem; }}
     label {{ display:block; margin:0 0 5px; color:var(--muted); font-size:.88rem; }}
     .compact-check {{ display:inline-flex; align-items:center; gap:6px; margin:0; color:var(--text); white-space:nowrap; }}
     .form-actions {{ margin-top:16px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }}
@@ -808,11 +858,38 @@ def _page(title: str, body: str, request: Request) -> HTMLResponse:
     }});
     refreshRanks();
   }});
+
+  document.querySelectorAll("select[data-search-select]").forEach((select) => {{
+    if (select.options.length < 8) return;
+    const filter = document.createElement("input");
+    filter.type = "text";
+    filter.placeholder = "Type to search…";
+    filter.className = "fk-select-filter";
+    select.insertAdjacentElement("beforebegin", filter);
+    const allOptions = Array.from(select.options).map((opt) => ({{ value: opt.value, text: opt.textContent }}));
+    filter.addEventListener("input", () => {{
+      const needle = filter.value.trim().toLowerCase();
+      const current = select.value;
+      select.innerHTML = "";
+      for (const opt of allOptions) {{
+        if (needle && !opt.text.toLowerCase().includes(needle) && opt.value !== "") continue;
+        const option = document.createElement("option");
+        option.value = opt.value;
+        option.textContent = opt.text;
+        if (opt.value === current) option.selected = true;
+        select.appendChild(option);
+      }}
+    }});
+  }});
 }})();
 </script>
 </body>
 </html>"""
     return HTMLResponse(html)
+
+
+def _back_link(href: str, label: str) -> str:
+    return f'<p class="back-link"><a href="{href}">&larr; {escape(label)}</a></p>'
 
 
 def _field_input_html(
@@ -821,11 +898,24 @@ def _field_input_html(
     *,
     select_options: dict[str, list[str]] | None = None,
     select_data: dict[str, str] | None = None,
+    select_fk_options: dict[str, list[tuple[int, str]]] | None = None,
 ) -> str:
     safe_value = escape(str(value)) if value is not None else ""
     if field.input_type == "checkbox":
         checked = "checked" if str(value).strip().lower() in {"1", "true", "yes", "y", "on"} else ""
         return f'<input type="checkbox" name="{escape(field.name)}" {checked}>'
+    if field.input_type == "select_fk":
+        options = list((select_fk_options or {}).get(field.name, []))
+        current = str(value) if value not in (None, "") else ""
+        option_html = ['<option value=""></option>']
+        option_html.extend(
+            f'<option value="{escape(str(opt_id))}"{" selected" if str(opt_id) == current else ""}>{escape(str(opt_label))}</option>'
+            for opt_id, opt_label in options
+        )
+        return (
+            f'<select name="{escape(field.name)}" class="fk-select" data-search-select="1">'
+            f'{"".join(option_html)}</select>'
+        )
     if field.input_type == "select":
         options = list((select_options or {}).get(field.name, []))
         if safe_value and str(value) not in options:
@@ -855,6 +945,7 @@ def _cell_html(value: Any) -> str:
 def _form_html(spec: CollectionSpec, doc: dict[str, Any], *, action: str, submit_label: str) -> str:
     select_options: dict[str, list[str]] = {}
     select_data_by_field: dict[str, dict[str, str]] = {}
+    select_fk_options: dict[str, list[tuple[int, str]]] = {}
     if spec.key == "personnel":
         org_rank_options = _personnel_org_rank_options()
         organization = str(doc.get("home_unit") or "").strip()
@@ -863,12 +954,34 @@ def _form_html(spec: CollectionSpec, doc: dict[str, Any], *, action: str, submit
         rank_by_org_json = json.dumps(org_rank_options["rank_by_org"], separators=(",", ":"))
         select_data_by_field["home_unit"] = {"org-select": "1", "rank-map": rank_by_org_json}
         select_data_by_field["rank"] = {"rank-select": "1", "current": str(doc.get("rank") or "")}
+    if spec.key == "organizations":
+        from sarapp_db.api.routers import organizations as organizations_router
+
+        self_id = doc.get("int_id")
+        orgs = [
+            (o.get("int_id"), o.get("name"))
+            for o in organizations_router.list_organizations(search="")
+            if o.get("name") and o.get("int_id") != self_id
+        ]
+        org_types = [
+            (t.get("int_id"), t.get("name"))
+            for t in organizations_router.list_org_types(search="")
+            if t.get("name")
+        ]
+        rank_structures = [
+            (r.get("int_id"), r.get("name"))
+            for r in organizations_router.list_rank_structures(search="")
+            if r.get("name")
+        ]
+        select_fk_options["parent_organization_id"] = sorted(orgs, key=lambda t: t[1].lower())
+        select_fk_options["organization_type_id"] = sorted(org_types, key=lambda t: t[1].lower())
+        select_fk_options["default_rank_structure_id"] = sorted(rank_structures, key=lambda t: t[1].lower())
 
     rows = []
     for field in spec.fields:
         rows.append(
             f'<div class="field"><label for="{escape(field.name)}">{escape(field.label)}</label>'
-            f"{_field_input_html(field, doc.get(field.name), select_options=select_options, select_data=select_data_by_field.get(field.name))}</div>"
+            f"{_field_input_html(field, doc.get(field.name), select_options=select_options, select_data=select_data_by_field.get(field.name), select_fk_options=select_fk_options)}</div>"
         )
     return f"""<form method="post" action="{action}"><div class="form-grid">{''.join(rows)}</div>
   <div class="form-actions"><button type="submit">{escape(submit_label)}</button></div>
@@ -1168,7 +1281,10 @@ def create_master_gui_router() -> APIRouter:
         for doc in docs:
             record_id = doc.get(spec.record_field)
             display_doc = _form_doc(spec, doc)
-            cells = "".join(f"<td>{_cell_html(display_doc.get(f.name, ''))}</td>" for f in spec.fields)
+            cells = "".join(
+                f"<td>{_cell_html(spec.list_cell_fn(doc, f.name) if spec.list_cell_fn else display_doc.get(f.name, ''))}</td>"
+                for f in spec.fields
+            )
             rows.append(
                 f'<tr data-row><td class="record-cell"><a href="{root_path}/gui/{collection_key}/{record_id}">{record_id}</a>'
                 f'<span class="row-resizer" title="Drag to resize row"></span></td>{cells}</tr>'
@@ -1177,7 +1293,7 @@ def create_master_gui_router() -> APIRouter:
             f'<tr class="empty-row {"hidden" if docs else ""}"><td colspan="{len(spec.fields) + 1}">'
             "No matching records.</td></tr>"
         )
-        body = f"""<section class="card"><div class="card-head"><div><h1>{escape(spec.title)}</h1>
+        body = f"""{_back_link(f"{root_path}/gui", "Back to Collections")}<section class="card"><div class="card-head"><div><h1>{escape(spec.title)}</h1>
   <p class="card-subtitle">{len(docs)} record{"s" if len(docs) != 1 else ""}</p></div></div>
   <div class="grid-toolbar">
     <div class="grid-actions">
@@ -1210,7 +1326,8 @@ def create_master_gui_router() -> APIRouter:
             raise HTTPException(status_code=404, detail="Unknown collection")
         root_path = request.scope.get("root_path") or ""
         form = _form_html(spec, {}, action=f"{root_path}/gui/{collection_key}/new", submit_label="Create")
-        body = f'<section class="card"><h1>New {escape(spec.title)}</h1>{form}</section>'
+        back = _back_link(f"{root_path}/gui/{collection_key}", f"Back to {spec.title}")
+        body = f'{back}<section class="card"><h1>New {escape(spec.title)}</h1>{form}</section>'
         return _page(f"New {spec.title}", body, request)
 
     @router.post("/gui/{collection_key}/new")
@@ -1257,7 +1374,8 @@ def create_master_gui_router() -> APIRouter:
         if spec is None:
             raise HTTPException(status_code=404, detail="Unknown collection")
         root_path = request.scope.get("root_path") or ""
-        body = f"""<section class="card"><h1>Import {escape(spec.title)}</h1>
+        back = _back_link(f"{root_path}/gui/{collection_key}", f"Back to {spec.title}")
+        body = f"""{back}<section class="card"><h1>Import {escape(spec.title)}</h1>
   <p class="muted">Upload a CSV or XLSX file exported from this page or the desktop Edit-menu panel — same columns, matched by header.</p>
   <form method="post" enctype="multipart/form-data" action="{root_path}/gui/{collection_key}/import">
     <input type="file" name="file" accept=".csv,.xlsx" required>
@@ -1339,7 +1457,8 @@ def create_master_gui_router() -> APIRouter:
             if spec.delete_fn is not None
             else ""
         )
-        body = f'<section class="card"><h1>{escape(spec.title)} {record_id}</h1>{form}<div class="form-actions">{delete_button}</div></section>'
+        back = _back_link(f"{root_path}/gui/{collection_key}", f"Back to {spec.title}")
+        body = f'{back}<section class="card"><h1>{escape(spec.title)} {record_id}</h1>{form}<div class="form-actions">{delete_button}</div></section>'
         if spec.key == "rank-structures":
             body += _rank_structure_ranks_html(record_id, root_path)
         return _page(f"Edit {spec.title}", body, request)

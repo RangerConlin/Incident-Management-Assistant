@@ -235,6 +235,22 @@ Cost Summary
       - Automatic incident→master write-back (MVP treats this as an explicit, operator-initiated action, not automatic).
       - `utils/catalog_cache.py` invalidation for remotely-synced master changes (today it only invalidates after locally-initiated writes).
       - MongoDB change streams as a latency optimization layered on the existing push/outbox/pull relay, only if the ~60s poll interval (or a manual resync) ever actually proves too slow — requires every deployment's MongoDB to run as a replica set, which none do today; see `Design Documents/Instructions/realtime_architecture_roadmap.md` ("Server ↔ central sync") for the tradeoff.
+      - Organization picker source-of-truth drift (found 2026-10-07): ICS-Mobile-App's profile screen organization
+        picker (`ICS-Mobile-App/lib/models/organizations.dart`, `Organizations.bundled`) hardcodes the full CAP
+        Great Lakes Region roster (MI/IL/IN/KY/OH/WI wings + squadrons) plus a handful of state-agency/civilian
+        entries as its offline-first fallback. Its docstring claims this mirrors an authoritative
+        `data/db/sarapp_db/org_catalog.py` in this repo, but that file does not exist here (never committed, not
+        in any worktree/stash) — the desktop app has no equivalent seeded organization list at all, and the
+        central master catalog's `organizations` collection starts empty. A CSV derived from the Dart list
+        (`data/master_catalog_seed/organizations_glr_seed.csv`) exists to seed the catalog via
+        `/central-master/gui/organizations/import`, but until that's uploaded and both clients are pointed at the
+        synced catalog instead of (or in addition to) their own bundled/hardcoded copies, desktop and mobile can
+        disagree about what organizations exist. Needs: (1) someone to actually upload the seed CSV to a real
+        central-master instance, (2) a decision on whether `org_catalog.py` should be created in this repo as a
+        real shared source (as the Dart docstring assumes) or whether the mobile app's bundled list should instead
+        be treated as the one hand-maintained copy with desktop reading from the synced catalog only, (3) the
+        desktop app currently has no "Organizations" picker backed by this same roster at all outside the admin
+        Units & Organizations panel — confirm whether any desktop UI needs one before building it.
 
 **************************************************************************************************************
 [GIS]
