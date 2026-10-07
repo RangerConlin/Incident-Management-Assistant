@@ -51,3 +51,30 @@ def test_bulk_insert_empty_list_is_a_noop():
     repo = _Repo(get_incident_db(INCIDENT_ID))
     assert repo.bulk_insert([]) == 0
     assert repo.find_many({}) == []
+
+
+def test_upsert_one_inserts_when_no_document_matches_filter():
+    _clear()
+    repo = _Repo(get_incident_db(INCIDENT_ID))
+
+    doc = repo.upsert_one({"name": "Team A"}, {"status": "Available"})
+
+    assert doc["name"] == "Team A"
+    assert doc["status"] == "Available"
+    assert repo.count({}) == 1
+
+    _clear()
+
+
+def test_upsert_one_updates_existing_document_matching_filter():
+    _clear()
+    repo = _Repo(get_incident_db(INCIDENT_ID))
+    inserted = repo.insert_one({"name": "Team A", "status": "Available"})
+
+    doc = repo.upsert_one({"name": "Team A"}, {"status": "Assigned"})
+
+    assert doc["_id"] == inserted["_id"]
+    assert doc["status"] == "Assigned"
+    assert repo.count({}) == 1
+
+    _clear()

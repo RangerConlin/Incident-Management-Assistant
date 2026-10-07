@@ -179,6 +179,29 @@ class BaseRepository:
             self._broadcast(op, doc_id, doc)
         return result.matched_count > 0
 
+    def upsert_one(
+        self,
+        filter: Dict[str, Any],
+        updates: Dict[str, Any],
+        *,
+        touch_updated_at: bool = True,
+    ) -> Dict[str, Any]:
+        """Update the document matching `filter`, or insert one (filter fields
+        merged with `updates`) if none exists.
+
+        For join/lookup collections keyed by a natural field (e.g. a foreign
+        record id) rather than `_id` — the one case where a write needs to
+        upsert by an alternate key instead of `apply_update`'s `_id` lookup.
+        `filter` is matched as-is against the raw collection, ignoring
+        `deleted`, since callers upsert by their natural key regardless of
+        soft-delete state.
+        """
+        existing = self._col.find_one(filter)
+        if existing is None:
+            return self.insert_one({**filter, **updates})
+        self.update_one(existing["_id"], updates, touch_updated_at=touch_updated_at)
+        return self.find_by_id(existing["_id"], include_deleted=True)
+
     def soft_delete(self, doc_id: str) -> bool:
         """Mark a document as deleted without removing it from the collection."""
         return self.update_one(doc_id, {"deleted": True}, touch_updated_at=True)
