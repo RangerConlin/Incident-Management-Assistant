@@ -63,17 +63,16 @@ Required environment variables (see `docker-compose.yml`):
   `router/config.py`.
 
 Traefik is part of the standard deployment for this service. The compose file
-always includes Traefik labels and attaches the router container to the
-external Traefik network. The expected defaults are:
+always includes Traefik labels. The expected defaults are:
 
-- `TRAEFIK_NETWORK=traefik`
 - `TRAEFIK_ENTRYPOINT=websecure`
 - `TRAEFIK_TLS=true`
 
-The external Docker network named by `TRAEFIK_NETWORK` must already exist and
-the Traefik container must be attached to it. With the defaults above and
-`SARAPP_CLOUD_ROUTER_HOST=sarapp.example.com`, the router should be reachable
-at:
+Traefik must be configured to watch Docker labels and to reach the router
+container on port `8765`. On the current VPS, Traefik runs in Docker `host`
+network mode, so no shared external Traefik bridge network is required. With
+the defaults above and `SARAPP_CLOUD_ROUTER_HOST=sarapp.example.com`, the
+router should be reachable at:
 
 - `https://sarapp.example.com/dashboard` — read-only router status dashboard.
 - `wss://sarapp.example.com/tunnel/register` — LAN/cloud server tunnel

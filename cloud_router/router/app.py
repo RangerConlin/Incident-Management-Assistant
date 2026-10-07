@@ -25,7 +25,7 @@ import uuid
 from typing import Any, Callable
 
 from fastapi import FastAPI, Header, Request, Response, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 from . import config
 from .dashboard import DASHBOARD_HTML
@@ -76,6 +76,10 @@ def create_router_app(*, server_info_fn: Callable[[], dict[str, Any]] | None = N
     @app.get("/server-info")
     async def server_info() -> dict[str, Any]:
         return server_info_fn() if server_info_fn else {}
+
+    @app.get("/login")
+    async def login_alias() -> RedirectResponse:
+        return RedirectResponse("/central-master/gui/login", status_code=307)
 
     @app.websocket("/tunnel/register")
     async def tunnel_register(websocket: WebSocket) -> None:

@@ -14,7 +14,6 @@ services:
       - "8765:8765"
     labels:
       - traefik.enable=true
-      - traefik.docker.network=${TRAEFIK_NETWORK:-traefik}
       - traefik.http.routers.sarapp-cloud-router.rule=Host(`${SARAPP_CLOUD_ROUTER_HOST:?SARAPP_CLOUD_ROUTER_HOST must be set}`)
       - traefik.http.routers.sarapp-cloud-router.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}
       - traefik.http.routers.sarapp-cloud-router.tls=${TRAEFIK_TLS:-true}
@@ -38,7 +37,6 @@ services:
       - mongo
     networks:
       - sarapp-net
-      - traefik
 
   mongo:
     image: mongo:7
@@ -54,6 +52,3 @@ volumes:
 
 networks:
   sarapp-net:
-  traefik:
-    external: true
-    name: ${TRAEFIK_NETWORK:-traefik}
