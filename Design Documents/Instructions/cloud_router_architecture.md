@@ -106,17 +106,74 @@ This is optional: leaving `SARAPP_CLOUD_ROUTER_MONGO_URI` unset at deploy
 time keeps `cloud_router/` running as the plain stateless proxy it always
 was, with no embedded database mounted.
 
+**Web GUI (MVP, `cloud_router/master_db/webgui.py`):** a plain server-rendered
+HTML + vanilla-JS-free CRUD GUI at `/central-master/gui/...` (same
+session-cookie admin login pattern as `cloud_server/dashboard.py`, env vars
+`CENTRAL_MASTER_ADMIN_USERNAME`/`CENTRAL_MASTER_ADMIN_PASSWORD[_SHA256]`/
+`CENTRAL_MASTER_SESSION_SECRET`). Covers `personnel` and `equipment` so far
+— each collection's editable fields are declared explicitly in a
+`CollectionSpec` (most master routers take loose `dict[str, Any]` bodies
+rather than a strict Pydantic request model, so there is no schema to
+introspect generically). The GUI never touches Mongo directly: each
+`CollectionSpec` wraps the *same* master-router functions the
+`/central-master/api/master/...` HTTP routes call (e.g.
+`sarapp_db.api.routers.personnel.create_person`), invoked in-process as
+plain Python functions rather than looping an HTTP call back into the same
+app — the code path is identical either way. Extending to more collections
+is tracked in `backlog.md`.
+
+**Server ↔ central sync relay (`data/db/sarapp_db/sync/`):** implemented as
+push-on-write with a local outbox, not MongoDB change streams — every
+deployment today runs a standalone `mongod` (no replica set, which change
+streams require even for a single node), so this was built to work with
+what's actually deployed rather than requiring an infrastructure migration
+first. See the "Server ↔ central sync" section in
+`realtime_architecture_roadmap.md` for the full design and why. In brief:
+`BaseRepository.insert_one`/`update_one`/`apply_update` call
+`sync.relay.relay_local_write()` for any write to a collection in
+`sync.config.SYNCABLE_MASTER_COLLECTIONS` (currently just `personnel`) on a
+server's *local* `sarapp_master` (never on `sarapp_central_master` itself,
+so cloud_router's own writes don't loop back into "relay to central") —
+this attempts an immediate HTTP push to `/api/sync/push` on the central
+database (`data/db/sarapp_db/api/routers/sync.py`, mounted only in
+`mode="master_only"`), and queues it in a local outbox
+(`sarapp_system.sync_state`) for retry if that fails (e.g. offline).
+`sync.loop.CentralSyncLoop` (a daemon thread started by `lan_server/
+server_manager.py` and `cloud_server/main.py`, no-oping when
+`SARAPP_CENTRAL_MASTER_URL` is unset) periodically drains that outbox and
+pulls down anything changed centrally since each collection's last
+checkpoint (`sarapp_system.sync_pull_checkpoints`). Conflicts resolve by
+pure last-write-wins on `updated_at` — no logging, no review step; two
+genuinely simultaneous edits aren't a realistic case worth building a
+review workflow around, so whichever write has the newer timestamp simply
+wins (ties go to the incoming write). `data/db/sync_local_to_cloud.py` (the
+old one-way full-replace script) no longer touches `sarapp_master` at all,
+to avoid clobbering this relay's state; it's scoped to incident database
+mirroring only now.
+
+Deletes relay too: `BaseRepository.delete_one` (hard delete, used by
+`soft_deletes=False` collections like `equipment`) relays via a
+`MasterCollections.SYNC_TOMBSTONES` marker, kept separately from the real
+collection so a literal removal centrally doesn't go undiscovered by a
+later pull. A `soft_deletes=True` collection's own soft-deletes already
+relay for free through the ordinary upsert path — see the "Deletes" bullet
+in `mongodb_schema_decisions.md`'s "Central-Master Sync Relay" section for
+the full mechanics.
+
+Master vs. incident data, by design: the master catalog is pre-filled
+reference data that exists to make retrieving a full record fast (type a
+name, get back rank/callsign/phone/etc. instead of typing it all by hand).
+An incident's copy is a one-time download of that reference data into the
+incident — once copied, it's independent, and is never automatically
+re-synced just because the master record changed later. (An earlier version
+of this work added exactly that kind of continuous reconciliation; it was
+deliberately removed as inconsistent with this model — see
+`mongodb_schema_decisions.md` "Master-Incident Record Linking.")
+
 **Still to be designed/built** (tracked in `backlog.md`):
-- A web GUI for editing the central catalog (no such GUI exists yet anywhere
-  — today master data is only edited through the desktop app's admin panels
-  over LAN/localhost).
-- Durable `master_link` records tying an incident-local copy of a master
-  record (e.g. a person added to an incident roster) back to the master
-  record it came from, with two-way sync and surfaced conflicts.
-- The actual sync mechanism between each server's local `sarapp_master` and
-  this central database. A literal cross-WAN MongoDB replica set does not
-  fit the existing dial-out tunnel topology (LAN servers are not
-  independently reachable); the working plan is MongoDB change streams
-  relayed over the existing tunnel/API channel instead — see the addition to
-  `realtime_architecture_roadmap.md`.
+- Generalizing the web GUI from 2 collections to the full ~40-collection
+  inventory, and per-operator accounts/an audit trail (MVP is one shared
+  admin login).
+- Extending the sync relay beyond `personnel`/`equipment` to the other
+  syncable master collections.
 

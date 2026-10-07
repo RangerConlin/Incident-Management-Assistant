@@ -1,11 +1,15 @@
 """Builds the central master-catalog sub-app mounted into cloud_router.
 
-This module never implements its own Mongo access or routers — it reuses
-``sarapp_db.api.app.create_app(mode="master_only")`` verbatim, exactly like
-``cloud_server`` reuses the full ``create_app()``. The only thing specific to
-cloud_router is pointing that shared app at cloud_router's own Mongo instance
-(``SARAPP_CLOUD_ROUTER_MONGO_URI``) and at the ``sarapp_central_master``
-database name instead of each server's local ``sarapp_master``.
+This module never implements its own Mongo access or master-data routers —
+it reuses ``sarapp_db.api.app.create_app(mode="master_only")`` verbatim,
+exactly like ``cloud_server`` reuses the full ``create_app()``. The only
+thing specific to cloud_router is pointing that shared app at cloud_router's
+own Mongo instance (``SARAPP_CLOUD_ROUTER_MONGO_URI``) and at the
+``sarapp_central_master`` database name instead of each server's local
+``sarapp_master``. It then adds one thing cloud_router *does* own:
+``master_db.webgui``'s browser-based CRUD GUI at ``/gui/...`` (so,
+``/central-master/gui/...`` once mounted) — the GUI itself still calls the
+same master-router functions, never Mongo directly.
 """
 
 from __future__ import annotations
@@ -47,4 +51,9 @@ def create_master_app() -> FastAPI | None:
     from sarapp_db.api.app import create_app
 
     logger.info("Central master database enabled (mode=master_only).")
-    return create_app(mode="master_only")
+    app = create_app(mode="master_only")
+
+    from master_db.webgui import create_master_gui_router
+
+    app.include_router(create_master_gui_router())
+    return app

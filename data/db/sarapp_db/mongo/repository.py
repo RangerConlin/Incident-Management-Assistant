@@ -36,11 +36,23 @@ def _new_id() -> str:
     return str(uuid.uuid4())
 
 
+_LOCAL_MASTER_DB_NAME = "sarapp_master"
+
+
 def _incident_id_for_db(db: Database) -> Optional[str]:
     name = db.name
     if not name.startswith(_INCIDENT_DB_PREFIX):
         return None
     return name[len(_INCIDENT_DB_PREFIX):]
+
+
+def _is_local_master_db(db: Database) -> bool:
+    # Checked against the literal db name, never the env-resolved
+    # get_master_db() target — cloud_router's own process resolves that to
+    # sarapp_central_master, and a write happening there is already on the
+    # central database, not something that needs relaying *to* it (see
+    # sarapp_db.sync.relay).
+    return db.name == _LOCAL_MASTER_DB_NAME
 
 
 class BaseRepository:
@@ -68,6 +80,7 @@ class BaseRepository:
         self._db = db
         self._col = db[self.collection_name]
         self._incident_id = _incident_id_for_db(db)
+        self._is_local_master = _is_local_master_db(db)
 
     def _broadcast(self, op: str, doc_id: Any, doc: Optional[Dict[str, Any]]) -> None:
         if self._incident_id is None:
@@ -87,6 +100,20 @@ class BaseRepository:
         except Exception:
             logger.exception("Failed to broadcast %s change on '%s'", op, self.collection_name)
 
+    def _relay_to_central(self, doc: Optional[Dict[str, Any]]) -> None:
+        if not self._is_local_master or doc is None:
+            return
+        from sarapp_db.sync.relay import relay_local_write
+
+        relay_local_write(self._db, self.collection_name, doc)
+
+    def _relay_delete_to_central(self, doc_id: Any) -> None:
+        if not self._is_local_master:
+            return
+        from sarapp_db.sync.relay import relay_local_delete
+
+        relay_local_delete(self._db, self.collection_name, str(doc_id))
+
     def insert_one(self, document: Dict[str, Any]) -> Dict[str, Any]:
         """Insert a document, generating a string _id if one is not provided."""
         doc = dict(document)
@@ -102,6 +129,7 @@ class BaseRepository:
         except Exception as exc:
             raise RepositoryError(f"insert_one failed on '{self.collection_name}': {exc}") from exc
         self._broadcast("created", doc["_id"], doc)
+        self._relay_to_central(doc)
         return doc
 
     def bulk_insert(self, documents: List[Dict[str, Any]]) -> int:
@@ -177,6 +205,7 @@ class BaseRepository:
             doc = self._col.find_one({"_id": doc_id})
             op = "deleted" if doc and doc.get("deleted") is True else "updated"
             self._broadcast(op, doc_id, doc)
+            self._relay_to_central(doc)
         return result.matched_count > 0
 
     def upsert_one(
@@ -218,6 +247,7 @@ class BaseRepository:
             raise RepositoryError(f"delete_one failed on '{self.collection_name}' id='{doc_id}': {exc}") from exc
         if result.deleted_count > 0:
             self._broadcast("deleted", doc_id, None)
+            self._relay_delete_to_central(doc_id)
         return result.deleted_count > 0
 
     def delete_many(self, query: Dict[str, Any]) -> int:

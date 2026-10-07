@@ -30,6 +30,7 @@ from lan_server.cloud_tunnel_client import (
 )
 from lan_server.networking.discovery import DiscoveryBroadcaster
 from lan_server.notification_trigger_loop import NotificationTriggerLoop
+from sarapp_db.sync.loop import CentralSyncLoop
 from lan_server.networking.server_info import (
     DEFAULT_DISCOVERY_PORT,
     DEFAULT_SERVER_PORT,
@@ -78,6 +79,11 @@ class SARAppServerManager:
         self._thread: threading.Thread | None = None
         self._broadcaster = DiscoveryBroadcaster(self.server_info, port=discovery_port)
         self._notification_trigger_loop = NotificationTriggerLoop()
+        # No-ops entirely when SARAPP_CENTRAL_MASTER_URL isn't set, so
+        # starting it unconditionally costs nothing for deployments that
+        # haven't opted into the central master database — see
+        # Design Documents/Instructions/cloud_router_architecture.md.
+        self._central_sync_loop = CentralSyncLoop()
         self._tunnel_client = CloudTunnelClient(
             local_port=self.port,
             server_id=self.server_info.server_id,
@@ -138,13 +144,15 @@ class SARAppServerManager:
         self._tunnel_client.start()
 
         self._notification_trigger_loop.start()
+        self._central_sync_loop.start()
 
     def stop(self) -> None:
-        """Stop discovery, the notification trigger loop, and the cloud
-        tunnel, then shut down the API server."""
+        """Stop discovery, the notification trigger loop, the central sync
+        loop, and the cloud tunnel, then shut down the API server."""
         self.server_info.status = ServerStatus.STOPPING
         self._broadcaster.stop()
         self._notification_trigger_loop.stop()
+        self._central_sync_loop.stop()
         self._tunnel_client.stop()
         if self._server is not None:
             self._server.should_exit = True

@@ -17,7 +17,13 @@ class SystemCollections:
     APP_SETTINGS = "app_settings"
     SERVER_IDENTITY = "server_identity"
     WORKSTATIONS = "workstations"
+    # Outbox for the central-master sync relay (see data/db/sarapp_db/sync/):
+    # one doc per master-collection write still pending delivery to the
+    # central database, queued when an immediate push fails (e.g. offline).
     SYNC_STATE = "sync_state"
+    # Per-collection "last successfully pulled from central" watermark for
+    # the same relay — one doc per syncable master collection.
+    SYNC_PULL_CHECKPOINTS = "sync_pull_checkpoints"
     ACTIVE_INCIDENT = "active_incident"
     AUDIT_GLOBAL = "audit_global"
     INCIDENTS = "incidents"
@@ -91,6 +97,17 @@ class MasterCollections:
     # device can be re-associated to a different person on re-login; see
     # PUSH_TOKENS router for the upsert-by-token behavior)
     PUSH_TOKENS = "push_tokens"
+
+    # Central-master sync relay (cloud_router's embedded sarapp_central_master
+    # only — see data/db/sarapp_db/sync/ and cloud_router_architecture.md).
+    # Retains "this document was deleted" markers after the real document
+    # is removed from its own collection, so a server that pulls
+    # "what changed since X" later can still discover a deletion that
+    # happened before its last pull — a literal removal centrally would be
+    # invisible to that query (nothing to report as "changed"). Keyed by
+    # "{collection}:{doc_id}"; one entry per deleted document, never
+    # updated again after being written.
+    SYNC_TOMBSTONES = "sync_tombstones"
 
 
 class IncidentCollections:

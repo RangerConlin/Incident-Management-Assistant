@@ -1,11 +1,18 @@
 """
 SARApp local -> cloud MongoDB sync.
 
-Mirrors sarapp_master and every sarapp_incident_<id> database from a local
-MongoDB instance to the cloud server's MongoDB instance. Destination
-collections are dropped and reinserted from the source on every run (full
-replace), so the cloud DB ends up an exact copy of local for every database
-this script touches.
+Mirrors every sarapp_incident_<id> database from a local MongoDB instance to
+the cloud server's MongoDB instance. Destination collections are dropped and
+reinserted from the source on every run (full replace), so the cloud DB ends
+up an exact copy of local for every incident database this script touches.
+
+Does NOT touch sarapp_master: that collection now has a proper two-way sync
+path (`data/db/sarapp_db/sync/`, relaying to cloud_router's embedded central
+master database — see Design Documents/Instructions/
+cloud_router_architecture.md). A full drop-and-reinsert of sarapp_master
+would destroy sync_conflicts/outbox state that relay maintains, so this
+script was deliberately narrowed to incident databases only rather than kept
+as a parallel, conflicting path for the same data.
 
 URI resolution:
     Source (local):  SARAPP_MONGO_URI        (falls back to mongodb://localhost:27017)
@@ -27,9 +34,8 @@ _SOURCE_URI_ENV = "SARAPP_MONGO_URI"
 _DEST_URI_ENV = "SARAPP_CLOUD_MONGO_URI"
 _DEFAULT_SOURCE_URI = "mongodb://localhost:27017"
 
-_MASTER_DB = "sarapp_master"
 _INCIDENT_PREFIX = "sarapp_incident_"
-_SYSTEM_DBS = {"admin", "local", "config", "sarapp_system"}
+_SYSTEM_DBS = {"admin", "local", "config", "sarapp_system", "sarapp_master"}
 
 
 def _connect(uri: str, label: str) -> MongoClient:
@@ -78,11 +84,11 @@ def main() -> int:
 
     db_names = [
         name for name in source_client.list_database_names()
-        if name not in _SYSTEM_DBS and (name == _MASTER_DB or name.startswith(_INCIDENT_PREFIX))
+        if name not in _SYSTEM_DBS and name.startswith(_INCIDENT_PREFIX)
     ]
 
     if not db_names:
-        print("No master or incident databases found locally. Nothing to sync.")
+        print("No incident databases found locally. Nothing to sync.")
         return 0
 
     for db_name in sorted(db_names):

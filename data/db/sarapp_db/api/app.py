@@ -170,6 +170,13 @@ def create_app(server_info_fn=None, request_log_fn=None, mode: str = "full") -> 
     from sarapp_db.api.routers import canned_comm_entries
     app.include_router(canned_comm_entries.router, prefix="/api/master/canned-comm-entries", tags=["communications"])
 
+    if mode == "master_only":
+        from sarapp_db.api.routers import sync as sync_router
+        app.include_router(sync_router.router, prefix="/api/sync", tags=["sync"])
+    else:
+        from sarapp_db.api.routers import sync_trigger
+        app.include_router(sync_trigger.router, prefix="/api/sync-trigger", tags=["sync"])
+
     if include_incident_routers:
         from sarapp_db.api.routers import objectives
         from sarapp_db.api.routers import auth_sessions

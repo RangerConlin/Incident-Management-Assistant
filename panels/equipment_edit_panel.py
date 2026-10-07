@@ -267,6 +267,12 @@ class EquipmentEditPanel(QWidget):
         self.export_button.setToolTip("Export equipment")
         header.addWidget(self.export_button)
 
+        self.resync_button = QPushButton("Resync")
+        self.resync_button.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_BrowserReload))
+        self.resync_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.resync_button.setToolTip("Force an immediate resync with the central master catalog")
+        header.addWidget(self.resync_button)
+
         card_layout.addLayout(header)
 
         # Filter bar
@@ -385,6 +391,7 @@ class EquipmentEditPanel(QWidget):
         self.delete_button.clicked.connect(self._on_delete)
         self.import_button.clicked.connect(self._on_import)
         self.export_button.clicked.connect(self._on_export)
+        self.resync_button.clicked.connect(self._on_resync)
         self.retry_button.clicked.connect(self.refresh)
         self.table.activated.connect(lambda _: self._on_edit_selected())
 
@@ -591,6 +598,29 @@ class EquipmentEditPanel(QWidget):
         self.export_button.setEnabled(True)
         self._show_toast("Export failed", message, severity="error")
         QMessageBox.critical(self, "Export failed", message)
+
+    # ----- Resync --------------------------------------------------------
+    def _on_resync(self) -> None:
+        from utils.api_client import api_client
+
+        def _task() -> dict[str, Any]:
+            return api_client.post("/api/sync-trigger/resync") or {}
+
+        self.resync_button.setEnabled(False)
+        run_async(self, _task, self._on_resync_done, self._on_resync_failed)
+
+    def _on_resync_done(self, result: dict[str, Any]) -> None:
+        self.resync_button.setEnabled(True)
+        if result.get("synced"):
+            self._show_toast("Resync complete", "Equipment catalog resynced with the central master database.")
+            self.refresh()
+        else:
+            reason = result.get("reason") or "Central sync is not configured on this server."
+            self._show_toast("Resync unavailable", reason, severity="warning")
+
+    def _on_resync_failed(self, message: str) -> None:
+        self.resync_button.setEnabled(True)
+        self._show_toast("Resync failed", message, severity="error")
 
     # ----- Toast helper ------------------------------------------------------
     def _show_toast(self, title: str, message: str, *, severity: str = "success") -> None:

@@ -41,8 +41,19 @@ def test_master_db_not_mounted_when_uri_unset(monkeypatch) -> None:
     assert "/tunnel/register" in paths
 
 
-def test_master_db_mounted_when_uri_set(monkeypatch) -> None:
+def _set_embedded_mongo_env(monkeypatch) -> None:
     monkeypatch.setenv("SARAPP_CLOUD_ROUTER_MONGO_URI", "mongodb://localhost:27017")
+    # create_master_app() also sets these two directly on os.environ (a
+    # deliberate one-time process-wide config step in cloud_router's real
+    # process). Pre-seed them via monkeypatch too so its teardown restores
+    # the pre-test value instead of leaking into later tests in this shared
+    # pytest process — see the longer note in test_master_db_webgui.py.
+    monkeypatch.setenv("SARAPP_MONGO_URI", "mongodb://localhost:27017")
+    monkeypatch.setenv("SARAPP_MASTER_DB_NAME", "sarapp_central_master")
+
+
+def test_master_db_mounted_when_uri_set(monkeypatch) -> None:
+    _set_embedded_mongo_env(monkeypatch)
 
     app = create_router_app()
     paths = _route_paths(app)
@@ -52,7 +63,7 @@ def test_master_db_mounted_when_uri_set(monkeypatch) -> None:
 
 
 def test_master_db_serves_central_master_personnel_endpoint(monkeypatch) -> None:
-    monkeypatch.setenv("SARAPP_CLOUD_ROUTER_MONGO_URI", "mongodb://localhost:27017")
+    _set_embedded_mongo_env(monkeypatch)
 
     app = create_router_app()
     with TestClient(app) as client:

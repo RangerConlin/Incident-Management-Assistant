@@ -16,6 +16,7 @@ from sarapp_db.mongo.collection_names import IncidentCollections, SystemCollecti
 from sarapp_db.mongo.database_manager import get_incident_db, get_system_db
 from sarapp_db.mongo.errors import RepositoryError
 from sarapp_db.mongo.repository import BaseRepository
+from sarapp_db.mongo.server_identity import get_server_id
 
 FORMAT_ID = "sarapp-incident-export"
 FORMAT_VERSION = 1
@@ -67,6 +68,11 @@ def build_incident_export(incident_id: str) -> tuple[str, bytes]:
             "number": registry.get("number", ""),
             "name": registry.get("name", ""),
             "type": registry.get("type", ""),
+            # Which server this export was taken from — lets the importer
+            # tell whether a document's master_link.master_server_origin
+            # refers to the server it's being imported into or a foreign
+            # one, so it knows whether to even attempt local re-resolution.
+            "server_id": get_server_id(),
         },
         "collections": [],
     }

@@ -40,6 +40,11 @@ class ResourceStatusRepository(BaseRepository):
     collection_name = IncidentCollections.RESOURCE_STATUS
 
 
+class IncidentPersonnelRepository(BaseRepository):
+    collection_name = IncidentCollections.INCIDENT_PERSONNEL
+    soft_deletes = False
+
+
 def _personnel_repo() -> PersonnelRepository:
     return PersonnelRepository(get_master_db())
 
@@ -50,6 +55,10 @@ def _teams_repo(incident_id: str) -> TeamsRepository:
 
 def _resource_status_repo(incident_id: str) -> ResourceStatusRepository:
     return ResourceStatusRepository(get_incident_db(incident_id))
+
+
+def _incident_personnel_repo(incident_id: str) -> IncidentPersonnelRepository:
+    return IncidentPersonnelRepository(get_incident_db(incident_id))
 
 
 def _utcnow() -> str:
@@ -396,10 +405,11 @@ def save_checkin(
                     sorted(updates.keys()),
                 )
 
-            from sarapp_db.mongo.client import get_db
-            incident_personnel_col = get_db(f"sarapp_incident_{incident_id}")["incident_personnel"]
+            from sarapp_db.mongo.master_link import build_master_link
+            from sarapp_db.mongo.server_identity import get_server_id
+
+            incident_personnel_repo = _incident_personnel_repo(incident_id)
             copy_fields = {
-                _PERSON_RECORD: person_record,
                 "incident_id": incident_id,
                 "name": ident.get("name"),
                 "rank": ident.get("rank"),
@@ -411,9 +421,15 @@ def save_checkin(
                 "person_id": ident.get("person_id") or "",
                 "is_medic": bool(ident.get("is_medic", False)),
             }
-            incident_personnel_col.update_one(
-                {_PERSON_RECORD: person_record}, {"$set": copy_fields}, upsert=True
-            )
+            existing_incident_personnel = incident_personnel_repo.find_one({_PERSON_RECORD: person_record})
+            existing_link = (existing_incident_personnel or {}).get("master_link")
+            if existing_link is None:
+                copy_fields["master_link"] = build_master_link(
+                    master_collection="personnel",
+                    master_id=ident["_id"],
+                    master_server_origin=get_server_id(),
+                )
+            incident_personnel_repo.upsert_one({_PERSON_RECORD: person_record}, copy_fields)
             logger.info(
                 "checkin save upserted incident_personnel incident_id=%s person_record=%s",
                 incident_id,

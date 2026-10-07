@@ -107,8 +107,10 @@ def attach_dev_menu(main_window):
     act_forms.triggered.connect(_open_forms)
     dev_menu.addAction(act_forms)
 
-    # Sync Local -> Cloud MongoDB
-    act_cloud_sync = QAction("Sync Local -> Cloud…", main_window)
+    # Sync Local -> Cloud MongoDB (incident databases only — the master
+    # catalog now syncs via the central-master relay, see
+    # Design Documents/Instructions/cloud_router_architecture.md)
+    act_cloud_sync = QAction("Sync Local Incidents -> Cloud…", main_window)
 
     def _run_cloud_sync():
         cloud_uri = os.environ.get("SARAPP_CLOUD_MONGO_URI", "").strip()
@@ -126,8 +128,10 @@ def attach_dev_menu(main_window):
         confirm = QMessageBox.warning(
             main_window,
             "Sync Local -> Cloud",
-            "This will REPLACE every master and incident database on the cloud "
-            "server with the local copy. Existing cloud-only data will be lost.\n\n"
+            "This will REPLACE every incident database on the cloud server with "
+            "the local copy. Existing cloud-only incident data will be lost.\n\n"
+            "(The master catalog is not touched by this action — it syncs "
+            "separately through the central-master relay.)\n\n"
             "Continue?",
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,

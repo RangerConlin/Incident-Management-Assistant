@@ -21,6 +21,7 @@ from cloud_server.tunnel_client import (
     get_cloud_router_url,
 )
 from sarapp_db.api.app import create_app
+from sarapp_db.sync.loop import CentralSyncLoop
 
 
 def create_cloud_app():
@@ -52,13 +53,22 @@ def create_cloud_app():
     )
     app.state.cloud_tunnel_client = tunnel_client
 
+    # No-ops entirely when SARAPP_CENTRAL_MASTER_URL isn't set, so starting
+    # it unconditionally costs nothing for deployments that haven't opted
+    # into the central master database — see
+    # Design Documents/Instructions/cloud_router_architecture.md.
+    central_sync_loop = CentralSyncLoop()
+    app.state.central_sync_loop = central_sync_loop
+
     @app.on_event("startup")
     def _start_cloud_router_tunnel() -> None:
         tunnel_client.start()
+        central_sync_loop.start()
 
     @app.on_event("shutdown")
     def _stop_cloud_router_tunnel() -> None:
         tunnel_client.stop()
+        central_sync_loop.stop()
         logging.getLogger().removeHandler(log_handler)
 
     return app
