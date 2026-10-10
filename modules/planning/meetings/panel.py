@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from utils.edit_window_kit import make_sync_status_label, refresh_sync_status_label
 from utils.table_view_styles import apply_statusboard_table_behavior
 
 logger = logging.getLogger(__name__)
@@ -718,6 +719,7 @@ class _TemplateManagerWindow(QDialog):
         self._build_ui()
         self._load_list()
         self._load_op_template_list()
+        refresh_sync_status_label(self, self.sync_status_label, "meeting_templates")
 
     def _build_ui(self) -> None:
         root = QVBoxLayout(self)
@@ -746,6 +748,9 @@ class _TemplateManagerWindow(QDialog):
         left_layout.addWidget(self.template_list, 1)
         left_layout.addWidget(new_btn)
         left_layout.addWidget(delete_btn)
+        self.sync_status_label = make_sync_status_label()
+        self.sync_status_label.setWordWrap(True)
+        left_layout.addWidget(self.sync_status_label)
         left.setFixedWidth(200)
         meeting_root.addWidget(left)
 

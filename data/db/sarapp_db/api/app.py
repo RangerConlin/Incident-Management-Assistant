@@ -162,6 +162,12 @@ def create_app(server_info_fn=None, request_log_fn=None, mode: str = "full") -> 
     from sarapp_db.api.routers import certifications
     app.include_router(certifications.router, prefix="/api/master/certifications", tags=["personnel"])
 
+    from sarapp_db.api.routers import certification_types
+    app.include_router(certification_types.router, prefix="/api/master/certification-types", tags=["personnel"])
+
+    from sarapp_db.api.routers import qualification_types
+    app.include_router(qualification_types.router, prefix="/api/master/qualification-types", tags=["personnel"])
+
     from sarapp_db.api.routers import organizations
     app.include_router(organizations.router, prefix="/api/master", tags=["personnel"])
 

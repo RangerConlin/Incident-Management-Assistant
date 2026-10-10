@@ -21,7 +21,7 @@ SYNCABLE_MASTER_COLLECTIONS = (
     "personnel", "equipment", "vehicles", "aircraft",
     "hazard_types", "gar_templates", "canned_comm_entries", "hospitals",
     "objective_templates", "strategy_templates", "radio_channels",
-    "safety_analysis_templates",
+    "safety_analysis_templates", "meeting_templates",
 )
 
 

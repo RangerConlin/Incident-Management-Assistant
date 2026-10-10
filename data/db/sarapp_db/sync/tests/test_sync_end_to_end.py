@@ -42,6 +42,11 @@ class _LocalEquipmentRepository(BaseRepository):
     soft_deletes = False
 
 
+class _LocalMeetingTemplatesRepository(BaseRepository):
+    collection_name = "meeting_templates"
+    soft_deletes = False
+
+
 class _AlwaysFailsTransport:
     """Stand-in transport simulating "central unreachable" — any request
     raises, like a real connection failure would."""
@@ -168,6 +173,22 @@ def test_pull_and_apply_downloads_central_only_changes(sync_env):
     # (checkpoint already caught up).
     pull_and_apply("personnel", local_master_db=_local_db())
     assert checkpoint.get_last_pulled_at(_system_db(), "personnel") == "2026-01-01T00:00:00"
+
+
+def test_local_write_relays_for_a_slug_keyed_collection(sync_env):
+    """meeting_templates has no dual key — it's keyed by a user-chosen slug
+    with upsert semantics, not an auto-incrementing id (see
+    mongodb_schema_decisions.md "Personnel: central-vs-local record ids").
+    It still needs the ordinary push/pull relay, same as any other
+    SYNCABLE_MASTER_COLLECTIONS entry, just with no master-field minting."""
+    repo = _LocalMeetingTemplatesRepository(_local_db())
+
+    saved = repo.insert_one({"slug": "safety-briefing", "name": "Safety Briefing"})
+
+    central_doc = _central_db()["meeting_templates"].find_one({"_id": saved["_id"]})
+    assert central_doc is not None
+    assert central_doc["slug"] == "safety-briefing"
+    assert "slug_master" not in central_doc
 
 
 def test_push_assigns_equipment_record_master_once(sync_env):

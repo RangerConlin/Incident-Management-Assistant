@@ -37,6 +37,7 @@ class MasterCollections:
     CERTIFICATION_TYPES = "certification_types"
     CERTIFICATION_TAGS = "certification_tags"
     PERSONNEL_CERTIFICATIONS = "personnel_certifications"
+    QUALIFICATION_TYPES = "qualification_types"
     ORGANIZATION_TYPES = "organization_types"
     RANK_STRUCTURES = "rank_structures"
     ORGANIZATIONS = "organizations"

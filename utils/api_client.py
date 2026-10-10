@@ -203,7 +203,9 @@ class _APIClient:
         request_ms = (time.perf_counter() - request_started) * 1000.0
         decode_started = time.perf_counter()
         try:
-            return self._handle_response(resp)
+            result = self._handle_response(resp)
+            self._after_successful_response(method, path, result)
+            return result
         finally:
             decode_ms = (time.perf_counter() - decode_started) * 1000.0
             logger.debug(
@@ -226,6 +228,19 @@ class _APIClient:
         if not resp.content:
             return None
         return resp.json()
+
+    def _after_successful_response(self, method: str, path: str, result: Any) -> None:
+        """Apply client-side housekeeping tied to successful API responses."""
+        if method.upper() != "POST" or path != "/api/sync-trigger/resync":
+            return
+        if not isinstance(result, dict) or not result.get("synced"):
+            return
+        try:
+            from utils.catalog_cache import catalog_cache
+
+            catalog_cache.invalidate()
+        except Exception:
+            logger.debug("Unable to invalidate catalog cache after resync.", exc_info=True)
 
 
 # Module-level singleton — import and use directly.

@@ -627,6 +627,15 @@ def test_personnel_import_csv_with_certifications(monkeypatch) -> None:
     client = _client(monkeypatch)
     _login(client)
     _clear_personnel()
+    # certification_catalogs() now resolves codes against the real
+    # certification_types catalog (see Design Documents/legacycode.md —
+    # replaced the hardcoded cert_catalog.CATALOG) instead of a hardcoded
+    # Python list, so this test's "EMT:2" needs a matching catalog row.
+    from sarapp_db.mongo.database_manager import get_client as _get_mongo_client
+
+    cert_types_col = _get_mongo_client()["sarapp_central_master"]["certification_types"]
+    cert_types_col.delete_many({"code": "EMT"})
+    cert_types_col.insert_one({"id": 2003, "code": "EMT", "name": "Emergency Medical Technician", "category": "Medical", "issuing_org": "State EMS", "parent_id": None, "tags": ["MEDIC", "MEDICAL"], "is_active": True})
     try:
         csv_content = (
             "Name,Primary Role,Certifications\r\n"
@@ -646,6 +655,7 @@ def test_personnel_import_csv_with_certifications(monkeypatch) -> None:
         assert docs[0]["certifications"]
     finally:
         _clear_personnel()
+        cert_types_col.delete_many({"code": "EMT"})
 
 
 def test_equipment_export_and_import_round_trip(monkeypatch) -> None:

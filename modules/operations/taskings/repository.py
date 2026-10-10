@@ -22,13 +22,30 @@ from models.queries import (
 logger = logging.getLogger(__name__)
 
 CAPF109_ES_QUALIFICATION_CODES = {"GTL", "GTM1", "GTM2", "GTM3", "UDF", "UDH", "UAST", "UAS-MP"}
-CAPF109_CERT_TYPE_CODES = {
-    6001: "GTM3",
-    6002: "GTM2",
-    6003: "GTM1",
-    6004: "GTL",
-    6006: "UDF",
-}
+
+# Cache of {cert_type_id: code} from the master certification catalog, used
+# below only as a fallback for a bare embedded {"cert_type_id": X} with no
+# "code"/"name" already attached. Lazily built once per process rather than
+# a hardcoded id->code table (that table used to duplicate 5 of the
+# certification catalog's ids by hand — see
+# data/db/sarapp_db/api/routers/certification_types.py) since catalog edits
+# are rare and admin-driven, not something this needs to reflect live.
+_cert_code_by_id_cache: dict[int, str] | None = None
+
+
+def _cert_code_by_id(cert_type_id: Any) -> str:
+    global _cert_code_by_id_cache
+    if _cert_code_by_id_cache is None:
+        from modules.personnel.api import cert_api
+
+        try:
+            _cert_code_by_id_cache = {row["id"]: row.get("code", "") for row in cert_api.list_catalog()}
+        except Exception:
+            _cert_code_by_id_cache = {}
+    try:
+        return _cert_code_by_id_cache.get(int(cert_type_id), "")
+    except (TypeError, ValueError):
+        return ""
 
 
 def _split_tokens(value: Any) -> list[str]:
@@ -60,7 +77,7 @@ def _capf109_es_qualifications(row: dict[str, Any]) -> str:
     elif isinstance(certs, list):
         for cert in certs:
             if isinstance(cert, dict):
-                add_code(cert.get("code") or cert.get("name") or CAPF109_CERT_TYPE_CODES.get(cert.get("cert_type_id")))
+                add_code(cert.get("code") or cert.get("name") or _cert_code_by_id(cert.get("cert_type_id")))
             else:
                 add_code(cert)
 

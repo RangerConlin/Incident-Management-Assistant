@@ -96,3 +96,4 @@ settings/ads_perspectives.ini
 # SARAPP_FIREBASE_CREDENTIALS_PATH, the file itself must live outside the repo)
 *firebase*service*account*.json
 *firebase-adminsdk*.json
+lan_server/settings/firebase_credentials.json
