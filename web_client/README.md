@@ -67,8 +67,25 @@ both:
    Configurable via env vars (`.env` in this directory, see the defaults in
    `docker-compose.yml`): `COMPOSE_PROJECT_NAME`, `SARAPP_WEB_CLIENT_ROUTE_RULE`
    (Traefik router rule — defaults to serving under `/app` on whatever
-   domain Traefik already fronts; set to e.g. `` Host(`app.example.org`) ``
-   for a dedicated subdomain instead).
+   domain Traefik already fronts; set to a `Host(...)` rule for a dedicated
+   subdomain instead). Compose reads this `.env` automatically (no
+   `--env-file` flag needed) since it lives next to `docker-compose.yml`.
+
+   Production target: `client.arcadiacommandsolutions.com`, as its own
+   subdomain (not a path under an existing domain). VPS `.env`:
+
+   ```
+   SARAPP_WEB_CLIENT_ROUTE_RULE=Host(`client.arcadiacommandsolutions.com`)
+   ```
+
+   Needs DNS for that subdomain pointed at the VPS (outside this repo).
+   TLS is expected to come from whatever default cert resolver Traefik on
+   this VPS already applies — neither `cloud_server/docker-compose.yml`
+   nor `cloud_router/docker-compose.yml` sets a per-router `certresolver`
+   label either, so Traefik's static config evidently has a default one.
+   Not independently confirmed for a brand-new host/domain; if a cert
+   doesn't issue automatically, check that static config before adding a
+   `certresolver` label here.
 
    No shared Traefik network to configure — this container doesn't join
    one. Confirmed on the actual VPS (`docker network ls`): Traefik there
