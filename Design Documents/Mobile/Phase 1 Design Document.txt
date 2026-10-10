@@ -9,6 +9,12 @@ The initial mobile app release will focus on the following critical capabilities
 Users connect to a SARApp FastAPI server
 
 The current server does not expose a mobile JWT/login endpoint
+[Update 2026-10-10: a password/JWT login now exists — POST /api/auth/password/set
+and POST /api/auth/login in data/db/sarapp_db/api/routers/auth_sessions.py — but it
+was built for web_client/ (see Design Documents/Instructions/database_architecture.md,
+"Authentication"), not wired into any mobile client yet. It reuses the same
+users/personnel resolution this doc's endpoints already describe, so it should be
+reusable here rather than needing a second implementation.]
 
 After connection, users select the incident they are joining
 

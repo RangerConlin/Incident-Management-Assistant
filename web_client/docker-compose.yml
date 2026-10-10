@@ -1,0 +1,41 @@
+# Same packaging style as cloud_server/docker-compose.yml and
+# cloud_router's own compose file (Traefik labels, env-var-driven routing)
+# — standalone, no shared files/images with either of those. No database
+# of its own, but it does need to know which backend to reach: nginx
+# proxies /api/ to SARAPP_BACKEND_HOST's public connect-code URL (the same
+# one desktop/mobile already use through cloud_router), set below so the
+# container works for anyone who opens this domain, no per-browser
+# Connection Settings setup required for the common case. Connection
+# Settings (src/api/connection.ts) still exists client-side as an
+# override for pointing one browser at a different server.
+#
+# No shared "traefik" network to join here, by design: this VPS's Traefik
+# runs with --network host, reaching every container via the Docker
+# socket + its bridge-network IP directly, the same way cloud_server/
+# cloud_router each sit on their own private per-project network
+# (cloud_server_sarapp-net, cloud_router_sarapp-net — confirmed via
+# `docker network ls`, neither joins a common external network either).
+# Only the Traefik labels below matter for discovery.
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      # Deployment-specific — set in this directory's own .env (gitignored,
+      # never committed), same convention as cloud_server's SARAPP_CONNECT_CODE.
+      SARAPP_BACKEND_HOST: ${SARAPP_BACKEND_HOST:?set SARAPP_BACKEND_HOST}
+      SARAPP_BACKEND_CONNECT_CODE: ${SARAPP_BACKEND_CONNECT_CODE:?set SARAPP_BACKEND_CONNECT_CODE}
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME:-sarapp-web-client}.rule=${SARAPP_WEB_CLIENT_ROUTE_RULE:-PathPrefix(`/app`)}
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME:-sarapp-web-client}.entrypoints=websecure
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME:-sarapp-web-client}.tls=true
+      # Without this, Traefik's "letsencrypt" resolver (configured on the
+      # shared VPS Traefik instance) never gets asked to issue a cert for
+      # this router's domain, so it falls back to Traefik's self-signed
+      # default cert — confirmed via openssl s_client showing "TRAEFIK
+      # DEFAULT CERT" for client.arcadiacommandsolutions.com.
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME:-sarapp-web-client}.tls.certresolver=letsencrypt
+      - traefik.http.services.${COMPOSE_PROJECT_NAME:-sarapp-web-client}.loadbalancer.server.port=80

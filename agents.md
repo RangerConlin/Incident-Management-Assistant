@@ -39,6 +39,7 @@
 - `lan_server/`: Standalone LAN server runtime and console tooling.
 - `cloud_server/`: Hosted Docker/Traefik cloud server wrapper, per-server dashboard, and Mongo backup import/export tooling. Dials out to and registers with `cloud_router/`, the same way a LAN server does.
 - `cloud_router/`: Reverse-tunnel proxy. Owns the public `/r/<CONNECT_CODE>/...` URL and forwards traffic to whichever LAN/cloud server has registered that connect code. No incident data, no shared files/imports with `cloud_server/`. Also optionally owns an embedded central master-catalog database (`cloud_router/master_db/`, see above) — the one exception to "no database."
+- `web_client/`: React/Vite SPA, a full-CRUD browser clone of the desktop app built module by module (see `Design Documents/Instructions/product_structure.md` "Client Surfaces"). The one place in this repo with Node/JS tooling — has its own `AGENTS.md`, which also documents the pattern each new module follows. Talks to the same shared FastAPI app as every other client; no separate backend. Its build (`web_client/dist`) is served by `create_app()` at `/app` when present.
 
 ## Coding Defaults
 - Target Python 3.11.
@@ -70,6 +71,7 @@
 - Product structure, module inventory, and roadmap: `Design Documents/Instructions/product_structure.md`
 - Planned real-time architecture: `Design Documents/Instructions/realtime_architecture_roadmap.md`
 - Cloud server hosting architecture: `Design Documents/Instructions/cloud_router_architecture.md`
+- VPS deployment packaging and Traefik (per-service Docker packaging, how this VPS's Traefik actually discovers containers, routing conventions): `Design Documents/Instructions/vps_deployment.md`
 - Planned Events Toolkit Phase 0 audit (reuse matrix, domain boundaries, hardening backlog): `Design Documents/Instructions/planned_events_phase0_audit.md`
 
 ## Updating Instructions
