@@ -216,6 +216,18 @@ Cost Summary
 
 **************************************************************************************************************
 [Tech Debt / Infrastructure]
+    - Web client (`web_client/`, added 2026-10-10): a React/Vite SPA MVP scoped to the same feature set as
+      `Design Documents/Mobile/Phase 1 Design Document.txt` (login/check-in, role-based status updates or admin
+      check-in, messaging), served by the shared FastAPI app at `/app` when `web_client/dist` exists (see
+      `data/db/sarapp_db/api/app.py`). It added `POST /api/auth/password/set` and `POST /api/auth/login`
+      (`data/db/sarapp_db/api/routers/auth_sessions.py`) — salted-PBKDF2 password + JWT (`SARAPP_JWT_SECRET`,
+      random per-process fallback if unset). That token is currently checked by nothing: every shared router the
+      web client calls (checkin, operations, chat, incidents) still accepts unauthenticated requests, same as
+      desktop. Needed before this is safe to expose beyond a trusted LAN: (1) a FastAPI dependency that verifies
+      the JWT and 401s without one, applied to those shared routers; (2) a password reset/change flow (today
+      `/password/set` only works once per account, by design, to avoid building reset for the MVP); (3) deciding
+      whether desktop/mobile should eventually carry the same token instead of staying unauthenticated. See
+      `Design Documents/Instructions/database_architecture.md` ("Authentication").
     - Optimization follow-up: profile Edit-menu windows and the task detail window to identify why modest datasets
       are not opening faster; tie this to any decision about reusing/caching Edit windows.
     - Sidebar: revisit large Edit-menu CSV import/export workflows with progress/cancel behavior and possible

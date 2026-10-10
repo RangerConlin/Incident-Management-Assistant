@@ -3,6 +3,10 @@
 All three server types (LAN standalone, cloud, built-in offline) import and
 serve this app via uvicorn.  Module routers are registered here as they are
 built out during the SQLite -> MongoDB cutover.
+
+In "full" mode this also mounts the built web client (``web_client/dist``,
+see that directory's README) at ``/app`` when present, so the same process
+serving the API serves the web app too.
 """
 
 from __future__ import annotations
@@ -305,5 +309,16 @@ def create_app(server_info_fn=None, request_log_fn=None, mode: str = "full") -> 
 
         from sarapp_db.api.routers import chat
         app.include_router(chat.router, prefix="/api", tags=["chat"])
+
+    # -------------------------------------------------------------------------
+    # Web client static build (mounted last so it never shadows an /api route)
+    # -------------------------------------------------------------------------
+    if mode == "full":
+        from pathlib import Path
+        from fastapi.staticfiles import StaticFiles
+
+        web_client_dist = Path(__file__).resolve().parents[4] / "web_client" / "dist"
+        if web_client_dist.is_dir():
+            app.mount("/app", StaticFiles(directory=str(web_client_dist), html=True), name="web_client")
 
     return app

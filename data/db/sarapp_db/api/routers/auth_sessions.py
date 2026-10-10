@@ -3,14 +3,26 @@
 The server owns authenticated users and session/presence state.  Desktop uses
 these routes today to register local/offline operator context; cloud auth can
 reuse the same records when password/token endpoints are added.
+
+``/password/set`` and ``/login`` below are that password/token addition.
+They currently back the web client's login flow only; desktop and the other
+shared routers (checkin, operations, chat, etc.) still accept requests with
+no token, so this is identity for the web client rather than an access
+control layer enforced across the API yet.
 """
 
 from __future__ import annotations
 
+import hashlib
+import hmac
+import os
+import secrets
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import uuid4
 
+import jwt
 from fastapi import APIRouter, Body, HTTPException, Query
 
 from sarapp_db.api.routers.personnel import PersonnelRepository
@@ -20,6 +32,28 @@ from sarapp_db.mongo.int_id import next_record_id
 from sarapp_db.mongo.mongo_client import get_client
 
 router = APIRouter()
+
+_JWT_ALGORITHM = "HS256"
+_JWT_TTL_SECONDS = 12 * 60 * 60
+_PBKDF2_ITERATIONS = 200_000
+
+# Falls back to a random per-process secret when SARAPP_JWT_SECRET is unset,
+# same as cloud_router/master_db/config.py's session_secret pattern; tokens
+# issued before a restart stop validating once the fallback regenerates, so
+# deployments that need tokens to survive a restart must set the env var.
+_JWT_SECRET = os.environ.get("SARAPP_JWT_SECRET") or secrets.token_urlsafe(32)
+
+
+def _hash_password(password: str, salt: str) -> str:
+    return hashlib.pbkdf2_hmac(
+        "sha256", password.encode("utf-8"), salt.encode("utf-8"), _PBKDF2_ITERATIONS
+    ).hex()
+
+
+def _issue_jwt(claims: dict[str, Any]) -> str:
+    now = int(time.time())
+    payload = {**claims, "iat": now, "exp": now + _JWT_TTL_SECONDS}
+    return jwt.encode(payload, _JWT_SECRET, algorithm=_JWT_ALGORITHM)
 
 _ACTIVE_STATUSES = {"online", "available", "busy", "away", "offline"}
 
@@ -279,6 +313,96 @@ def update_profile(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
         _personnel_repo().update_one(person["_id"], updates)
         person = {**person, **updates}
     return {"status": "found", "person": _login_person(person)}
+
+
+@router.post("/password/set", status_code=201)
+def set_password(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    """First-time password enrollment for the web client's login.
+
+    Ties a password to an existing personnel record using the same
+    username/person_record resolution ``start_session`` uses below. Only
+    works once per account — there is no reset flow yet, so an account that
+    already has a password must be changed some other way (not built).
+    """
+
+    username = str(body.get("username") or "").strip()
+    password = str(body.get("password") or "")
+    if not username or not password:
+        raise HTTPException(status_code=400, detail="username and password are required")
+    if len(password) < 8:
+        raise HTTPException(status_code=400, detail="password must be at least 8 characters")
+
+    existing_user = _users_col().find_one({"user_id": username}) or _users_col().find_one({"username": username})
+    if existing_user and existing_user.get("password_hash"):
+        raise HTTPException(status_code=409, detail="A password is already set for this account.")
+
+    person_record = _resolve_person_record(body, existing_user)
+    person = _find_person(person_record)
+    if person is None:
+        raise HTTPException(status_code=404, detail="No personnel record matches this ID; create a profile first.")
+
+    now = _utcnow()
+    salt = secrets.token_hex(16)
+    user_doc = {
+        "user_id": username,
+        "username": username,
+        "display_name": _full_name(person) or username,
+        "person_record": person_record,
+        "password_hash": _hash_password(password, salt),
+        "password_salt": salt,
+        "updated_at": now,
+    }
+    if existing_user:
+        _users_col().update_one({"_id": existing_user["_id"]}, {"$set": user_doc})
+    else:
+        user_doc["created_at"] = now
+        _users_col().insert_one(user_doc)
+    return {"status": "ok", "username": username}
+
+
+@router.post("/login")
+def login(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    """Password login for the web client. Issues a JWT on success.
+
+    The token is not yet required or checked by any other router; the web
+    client sends it as a bearer token on its own requests, but the shared
+    incident/master routers remain open to unauthenticated callers (desktop)
+    until that enforcement is added.
+    """
+
+    username = str(body.get("username") or "").strip()
+    password = str(body.get("password") or "")
+    if not username or not password:
+        raise HTTPException(status_code=400, detail="username and password are required")
+
+    user = _users_col().find_one({"user_id": username}) or _users_col().find_one({"username": username})
+    salt = (user or {}).get("password_salt")
+    expected = (user or {}).get("password_hash")
+    if not user or not salt or not expected or not hmac.compare_digest(_hash_password(password, salt), expected):
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+
+    token = _issue_jwt({"sub": user["user_id"], "person_record": user.get("person_record")})
+
+    session = {
+        "session_id": str(uuid4()),
+        "user_id": user["user_id"],
+        "username": user.get("username") or username,
+        "display_name": user.get("display_name") or username,
+        "person_record": user.get("person_record"),
+        "role": body.get("role") or "",
+        "status": "online",
+        "mode": "web",
+        "incident_id": body.get("incident_id"),
+        "device_name": body.get("device_name") or "web",
+        "started_at": _utcnow(),
+        "last_seen_at": _utcnow(),
+        "ended_at": None,
+    }
+    _sessions_col().insert_one(session)
+
+    response = _session_response(session)
+    response["token"] = token
+    return response
 
 
 @router.post("/sessions", status_code=201)

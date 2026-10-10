@@ -35,6 +35,11 @@ The app is organized around ICS sections. Each module has its own panels, servic
 | XX | AI Integration | Future: assistant, automation, smart forms |
 | XX | Advanced GIS | Future: external mapping platforms, AVL, drone feeds |
 
+## Client Surfaces
+- Desktop (PySide6) is the primary, full-featured client.
+- `web_client/` (added 2026-10-10) is a React/Vite SPA scoped to an MVP feature set — login/check-in, role-based status updates or admin check-in, messaging — mirroring `Design Documents/Mobile/Phase 1 Design Document.txt`'s planned mobile scope rather than full desktop parity. It is a separate client of the same shared FastAPI app (`data/db/sarapp_db/api/app.py`), which serves its build at `/app` when present. See `web_client/README.md` and `database_architecture.md`'s "Authentication" section.
+- A further-along native mobile client (`ICS-Mobile-App`, Flutter/Dart) exists in a separate repository — see references under `backlog.md`'s central-master-catalog entries (organization picker, etc.). It is not part of this repo and was not consulted when scoping `web_client/`.
+
 ## Design Phases
 1. Core System & User Foundation
 2. Team Operations, Personnel, and Status Boards
