@@ -323,8 +323,10 @@ def create_app(server_info_fn=None, request_log_fn=None, mode: str = "full") -> 
         from pathlib import Path
         from fastapi.staticfiles import StaticFiles
 
-        web_client_dist = Path(__file__).resolve().parents[4] / "web_client" / "dist"
-        if web_client_dist.is_dir():
-            app.mount("/app", StaticFiles(directory=str(web_client_dist), html=True), name="web_client")
+        resolved = Path(__file__).resolve()
+        if len(resolved.parents) > 4:
+            web_client_dist = resolved.parents[4] / "web_client" / "dist"
+            if web_client_dist.is_dir():
+                app.mount("/app", StaticFiles(directory=str(web_client_dist), html=True), name="web_client")
 
     return app
