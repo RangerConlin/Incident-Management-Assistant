@@ -1,10 +1,13 @@
 # Same packaging style as cloud_server/docker-compose.yml and
 # cloud_router's own compose file (Traefik labels, env-var-driven routing)
-# — standalone, no shared files/images with either of those. This
-# container is a plain static site: no database, no connect code, no
-# SARAPP_* server env vars. Which incident/server it talks to is set
-# client-side, in the browser, via the app's own /connection screen
-# (src/api/connection.ts) — not at deploy time here.
+# — standalone, no shared files/images with either of those. No database
+# of its own, but it does need to know which backend to reach: nginx
+# proxies /api/ to SARAPP_BACKEND_HOST's public connect-code URL (the same
+# one desktop/mobile already use through cloud_router), set below so the
+# container works for anyone who opens this domain, no per-browser
+# Connection Settings setup required for the common case. Connection
+# Settings (src/api/connection.ts) still exists client-side as an
+# override for pointing one browser at a different server.
 #
 # No shared "traefik" network to join here, by design: this VPS's Traefik
 # runs with --network host, reaching every container via the Docker
@@ -19,6 +22,11 @@ services:
       context: .
       dockerfile: Dockerfile
     restart: unless-stopped
+    environment:
+      # Deployment-specific — set in this directory's own .env (gitignored,
+      # never committed), same convention as cloud_server's SARAPP_CONNECT_CODE.
+      SARAPP_BACKEND_HOST: ${SARAPP_BACKEND_HOST:?set SARAPP_BACKEND_HOST}
+      SARAPP_BACKEND_CONNECT_CODE: ${SARAPP_BACKEND_CONNECT_CODE:?set SARAPP_BACKEND_CONNECT_CODE}
     labels:
       - traefik.enable=true
       - traefik.http.routers.${COMPOSE_PROJECT_NAME:-sarapp-web-client}.rule=${SARAPP_WEB_CLIENT_ROUTE_RULE:-PathPrefix(`/app`)}

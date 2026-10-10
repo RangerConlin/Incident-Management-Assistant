@@ -72,6 +72,48 @@ checking, not a property of Traefik as software.
   `entrypoints=websecure` + `tls=true` to match how the existing services
   are fronted — don't add a plaintext HTTP router.
 
+## A standalone static-site container still needs its backend wired, not just reachable
+
+`web_client/`'s standalone container first shipped as a pure static file
+server with no knowledge of any backend — client-side "Connection
+Settings" (`src/api/connection.ts`) existed to point it at one, but that's
+a manual, per-browser localStorage setting. In practice that meant anyone
+who opened the deployed domain hit a dead end (API calls going same-origin
+to the static file server itself, which has no `/api` route) with no
+visible error, until they manually configured a domain + connect code —
+not a working deployment, just a reachable one.
+
+Fixed by having nginx itself reverse-proxy `/api/` (REST and the incident
+WebSocket under it) to the backend's public connect-code URL, the same
+one desktop/mobile already use through `cloud_router` — set once via two
+required env vars (`SARAPP_BACKEND_HOST`, `SARAPP_BACKEND_CONNECT_CODE`,
+no defaults, same `.env`-only convention as `SARAPP_CONNECT_CODE`), using
+nginx's own envsubst-on-templates entrypoint (`COPY` the conf as
+`*.template` into `/etc/nginx/templates/`, not directly into
+`/etc/nginx/conf.d/`). Client-side Connection Settings still exists as an
+override for one browser reaching a *different* server than the one a
+given deployment was built for — it's no longer required for the default
+case.
+
+The general lesson: a "standalone" service that's a thin client over
+another service's API is not actually standalone until something —
+server-side config, not a manual per-client step — tells it which backend
+to reach. A deployment that starts and serves pages isn't the same claim
+as a deployment that works; verify the latter by tracing a real request
+through, not just confirming the container is up.
+
+**Caveat found while building this**: nginx resolves a static (non-
+variable) `proxy_pass` hostname once, at config load/startup, not per
+request — if DNS can't resolve it at that instant, nginx refuses to start
+entirely. Confirmed locally (`nginx -t` fails with "host not found in
+upstream" against an unresolvable name, passes against a literal IP).
+Not a reason to avoid this pattern — the real target domain is already
+live — but worth knowing before assuming a container restart is harmless;
+a backend domain that's down for DNS maintenance at exactly the wrong
+moment would take this container down with it, which a variable-based
+`proxy_pass` + explicit `resolver` directive would avoid at the cost of
+resolving on every request instead of once.
+
 ## Env var conventions
 
 Follow the existing style (`cloud_server/docker-compose.yml`): required

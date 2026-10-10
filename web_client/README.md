@@ -55,28 +55,40 @@ both:
    `docker-compose.yml`): a self-contained image — Node build stage, then
    nginx serving the result — with its own Traefik labels, same packaging
    style as `cloud_server/` and `cloud_router/` but with no shared files or
-   images with either. Nothing server-side here: no database, no connect
-   code, no `SARAPP_*` env vars. Which incident/server it talks to is set
-   *in the browser* via the `/connection` screen below, not at deploy time.
+   images with either. No database of its own, but it does need to know
+   which backend to reach: nginx reverse-proxies `/api/` (REST and the
+   incident WebSocket, which lives under `/api/incidents/{id}/ws`) to that
+   backend's public connect-code URL — the same way desktop/mobile already
+   reach it, through `cloud_router` — so the container works for anyone who
+   opens this domain, no per-browser setup required. The `/connection`
+   screen below still exists client-side as an override for pointing one
+   browser at a *different* server than the one this deployment was built
+   for.
 
    ```
    cd web_client
    docker compose up -d --build
    ```
 
-   Configurable via env vars (`.env` in this directory, see the defaults in
-   `docker-compose.yml`): `COMPOSE_PROJECT_NAME`, `SARAPP_WEB_CLIENT_ROUTE_RULE`
-   (Traefik router rule — defaults to serving under `/app` on whatever
-   domain Traefik already fronts; set to a `Host(...)` rule for a dedicated
-   subdomain instead). Compose reads this `.env` automatically (no
-   `--env-file` flag needed) since it lives next to `docker-compose.yml`.
+   Configurable via env vars (`.env` in this directory, gitignored —
+   deployment-specific values never get committed, same convention as
+   `cloud_server`'s `SARAPP_CONNECT_CODE`; Compose reads this file
+   automatically, no `--env-file` flag needed):
+   - `SARAPP_BACKEND_HOST` (required) — the `cloud_router` host this
+     deployment's data lives behind (e.g. the domain desktop/mobile already
+     use for this incident's server).
+   - `SARAPP_BACKEND_CONNECT_CODE` (required) — the connect code that
+     backend registers under.
+   - `COMPOSE_PROJECT_NAME`, `SARAPP_WEB_CLIENT_ROUTE_RULE` (Traefik router
+     rule — defaults to serving under `/app` on whatever domain Traefik
+     already fronts; set to a `Host(...)` rule for a dedicated subdomain
+     instead).
 
    Production target: `client.arcadiacommandsolutions.com`, as its own
-   subdomain (not a path under an existing domain). VPS `.env`:
-
-   ```
-   SARAPP_WEB_CLIENT_ROUTE_RULE=Host(`client.arcadiacommandsolutions.com`)
-   ```
+   subdomain, backed by the `cloud_server` already running on the same
+   VPS. The actual host/connect-code values are deployment-specific and
+   live only in that VPS's own `web_client/.env` (gitignored) — not
+   documented here.
 
    Needs DNS for that subdomain pointed at the VPS (outside this repo).
    TLS is expected to come from whatever default cert resolver Traefik on
@@ -102,8 +114,10 @@ both:
 ## Connection settings
 
 By default every request is same-origin/relative ("internal" — whatever
-server is already serving this page: a LAN server, an offline server, or a
-cloud server reached directly). `/connection` (linked from the login screen
+server is already serving this page: a LAN server, an offline server, a
+cloud server reached directly, or — for the standalone container — nginx
+itself forwarding to the backend configured via `SARAPP_BACKEND_HOST`/
+`SARAPP_BACKEND_CONNECT_CODE` above). `/connection` (linked from the login screen
 and the app's top bar) lets a user instead point the app at a domain +
 `cloud_router` connect code (`src/api/connection.ts`), for when this app is
 opened from somewhere that isn't already the right server. Every API call
