@@ -295,7 +295,6 @@ class _CertPickerDialog(QtWidgets.QDialog):
                 "code": _clean_text(cert.get("code")),
                 "name": _clean_text(cert.get("name")),
                 "category": _clean_text(cert.get("category")),
-                "is_medical": bool(cert.get("is_medical")),
             })
         if not selected:
             QtWidgets.QMessageBox.information(self, "Select Certifications", "Check at least one certification to import.")
@@ -390,7 +389,7 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
                 "cert_type_id": cert_type_id,
                 "level": max(existing.get("level", 0), level),
             })
-            for key in ("code", "name", "category", "is_medical"):
+            for key in ("code", "name", "category"):
                 if cert.get(key) not in (None, ""):
                     existing[key] = cert.get(key)
             rows[cert_type_id] = existing
@@ -403,7 +402,6 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
             "code": _clean_text(catalog_row.get("code") or cert.get("code") or str(cert_type_id)),
             "name": _clean_text(catalog_row.get("name") or cert.get("name")),
             "category": _clean_text(catalog_row.get("category") or cert.get("category")),
-            "is_medical": bool(catalog_row.get("is_medical") if catalog_row else cert.get("is_medical")),
             "level": max(1, _clamp_level(cert.get("level"))),
         }
 
@@ -535,7 +533,6 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
                 "code": f"Cert {cert_type_id}",
                 "name": "",
                 "category": "",
-                "is_medical": False,
             }
         row = self.tbl_certs.rowCount()
         self.tbl_certs.insertRow(row)

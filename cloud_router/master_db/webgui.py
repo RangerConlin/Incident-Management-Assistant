@@ -528,7 +528,6 @@ def _certification_type_form_payload(form: dict[str, Any]) -> dict[str, Any]:
         "issuing_org": str(form.get("issuing_org") or "").strip(),
         "parent_id": int(parent_id) if parent_id.isdigit() else None,
         "tags": _csv_to_list(form.get("tags")),
-        "is_medical": bool(form.get("is_medical")),
         "is_active": bool(form.get("is_active", True)),
     }
 
@@ -1412,8 +1411,7 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
                 FieldSpec("category", "Category"),
                 FieldSpec("issuing_org", "Issuing Org"),
                 FieldSpec("parent_id", "Parent ID", value_type="int"),
-                FieldSpec("tags", "Tags (comma-separated)"),
-                FieldSpec("is_medical", "Medical", input_type="checkbox"),
+                FieldSpec("tags", "Qualification Tags"),
                 FieldSpec("is_active", "Active", input_type="checkbox"),
             ],
             list_fn=lambda: certification_types_router.list_certification_types(search="", category="", include_inactive=True),
@@ -1423,7 +1421,7 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
             delete_fn=None,
             form_row_fn=_certification_type_form_row,
             form_payload_fn=_certification_type_form_payload,
-            list_fields=["code", "name", "category", "issuing_org", "is_medical", "is_active"],
+            list_fields=["code", "name", "category", "issuing_org", "is_active"],
         ),
         CollectionSpec(
             key="qualification-types",
@@ -1615,6 +1613,12 @@ def _page(title: str, body: str, request: Request) -> HTMLResponse:
     .gar-subhead {{ display:flex; gap:10px; align-items:end; justify-content:space-between; flex-wrap:wrap; }}
     .gar-subhead label {{ flex:1; min-width:220px; }}
     .gar-actions {{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }}
+    .cert-field {{ grid-column:1 / -1; }}
+    .cert-editor {{ display:flex; flex-direction:column; gap:10px; }}
+    .cert-row {{ display:flex; gap:10px; align-items:center; }}
+    .cert-row select {{ flex:1; }}
+    .cert-row select[data-cert-level] {{ flex:0 0 140px; }}
+    .tag-picker-options {{ display:flex; flex-wrap:wrap; gap:6px 16px; }}
     .danger {{ background:var(--danger); }}
     .muted {{ color:var(--muted); }}
     dialog {{ width:min(440px, calc(100vw - 32px)); border:1px solid var(--line); border-radius:8px; padding:0; background:var(--panel); color:var(--text); }}
@@ -2075,6 +2079,162 @@ def _field_input_html(
     return f'<input type="text" name="{escape(field.name)}" value="{safe_value}">'
 
 
+_CERT_LEVEL_OPTIONS = [(1, "Trainee"), (2, "Qualified"), (3, "Evaluator")]
+
+
+def _personnel_certification_rows(value: Any) -> list[dict[str, Any]]:
+    """Parse a personnel record's `certifications` field (the "CODE:level;
+    CODE:level" string format — see modules/personnel/catalog_io.py's
+    format_certifications/parse_certifications) into rows with catalog
+    display data, for pre-populating the certifications picker below."""
+    from modules.personnel.catalog_io import certification_catalogs, parse_certifications
+
+    catalog_by_code, catalog_by_id = certification_catalogs()
+    rows: list[dict[str, Any]] = []
+    for cert in parse_certifications(value, catalog_by_code):
+        catalog_row = catalog_by_id.get(cert["cert_type_id"]) or {}
+        code = catalog_row.get("code") or str(cert["cert_type_id"])
+        rows.append({"code": code, "name": catalog_row.get("name", ""), "level": cert["level"]})
+    return rows
+
+
+def _personnel_certifications_picker_html(value: Any) -> str:
+    """Render the personnel edit form's certifications field as an
+    add/remove picker (one row per cert: a certification dropdown + a
+    level dropdown), matching the desktop client's Certifications tab
+    (ui/personnel/ui_personnel.py) instead of the old plain comma-string
+    text box. The picker still submits a single hidden `certifications`
+    field in the same "CODE:level; CODE:level" string `parse_certifications`
+    already understands — serialized by JS on submit — so no backend
+    parsing changes are needed."""
+    from modules.personnel.catalog_io import certification_catalogs
+
+    _, catalog_by_id = certification_catalogs()
+    catalog_options = sorted(
+        {(row.get("code") or str(cert_id), row.get("name") or "") for cert_id, row in catalog_by_id.items()},
+        key=lambda pair: pair[0],
+    )
+    rows = _personnel_certification_rows(value)
+
+    def code_options_html(selected: str) -> str:
+        blank = '<option value="">Select certification...</option>' if not selected else ""
+        options = "".join(
+            f'<option value="{escape(code)}"{" selected" if code == selected else ""}>{escape(code)} - {escape(name)}</option>'
+            for code, name in catalog_options
+        )
+        return blank + options
+
+    def level_options_html(selected: int) -> str:
+        return "".join(
+            f'<option value="{level}"{" selected" if level == selected else ""}>{escape(label)}</option>'
+            for level, label in _CERT_LEVEL_OPTIONS
+        )
+
+    def row_html(code: str = "", name: str = "", level: int = 1) -> str:
+        return (
+            '<div class="cert-row" data-cert-row>'
+            f'<select data-cert-code>{code_options_html(code)}</select>'
+            f'<select data-cert-level>{level_options_html(level)}</select>'
+            '<button type="button" class="danger" data-remove-cert-row>Remove</button>'
+            "</div>"
+        )
+
+    row_blocks = "".join(row_html(r["code"], r["name"], r["level"]) for r in rows)
+    catalog_json = json.dumps(
+        [{"code": code, "name": name} for code, name in catalog_options], separators=(",", ":")
+    ).replace("</", "<\\/")
+    safe_value = escape(str(value)) if value is not None else ""
+    script = """<script>
+(() => {
+  const wrap = document.currentScript.closest("[data-cert-editor]");
+  const form = wrap.closest("form");
+  const rowsEl = wrap.querySelector("[data-cert-rows]");
+  const hidden = wrap.querySelector("[data-cert-value]");
+  const catalog = JSON.parse(wrap.querySelector("[data-cert-catalog]").textContent);
+  const levels = [[1, "Trainee"], [2, "Qualified"], [3, "Evaluator"]];
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+  const codeOptions = (selected) => `<option value="">Select certification...</option>` +
+    catalog.map((c) => `<option value="${esc(c.code)}"${c.code === selected ? " selected" : ""}>${esc(c.code)} - ${esc(c.name)}</option>`).join("");
+  const levelOptions = (selected) => levels.map(([v, l]) => `<option value="${v}"${v === selected ? " selected" : ""}>${l}</option>`).join("");
+  const newRow = () => `<div class="cert-row" data-cert-row><select data-cert-code>${codeOptions("")}</select><select data-cert-level>${levelOptions(1)}</select><button type="button" class="danger" data-remove-cert-row>Remove</button></div>`;
+  wrap.addEventListener("click", (event) => {
+    const button = event.target.closest("button");
+    if (!button) return;
+    if (button.matches("[data-add-cert-row]")) rowsEl.insertAdjacentHTML("beforeend", newRow());
+    if (button.matches("[data-remove-cert-row]")) button.closest("[data-cert-row]").remove();
+  });
+  form.addEventListener("submit", () => {
+    const parts = [...rowsEl.querySelectorAll("[data-cert-row]")].map((row) => {
+      const code = row.querySelector("[data-cert-code]").value;
+      const level = row.querySelector("[data-cert-level]").value;
+      return code ? `${code}:${level}` : null;
+    }).filter(Boolean);
+    hidden.value = parts.join("; ");
+  });
+})();
+</script>"""
+    return f"""<div class="cert-editor" data-cert-editor>
+  <input type="hidden" name="certifications" data-cert-value value="{safe_value}">
+  <script type="application/json" data-cert-catalog>{catalog_json}</script>
+  <div data-cert-rows>{row_blocks}</div>
+  <button type="button" data-add-cert-row>Add Certification</button>
+  {script}
+</div>"""
+
+
+def _qualification_tag_vocabulary() -> list[str]:
+    """Distinct tags referenced by any qualification type's `any_tags`/
+    `all_tags` — the controlled vocabulary a certification type's own tags
+    are picked from (see `_certification_tags_picker_html` below and
+    Design Documents/Instructions/mongodb_schema_decisions.md). A cert's
+    tags only mean anything insofar as some qualification's any_tags/
+    all_tags references them, so the qualification catalog is the source
+    of truth for which tags exist, not free text typed on the cert."""
+    from sarapp_db.api.routers.qualification_types import list_qualification_types
+
+    tags: set[str] = set()
+    for qualification in list_qualification_types(search="", include_inactive=True):
+        tags.update(qualification.get("any_tags") or [])
+        tags.update(qualification.get("all_tags") or [])
+    return sorted(tags)
+
+
+def _certification_tags_picker_html(value: Any) -> str:
+    """Render a certification type's `tags` field as a checklist of the
+    qualification tag vocabulary instead of a free-text box, so a cert can
+    only be tagged with something a qualification type actually looks for
+    — no typos, no tags that silently match nothing."""
+    current = {tag.strip().upper() for tag in _csv_to_list(value)}
+    vocabulary = _qualification_tag_vocabulary()
+    safe_value = escape(str(value)) if value is not None else ""
+    if not vocabulary:
+        return (
+            f'<input type="hidden" name="tags" value="{safe_value}">'
+            '<p class="muted">No qualification tags exist yet — add a Qualification Type with Any/All tags first, then they\'ll be pickable here.</p>'
+        )
+    checkboxes = "".join(
+        f'<label class="compact-check"><input type="checkbox" value="{escape(tag)}" data-cert-tag-checkbox'
+        f'{" checked" if tag in current else ""}> {escape(tag)}</label>'
+        for tag in vocabulary
+    )
+    script = """<script>
+(() => {
+  const wrap = document.currentScript.closest("[data-cert-tags-editor]");
+  const form = wrap.closest("form");
+  const hidden = wrap.querySelector("[data-cert-tags-value]");
+  form.addEventListener("submit", () => {
+    const checked = [...wrap.querySelectorAll("[data-cert-tag-checkbox]:checked")].map((cb) => cb.value);
+    hidden.value = checked.join(", ");
+  });
+})();
+</script>"""
+    return f"""<div class="tag-picker" data-cert-tags-editor>
+  <input type="hidden" name="tags" data-cert-tags-value value="{safe_value}">
+  <div class="tag-picker-options">{checkboxes}</div>
+  {script}
+</div>"""
+
+
 def _cell_html(value: Any) -> str:
     text = _stringify(value)
     if len(text) > 180:
@@ -2339,6 +2499,18 @@ def _form_html(spec: CollectionSpec, doc: dict[str, Any], *, action: str, submit
 
     rows = []
     for field in spec.fields:
+        if spec.key == "personnel" and field.name == "certifications":
+            rows.append(
+                f'<div class="field cert-field"><label>{escape(field.label)}</label>'
+                f"{_personnel_certifications_picker_html(doc.get(field.name))}</div>"
+            )
+            continue
+        if spec.key == "certification-types" and field.name == "tags":
+            rows.append(
+                f'<div class="field cert-field"><label>{escape(field.label)}</label>'
+                f"{_certification_tags_picker_html(doc.get(field.name))}</div>"
+            )
+            continue
         rows.append(
             f'<div class="field"><label for="{escape(field.name)}">{escape(field.label)}</label>'
             f"{_field_input_html(field, doc.get(field.name), combo_options=combo_options, combo_depends=combo_depends)}</div>"
@@ -2617,7 +2789,10 @@ def create_master_gui_router() -> APIRouter:
         except HTTPException:
             return _redirect_login(request)
         root_path = request.scope.get("root_path") or ""
-        visible_specs = [spec for spec in specs.values() if spec.key != "ranks"]
+        visible_specs = sorted(
+            (spec for spec in specs.values() if spec.key != "ranks"),
+            key=lambda spec: spec.title.lower(),
+        )
         items = "".join(
             f'<a class="collection-tile" href="{root_path}/gui/{escape(spec.key)}">{escape(spec.title)}'
             f'<span>{len(spec.fields)} editable fields</span></a>'

@@ -635,7 +635,7 @@ def test_personnel_import_csv_with_certifications(monkeypatch) -> None:
 
     cert_types_col = _get_mongo_client()["sarapp_central_master"]["certification_types"]
     cert_types_col.delete_many({"code": "EMT"})
-    cert_types_col.insert_one({"id": 2003, "code": "EMT", "name": "Emergency Medical Technician", "category": "Medical", "issuing_org": "State EMS", "parent_id": None, "tags": ["MEDIC", "MEDICAL"], "is_medical": True, "is_active": True})
+    cert_types_col.insert_one({"id": 2003, "code": "EMT", "name": "Emergency Medical Technician", "category": "Medical", "issuing_org": "State EMS", "parent_id": None, "tags": ["MEDIC", "MEDICAL"], "is_active": True})
     try:
         csv_content = (
             "Name,Primary Role,Certifications\r\n"

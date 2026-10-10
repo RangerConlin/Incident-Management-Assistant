@@ -39,7 +39,6 @@ def list_catalog(filter_text: str = "", category: str | None = None) -> List[Dic
             "issuing_org": row.get("issuing_org", ""),
             "parent_id": row.get("parent_id"),
             "tags": list(row.get("tags") or []),
-            "is_medical": bool(row.get("is_medical", False)),
         }
         for row in rows
     ]
@@ -78,7 +77,6 @@ def list_personnel_certs(personnel_id: int) -> List[Dict[str, Any]]:
             "issuing_org": ct["issuing_org"] if ct else "",
             "parent_id": ct["parent_id"] if ct else None,
             "tags": list(ct["tags"]) if ct else [],
-            "is_medical": ct["is_medical"] if ct else False,
         })
     return sorted(result, key=lambda c: (c["category"], c["code"]))
 

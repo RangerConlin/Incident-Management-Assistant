@@ -49,7 +49,6 @@ def _normalize(doc: dict[str, Any]) -> dict[str, Any]:
     d = dict(doc)
     d.pop("_id", None)
     d["tags"] = list(d.get("tags") or [])
-    d["is_medical"] = bool(d.get("is_medical", False))
     d["is_active"] = bool(d.get("is_active", True))
     return d
 
@@ -122,7 +121,6 @@ def create_certification_type(body: dict[str, Any] = Body(...)) -> dict[str, Any
         "issuing_org": str(body.get("issuing_org") or "").strip(),
         "parent_id": body.get("parent_id"),
         "tags": [str(t).strip().upper() for t in (body.get("tags") or []) if str(t).strip()],
-        "is_medical": bool(body.get("is_medical", False)),
         "is_active": bool(body.get("is_active", True)),
     }
     saved = repo.insert_one(doc)
@@ -137,7 +135,7 @@ def update_certification_type(cert_type_id: int, body: dict[str, Any] = Body(...
     if not existing:
         raise HTTPException(status_code=404, detail="Certification type not found")
     updates: dict[str, Any] = {}
-    for field in ("code", "name", "category", "issuing_org", "parent_id", "is_medical", "is_active"):
+    for field in ("code", "name", "category", "issuing_org", "parent_id", "is_active"):
         if field in body:
             updates[field] = body[field]
     if "tags" in body:

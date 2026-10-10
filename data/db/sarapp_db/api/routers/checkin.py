@@ -12,6 +12,7 @@ from sarapp_db.mongo.database_manager import get_incident_db, get_master_db
 from sarapp_db.mongo.collection_names import MasterCollections, IncidentCollections
 from sarapp_db.mongo.int_id import _ensure_int_ids
 from sarapp_db.mongo.repository import BaseRepository
+from sarapp_db.sync.readthrough import refresh_collection_before_read
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -142,6 +143,7 @@ def search_personnel(
     q: str = Query(""),
     limit: int = Query(50),
 ) -> list[dict[str, Any]]:
+    refresh_collection_before_read(MasterCollections.PERSONNEL)
     repo = _personnel_repo()
     term = (q or "").strip().lower()
     docs = repo.find_many({}, sort=[("name", 1)])
@@ -164,6 +166,7 @@ def search_personnel(
 
 @router.get("/personnel/{person_record}")
 def get_person_identity(incident_id: str, person_record: int) -> dict[str, Any]:
+    refresh_collection_before_read(MasterCollections.PERSONNEL)
     repo = _personnel_repo()
     doc = repo.find_one({_PERSON_RECORD: person_record})
     if not doc:

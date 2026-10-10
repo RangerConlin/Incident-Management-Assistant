@@ -11,6 +11,7 @@ from sarapp_db.mongo.collection_names import MasterCollections
 from sarapp_db.mongo.database_manager import get_incident_db, get_master_db
 from sarapp_db.mongo.int_id import _ensure_record_ids, dual_key_field, next_record_id
 from sarapp_db.mongo.repository import BaseRepository
+from sarapp_db.sync.readthrough import refresh_collection_before_read
 
 router = APIRouter()
 
@@ -150,6 +151,7 @@ def search_personnel(
     limit: int = Query(50),
 ) -> list[dict[str, Any]]:
     term = (q or "").strip()
+    refresh_collection_before_read(MasterCollections.PERSONNEL)
     repo = _personnel_repo()
     _ensure_record_ids(repo._col, _record_field(repo))
     docs = repo.find_many({}, sort=[("name", 1)])
@@ -169,6 +171,7 @@ def list_personnel(
     search: str = Query(""),
     limit: int = Query(200),
 ) -> list[dict[str, Any]]:
+    refresh_collection_before_read(MasterCollections.PERSONNEL)
     repo = _personnel_repo()
     _ensure_record_ids(repo._col, _record_field(repo))
     docs = repo.find_many({}, sort=[("name", 1)])
@@ -233,6 +236,7 @@ def create_person(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
 
 @router.get("/{person_record}")
 def get_person(person_record: int) -> dict[str, Any]:
+    refresh_collection_before_read(MasterCollections.PERSONNEL)
     doc = _find_person(_personnel_repo(), person_record)
     if not doc:
         raise HTTPException(status_code=404, detail="Person not found")
