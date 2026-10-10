@@ -106,25 +106,384 @@ button + button {
   background: #2a2d33;
 }
 
-.topbar {
+/* ---------------------------------------------------------------------
+ * App shell (sidebar + topbar + content)
+ * ------------------------------------------------------------------- */
+
+.app-shell {
+  display: flex;
+  min-height: 100vh;
+  width: 100%;
+}
+
+.app-sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  background: #17191d;
+  border-right: 1px solid #2a2d33;
+  overflow-y: auto;
+  padding-bottom: 24px;
+}
+
+.app-sidebar-title {
+  font-weight: 700;
+  font-size: 1.1rem;
+  padding: 16px;
+}
+
+.app-sidebar-section-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.55;
+  padding: 14px 16px 4px;
+}
+
+.app-sidebar-link {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 16px;
-  border-bottom: 1px solid #2a2d33;
+  padding: 8px 16px;
+  text-decoration: none;
+  color: inherit;
+  font-size: 0.9rem;
 }
 
-.topbar button {
+.app-sidebar-link:hover {
+  background: #1d2025;
+}
+
+.app-sidebar-link.active {
+  background: #22343a;
+  border-right: 3px solid var(--color-selected-outline, #5b9bd5);
+}
+
+.app-sidebar-link.planned {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.planned-badge {
+  font-size: 0.65rem;
+  border: 1px solid #4a5058;
+  border-radius: 999px;
+  padding: 1px 6px;
+}
+
+.app-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.app-topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 20px;
+  border-bottom: 1px solid #2a2d33;
+  gap: 16px;
+}
+
+.app-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.app-topbar-right button {
   width: auto;
   padding: 8px 12px;
   font-size: 0.85rem;
 }
 
+.incident-switcher {
+  min-width: 240px;
+}
+
+.connection-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  opacity: 0.85;
+}
+
+.connection-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.app-content {
+  flex: 1;
+  padding: 20px;
+  overflow: auto;
+}
+
+/* ---------------------------------------------------------------------
+ * DataTable
+ * ------------------------------------------------------------------- */
+
+.data-table-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+  position: relative;
+}
+
+.data-table-gear {
+  width: auto;
+  background: #2a2d33;
+  font-size: 0.8rem;
+  padding: 6px 10px;
+}
+
+.data-table-column-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: #1d2025;
+  border: 1px solid #3a3f47;
+  border-radius: 8px;
+  padding: 10px;
+  z-index: 20;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.data-table-column-menu label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+}
+
+.data-table-scroll {
+  overflow: auto;
+  border: 1px solid #2a2d33;
+  border-radius: 8px;
+}
+
+table.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+table.data-table thead th {
+  position: sticky;
+  top: 0;
+  background: #17191d;
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid #2a2d33;
+  white-space: nowrap;
+  user-select: none;
+  position: relative;
+}
+
+table.data-table thead th.sortable {
+  cursor: pointer;
+}
+
+.col-resize-handle {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+}
+
+table.data-table tbody tr {
+  height: 44px;
+  cursor: pointer;
+}
+
+table.data-table tbody td {
+  padding: 8px 12px;
+  border-bottom: 1px solid #202327;
+}
+
+/* Selection is an outline, never a fill (agents.md hard rule). */
+table.data-table tbody tr.selected td:first-child {
+  box-shadow: inset 3px 0 0 var(--color-selected-outline, #5b9bd5);
+}
+
+table.data-table tbody tr.selected {
+  outline: 2px solid var(--color-selected-outline, #5b9bd5);
+  outline-offset: -1px;
+}
+
+table.data-table tbody tr.row-emergency {
+  background: rgba(140, 47, 47, 0.25);
+}
+
+.data-table-empty {
+  text-align: center;
+  opacity: 0.6;
+  padding: 24px !important;
+}
+
+/* ---------------------------------------------------------------------
+ * RowContextMenu
+ * ------------------------------------------------------------------- */
+
+.row-context-menu {
+  background: #1d2025;
+  border: 1px solid #3a3f47;
+  border-radius: 8px;
+  padding: 6px;
+  min-width: 220px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.row-context-menu-section + .row-context-menu-section {
+  border-top: 1px solid #2a2d33;
+  margin-top: 4px;
+  padding-top: 4px;
+}
+
+.row-context-menu-title {
+  font-size: 0.72rem;
+  opacity: 0.6;
+  padding: 4px 8px;
+}
+
+.row-context-menu button {
+  width: 100%;
+  background: transparent;
+  text-align: left;
+  padding: 6px 8px;
+  font-size: 0.85rem;
+}
+
+.row-context-menu button:hover {
+  background: #2a2d33;
+}
+
+/* ---------------------------------------------------------------------
+ * FilterBar
+ * ------------------------------------------------------------------- */
+
+.filter-bar {
+  margin-bottom: 12px;
+}
+
+.filter-bar-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.filter-bar-chips {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.filter-chip {
+  width: auto;
+  background: #2a2d33;
+  font-size: 0.8rem;
+  padding: 4px 10px;
+}
+
+/* ---------------------------------------------------------------------
+ * Detail pages
+ * ------------------------------------------------------------------- */
+
+.detail-page {
+  max-width: 960px;
+}
+
+.detail-header {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.detail-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid #2a2d33;
+  margin-bottom: 16px;
+  overflow-x: auto;
+}
+
+.detail-tab {
+  width: auto;
+  background: transparent;
+  border-radius: 0;
+  padding: 10px 14px;
+  font-size: 0.85rem;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+}
+
+.detail-tab.active {
+  border-bottom-color: var(--color-selected-outline, #5b9bd5);
+}
+
+.detail-tab.disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.detail-tab-placeholder {
+  opacity: 0.6;
+  padding: 24px 0;
+}
+
+/* ---------------------------------------------------------------------
+ * Modal dialogs
+ * ------------------------------------------------------------------- */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+.modal {
+  background: #1d2025;
+  border: 1px solid #3a3f47;
+  border-radius: 10px;
+  padding: 20px;
+  width: 100%;
+  max-width: 420px;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.modal-actions button {
+  width: auto;
+  flex: 1;
+}
+
+/* ---------------------------------------------------------------------
+ * Timestamped entry feeds (narrative, logs, etc.)
+ * ------------------------------------------------------------------- */
+
 .message-list {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  max-height: 55vh;
   overflow-y: auto;
   margin-bottom: 12px;
 }

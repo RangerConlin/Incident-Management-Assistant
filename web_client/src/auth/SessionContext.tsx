@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { getToken, setToken } from "../api/client";
 import * as apiEndpoints from "../api/endpoints";
-import type { CheckinRecord, PersonnelSummary, PublicUser } from "../api/types";
+import type { PersonnelSummary, PublicUser } from "../api/types";
 
 const SESSION_KEY = "sarapp.session";
 
@@ -9,15 +9,13 @@ interface StoredSession {
   user: PublicUser;
   personnel: PersonnelSummary | null;
   incidentId: string | null;
-  checkin: CheckinRecord | null;
 }
 
 interface SessionState extends StoredSession {
   isAuthenticated: boolean;
   login: (username: string, password: string) => Promise<void>;
   logout: () => void;
-  selectIncident: (incidentId: string) => void;
-  setCheckin: (checkin: CheckinRecord | null) => void;
+  selectIncident: (incidentId: string | null) => void;
 }
 
 const SessionContext = createContext<SessionState | null>(null);
@@ -44,7 +42,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<PublicUser | null>(null);
   const [personnel, setPersonnel] = useState<PersonnelSummary | null>(null);
   const [incidentId, setIncidentId] = useState<string | null>(null);
-  const [checkin, setCheckinState] = useState<CheckinRecord | null>(null);
 
   useEffect(() => {
     if (!getToken()) return;
@@ -53,14 +50,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setUser(stored.user);
       setPersonnel(stored.personnel);
       setIncidentId(stored.incidentId);
-      setCheckinState(stored.checkin);
     }
   }, []);
 
   useEffect(() => {
     if (!user) return;
-    saveStored({ user, personnel, incidentId, checkin });
-  }, [user, personnel, incidentId, checkin]);
+    saveStored({ user, personnel, incidentId });
+  }, [user, personnel, incidentId]);
 
   const login = async (username: string, password: string) => {
     const res = await apiEndpoints.login(username, password);
@@ -68,7 +64,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setUser(res.user);
     setPersonnel(res.personnel);
     setIncidentId(null);
-    setCheckinState(null);
   };
 
   const logout = () => {
@@ -77,7 +72,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setPersonnel(null);
     setIncidentId(null);
-    setCheckinState(null);
   };
 
   const value = useMemo<SessionState>(
@@ -85,17 +79,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       user: user as PublicUser,
       personnel,
       incidentId,
-      checkin,
       isAuthenticated: Boolean(user),
       login,
       logout,
-      selectIncident: (id: string) => {
-        setIncidentId(id);
-        setCheckinState(null);
-      },
-      setCheckin: setCheckinState,
+      selectIncident: setIncidentId,
     }),
-    [user, personnel, incidentId, checkin]
+    [user, personnel, incidentId]
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

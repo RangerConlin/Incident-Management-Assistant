@@ -216,18 +216,51 @@ Cost Summary
 
 **************************************************************************************************************
 [Tech Debt / Infrastructure]
-    - Web client (`web_client/`, added 2026-10-10): a React/Vite SPA MVP scoped to the same feature set as
-      `Design Documents/Mobile/Phase 1 Design Document.txt` (login/check-in, role-based status updates or admin
-      check-in, messaging), served by the shared FastAPI app at `/app` when `web_client/dist` exists (see
-      `data/db/sarapp_db/api/app.py`). It added `POST /api/auth/password/set` and `POST /api/auth/login`
-      (`data/db/sarapp_db/api/routers/auth_sessions.py`) — salted-PBKDF2 password + JWT (`SARAPP_JWT_SECRET`,
-      random per-process fallback if unset). That token is currently checked by nothing: every shared router the
-      web client calls (checkin, operations, chat, incidents) still accepts unauthenticated requests, same as
-      desktop. Needed before this is safe to expose beyond a trusted LAN: (1) a FastAPI dependency that verifies
-      the JWT and 401s without one, applied to those shared routers; (2) a password reset/change flow (today
-      `/password/set` only works once per account, by design, to avoid building reset for the MVP); (3) deciding
-      whether desktop/mobile should eventually carry the same token instead of staying unauthenticated. See
-      `Design Documents/Instructions/database_architecture.md` ("Authentication").
+    - Web client (`web_client/`, started 2026-10-10 as a mobile-mirrored MVP, **redirected the same day** to a
+      full-CRUD browser clone of the desktop app — command-post users who want incident access with no install,
+      not a field-ops companion). The MVP's login/check-in/status-update/admin-checkin/messaging screens were
+      scrapped; the first real module built is the **Team Status Board + Task Status Board** (and their detail
+      pages, `src/modules/operations/{teamStatus,taskStatus}/`), serving as the template every later module
+      copies — see `web_client/AGENTS.md` for the conventions it set (shared `DataTable`/`StatusPill` components,
+      TanStack Query + incident-WebSocket invalidation for live updates, CSS status-color tokens mirroring
+      `styles/profiles/{dark,light}.py`, `moduleRegistry.ts` as the single place new modules slot in). Served by
+      the shared FastAPI app at `/app` when `web_client/dist` exists (`data/db/sarapp_db/api/app.py`); no backend
+      changes were needed for this module — it consumes the existing `GET .../operations/team-assignment-rows`
+      and `GET .../operations/task-rows` join endpoints as-is.
+      - **Auth stays fully open — enforcement was tried and reverted.** `POST /api/auth/password/set` and
+        `POST /api/auth/login` (`data/db/sarapp_db/api/routers/auth_sessions.py`, salted PBKDF2 + JWT,
+        `SARAPP_JWT_SECRET` env var) exist and the web client sends the token, but **no router checks it** — this
+        was the deliberate final call, not an oversight. First attempt: enforce the JWT only on requests that
+        arrived through `cloud_router`'s public tunnel (reusing `app.py`'s existing `_TUNNEL_CLIENT_IP_HEADER`/
+        `_client_address()` tunnel-vs-direct signal), leaving direct/LAN traffic — desktop's normal case —
+        untouched. **Reversed before any code landed**: the LAN tunnel is not working today, so real desktop and
+        mobile traffic already arrives looking tunnel-sourced, meaning "require auth over the tunnel" would mean
+        "require auth everywhere, immediately," against clients with no way to send a token — an outage, not a
+        security fix. Whoever picks this up next needs to account for that finding, not just re-derive it:
+        - That tunnel-vs-direct signal doesn't currently correlate with trusted/untrusted the way it looks like
+          it should from the code alone. Fix the LAN tunnel first, or any design using this signal to gate auth
+          reproduces the same outage.
+        - The alternative — every client (desktop, web, future mobile) authenticating, no network-trust
+          carve-out — is viable but is a coordinated multi-client rollout (each needs a login path before
+          enforcement can flip on anywhere), not a narrow backend change.
+        - Middle path worth considering: build the verification dependency but ship it disabled by default
+          (env-var gated), so it exists and can be turned on once every client that needs to keep working can
+          send a token.
+        - Also still needed whenever this is picked up: a password reset/change flow (today `/password/set` only
+          works once per account, by design, to avoid building reset before enforcement even exists).
+        See `Design Documents/Instructions/database_architecture.md` ("Authentication").
+      - Known gaps from building the first module, left for whoever touches these endpoints next rather than
+        silently worked around: `GET .../operations/task-rows` returns a thinner row (`id`, `number`, `name`,
+        `assigned_teams`, `status`, `priority`, `location`) than desktop's Task Status Board panel shows
+        (`_column_defs` also has due date, created/updated timestamps, created_by, operational period, primary
+        team, team/sortie counts, last activity, linked strategy) — the web board only shows what the endpoint
+        already returns rather than reintroducing a client-side join to get the rest. Same for team rows: desktop
+        shows a Vehicle column the `team-assignment-rows` endpoint doesn't return. Enriching those two endpoints
+        (or deciding the extra columns aren't worth it) is a small, separate follow-up.
+      - Team Detail's Personnel/Vehicles/Equipment tabs edit the team's `members_json`/`vehicles_json`/
+        `equipment_json` arrays as plain strings (add/remove a name or ID), not against the Personnel/Logistics
+        master catalogs — those aren't wired up to the web client yet. Fine for now; revisit once those modules
+        get their own web pass.
     - Optimization follow-up: profile Edit-menu windows and the task detail window to identify why modest datasets
       are not opening faster; tie this to any decision about reusing/caching Edit windows.
     - Sidebar: revisit large Edit-menu CSV import/export workflows with progress/cancel behavior and possible

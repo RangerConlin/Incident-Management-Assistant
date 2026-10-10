@@ -1,13 +1,13 @@
 import { api } from "./client";
 import type {
-  CheckinRecord,
-  ChatChannel,
-  ChatMessage,
   Incident,
   LoginResponse,
   PersonnelSummary,
-  RosterRow,
-  TeamOption,
+  TaskDetail,
+  TaskRow,
+  TaskTeam,
+  TeamAssignmentRow,
+  TeamDetail,
 } from "./types";
 
 export function lookupPerson(personId: string) {
@@ -39,45 +39,42 @@ export function listIncidents() {
   return api.get<Incident[]>("/api/incidents");
 }
 
-export async function fetchCheckin(incidentId: string, personRecord: number): Promise<CheckinRecord | null> {
-  try {
-    return await api.get<CheckinRecord>(`/api/incidents/${incidentId}/checkin/${personRecord}`);
-  } catch (err) {
-    if ((err as { status?: number }).status === 404) return null;
-    throw err;
-  }
+// ---------------------------------------------------------------------------
+// Team status board + team detail
+// ---------------------------------------------------------------------------
+
+export function fetchTeamAssignmentRows(incidentId: string) {
+  return api.get<TeamAssignmentRow[]>(`/api/incidents/${incidentId}/operations/team-assignment-rows`);
 }
 
-export function saveCheckin(
-  incidentId: string,
-  personRecord: number,
-  payload: {
-    status: string;
-    role_on_team: string;
-    team_id?: string | null;
-    location?: string;
-    notes?: string;
-  }
-) {
-  return api.put<CheckinRecord>(`/api/incidents/${incidentId}/checkin/${personRecord}`, payload);
+export function getTeam(incidentId: string, teamId: number) {
+  return api.get<TeamDetail>(`/api/incidents/${incidentId}/operations/teams/${teamId}`);
 }
 
-export function getCheckinRoles(incidentId: string) {
-  return api.get<string[]>(`/api/incidents/${incidentId}/checkin/roles`);
+export function createTeam(incidentId: string, body: Partial<TeamDetail>) {
+  return api.post<TeamDetail>(`/api/incidents/${incidentId}/operations/teams`, body);
 }
 
-export function getCheckinTeams(incidentId: string) {
-  return api.get<TeamOption[]>(`/api/incidents/${incidentId}/checkin/teams`);
+export function listTeams(incidentId: string) {
+  return api.get<TeamDetail[]>(`/api/incidents/${incidentId}/operations/teams`);
 }
 
-export function getRoster(incidentId: string) {
-  return api.get<RosterRow[]>(`/api/incidents/${incidentId}/checkin/roster`);
+export function updateTeam(incidentId: string, teamId: number, body: Record<string, unknown>) {
+  return api.patch<TeamDetail>(`/api/incidents/${incidentId}/operations/teams/${teamId}`, body);
 }
 
-export function patchCheckinStatus(incidentId: string, personRecord: number, status: string) {
-  return api.patch<RosterRow>(`/api/incidents/${incidentId}/checkin/${personRecord}/status`, { status });
+export function setTeamStatus(incidentId: string, teamId: number, statusKey: string) {
+  return api.patch<TeamDetail>(`/api/incidents/${incidentId}/operations/teams/${teamId}/status`, {
+    status_key: statusKey,
+  });
 }
 
+export function resetTeamCommPing(incidentId: string, teamId: number) {
+  return api.patch<TeamDetail>(`/api/incidents/${incidentId}/operations/teams/${teamId}/comm-ping`, {});
+}
+
+// Team status progression, ascending — mirrors operations.py's
+// _TT_STATUS_COL_ORDER (reversed) and TEAM_STATUS_DISPLAY.
 export const TEAM_STATUS_STEPS: { key: string; label: string }[] = [
   { key: "assigned", label: "Assigned" },
   { key: "briefed", label: "Briefed" },
@@ -88,38 +85,87 @@ export const TEAM_STATUS_STEPS: { key: string; label: string }[] = [
   { key: "returning", label: "Returning" },
 ];
 
-export function getTeam(incidentId: string, teamId: string) {
-  return api.get<{ status?: string }>(`/api/incidents/${incidentId}/operations/teams/${teamId}`);
+// ---------------------------------------------------------------------------
+// Task status board + task detail
+// ---------------------------------------------------------------------------
+
+export function fetchTaskRows(incidentId: string) {
+  return api.get<TaskRow[]>(`/api/incidents/${incidentId}/operations/task-rows`);
 }
 
-export function setTeamStatus(incidentId: string, teamId: string, statusKey: string) {
-  return api.patch(`/api/incidents/${incidentId}/operations/teams/${teamId}/status`, {
+export interface TaskAssignmentOption {
+  id: number;
+  task_id: string;
+  title: string;
+  status: string;
+  priority: string;
+  location: string;
+}
+
+export function listTasksForAssignment(incidentId: string) {
+  return api.get<TaskAssignmentOption[]>(`/api/incidents/${incidentId}/operations/tasks-for-assignment`);
+}
+
+export function getTask(incidentId: string, taskId: number) {
+  return api.get<TaskDetail>(`/api/incidents/${incidentId}/operations/tasks/${taskId}`);
+}
+
+export function createTask(incidentId: string, body: Partial<TaskDetail>) {
+  return api.post<TaskDetail>(`/api/incidents/${incidentId}/operations/tasks`, body);
+}
+
+export function updateTask(incidentId: string, taskId: number, body: Record<string, unknown>) {
+  return api.patch<TaskDetail>(`/api/incidents/${incidentId}/operations/tasks/${taskId}`, body);
+}
+
+export function setTaskStatus(incidentId: string, taskId: number, statusKey: string) {
+  return api.patch<TaskDetail>(`/api/incidents/${incidentId}/operations/tasks/${taskId}/status`, {
     status_key: statusKey,
   });
 }
 
-export function listChannels(incidentId: string, userId: string) {
-  return api.get<{ items: ChatChannel[] }>(
-    `/api/incidents/${incidentId}/chat/channels?user_id=${encodeURIComponent(userId)}`
-  );
+export function listTaskTeams(incidentId: string, taskId: number) {
+  return api.get<TaskTeam[]>(`/api/incidents/${incidentId}/operations/tasks/${taskId}/teams`);
 }
 
-export function listMessages(incidentId: string, channelId: string) {
-  return api.get<{ items: ChatMessage[] }>(
-    `/api/incidents/${incidentId}/chat/channels/${channelId}/messages`
-  );
-}
-
-export function sendMessage(
-  incidentId: string,
-  channelId: string,
-  senderId: string,
-  senderName: string,
-  text: string
-) {
-  return api.post<ChatMessage>(`/api/incidents/${incidentId}/chat/channels/${channelId}/messages`, {
-    sender_id: senderId,
-    sender_name: senderName,
-    text,
+export function addTaskTeam(incidentId: string, taskId: number, teamId?: number) {
+  return api.post<TaskTeam>(`/api/incidents/${incidentId}/operations/tasks/${taskId}/teams`, {
+    team_id: teamId,
   });
+}
+
+export function removeTaskTeam(incidentId: string, taskId: number, ttId: number) {
+  return api.delete<{ ok: boolean }>(`/api/incidents/${incidentId}/operations/tasks/${taskId}/teams/${ttId}`);
+}
+
+export function setTaskTeamPrimary(incidentId: string, taskId: number, ttId: number) {
+  return api.patch(`/api/incidents/${incidentId}/operations/tasks/${taskId}/teams/${ttId}/primary`);
+}
+
+export function setTaskTeamSortie(incidentId: string, taskId: number, ttId: number, sortieId: string) {
+  return api.patch(`/api/incidents/${incidentId}/operations/tasks/${taskId}/teams/${ttId}/sortie`, {
+    sortie_id: sortieId,
+  });
+}
+
+export interface NarrativeEntry {
+  id: string;
+  task_id: number;
+  timestamp: string;
+  narrative: string;
+  entered_by: string;
+  entered_by_display?: string;
+  team_num: string | null;
+  critical: number;
+}
+
+export function listNarratives(incidentId: string, taskId: number) {
+  return api.get<NarrativeEntry[]>(`/api/incidents/${incidentId}/narratives?task_id=${taskId}`);
+}
+
+export function createNarrative(
+  incidentId: string,
+  body: { task_id: number; timestamp: string; narrative: string; entered_by?: string; team_num?: string; critical?: 0 | 1 }
+) {
+  return api.post<NarrativeEntry>(`/api/incidents/${incidentId}/narratives`, body);
 }

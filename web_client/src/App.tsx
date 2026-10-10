@@ -1,10 +1,13 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { useSession } from "./auth/SessionContext";
+import { IncidentSocketProvider } from "./realtime/IncidentSocketProvider";
+import AppShell from "./shell/AppShell";
 import LoginScreen from "./screens/LoginScreen";
 import AccountSetupScreen from "./screens/AccountSetupScreen";
-import IncidentSelectScreen from "./screens/IncidentSelectScreen";
-import CheckInScreen from "./screens/CheckInScreen";
-import HomeScreen from "./screens/HomeScreen";
+import TeamStatusBoardPage from "./modules/operations/teamStatus/TeamStatusBoardPage";
+import TeamDetailPage from "./modules/operations/teamStatus/TeamDetailPage";
+import TaskStatusBoardPage from "./modules/operations/taskStatus/TaskStatusBoardPage";
+import TaskDetailPage from "./modules/operations/taskStatus/TaskDetailPage";
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const { isAuthenticated } = useSession();
@@ -13,20 +16,28 @@ function RequireAuth({ children }: { children: JSX.Element }) {
 
 function RequireIncident({ children }: { children: JSX.Element }) {
   const { incidentId } = useSession();
-  return incidentId ? children : <Navigate to="/incidents" replace />;
+  return incidentId ? children : <Navigate to="/" replace />;
 }
 
-function RequireCheckin({ children }: { children: JSX.Element }) {
-  const { checkin } = useSession();
-  return checkin?.checked_in ? children : <Navigate to="/checkin" replace />;
+function ShellWithSocket() {
+  const { incidentId } = useSession();
+  return (
+    <IncidentSocketProvider incidentId={incidentId}>
+      <AppShell />
+    </IncidentSocketProvider>
+  );
 }
 
-function RootRedirect() {
-  const { isAuthenticated, incidentId, checkin } = useSession();
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
-  if (!incidentId) return <Navigate to="/incidents" replace />;
-  if (!checkin?.checked_in) return <Navigate to="/checkin" replace />;
-  return <Navigate to="/home" replace />;
+function IndexContent() {
+  const { incidentId } = useSession();
+  if (!incidentId) {
+    return (
+      <div className="screen">
+        <p>Select an incident from the top bar to get started.</p>
+      </div>
+    );
+  }
+  return <Navigate to="/ops/teams" replace />;
 }
 
 export default function App() {
@@ -35,37 +46,48 @@ export default function App() {
       <Route path="/login" element={<LoginScreen />} />
       <Route path="/setup" element={<AccountSetupScreen />} />
       <Route
-        path="/incidents"
+        path="/"
         element={
           <RequireAuth>
-            <IncidentSelectScreen />
+            <ShellWithSocket />
           </RequireAuth>
         }
-      />
-      <Route
-        path="/checkin"
-        element={
-          <RequireAuth>
+      >
+        <Route index element={<IndexContent />} />
+        <Route
+          path="ops/teams"
+          element={
             <RequireIncident>
-              <CheckInScreen />
+              <TeamStatusBoardPage />
             </RequireIncident>
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/home"
-        element={
-          <RequireAuth>
+          }
+        />
+        <Route
+          path="ops/teams/:teamId"
+          element={
             <RequireIncident>
-              <RequireCheckin>
-                <HomeScreen />
-              </RequireCheckin>
+              <TeamDetailPage />
             </RequireIncident>
-          </RequireAuth>
-        }
-      />
-      <Route path="/" element={<RootRedirect />} />
-      <Route path="*" element={<RootRedirect />} />
+          }
+        />
+        <Route
+          path="ops/tasks"
+          element={
+            <RequireIncident>
+              <TaskStatusBoardPage />
+            </RequireIncident>
+          }
+        />
+        <Route
+          path="ops/tasks/:taskId"
+          element={
+            <RequireIncident>
+              <TaskDetailPage />
+            </RequireIncident>
+          }
+        />
+      </Route>
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }

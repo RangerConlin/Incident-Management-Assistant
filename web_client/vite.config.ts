@@ -12,7 +12,9 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      "/api": BACKEND_PROXY_TARGET,
+      // ws: true so the incident WebSocket (/api/incidents/{id}/ws) proxies
+      // too, not just plain HTTP — see realtime/IncidentSocketProvider.tsx.
+      "/api": { target: BACKEND_PROXY_TARGET, ws: true },
       "/health": BACKEND_PROXY_TARGET,
       "/server-info": BACKEND_PROXY_TARGET,
     },
