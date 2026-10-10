@@ -25,10 +25,8 @@ COPY modules/personnel/models/cert_catalog.py /app/modules/personnel/models/cert
 COPY modules/logistics/__init__.py /app/modules/logistics/__init__.py
 COPY modules/logistics/equipment_catalog_io.py /app/modules/logistics/equipment_catalog_io.py
 COPY modules/admin/__init__.py /app/modules/admin/__init__.py
-COPY modules/admin/resource_types/__init__.py /app/modules/admin/resource_types/__init__.py
 COPY modules/admin/resource_types/models/__init__.py /app/modules/admin/resource_types/models/__init__.py
 COPY modules/admin/resource_types/models/resource_type_models.py /app/modules/admin/resource_types/models/resource_type_models.py
-COPY modules/admin/hazard_types/__init__.py /app/modules/admin/hazard_types/__init__.py
 COPY modules/admin/hazard_types/models/__init__.py /app/modules/admin/hazard_types/models/__init__.py
 COPY modules/admin/hazard_types/models/hazard_type_models.py /app/modules/admin/hazard_types/models/hazard_type_models.py
 

@@ -37,6 +37,7 @@ from utils.edit_window_kit import (
     run_async,
     write_export_file,
 )
+from utils.itemview_delegates import RowOutlineSelectionDelegate
 from utils.org_combo import make_org_combo
 
 
@@ -422,7 +423,7 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
             cert_type_id = cert.get("cert_type_id") or cert.get("int_id") or cert.get("id")
             if cert_type_id is None:
                 continue
-            level_item = self.tbl_certs.item(row, 2)
+            level_item = self.tbl_certs.item(row, 3)
             level_text = level_item.text().strip() if level_item else ""
             level = _LEVEL_BY_LABEL.get(level_text, 1)
             try:
@@ -434,6 +435,20 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
             cert_row["level"] = level
             certs.append(cert_row)
         self._local_certs = self._normalize_cert_rows(certs)
+        self._refresh_qualifications_label()
+
+    def _refresh_qualifications_label(self) -> None:
+        from modules.personnel.api import cert_api
+
+        try:
+            met = cert_api.qualifications_met(self._minimal_certs_for_save(), self._catalog_by_id)
+        except Exception:
+            met = []
+        if met:
+            names = ", ".join(q.get("name") or q.get("code") or "" for q in met)
+            self.lbl_qualifications.setText(f"Qualifications Met: {names}")
+        else:
+            self.lbl_qualifications.setText("Qualifications Met: (none)")
 
     def _set_rank_options(self, organization_name: str, current_rank: str = "") -> None:
         current_rank = _clean_text(current_rank)
@@ -526,6 +541,7 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
         self.tbl_certs.insertRow(row)
         code = _clean_text(cert.get("code"))
         name = _clean_text(cert.get("name"))
+        category = _clean_text(cert.get("category"))
         code_item = QtWidgets.QTableWidgetItem(code)
         code_item.setFlags(QtCore.Qt.ItemFlag.ItemIsEnabled | QtCore.Qt.ItemFlag.ItemIsSelectable)
         code_item.setData(QtCore.Qt.ItemDataRole.UserRole, cert)
@@ -535,6 +551,10 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
         name_item.setFlags(QtCore.Qt.ItemFlag.ItemIsEnabled | QtCore.Qt.ItemFlag.ItemIsSelectable)
         self.tbl_certs.setItem(row, 1, name_item)
 
+        category_item = QtWidgets.QTableWidgetItem(category)
+        category_item.setFlags(QtCore.Qt.ItemFlag.ItemIsEnabled | QtCore.Qt.ItemFlag.ItemIsSelectable)
+        self.tbl_certs.setItem(row, 2, category_item)
+
         level_item = QtWidgets.QTableWidgetItem(_level_label(level))
         level_item.setFlags(
             QtCore.Qt.ItemFlag.ItemIsEnabled
@@ -542,7 +562,7 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
             | QtCore.Qt.ItemFlag.ItemIsEditable
         )
         level_item.setData(QtCore.Qt.ItemDataRole.UserRole, _clamp_level(level) if _clamp_level(level) > 0 else 1)
-        self.tbl_certs.setItem(row, 2, level_item)
+        self.tbl_certs.setItem(row, 3, level_item)
         self._sync_certs_from_table()
 
     def _selected_cert_row(self) -> int:
@@ -659,8 +679,8 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
         widget = QtWidgets.QWidget()
         layout = QtWidgets.QVBoxLayout(widget)
 
-        self.tbl_certs = QtWidgets.QTableWidget(0, 3)
-        self.tbl_certs.setHorizontalHeaderLabels(["Code", "Name", "Level"])
+        self.tbl_certs = QtWidgets.QTableWidget(0, 4)
+        self.tbl_certs.setHorizontalHeaderLabels(["Code", "Name", "Category", "Level"])
         self.tbl_certs.verticalHeader().setVisible(False)
         self.tbl_certs.setSelectionBehavior(QtWidgets.QTableWidget.SelectRows)
         self.tbl_certs.setSelectionMode(QtWidgets.QTableWidget.SingleSelection)
@@ -670,13 +690,17 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
             | QtWidgets.QAbstractItemView.EditTrigger.SelectedClicked
         )
         self.tbl_certs.setSortingEnabled(True)
+        self.tbl_certs.setAlternatingRowColors(False)
         header = self.tbl_certs.horizontalHeader()
         header.setSortIndicatorShown(True)
-        header.setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
-        self.tbl_certs.setItemDelegateForColumn(2, _CertificationLevelDelegate(self.tbl_certs))
+        header.setStretchLastSection(True)
+        header.setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.Interactive)
+        self.tbl_certs.setStyleSheet("QTableWidget { selection-background-color: transparent; }")
+        self.tbl_certs.setItemDelegate(RowOutlineSelectionDelegate(self.tbl_certs, QtGui.QColor("#FFFFFF")))
+        self.tbl_certs.setItemDelegateForColumn(3, _CertificationLevelDelegate(self.tbl_certs))
         self.tbl_certs.itemChanged.connect(self._sync_certs_from_table)
+
+        self.lbl_qualifications = QtWidgets.QLabel("Qualifications Met: (none)")
 
         btns = QtWidgets.QHBoxLayout()
         self.btn_add_cert = QtWidgets.QPushButton("Add Certification")
@@ -690,6 +714,7 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
 
         layout.addWidget(self.tbl_certs)
         layout.addLayout(btns)
+        layout.addWidget(self.lbl_qualifications)
 
         self.btn_add_cert.clicked.connect(self._on_add_cert)
         self.btn_edit_cert.clicked.connect(self._on_edit_cert)
@@ -762,6 +787,10 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
             name_item.setFlags(QtCore.Qt.ItemFlag.ItemIsEnabled | QtCore.Qt.ItemFlag.ItemIsSelectable)
             self.tbl_certs.setItem(row, 1, name_item)
 
+            category_item = QtWidgets.QTableWidgetItem(str(display["category"]))
+            category_item.setFlags(QtCore.Qt.ItemFlag.ItemIsEnabled | QtCore.Qt.ItemFlag.ItemIsSelectable)
+            self.tbl_certs.setItem(row, 2, category_item)
+
             level_item = QtWidgets.QTableWidgetItem(_level_label(display["level"]))
             level_item.setFlags(
                 QtCore.Qt.ItemFlag.ItemIsEnabled
@@ -769,7 +798,7 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
                 | QtCore.Qt.ItemFlag.ItemIsEditable
             )
             level_item.setData(QtCore.Qt.ItemDataRole.UserRole, max(1, _clamp_level(display["level"])))
-            self.tbl_certs.setItem(row, 2, level_item)
+            self.tbl_certs.setItem(row, 3, level_item)
 
         self.tbl_certs.blockSignals(False)
         self.tbl_certs.sortItems(0, QtCore.Qt.SortOrder.AscendingOrder)
@@ -851,10 +880,10 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
         row = self._selected_cert_row()
         if row < 0:
             return
-        item = self.tbl_certs.item(row, 2)
+        item = self.tbl_certs.item(row, 3)
         if item is None:
             return
-        self.tbl_certs.setCurrentCell(row, 2)
+        self.tbl_certs.setCurrentCell(row, 3)
         self.tbl_certs.editItem(item)
 
     def _on_del_cert(self) -> None:

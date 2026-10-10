@@ -13,9 +13,9 @@ from __future__ import annotations
 from typing import List, Dict, Any
 
 from utils.api_client import api_client
-from modules.personnel.models.validation_profiles import PROFILES, get_profile
 
 _CATALOG_BASE = "/api/master/certification-types"
+_QUALIFICATIONS_BASE = "/api/master/qualification-types"
 
 
 def list_catalog(filter_text: str = "", category: str | None = None) -> List[Dict[str, Any]]:
@@ -111,32 +111,34 @@ def delete_personnel_cert(personnel_id: int, cert_type_id: int) -> None:
         pass
 
 
-def list_profiles() -> list[dict]:
-    return [
-        {"code": p.code, "name": p.name, "min_level": p.min_level}
-        for p in PROFILES
-    ]
-
-
-def person_meets_profile(personnel_id: int, profile_code: str) -> bool:
-    """Determine if a person meets a given profile.
-
-    Rules:
-    - Consider the highest level per certification.
-    - Require level >= profile.min_level.
-    - Require cert has all_tags (if any) and at least one any_tag (if any).
-    """
-    prof = get_profile(profile_code)
-    if prof is None:
-        return False
-
+def list_qualifications() -> list[dict]:
+    """Return qualification profiles (code, name, any_tags, all_tags, min_level)
+    from the master catalog (`/api/master/qualification-types`, see
+    data/db/sarapp_db/api/routers/qualification_types.py)."""
     try:
-        certs = list_personnel_certs(personnel_id)
+        return api_client.get(_QUALIFICATIONS_BASE) or []
     except Exception:
-        certs = []
+        return []
+
+
+def qualifications_met(certs: list[dict], catalog_by_id: dict[int, dict] | None = None) -> list[dict]:
+    """Return the qualification rows a set of certs satisfies.
+
+    `certs` is a list of `{cert_type_id, level}` — the highest level per cert
+    is considered, same rule a saved personnel record's certifications and a
+    dialog's in-progress (unsaved) edits both follow. Pure/local: no
+    personnel lookup, so a UI editing a person's certs before saving can show
+    qualifications met from its own in-memory state rather than only after
+    the record is written back.
+
+    Rules per qualification: cert's level >= qualification's min_level, cert
+    has all of `all_tags` (if any), and at least one of `any_tags` (if any).
+    """
+    if catalog_by_id is None:
+        catalog_by_id = {ct["id"]: ct for ct in list_catalog()}
 
     max_levels: dict[int, int] = {}
-    for c in certs:
+    for c in certs or []:
         try:
             cid = int(c.get("cert_type_id"))
             lvl = int(c.get("level") or 0)
@@ -144,19 +146,22 @@ def person_meets_profile(personnel_id: int, profile_code: str) -> bool:
             continue
         max_levels[cid] = max(max_levels.get(cid, 0), lvl)
 
-    for cert_type_id, lvl in max_levels.items():
-        if lvl < prof.min_level:
-            continue
-        try:
-            tags: set[str] = set(list_tags_for_cert(cert_type_id) or [])
-        except Exception:
-            tags = set()
-        if prof.all_tags and not all(t in tags for t in prof.all_tags):
-            continue
-        if prof.any_tags and not any(t in tags for t in prof.any_tags):
-            continue
-        return True
-    return False
+    met: list[dict] = []
+    for qualification in list_qualifications():
+        min_level = int(qualification.get("min_level") or 2)
+        all_tags = set(qualification.get("all_tags") or [])
+        any_tags = set(qualification.get("any_tags") or [])
+        for cert_type_id, lvl in max_levels.items():
+            if lvl < min_level:
+                continue
+            tags: set[str] = set(catalog_by_id.get(cert_type_id, {}).get("tags") or [])
+            if all_tags and not all_tags.issubset(tags):
+                continue
+            if any_tags and not (tags & any_tags):
+                continue
+            met.append(qualification)
+            break
+    return met
 
 
 __all__ = [
@@ -165,6 +170,6 @@ __all__ = [
     "set_personnel_cert",
     "delete_personnel_cert",
     "list_tags_for_cert",
-    "list_profiles",
-    "person_meets_profile",
+    "list_qualifications",
+    "qualifications_met",
 ]

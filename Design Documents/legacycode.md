@@ -54,6 +54,14 @@ Add entries below this line.
 - Removal Condition: safe to delete (`db.certification_types.delete_many({"certification_type_id": {"$type": "string"}})` and the analogous `certification_tags` rows) once confirmed no historical/audit reason to keep them. Not deleted automatically by the seed migration, which only inserts alongside them.
 - Verification: `data/db/sarapp_db/migrations/seed_certification_types_from_hardcoded_catalog.py`'s docstring and the research that found this during the certification-catalog migration.
 
+### Hardcoded validation profiles (validation_profiles.py)
+- Status: `legacy-compat-candidate`
+- Location: `modules/personnel/models/validation_profiles.py` (`PROFILES`, `QualProfile`, `PROFILES_VERSION`, `get_profile`)
+- Purpose: was the live source for qualification profile checks until the 2026-10-10 migration to a real Mongo-backed `qualification_types` catalog, now read via `cert_api.list_qualifications()`/`qualifications_met()`.
+- Legacy Source: pre-cutover, when there was no Mongo-backed way to store this catalog at all.
+- Removal Condition: this module is kept only as the seed source for `data/db/sarapp_db/migrations/seed_qualification_types_from_hardcoded_profiles.py` (a one-time migration, already run against this installation's local catalog). Safe to delete, along with that migration script, once every server that needs the seed has run it and no one needs to re-derive it from this file again.
+- Verification: `rg -n "from modules.personnel.models.validation_profiles import|models\.validation_profiles" --glob '!*/migrations/*'` shows no remaining application-code imports, only the migration script.
+
 ### Finance Attachments Use Filesystem Paths Instead Of GridFS
 - Status: `legacy-compat-candidate`
 - Location: `data/db/sarapp_db/api/routers/finance.py` (`AttachmentBody.file_path`, `create_attachment`)

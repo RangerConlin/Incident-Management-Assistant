@@ -533,6 +533,24 @@ def _certification_type_form_payload(form: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _qualification_type_form_row(doc: dict[str, Any]) -> dict[str, Any]:
+    row = dict(doc)
+    row["any_tags"] = _list_to_csv(row.get("any_tags"))
+    row["all_tags"] = _list_to_csv(row.get("all_tags"))
+    return row
+
+
+def _qualification_type_form_payload(form: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "code": str(form.get("code") or "").strip(),
+        "name": str(form.get("name") or "").strip(),
+        "any_tags": _csv_to_list(form.get("any_tags")),
+        "all_tags": _csv_to_list(form.get("all_tags")),
+        "min_level": int(form.get("min_level") or 2),
+        "is_active": bool(form.get("is_active", True)),
+    }
+
+
 def _rank_display_text(rank_row: dict[str, Any]) -> str:
     code = str(rank_row.get("rank_code") or "").strip()
     name = str(rank_row.get("rank_name") or rank_row.get("name") or "").strip()
@@ -829,6 +847,7 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
     from sarapp_db.api.routers import safety_templates as safety_templates_router
     from sarapp_db.api.routers import gar_templates as gar_templates_router
     from sarapp_db.api.routers import certification_types as certification_types_router
+    from sarapp_db.api.routers import qualification_types as qualification_types_router
     from modules.admin.resource_types.models.resource_type_models import RESOURCE_CATEGORIES, RESOURCE_SOURCES
     from modules.admin.hazard_types.models.hazard_type_models import HAZARD_CATEGORIES
     from modules.personnel.catalog_io import (
@@ -840,7 +859,6 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
     )
     from modules.logistics.equipment_catalog_io import FIELDS as EQUIPMENT_EXPORT_FIELDS
 
-    personnel_catalog_by_code, personnel_catalog_by_id = certification_catalogs()
     equipment_export_field_keys = [f.key for f in EQUIPMENT_EXPORT_FIELDS]
     personnel_fields = [
         FieldSpec(
@@ -1059,10 +1077,16 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
             delete_fn=personnel_router.delete_person,
             export_fields=[f.key for f in PERSONNEL_FIELDS],
             export_field_labels=PERSONNEL_FIELD_LABELS,
-            export_row_fn=lambda doc: personnel_export_row(doc, personnel_catalog_by_id),
-            import_payload_fn=lambda row: build_personnel_import_payload(row, personnel_catalog_by_code),
-            form_row_fn=lambda doc: personnel_export_row(doc, personnel_catalog_by_id),
-            form_payload_fn=lambda row: build_personnel_import_payload(row, personnel_catalog_by_code),
+            # certification_catalogs() now reads a live Mongo-backed catalog
+            # (see Design Documents/legacycode.md) rather than a hardcoded
+            # Python list, so this is called fresh on each use instead of
+            # once at router-build time — a cert type added/renamed while
+            # the server is running must be visible immediately, not only
+            # after a restart.
+            export_row_fn=lambda doc: personnel_export_row(doc, certification_catalogs()[1]),
+            import_payload_fn=lambda row: build_personnel_import_payload(row, certification_catalogs()[0]),
+            form_row_fn=lambda doc: personnel_export_row(doc, certification_catalogs()[1]),
+            form_payload_fn=lambda row: build_personnel_import_payload(row, certification_catalogs()[0]),
             list_fields=["person_id", "first_name", "last_name", "callsign", "rank", "home_unit", "phone", "is_medic"],
             inline_edit_fields=["person_id", "first_name", "last_name", "callsign", "rank", "home_unit", "phone", "is_medic"],
         ),
@@ -1400,6 +1424,27 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
             form_row_fn=_certification_type_form_row,
             form_payload_fn=_certification_type_form_payload,
             list_fields=["code", "name", "category", "issuing_org", "is_medical", "is_active"],
+        ),
+        CollectionSpec(
+            key="qualification-types",
+            title="Qualification Types",
+            record_field="id",
+            fields=[
+                FieldSpec("code", "Code"),
+                FieldSpec("name", "Name"),
+                FieldSpec("any_tags", "Any Of These Tags (comma-separated)"),
+                FieldSpec("all_tags", "All Of These Tags (comma-separated)"),
+                FieldSpec("min_level", "Minimum Level", input_type="number", value_type="int"),
+                FieldSpec("is_active", "Active", input_type="checkbox"),
+            ],
+            list_fn=lambda: qualification_types_router.list_qualification_types(search="", include_inactive=True),
+            get_fn=qualification_types_router.get_qualification_type,
+            create_fn=qualification_types_router.create_qualification_type,
+            update_fn=qualification_types_router.update_qualification_type,
+            delete_fn=None,
+            form_row_fn=_qualification_type_form_row,
+            form_payload_fn=_qualification_type_form_payload,
+            list_fields=["code", "name", "min_level", "is_active"],
         ),
         CollectionSpec(
             key="console-users",
