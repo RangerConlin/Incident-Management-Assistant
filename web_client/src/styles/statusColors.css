@@ -1,0 +1,108 @@
+/*
+ * Status color tokens — the web analog of styles/profiles/dark.py and
+ * light.py. Same keys, same hex values, hand-maintained side by side with
+ * those two files (see decision 4 in the design plan): if a status color
+ * changes on desktop, mirror it here too, there is no shared source.
+ * Multi-word status keys use hyphens in the variable name (e.g. "out of
+ * service" -> --status-team-out-of-service-bg); src/styles/statusColors.ts
+ * does the same substitution when looking a key up.
+ */
+
+:root[data-theme="dark"] {
+  /* TEAM_STATUS */
+  --status-team-aol-bg: #0b3d75; --status-team-aol-fg: #f5f5f5;
+  --status-team-arrival-bg: #1f6088; --status-team-arrival-fg: #f0f0f0;
+  --status-team-assigned-bg: #a88f1a; --status-team-assigned-fg: #f5f5f5;
+  --status-team-available-bg: #2f6d34; --status-team-available-fg: #f5f5f5;
+  --status-team-break-bg: #6e2b75; --status-team-break-fg: #f5f5f5;
+  --status-team-briefed-bg: #a88f1a; --status-team-briefed-fg: #f5f5f5;
+  --status-team-crew-rest-bg: #6e2b75; --status-team-crew-rest-fg: #f5f5f5;
+  --status-team-enroute-bg: #1aa8a8; --status-team-enroute-fg: #f5f5f5;
+  --status-team-out-of-service-bg: #8c2f2f; --status-team-out-of-service-fg: #f5f5f5;
+  --status-team-report-writing-bg: #785b8f; --status-team-report-writing-fg: #f5f5f5;
+  --status-team-returning-bg: #1f6088; --status-team-returning-fg: #f5f5f5;
+  --status-team-tol-bg: #0b3d75; --status-team-tol-fg: #f5f5f5;
+  --status-team-wheels-down-bg: #1f6088; --status-team-wheels-down-fg: #f5f5f5;
+  --status-team-post-incident-bg: #785b8f; --status-team-post-incident-fg: #f5f5f5;
+  --status-team-find-bg: #b2700d; --status-team-find-fg: #f5f5f5;
+  --status-team-complete-bg: #2f6d34; --status-team-complete-fg: #f5f5f5;
+
+  /* TASK_STATUS */
+  --status-task-created-bg: #444c55; --status-task-created-fg: #f5f5f5;
+  --status-task-planned-bg: #6d5478; --status-task-planned-fg: #f5f5f5;
+  --status-task-assigned-bg: #a88f1a; --status-task-assigned-fg: #f5f5f5;
+  --status-task-in-progress-bg: #1f6088; --status-task-in-progress-fg: #f5f5f5;
+  --status-task-complete-bg: #2f6d34; --status-task-complete-fg: #f5f5f5;
+  --status-task-cancelled-bg: #8c2f2f; --status-task-cancelled-fg: #f5f5f5;
+
+  /* RESOURCE_STATUS (check-in / ci_status) */
+  --status-resource-pending-bg: #4e3c00; --status-resource-pending-fg: #dbdbdb;
+  --status-resource-enroute-bg: #0d2a4a; --status-resource-enroute-fg: #dbdbdb;
+  --status-resource-checked-in-bg: #1b3a1f; --status-resource-checked-in-fg: #dbdbdb;
+  --status-resource-assigned-bg: #2a1a4e; --status-resource-assigned-fg: #dbdbdb;
+  --status-resource-available-bg: #003636; --status-resource-available-fg: #dbdbdb;
+  --status-resource-out-of-service-bg: #4a1200; --status-resource-out-of-service-fg: #dbdbdb;
+  --status-resource-demobilized-bg: #1c2226; --status-resource-demobilized-fg: #dbdbdb;
+
+  /* TEAM_TYPE_COLORS (single swatch, no fg pair) */
+  --team-type-gt: #2f6d34;
+  --team-type-udf: #bfa523;
+  --team-type-lsar: #2f6d34;
+  --team-type-df: #bfa523;
+  --team-type-gt-uas: #2d8f6d;
+  --team-type-udf-uas: #c59b3f;
+  --team-type-uas: #1f7a83;
+  --team-type-air: #3583c4;
+
+  /* Selected-row outline (agents.md hard rule: every table needs one) */
+  --color-selected-outline: #5b9bd5;
+}
+
+:root[data-theme="light"] {
+  /* TEAM_STATUS */
+  --status-team-aol-bg: #1565c0; --status-team-aol-fg: #ffffff;
+  --status-team-arrival-bg: #00b8d4; --status-team-arrival-fg: #1a1a1a;
+  --status-team-assigned-bg: #ffc107; --status-team-assigned-fg: #1a1a1a;
+  --status-team-available-bg: #43a047; --status-team-available-fg: #ffffff;
+  --status-team-break-bg: #ab47bc; --status-team-break-fg: #ffffff;
+  --status-team-briefed-bg: #ffc107; --status-team-briefed-fg: #1a1a1a;
+  --status-team-crew-rest-bg: #ab47bc; --status-team-crew-rest-fg: #ffffff;
+  --status-team-enroute-bg: #1aa8a8; --status-team-enroute-fg: #1a1a1a;
+  --status-team-out-of-service-bg: #e53935; --status-team-out-of-service-fg: #ffffff;
+  --status-team-report-writing-bg: #ce93d8; --status-team-report-writing-fg: #1a1a1a;
+  --status-team-returning-bg: #0288d1; --status-team-returning-fg: #ffffff;
+  --status-team-tol-bg: #1565c0; --status-team-tol-fg: #ffffff;
+  --status-team-wheels-down-bg: #0288d1; --status-team-wheels-down-fg: #ffffff;
+  --status-team-post-incident-bg: #ce93d8; --status-team-post-incident-fg: #1a1a1a;
+  --status-team-find-bg: #fb8c00; --status-team-find-fg: #1a1a1a;
+  --status-team-complete-bg: #2e7d32; --status-team-complete-fg: #ffffff;
+
+  /* TASK_STATUS */
+  --status-task-created-bg: #90a4ae; --status-task-created-fg: #1a1a1a;
+  --status-task-planned-bg: #ce93d8; --status-task-planned-fg: #1a1a1a;
+  --status-task-assigned-bg: #ffc107; --status-task-assigned-fg: #1a1a1a;
+  --status-task-in-progress-bg: #00acc1; --status-task-in-progress-fg: #ffffff;
+  --status-task-complete-bg: #2e7d32; --status-task-complete-fg: #ffffff;
+  --status-task-cancelled-bg: #e53935; --status-task-cancelled-fg: #ffffff;
+
+  /* RESOURCE_STATUS (check-in / ci_status) */
+  --status-resource-pending-bg: #efe229; --status-resource-pending-fg: #000000;
+  --status-resource-enroute-bg: #006ab6; --status-resource-enroute-fg: #000000;
+  --status-resource-checked-in-bg: #00e113; --status-resource-checked-in-fg: #000000;
+  --status-resource-assigned-bg: #581ab4; --status-resource-assigned-fg: #ffffff;
+  --status-resource-available-bg: #098d00; --status-resource-available-fg: #000000;
+  --status-resource-out-of-service-bg: #c73221; --status-resource-out-of-service-fg: #010101;
+  --status-resource-demobilized-bg: #888888; --status-resource-demobilized-fg: #363636;
+
+  /* TEAM_TYPE_COLORS (single swatch, no fg pair) */
+  --team-type-gt: #228b22;
+  --team-type-udf: #ffeb3b;
+  --team-type-lsar: #228b22;
+  --team-type-df: #ffeb3b;
+  --team-type-gt-uas: #00b987;
+  --team-type-udf-uas: #ffd54f;
+  --team-type-uas: #00cec9;
+  --team-type-air: #00a8ff;
+
+  --color-selected-outline: #1565c0;
+}

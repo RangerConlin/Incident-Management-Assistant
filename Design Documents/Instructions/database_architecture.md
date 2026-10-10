@@ -41,6 +41,11 @@
 - Theme tokens live in `utils.theme_manager` and `styles/palette.py`.
 - UI customization data lives in `modules/ui_customization` repositories/models.
 
+## Authentication
+- `data/db/sarapp_db/api/routers/auth_sessions.py` (`/api/auth`) owns user identity and session/presence state in `sarapp_master.users`/`user_sessions`. `/lookup`, `/register`, `/profile`, and `/sessions*` are identity-only — no password — and back desktop's local/offline operator context.
+- `/password/set` and `/login` add a real password (salted PBKDF2, `_hash_password`) and a JWT (`SARAPP_JWT_SECRET` env var; falls back to a random per-process secret, so tokens stop validating across a restart if that var is unset) on top of the same `users` records. `/password/set` only works once per account by design — there is no reset/change flow yet.
+- This backs the web client's (`web_client/`) login only, and **no router enforces it** — not a gap awaiting a narrow fix, a deliberate reversal. A tunnel-scoped enforcement design (require the JWT only for requests arrived via `cloud_router`'s public tunnel, reusing `app.py`'s `_TUNNEL_CLIENT_IP_HEADER`/`_client_address()` signal) was designed and then dropped before any code landed: the LAN tunnel is currently not working, so real desktop/mobile traffic already arrives looking tunnel-sourced, meaning that design would have required auth on essentially all production traffic immediately, with no client able to send a token — an outage, not a security improvement. See the `web_client` entry under `[Tech Debt / Infrastructure]` in `backlog.md` for what any future attempt at this needs to account for.
+
 ## Active Incident Number
 - Source of truth: `utils/state.py` via `AppState`.
 - Read in UI/bridges with `AppState.get_active_incident()`.

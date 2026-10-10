@@ -20,3 +20,4 @@ python-multipart>=0.0.9
 shapely>=2.0
 pyqtgraph>=0.13
 firebase-admin
+PyJWT>=2.8

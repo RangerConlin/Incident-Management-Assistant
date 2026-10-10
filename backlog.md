@@ -130,11 +130,9 @@ Intel Logs
 Forms
 
 - Weather module rebuild (modules/intel/weather/, 2026-07-22) — see modules/intel/weather/backlog.md
-  for the module's own follow-ups: lightning data deferred (no reliable free API); runway crosswind
-  data now comes from a live NOAA AWC airport lookup (services/runway_api.py) queried once at
-  station-creation time and cached, no bundled CSV needed; NWS location-code hint caching
-  (location_codes.py) isn't wired back into the new WeatherManager yet (forecast/HWO still work,
-  just without the caching speedup).
+  for the module's own follow-ups: lightning data deferred (no reliable free API); NWS location-code
+  hint caching (location_codes.py) isn't wired back into the new WeatherManager yet (forecast/HWO
+  still work, just without the caching speedup).
 **************************************************************************************************************
 [Safety]
   - Restore Safety Analysis Templates as reusable groupings of master hazard library entries for quick import into the tactics/planning workflow.
@@ -153,18 +151,6 @@ Medical Plan ICS 206
 
 **************************************************************************************************************
 [Liaison]
-Redesigned around the LOFR's actual job — controlling what information flows between incident
-staff and external customers — not generic agency CRUD. Dashboard (modules/liaison/liaison_window.py)
-follows the Public Information module's structure (button bar + overview + linked windows), now
-bold/saturated-colored via new LIAISON_AGENCY_STATUS/LIAISON_PRIORITY/LIAISON_REPORT_STATE
-palettes in styles/profiles/{dark,light}.py. Three sections:
-  - Agency Directory — unchanged CRUD board, re-themed.
-  - Reporting Board (modules/liaison/panels/reporting_board.py, new liaison_reporting_digests
-    collection) — LOFR pulls a live Objective/Task status, curates a customer-facing summary,
-    gates it behind a Ready to Report toggle before it's shareable.
-  - Customer Requests & Feedback (modules/liaison/panels/customer_board.py) — incoming customer
-    requests can be converted directly into a real Objective or Task (origin_module/origin_id
-    back-link added to both schemas), plus Resource Offers and Feedback tabs.
   - Remaining gap: Agency Detail dialog's Contacts / Restrictions / Agreements tabs are
     read-only (backend supports Contacts CRUD; Restrictions/Agreements have no create UI at
     all) — add "add" dialogs for these if the LNO workflow needs them tracked.
@@ -216,6 +202,35 @@ Cost Summary
 
 **************************************************************************************************************
 [Tech Debt / Infrastructure]
+    - Web client (`web_client/`): full-CRUD browser clone of the desktop app, built module by module — see
+      `web_client/AGENTS.md` for conventions and `src/shell/moduleRegistry.ts` for the full module list and
+      which are live.
+      - Auth is not enforced anywhere (`POST /api/auth/login` issues a JWT; no router checks it). A
+        tunnel-scoped enforcement design (require it only on requests that arrived via `cloud_router`'s
+        public tunnel) was tried and reverted: the LAN tunnel is currently broken, so real desktop/mobile
+        traffic already arrives looking tunnel-sourced — enforcing on that signal today would mean
+        requiring auth everywhere immediately, with no way for those clients to send a token. Whoever
+        picks this up needs to either fix the LAN tunnel first (so that signal means what it should) or
+        treat it as a coordinated multi-client rollout (desktop + mobile + web all need a login path
+        before enforcement can flip on anywhere) — a middle path is building the verification dependency
+        disabled by default (env-var gated) so it's ready once that rollout happens. Also still needed: a
+        password reset/change flow (`/password/set` only works once per account today). See
+        `Design Documents/Instructions/database_architecture.md` ("Authentication").
+      - `linked_strategy_summary` (one of desktop's Task Status Board columns) is deliberately not
+        exposed via `GET .../operations/task-rows` — it needs a real extra HTTP round-trip per task into
+        a Planning-module endpoint, a cross-module dependency on a module with no web presence yet.
+        Revisit once Planning gets its own web pass.
+      - Team Detail's Personnel/Vehicles/Equipment tabs edit the team's `members_json`/`vehicles_json`/
+        `equipment_json` arrays as plain strings (add/remove a name or ID), not against the
+        Personnel/Logistics master catalogs — those aren't wired up to the web client yet. Revisit once
+        those modules get their own web pass.
+      - The app's own bundle can't be reached through a `/r/<code>/app/...` connect-code URL yet:
+        `web_client/vite.config.ts`'s `base: "/app/"` bakes absolute asset paths into `index.html`, which
+        lose the `/r/<code>` prefix when a browser resolves them (`cloud_router` strips that prefix on the
+        request it proxies, but doesn't rewrite the HTML it returns). `src/api/connection.ts`'s domain +
+        connect-code setting only redirects data calls made after the app has already loaded, not the
+        initial bundle load. Fix is likely a relative base path (or computing it at runtime from
+        `document.baseURI`) instead of the hardcoded absolute `/app/`.
     - Optimization follow-up: profile Edit-menu windows and the task detail window to identify why modest datasets
       are not opening faster; tie this to any decision about reusing/caching Edit windows.
     - Sidebar: revisit large Edit-menu CSV import/export workflows with progress/cancel behavior and possible
@@ -252,10 +267,9 @@ Cost Summary
       - Per-operator accounts/audit trail for the central catalog GUI (MVP is a single shared admin login, same pattern as `cloud_server/dashboard.py`).
       - Cloud central catalog GUI follow-up: add purpose-built structured editors for nested/versioned catalogs instead of exposing them through the generic free-text CRUD form. Remaining known case is form families/templates/template versions.
       - Personnel duplicate merge workflow: two servers each creating a new personnel record offline before either syncs produces two distinct central documents (see `Design Documents/Instructions/mongodb_schema_decisions.md` "Personnel: central-vs-local record ids"). Needs a human-reviewed, operator-approved merge UI comparing multiple fields (name, person_id, org, contact info, etc.) — not an automatic match on any single field. Not started.
-      - Automatic incident→master write-back (MVP treats this as an explicit, operator-initiated action, not automatic).
       - `utils/catalog_cache.py` invalidation for remotely-synced master changes (today it only invalidates after locally-initiated writes).
       - MongoDB change streams as a latency optimization layered on the existing push/outbox/pull relay, only if the ~60s poll interval (or a manual resync) ever actually proves too slow — requires every deployment's MongoDB to run as a replica set, which none do today; see `Design Documents/Instructions/realtime_architecture_roadmap.md` ("Server ↔ central sync") for the tradeoff.
-      - Organization picker source-of-truth drift (found 2026-10-07): ICS-Mobile-App's profile screen organization
+      - Organization picker source-of-truth drift: ICS-Mobile-App's profile screen organization
         picker (`ICS-Mobile-App/lib/models/organizations.dart`, `Organizations.bundled`) hardcodes the full CAP
         Great Lakes Region roster (MI/IL/IN/KY/OH/WI wings + squadrons) plus a handful of state-agency/civilian
         entries as its offline-first fallback. Its docstring claims this mirrors an authoritative
@@ -271,7 +285,7 @@ Cost Summary
         be treated as the one hand-maintained copy with desktop reading from the synced catalog only, (3) the
         desktop app currently has no "Organizations" picker backed by this same roster at all outside the admin
         Units & Organizations panel — confirm whether any desktop UI needs one before building it.
-      - Master facilities catalog (requested 2026-10-07): a reusable, agency-wide directory of known physical
+      - Master facilities catalog: a reusable, agency-wide directory of known physical
         locations (airports/airstrips, hospitals, fairgrounds, EOCs, staging areas, CAP squadron buildings, etc.)
         with a geocoded address, distinct from the per-incident `modules/logistics/facilities/` module (ICP,
         staging, bases, etc. scoped to one incident) and from `organizations` (who, not where — organizations

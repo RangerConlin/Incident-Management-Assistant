@@ -385,7 +385,16 @@ def update_task(incident_id: str, task_id: int, body: dict[str, Any]) -> dict:
 
 @router.get("/incidents/{incident_id}/operations/task-rows")
 def fetch_task_rows(incident_id: str) -> list[dict]:
-    """Summary rows for the Task Status board."""
+    """Summary rows for the Task Status board.
+
+    Mirrors the fields modules/statusboards/team_task_desk.py's local join
+    computes for desktop's panel (minus linked_strategy_summary, which
+    needs a Planning-module round-trip this endpoint doesn't make) so
+    other callers — the web client, projection_dashboard — see the same
+    shape desktop effectively has, not just the original handful of
+    columns. Dates are returned raw (not pre-formatted); each client
+    formats for its own display.
+    """
     col = _tasks(incident_id)
     _ensure_int_ids(col)
     teams_col = _teams(incident_id)
@@ -396,19 +405,28 @@ def fetch_task_rows(incident_id: str) -> list[dict]:
         task_str_id = doc.get("task_id") or str(task_int_id)
         task_team_records = list(doc.get("task_teams") or doc.get("assigned_teams") or [])
         assigned = []
+        primary_team = ""
+        team_count = 0
         teams_iter = teams_col.find({"current_task_id": {"$in": [task_int_id, task_str_id]}})
         for team in teams_iter:
             sortie_id = None
+            is_primary = False
             for tt in reversed(task_team_records):
                 if tt.get("team_id") in (team.get("int_id"), team.get("team_id")):
                     sortie_id = tt.get("sortie_id")
+                    is_primary = bool(tt.get("is_primary"))
                     break
             assigned.append(team.get("name") or team.get("callsign") or sortie_id or f"Team {team.get('int_id')}")
+            team_count += 1
+            if is_primary and not primary_team:
+                primary_team = team.get("name") or team.get("callsign") or f"Team {team.get('int_id')}"
         priority = doc.get("priority", "")
         try:
             priority = PRIORITY_MAP.get(int(priority), str(priority))
         except (ValueError, TypeError):
             pass
+        created_at = doc.get("created_at")
+        updated_at = doc.get("updated_at")
         rows.append({
             "id": task_int_id,
             "number": doc.get("task_id") or f"T-{task_int_id}",
@@ -417,6 +435,20 @@ def fetch_task_rows(incident_id: str) -> list[dict]:
             "status": STATUS_LABEL.get(str(doc.get("status") or "").lower(), str(doc.get("status") or "").lower()),
             "priority": priority,
             "location": doc.get("location") or "",
+            "category": doc.get("category") or "",
+            "task_type": doc.get("task_type") or "",
+            "due_datetime": doc.get("due_time"),
+            "created_at": created_at,
+            "updated_at": updated_at,
+            "created_by": doc.get("created_by") or "",
+            "operational_period": doc.get("operational_period") or doc.get("operational_period_id") or "",
+            "primary_team": primary_team,
+            "team_count": team_count,
+            # Matches team_task_desk.py's own field exactly, including its
+            # name: this counts task_team assignment records, not distinct
+            # sorties — that's what desktop actually shows today.
+            "sortie_count": len(task_team_records),
+            "last_activity_at": updated_at or created_at,
         })
     return rows
 
@@ -779,6 +811,19 @@ def save_team_gar(incident_id: str, team_id: int, body: dict[str, Any]) -> dict:
     return {"current": history[-1] if history else None, "history": history}
 
 
+def _parse_json_list_field(value: Any) -> list[str]:
+    """Parse a team's vehicles_json/aircraft_json string field into display names.
+
+    Mirrors the shape web_client's ReferenceListEditor already expects
+    (a JSON array of plain strings) rather than inventing a richer schema.
+    """
+    try:
+        parsed = json.loads(value or "[]")
+    except (TypeError, ValueError):
+        return []
+    return [str(v) for v in parsed] if isinstance(parsed, list) else []
+
+
 @router.get("/incidents/{incident_id}/operations/team-assignment-rows")
 def fetch_team_assignment_rows(incident_id: str) -> list[dict]:
     """Summary rows for the Team Status board."""
@@ -822,8 +867,10 @@ def fetch_team_assignment_rows(incident_id: str) -> list[dict]:
         team_type = str(team.get("team_type") or "").upper()
         is_aircraft = team_type == "AIR"
         display_name = (team.get("callsign") if is_aircraft else None) or team.get("name") or f"Team {team_int_id}"
+        vehicle_names = _parse_json_list_field(team.get("aircraft_json") if is_aircraft else team.get("vehicles_json"))
         rows.append({
             "tt_id": None,
+            "vehicle": ", ".join(vehicle_names),
             "task_id": current_task_ref,
             "team_id": team_int_id,
             "sortie": sortie_display,
