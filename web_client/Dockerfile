@@ -11,7 +11,14 @@ COPY . .
 RUN npm run build
 
 FROM nginx:1.27-alpine
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# ca-certificates for verifying the backend's TLS cert when nginx proxies
+# /api/ to it (see nginx.conf.template) — not present in the base image.
+RUN apk add --no-cache ca-certificates
+# .template: substituted by the image's own built-in envsubst-on-templates
+# entrypoint (reads SARAPP_BACKEND_HOST/SARAPP_BACKEND_CONNECT_CODE from
+# the container environment) into /etc/nginx/conf.d/default.conf at
+# startup — not a static file copy.
+COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 # Served at /app to match vite.config.ts's base: "/app/" — the same build
 # output this image serves is also what create_app() mounts directly at
 # /app for LAN/offline/direct-cloud access, so both serving paths agree on
