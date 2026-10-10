@@ -35,6 +35,13 @@ server {
         proxy_pass https://${SARAPP_BACKEND_HOST}/r/${SARAPP_BACKEND_CONNECT_CODE}/api/;
         proxy_ssl_server_name on;
         proxy_ssl_verify on;
+        # Default is 1, too shallow for a leaf -> intermediate -> root chain:
+        # nginx gave up before reaching the trusted root even though that
+        # root was present in proxy_ssl_trusted_certificate below (confirmed
+        # by curl, which has no such depth limit, verifying the same chain
+        # against the same bundle just fine while nginx logged "unable to
+        # get local issuer certificate").
+        proxy_ssl_verify_depth 2;
         proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt;
         proxy_set_header Host ${SARAPP_BACKEND_HOST};
         proxy_set_header X-Real-IP $remote_addr;
