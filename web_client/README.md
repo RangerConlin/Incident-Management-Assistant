@@ -68,8 +68,14 @@ both:
    `docker-compose.yml`): `COMPOSE_PROJECT_NAME`, `SARAPP_WEB_CLIENT_ROUTE_RULE`
    (Traefik router rule — defaults to serving under `/app` on whatever
    domain Traefik already fronts; set to e.g. `` Host(`app.example.org`) ``
-   for a dedicated subdomain instead), `TRAEFIK_NETWORK` (the VPS's existing
-   external Traefik network name).
+   for a dedicated subdomain instead).
+
+   No shared Traefik network to configure — this container doesn't join
+   one. Confirmed on the actual VPS (`docker network ls`): Traefik there
+   runs with `--network host` and reaches containers via the Docker
+   socket + their own bridge IP, the same way `cloud_server`/`cloud_router`
+   each sit on their own private per-project network rather than a shared
+   external one. Only the Traefik labels matter for discovery.
 
    Reached this way, the app's own bundle loads directly under `/app` with
    no connect-code prefix involved — the "known limitation" below is about
