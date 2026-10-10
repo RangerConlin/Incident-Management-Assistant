@@ -1,3 +1,5 @@
+import { buildUrl } from "./connection";
+
 const TOKEN_KEY = "sarapp.token";
 
 export function getToken(): string | null {
@@ -23,7 +25,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   if (token) headers["Authorization"] = `Bearer ${token}`;
   if (body !== undefined) headers["Content-Type"] = "application/json";
 
-  const res = await fetch(path, {
+  const res = await fetch(buildUrl(path), {
     method,
     headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,

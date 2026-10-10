@@ -42,6 +42,32 @@ Outputs to `dist/`. When that directory exists, `create_app()` mounts it at
 `/app` so the LAN server, cloud server, and built-in offline server all
 serve it automatically — no separate deploy step.
 
+## Connection settings
+
+By default every request is same-origin/relative ("internal" — whatever
+server is already serving this page: a LAN server, an offline server, or a
+cloud server reached directly). `/connection` (linked from the login screen
+and the app's top bar) lets a user instead point the app at a domain +
+`cloud_router` connect code (`src/api/connection.ts`), for when this app is
+opened from somewhere that isn't already the right server. Every API call
+and the incident WebSocket go through `buildUrl`/`buildWsUrl` there, which
+prepend `https://<domain>/r/<code>` when a domain is set and fall back to
+same-origin otherwise.
+
+**Known limitation**: this only affects data calls made *after* the app has
+loaded — it does not help the app's own bundle load correctly through a
+`/r/<code>/app/...` URL in the first place. `vite.config.ts`'s
+`base: "/app/"` bakes absolute asset paths into `index.html`
+(`/app/assets/...`); a browser resolves those against the current origin
+with no path prefix, so if `index.html` itself was fetched through
+`cloud_router`'s connect-code prefix, the follow-up asset requests lose
+that prefix and 404 (`cloud_router/router/app.py`'s proxy strips the
+prefix before forwarding, but only for the request it already received —
+it does not rewrite HTML it returns). Not fixed yet; tracked in
+`backlog.md`. Today this app needs to be reached without a connect-code
+prefix on its *own* URL (serving it, not calling its API) for the initial
+load to work.
+
 ## Auth scope
 
 Login is password/JWT-based (`POST /api/auth/password/set`,

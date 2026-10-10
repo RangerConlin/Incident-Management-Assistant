@@ -266,6 +266,24 @@ Cost Summary
         `equipment_json` arrays as plain strings (add/remove a name or ID), not against the Personnel/Logistics
         master catalogs — those aren't wired up to the web client yet. Fine for now; revisit once those modules
         get their own web pass.
+      - Added 2026-10-10: `src/api/connection.ts` + a `/connection` screen let a user store a domain + `cloud_router`
+        connect code so the app's own API/WS calls target `https://<domain>/r/<code>/...` instead of assuming
+        same-origin ("internal," the default — unset, behaves exactly as before). Motivated by the planned VPS +
+        Traefik + `cloud_router` deployment: the server-side half of that (whether `cloud_server`'s tunnel client
+        dials an internal address or a public one when co-hosted with `cloud_router`) is a `SARAPP_CLOUD_ROUTER_URL`
+        deploy-config choice, not a web-client concern — this only covers the client-side half, remembering which
+        server to talk to.
+        - **Known gap found while building this, not fixed**: the connection-settings override only affects data
+          calls made *after* the app has already loaded — it does not help the app's own bundle (`index.html` +
+          JS/CSS) load correctly if reached *through* a `/r/<code>/app/...` URL in the first place.
+          `web_client/vite.config.ts`'s `base: "/app/"` bakes absolute asset paths into `index.html`; a browser
+          resolves those against the current origin with no path prefix, so if the HTML itself was fetched
+          through that prefix, the follow-up asset requests silently lose it and 404. `cloud_router/router/
+          app.py`'s proxy strips the prefix only on the request it receives, not on HTML it returns — there's no
+          rewriting. Today this means the app's own bundle must be reached without a connect-code prefix on its
+          own URL (direct LAN/offline/cloud access) for the initial load to work; reaching it via `/r/<code>/app/`
+          is untested and likely broken. Fix would be a relative base path (or computing it at runtime from
+          `document.baseURI`) instead of the hardcoded absolute `/app/`.
     - Optimization follow-up: profile Edit-menu windows and the task detail window to identify why modest datasets
       are not opening faster; tie this to any decision about reusing/caching Edit windows.
     - Sidebar: revisit large Edit-menu CSV import/export workflows with progress/cancel behavior and possible

@@ -90,6 +90,9 @@ export default function AppShell() {
             <button className="secondary" style={{ width: "auto" }} onClick={toggleTheme}>
               {theme === "dark" ? "Light mode" : "Dark mode"}
             </button>
+            <button className="secondary" style={{ width: "auto" }} onClick={() => navigate("/connection")}>
+              Connection
+            </button>
             <span>{user?.display_name}</span>
             <button
               className="secondary"

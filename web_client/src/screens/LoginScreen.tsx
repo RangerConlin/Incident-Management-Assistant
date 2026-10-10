@@ -17,7 +17,7 @@ export default function LoginScreen() {
     setBusy(true);
     try {
       await login(username.trim(), password);
-      navigate("/incidents");
+      navigate("/");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not sign in.");
     } finally {
@@ -58,6 +58,9 @@ export default function LoginScreen() {
       </form>
       <p style={{ marginTop: 16 }}>
         <Link to="/setup">First time here? Set up your account</Link>
+      </p>
+      <p>
+        <Link to="/connection">Connection settings</Link>
       </p>
     </div>
   );

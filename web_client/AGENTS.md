@@ -40,6 +40,15 @@ forking them per module.
 - **API calls**: `src/api/client.ts` is the only place that should touch
   `fetch`/JWT storage; add new backend calls to `src/api/endpoints.ts`
   instead of calling `fetch` directly from a module.
+- **Connection target**: `src/api/connection.ts` owns where requests
+  actually go — same-origin/relative by default ("internal"), or a stored
+  domain + `cloud_router` connect code (`/connection` screen) when the app
+  isn't already being served by the server it needs to talk to.
+  `client.ts`'s `buildUrl` and `IncidentSocketProvider`'s `buildWsUrl` both
+  go through it already; any new raw `fetch`/`WebSocket` call (there
+  shouldn't be one — use `client.ts`) would need to as well. Does **not**
+  fix the SPA's own bundle loading through a connect-code URL — see
+  README.md's "Connection settings" section for that gap.
 - **Data fetching**: TanStack Query (`@tanstack/react-query`), one
   `QueryClientProvider` in `main.tsx`. Each module's `hooks.ts` wraps
   `endpoints.ts` functions as `queryFn`/`mutationFn`. Query key convention:

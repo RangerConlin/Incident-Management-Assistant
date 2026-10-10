@@ -4,6 +4,7 @@ import { IncidentSocketProvider } from "./realtime/IncidentSocketProvider";
 import AppShell from "./shell/AppShell";
 import LoginScreen from "./screens/LoginScreen";
 import AccountSetupScreen from "./screens/AccountSetupScreen";
+import ConnectionSettingsScreen from "./screens/ConnectionSettingsScreen";
 import TeamStatusBoardPage from "./modules/operations/teamStatus/TeamStatusBoardPage";
 import TeamDetailPage from "./modules/operations/teamStatus/TeamDetailPage";
 import TaskStatusBoardPage from "./modules/operations/taskStatus/TaskStatusBoardPage";
@@ -45,6 +46,7 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<LoginScreen />} />
       <Route path="/setup" element={<AccountSetupScreen />} />
+      <Route path="/connection" element={<ConnectionSettingsScreen />} />
       <Route
         path="/"
         element={

@@ -1,5 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { buildWsUrl } from "../api/connection";
+
 export type ConnectionStatus = "connected" | "connecting" | "disconnected";
 
 const ConnectionStatusContext = createContext<ConnectionStatus>("disconnected");
@@ -37,8 +39,7 @@ export function IncidentSocketProvider({
     }
 
     let cancelled = false;
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const url = `${protocol}//${window.location.host}/api/incidents/${incidentId}/ws`;
+    const url = buildWsUrl(`/api/incidents/${incidentId}/ws`);
 
     setStatus("connecting");
     const socket = new WebSocket(url);
