@@ -107,6 +107,24 @@ def _field_labels(spec: CollectionSpec) -> dict[str, str]:
     return labels
 
 
+# Fields excluded from bulk edit even though they're inline-editable:
+# "rank" depends on a per-row context field (personnel.home_unit) for its
+# option list, so one value chosen in the bulk toolbar wouldn't mean the
+# same thing across rows from different organizations/rank structures.
+_BULK_EDIT_EXCLUDED_FIELDS = {"rank"}
+
+
+def _bulk_editable_fields(spec: CollectionSpec) -> list[FieldSpec]:
+    """Fields a grid's bulk-edit toolbar may apply to every selected row at
+    once. Scoped to the same fields the collection already marked safe for
+    single-cell inline editing (`inline_edit_fields`) — bulk edit is just
+    that same trusted operation applied to a selection instead of one row,
+    not a way to reach fields (like Personnel's certifications picker or
+    Certification Types' tags picker) that need their own dedicated UI."""
+    inline_fields = set(spec.inline_edit_fields or [])
+    return [f for f in spec.fields if f.name in inline_fields and f.name not in _BULK_EDIT_EXCLUDED_FIELDS]
+
+
 def _record_route_arg(spec: CollectionSpec, record_id: str) -> Any:
     if spec.record_id_type == "str":
         return record_id
@@ -1576,6 +1594,11 @@ def _page(title: str, body: str, request: Request) -> HTMLResponse:
     tr.hidden {{ display:none; }}
     .record-cell {{ white-space:nowrap; cursor:default; }}
     .row-edit-link {{ min-height:28px; padding:4px 10px; }}
+    .select-col {{ width:36px; max-width:36px; }}
+    .bulk-toolbar {{ display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin:-4px 0 12px; padding:10px 12px; border:1px solid var(--line); border-radius:8px; background:var(--panel-2); }}
+    .bulk-toolbar[hidden] {{ display:none; }}
+    .bulk-count {{ color:var(--muted); font-size:.85rem; white-space:nowrap; }}
+    .bulk-edit-form {{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; }}
     td[data-inline-td] {{ cursor:text; }}
     .inline-cell {{ display:block; }}
     .inline-cell.saving {{ opacity:.5; }}
@@ -1747,6 +1770,103 @@ def _page(title: str, body: str, request: Request) -> HTMLResponse:
       if (event.target.closest("a, button, input, textarea, select")) return;
       window.location.href = row.dataset.rowHref;
     }});
+  }});
+
+  // Bulk selection — checkboxes in the leftmost grid column feed a hidden
+  // "ids" field shared by the bulk-edit and bulk-delete forms in the
+  // toolbar above the table; the toolbar itself stays hidden until at
+  // least one row is checked.
+  document.querySelectorAll("[data-bulk-toolbar]").forEach((toolbar) => {{
+    const section = toolbar.closest("section");
+    const table = section ? section.querySelector("table[data-bulk-table]") : null;
+    if (!table) return;
+    const countEl = toolbar.querySelector("[data-bulk-count]");
+    const idsInputs = toolbar.querySelectorAll("[data-bulk-ids-input]");
+    const selectAll = table.querySelector("[data-select-all]");
+    const fieldSelect = toolbar.querySelector("[data-bulk-field-select]");
+    const valueSlot = toolbar.querySelector("[data-bulk-value-slot]");
+    const applyBtn = toolbar.querySelector("[data-bulk-apply]");
+    const deleteBtn = toolbar.querySelector("[data-bulk-delete-btn]");
+    const clearBtn = toolbar.querySelector("[data-bulk-clear]");
+    let fieldMeta = {{}};
+    const metaScript = toolbar.querySelector("[data-bulk-field-meta]");
+    if (metaScript) {{
+      try {{ fieldMeta = JSON.parse(metaScript.textContent); }} catch (err) {{ fieldMeta = {{}}; }}
+    }}
+
+    function checkedBoxes() {{
+      return Array.from(table.querySelectorAll("[data-row-checkbox]:checked"));
+    }}
+
+    function updateApplyState() {{
+      if (!applyBtn) return;
+      applyBtn.disabled = checkedBoxes().length === 0 || !(fieldSelect && fieldSelect.value);
+    }}
+
+    function refresh() {{
+      const checked = checkedBoxes();
+      const ids = checked.map((cb) => cb.value).join(",");
+      idsInputs.forEach((input) => {{ input.value = ids; }});
+      if (countEl) countEl.textContent = `${{checked.length}} selected`;
+      toolbar.hidden = checked.length === 0;
+      if (selectAll) {{
+        const all = table.querySelectorAll("[data-row-checkbox]");
+        selectAll.checked = all.length > 0 && checked.length === all.length;
+        selectAll.indeterminate = checked.length > 0 && checked.length < all.length;
+      }}
+      if (deleteBtn) deleteBtn.disabled = checked.length === 0;
+      updateApplyState();
+    }}
+
+    table.addEventListener("change", (event) => {{
+      if (event.target.matches("[data-row-checkbox]")) refresh();
+    }});
+    if (selectAll) {{
+      selectAll.addEventListener("change", () => {{
+        table.querySelectorAll("[data-row-checkbox]").forEach((cb) => {{ cb.checked = selectAll.checked; }});
+        refresh();
+      }});
+    }}
+    if (clearBtn) {{
+      clearBtn.addEventListener("click", () => {{
+        table.querySelectorAll("[data-row-checkbox]").forEach((cb) => {{ cb.checked = false; }});
+        refresh();
+      }});
+    }}
+    if (fieldSelect && valueSlot) {{
+      fieldSelect.addEventListener("change", () => {{
+        const meta = fieldMeta[fieldSelect.value];
+        valueSlot.innerHTML = "";
+        let input;
+        if (!meta) {{
+          input = document.createElement("input");
+          input.type = "text";
+          input.disabled = true;
+        }} else if (meta.type === "checkbox") {{
+          input = document.createElement("input");
+          input.type = "checkbox";
+          input.value = "1";
+        }} else if (meta.type === "select") {{
+          input = document.createElement("select");
+          (meta.options || []).forEach((opt) => {{
+            const optionEl = document.createElement("option");
+            optionEl.value = opt.id;
+            optionEl.textContent = opt.label;
+            input.appendChild(optionEl);
+          }});
+        }} else if (meta.type === "number") {{
+          input = document.createElement("input");
+          input.type = "number";
+        }} else {{
+          input = document.createElement("input");
+          input.type = "text";
+        }}
+        input.name = "value";
+        valueSlot.appendChild(input);
+        updateApplyState();
+      }});
+    }}
+    refresh();
   }});
 
   // Inline cell editing — double-clicking a cell in a table whose <table>
@@ -2858,6 +2978,28 @@ def create_master_gui_router() -> APIRouter:
                 return row_doc.get(field_name)
 
         inline_fields = set(spec.inline_edit_fields or [])
+        bulk_fields = _bulk_editable_fields(spec)
+        bulk_field_meta: dict[str, dict[str, Any]] = {}
+        for f in bulk_fields:
+            bulk_editor_type = (
+                "checkbox" if f.input_type == "checkbox"
+                else "select" if f.input_type in {"select", "select_fk"}
+                else "number" if f.value_type in {"int", "float"}
+                else "text"
+            )
+            bulk_options: list[dict[str, str]] = []
+            if personnel_org_rank_options and f.name == "home_unit":
+                bulk_options = [
+                    {"id": str(opt_id), "label": str(label)}
+                    for opt_id, label in personnel_org_rank_options["organization_options"]
+                ]
+            elif f.name == "organization":
+                bulk_options = [{"id": str(opt_id), "label": str(label)} for opt_id, label in organization_options]
+            elif collection_key == "vehicles" and f.name == "type_id":
+                bulk_options = [{"id": str(opt_id), "label": str(label)} for opt_id, label in vehicle_type_options]
+            elif collection_key == "vehicles" and f.name == "status_id":
+                bulk_options = [{"id": str(opt_id), "label": str(label)} for opt_id, label in vehicle_status_options]
+            bulk_field_meta[f.name] = {"type": bulk_editor_type, "options": bulk_options}
         rows = []
         for doc in docs:
             record_id = doc.get(spec.record_field)
@@ -2912,12 +3054,17 @@ def create_master_gui_router() -> APIRouter:
             cells_html = "".join(cells)
             row_href = f"{root_path}/gui/{collection_key}/{record_id}"
             row_attr = "" if inline_fields else f' data-row-href="{row_href}"'
+            select_cell = (
+                f'<td class="select-col"><input type="checkbox" data-row-checkbox value="{escape(str(record_id))}"></td>'
+                if record_id is not None
+                else '<td class="select-col"></td>'
+            )
             rows.append(
-                f'<tr data-row{row_attr}><td class="record-cell">'
+                f'<tr data-row{row_attr}>{select_cell}<td class="record-cell">'
                 f'<a class="button-link secondary row-edit-link" href="{row_href}">Edit</a></td>{cells_html}</tr>'
             )
         rows.append(
-            f'<tr class="empty-row {"hidden" if docs else ""}"><td colspan="{len(shown_fields) + 1}">'
+            f'<tr class="empty-row {"hidden" if docs else ""}"><td colspan="{len(shown_fields) + 2}">'
             "No matching records.</td></tr>"
         )
         inline_table_attrs = ""
@@ -2925,6 +3072,38 @@ def create_master_gui_router() -> APIRouter:
             inline_table_attrs = f' data-inline-collection="{escape(collection_key)}"'
             if collection_key == "personnel" and personnel_org_rank_options:
                 inline_table_attrs += f' data-rank-by-org="{_json_attr(personnel_org_rank_options["rank_by_org"])}"'
+
+        bulk_edit_html = ""
+        if bulk_fields:
+            bulk_field_options_html = "".join(
+                f'<option value="{escape(f.name)}">{escape(f.label)}</option>' for f in bulk_fields
+            )
+            bulk_meta_json = json.dumps(bulk_field_meta, separators=(",", ":")).replace("</", "<\\/")
+            bulk_edit_html = f"""<form class="inline bulk-edit-form" method="post" action="{root_path}/gui/{collection_key}/bulk-update" data-confirm-title="Bulk edit {escape(spec.title)}?" data-confirm="Apply this value to every selected record. This cannot be undone." data-confirm-action="Apply">
+      <input type="hidden" name="ids" data-bulk-ids-input>
+      <select name="field" data-bulk-field-select>
+        <option value="">Set field...</option>
+        {bulk_field_options_html}
+      </select>
+      <span data-bulk-value-slot><input type="text" name="value" data-bulk-value-input disabled></span>
+      <script type="application/json" data-bulk-field-meta>{bulk_meta_json}</script>
+      <button type="submit" class="secondary" data-bulk-apply disabled>Apply to Selected</button>
+    </form>"""
+        bulk_delete_html = ""
+        if spec.delete_fn is not None:
+            bulk_delete_html = f"""<form class="inline" method="post" action="{root_path}/gui/{collection_key}/bulk-delete" data-confirm-title="Delete selected {escape(spec.title)}?" data-confirm="This will permanently delete the selected records. This cannot be undone." data-confirm-action="Delete selected">
+      <input type="hidden" name="ids" data-bulk-ids-input>
+      <button type="submit" class="danger" data-bulk-delete-btn disabled>Delete Selected</button>
+    </form>"""
+        bulk_toolbar_html = ""
+        if bulk_edit_html or bulk_delete_html:
+            bulk_toolbar_html = f"""<div class="bulk-toolbar" data-bulk-toolbar hidden>
+    <span class="bulk-count" data-bulk-count></span>
+    {bulk_edit_html}
+    {bulk_delete_html}
+    <button type="button" class="secondary" data-bulk-clear>Clear selection</button>
+  </div>"""
+
         body = f"""{_back_link(f"{root_path}/gui", "Back to Collections")}<section class="card"><div class="card-head"><div><h1>{escape(spec.title)}</h1>
   <p class="card-subtitle">{len(docs)} record{"s" if len(docs) != 1 else ""}</p></div></div>
   <div class="grid-toolbar">
@@ -2938,9 +3117,10 @@ def create_master_gui_router() -> APIRouter:
     </div>
     <input class="grid-search" type="text" data-grid-search="{table_id}" placeholder="Search this table">
   </div>
+  {bulk_toolbar_html}
   <div class="table-wrap">
-    <table id="{table_id}"{inline_table_attrs}>
-      <thead><tr><th>Edit</th>{header_cells}</tr></thead>
+    <table id="{table_id}"{inline_table_attrs} data-bulk-table>
+      <thead><tr><th class="select-col"><input type="checkbox" data-select-all></th><th>Edit</th>{header_cells}</tr></thead>
       <tbody>{''.join(rows)}</tbody>
     </table>
   </div>
@@ -3175,6 +3355,65 @@ def create_master_gui_router() -> APIRouter:
             raise HTTPException(status_code=404, detail="Unknown collection")
         spec.delete_fn(_record_route_arg(spec, record_id))
         root_path = request.scope.get("root_path") or ""
+        return RedirectResponse(f"{root_path}/gui/{collection_key}", status_code=303)
+
+    @router.post("/gui/{collection_key}/bulk-delete")
+    async def bulk_delete_records(request: Request, collection_key: str) -> Response:
+        try:
+            _require_session(settings, request)
+        except HTTPException:
+            return _redirect_login(request)
+        spec = specs.get(collection_key)
+        if spec is None or spec.delete_fn is None:
+            raise HTTPException(status_code=404, detail="Unknown collection")
+        form = dict((await request.form()).items())
+        ids = [part.strip() for part in str(form.get("ids") or "").split(",") if part.strip()]
+        for record_id in ids:
+            try:
+                spec.delete_fn(_record_route_arg(spec, record_id))
+            except Exception:
+                # One bad/stale id (e.g. a record deleted by someone else
+                # between page load and submit) shouldn't abort the rest of
+                # the batch.
+                continue
+        root_path = request.scope.get("root_path") or ""
+        return RedirectResponse(f"{root_path}/gui/{collection_key}", status_code=303)
+
+    @router.post("/gui/{collection_key}/bulk-update")
+    async def bulk_update_records(request: Request, collection_key: str) -> Response:
+        try:
+            _require_session(settings, request)
+        except HTTPException:
+            return _redirect_login(request)
+        spec = specs.get(collection_key)
+        if spec is None:
+            raise HTTPException(status_code=404, detail="Unknown collection")
+        root_path = request.scope.get("root_path") or ""
+        # Re-derive the allowed field set server-side rather than trusting
+        # the submitted field name — the bulk toolbar only ever offers
+        # _bulk_editable_fields(spec), same restriction enforced here.
+        eligible = {f.name: f for f in _bulk_editable_fields(spec)}
+        form = dict((await request.form()).items())
+        ids = [part.strip() for part in str(form.get("ids") or "").split(",") if part.strip()]
+        field = eligible.get(str(form.get("field") or "").strip())
+        if not ids or field is None:
+            return RedirectResponse(f"{root_path}/gui/{collection_key}", status_code=303)
+
+        raw = str(form.get("value", "")).strip()
+        if field.input_type == "checkbox":
+            value: Any = 1 if raw.lower() in {"1", "true", "yes", "y", "on"} else 0
+        elif field.value_type == "int":
+            value = int(raw) if raw else None
+        elif field.value_type == "float":
+            value = float(raw) if raw else None
+        else:
+            value = raw
+
+        for record_id in ids:
+            try:
+                spec.update_fn(_record_route_arg(spec, record_id), {field.name: value})
+            except HTTPException:
+                continue
         return RedirectResponse(f"{root_path}/gui/{collection_key}", status_code=303)
 
     return router

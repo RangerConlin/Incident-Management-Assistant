@@ -22,7 +22,7 @@ from sarapp_db.api.routers import personnel as personnel_router
 from sarapp_db.mongo.database_manager import get_incident_db, get_master_db
 
 INCIDENT_ID = "TEST_PERSONNEL_READTHROUGH_CHECKIN"
-PERSON_ID = "405021"
+PERSON_ID = "TEST-READTHROUGH-405021"
 PERSON_DOC_ID = "TEST-READTHROUGH-PERSON-405021"
 
 
