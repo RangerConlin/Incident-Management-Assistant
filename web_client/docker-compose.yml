@@ -32,4 +32,10 @@ services:
       - traefik.http.routers.${COMPOSE_PROJECT_NAME:-sarapp-web-client}.rule=${SARAPP_WEB_CLIENT_ROUTE_RULE:-PathPrefix(`/app`)}
       - traefik.http.routers.${COMPOSE_PROJECT_NAME:-sarapp-web-client}.entrypoints=websecure
       - traefik.http.routers.${COMPOSE_PROJECT_NAME:-sarapp-web-client}.tls=true
+      # Without this, Traefik's "letsencrypt" resolver (configured on the
+      # shared VPS Traefik instance) never gets asked to issue a cert for
+      # this router's domain, so it falls back to Traefik's self-signed
+      # default cert — confirmed via openssl s_client showing "TRAEFIK
+      # DEFAULT CERT" for client.arcadiacommandsolutions.com.
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME:-sarapp-web-client}.tls.certresolver=letsencrypt
       - traefik.http.services.${COMPOSE_PROJECT_NAME:-sarapp-web-client}.loadbalancer.server.port=80
