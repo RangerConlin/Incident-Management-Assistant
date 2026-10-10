@@ -130,11 +130,9 @@ Intel Logs
 Forms
 
 - Weather module rebuild (modules/intel/weather/, 2026-07-22) — see modules/intel/weather/backlog.md
-  for the module's own follow-ups: lightning data deferred (no reliable free API); runway crosswind
-  data now comes from a live NOAA AWC airport lookup (services/runway_api.py) queried once at
-  station-creation time and cached, no bundled CSV needed; NWS location-code hint caching
-  (location_codes.py) isn't wired back into the new WeatherManager yet (forecast/HWO still work,
-  just without the caching speedup).
+  for the module's own follow-ups: lightning data deferred (no reliable free API); NWS location-code
+  hint caching (location_codes.py) isn't wired back into the new WeatherManager yet (forecast/HWO
+  still work, just without the caching speedup).
 **************************************************************************************************************
 [Safety]
   - Restore Safety Analysis Templates as reusable groupings of master hazard library entries for quick import into the tactics/planning workflow.
@@ -153,18 +151,6 @@ Medical Plan ICS 206
 
 **************************************************************************************************************
 [Liaison]
-Redesigned around the LOFR's actual job — controlling what information flows between incident
-staff and external customers — not generic agency CRUD. Dashboard (modules/liaison/liaison_window.py)
-follows the Public Information module's structure (button bar + overview + linked windows), now
-bold/saturated-colored via new LIAISON_AGENCY_STATUS/LIAISON_PRIORITY/LIAISON_REPORT_STATE
-palettes in styles/profiles/{dark,light}.py. Three sections:
-  - Agency Directory — unchanged CRUD board, re-themed.
-  - Reporting Board (modules/liaison/panels/reporting_board.py, new liaison_reporting_digests
-    collection) — LOFR pulls a live Objective/Task status, curates a customer-facing summary,
-    gates it behind a Ready to Report toggle before it's shareable.
-  - Customer Requests & Feedback (modules/liaison/panels/customer_board.py) — incoming customer
-    requests can be converted directly into a real Objective or Task (origin_module/origin_id
-    back-link added to both schemas), plus Resource Offers and Feedback tabs.
   - Remaining gap: Agency Detail dialog's Contacts / Restrictions / Agreements tabs are
     read-only (backend supports Contacts CRUD; Restrictions/Agreements have no create UI at
     all) — add "add" dialogs for these if the LNO workflow needs them tracked.
@@ -216,74 +202,35 @@ Cost Summary
 
 **************************************************************************************************************
 [Tech Debt / Infrastructure]
-    - Web client (`web_client/`, started 2026-10-10 as a mobile-mirrored MVP, **redirected the same day** to a
-      full-CRUD browser clone of the desktop app — command-post users who want incident access with no install,
-      not a field-ops companion). The MVP's login/check-in/status-update/admin-checkin/messaging screens were
-      scrapped; the first real module built is the **Team Status Board + Task Status Board** (and their detail
-      pages, `src/modules/operations/{teamStatus,taskStatus}/`), serving as the template every later module
-      copies — see `web_client/AGENTS.md` for the conventions it set (shared `DataTable`/`StatusPill` components,
-      TanStack Query + incident-WebSocket invalidation for live updates, CSS status-color tokens mirroring
-      `styles/profiles/{dark,light}.py`, `moduleRegistry.ts` as the single place new modules slot in). Served by
-      the shared FastAPI app at `/app` when `web_client/dist` exists (`data/db/sarapp_db/api/app.py`); no backend
-      changes were needed for this module — it consumes the existing `GET .../operations/team-assignment-rows`
-      and `GET .../operations/task-rows` join endpoints as-is.
-      - **Auth stays fully open — enforcement was tried and reverted.** `POST /api/auth/password/set` and
-        `POST /api/auth/login` (`data/db/sarapp_db/api/routers/auth_sessions.py`, salted PBKDF2 + JWT,
-        `SARAPP_JWT_SECRET` env var) exist and the web client sends the token, but **no router checks it** — this
-        was the deliberate final call, not an oversight. First attempt: enforce the JWT only on requests that
-        arrived through `cloud_router`'s public tunnel (reusing `app.py`'s existing `_TUNNEL_CLIENT_IP_HEADER`/
-        `_client_address()` tunnel-vs-direct signal), leaving direct/LAN traffic — desktop's normal case —
-        untouched. **Reversed before any code landed**: the LAN tunnel is not working today, so real desktop and
-        mobile traffic already arrives looking tunnel-sourced, meaning "require auth over the tunnel" would mean
-        "require auth everywhere, immediately," against clients with no way to send a token — an outage, not a
-        security fix. Whoever picks this up next needs to account for that finding, not just re-derive it:
-        - That tunnel-vs-direct signal doesn't currently correlate with trusted/untrusted the way it looks like
-          it should from the code alone. Fix the LAN tunnel first, or any design using this signal to gate auth
-          reproduces the same outage.
-        - The alternative — every client (desktop, web, future mobile) authenticating, no network-trust
-          carve-out — is viable but is a coordinated multi-client rollout (each needs a login path before
-          enforcement can flip on anywhere), not a narrow backend change.
-        - Middle path worth considering: build the verification dependency but ship it disabled by default
-          (env-var gated), so it exists and can be turned on once every client that needs to keep working can
-          send a token.
-        - Also still needed whenever this is picked up: a password reset/change flow (today `/password/set` only
-          works once per account, by design, to avoid building reset before enforcement even exists).
-        See `Design Documents/Instructions/database_architecture.md` ("Authentication").
-      - Fixed 2026-10-10: `task-rows`/`team-assignment-rows` were initially left thinner than desktop's panels
-        (see git history for the dropped detail) — enriched both once it turned out the gap was mostly just
-        unexported fields already sitting on documents these endpoints already load, not a real limitation.
-        `fetch_task_rows` now also returns `category`, `task_type`, `due_datetime`, `created_at`, `updated_at`,
-        `created_by`, `operational_period`, `primary_team`, `team_count`, `sortie_count`, `last_activity_at`
-        (mirroring `modules/statusboards/team_task_desk.py`'s local join, including its `sortie_count` field
-        literally counting task_team assignment records rather than distinct sorties — that's what desktop
-        itself shows). `fetch_team_assignment_rows` now returns `vehicle` (parsed from the team's own
-        `vehicles_json`/`aircraft_json`, which turned out to be genuinely unpopulated in desktop's own current
-        code path too — the old `add_team()` method that would have sourced it has no callers left). Deliberately
-        **not** added: `linked_strategy_summary` — desktop computes it via an actual extra HTTP round-trip per
-        task into a Planning-module endpoint, a real cross-module dependency on a module with no web presence
-        yet, not a trivial passthrough like the rest. Revisit once Planning gets its own web pass.
+    - Web client (`web_client/`): full-CRUD browser clone of the desktop app, built module by module — see
+      `web_client/AGENTS.md` for conventions and `src/shell/moduleRegistry.ts` for the full module list and
+      which are live.
+      - Auth is not enforced anywhere (`POST /api/auth/login` issues a JWT; no router checks it). A
+        tunnel-scoped enforcement design (require it only on requests that arrived via `cloud_router`'s
+        public tunnel) was tried and reverted: the LAN tunnel is currently broken, so real desktop/mobile
+        traffic already arrives looking tunnel-sourced — enforcing on that signal today would mean
+        requiring auth everywhere immediately, with no way for those clients to send a token. Whoever
+        picks this up needs to either fix the LAN tunnel first (so that signal means what it should) or
+        treat it as a coordinated multi-client rollout (desktop + mobile + web all need a login path
+        before enforcement can flip on anywhere) — a middle path is building the verification dependency
+        disabled by default (env-var gated) so it's ready once that rollout happens. Also still needed: a
+        password reset/change flow (`/password/set` only works once per account today). See
+        `Design Documents/Instructions/database_architecture.md` ("Authentication").
+      - `linked_strategy_summary` (one of desktop's Task Status Board columns) is deliberately not
+        exposed via `GET .../operations/task-rows` — it needs a real extra HTTP round-trip per task into
+        a Planning-module endpoint, a cross-module dependency on a module with no web presence yet.
+        Revisit once Planning gets its own web pass.
       - Team Detail's Personnel/Vehicles/Equipment tabs edit the team's `members_json`/`vehicles_json`/
-        `equipment_json` arrays as plain strings (add/remove a name or ID), not against the Personnel/Logistics
-        master catalogs — those aren't wired up to the web client yet. Fine for now; revisit once those modules
-        get their own web pass.
-      - Added 2026-10-10: `src/api/connection.ts` + a `/connection` screen let a user store a domain + `cloud_router`
-        connect code so the app's own API/WS calls target `https://<domain>/r/<code>/...` instead of assuming
-        same-origin ("internal," the default — unset, behaves exactly as before). Motivated by the planned VPS +
-        Traefik + `cloud_router` deployment: the server-side half of that (whether `cloud_server`'s tunnel client
-        dials an internal address or a public one when co-hosted with `cloud_router`) is a `SARAPP_CLOUD_ROUTER_URL`
-        deploy-config choice, not a web-client concern — this only covers the client-side half, remembering which
-        server to talk to.
-        - **Known gap found while building this, not fixed**: the connection-settings override only affects data
-          calls made *after* the app has already loaded — it does not help the app's own bundle (`index.html` +
-          JS/CSS) load correctly if reached *through* a `/r/<code>/app/...` URL in the first place.
-          `web_client/vite.config.ts`'s `base: "/app/"` bakes absolute asset paths into `index.html`; a browser
-          resolves those against the current origin with no path prefix, so if the HTML itself was fetched
-          through that prefix, the follow-up asset requests silently lose it and 404. `cloud_router/router/
-          app.py`'s proxy strips the prefix only on the request it receives, not on HTML it returns — there's no
-          rewriting. Today this means the app's own bundle must be reached without a connect-code prefix on its
-          own URL (direct LAN/offline/cloud access) for the initial load to work; reaching it via `/r/<code>/app/`
-          is untested and likely broken. Fix would be a relative base path (or computing it at runtime from
-          `document.baseURI`) instead of the hardcoded absolute `/app/`.
+        `equipment_json` arrays as plain strings (add/remove a name or ID), not against the
+        Personnel/Logistics master catalogs — those aren't wired up to the web client yet. Revisit once
+        those modules get their own web pass.
+      - The app's own bundle can't be reached through a `/r/<code>/app/...` connect-code URL yet:
+        `web_client/vite.config.ts`'s `base: "/app/"` bakes absolute asset paths into `index.html`, which
+        lose the `/r/<code>` prefix when a browser resolves them (`cloud_router` strips that prefix on the
+        request it proxies, but doesn't rewrite the HTML it returns). `src/api/connection.ts`'s domain +
+        connect-code setting only redirects data calls made after the app has already loaded, not the
+        initial bundle load. Fix is likely a relative base path (or computing it at runtime from
+        `document.baseURI`) instead of the hardcoded absolute `/app/`.
     - Optimization follow-up: profile Edit-menu windows and the task detail window to identify why modest datasets
       are not opening faster; tie this to any decision about reusing/caching Edit windows.
     - Sidebar: revisit large Edit-menu CSV import/export workflows with progress/cancel behavior and possible
@@ -297,33 +244,20 @@ Cost Summary
     - Cloud router (`cloud_server/router/`) forwards request/response and WebSocket bodies over the reverse tunnel as base64-in-JSON, capped at 10MB each direction (`SARAPP_ROUTER_MAX_BODY_BYTES`). Fine for typical form/photo sizes; revisit with a streaming transport if large file uploads/downloads through the router prove too slow. See `Design Documents/Instructions/cloud_router_architecture.md`.
     - Mobile photo upload isn't implemented yet (Report Hazard's "Attach Photo" is a placeholder button, no `image_picker` dependency). When it's built, submit one photo per request rather than batching several into one multipart body, to stay clear of the 10MB tunnel cap above.
     - Central master database (`cloud_router/master_db/`, embedded `sarapp_central_master` Mongo — see `Design Documents/Instructions/cloud_router_architecture.md`):
-      - Generalize the web GUI (`cloud_router/master_db/webgui.py`) and the sync relay (`data/db/sarapp_db/sync/`, `sync.config.SYNCABLE_MASTER_COLLECTIONS`) from `personnel`/`equipment` to the rest of the master inventory, each with a matching desktop "Resync" button. No collection-specific sync-relay code needed — confirmed when `equipment` was added (just a config entry + a test). Decided 2026-10-07 (see `Design Documents/Instructions/mongodb_schema_decisions.md` "Personnel: central-vs-local record ids" and its terminology section for the local-catalog/central-catalog vocabulary this plan uses): every collection below needs one of two treatments, done one collection at a time like `personnel`/`equipment` were:
-        - **Dual-key treatment** (apply the same `person_record`/`person_record_master` pattern via the now-generalized `dual_key_field()` helper in `data/db/sarapp_db/mongo/int_id.py` — local catalogs keep minting their own local key, the central catalog mints `<thing>_record_master` either immediately on a central-direct create or on first sync of an offline-created record, via `sync.py`'s `_DUAL_KEY_MASTER_FIELDS`):
-          - Done 2026-10-07: `equipment`, `vehicles`, `aircraft` (added to `SYNCABLE_MASTER_COLLECTIONS` alongside `personnel`; `cloud_router/master_db/webgui.py`'s `equipment`/`vehicles` specs updated to key off the `_master` field).
-          - Done 2026-10-07: `hazard_types`, `gar_templates`, `canned_comm_entries`, `hospitals` (local field `id`, master field `id_master`); `objective_templates`, `strategy_templates` (local field `int_id`, master field `int_id_master`); `radio_channels` (local field `channel_id`, master field `channel_id_master`, in `communications.py`'s `master_router` only — the incident-scoped comms/teams/personnel-suggestion endpoints in that same file are untouched); `safety_analysis_templates` (local field `template_id`, master field `template_id_master`). All added to `SYNCABLE_MASTER_COLLECTIONS` and `sync.py`'s `_DUAL_KEY_MASTER_FIELDS`, and to `rename_dual_key_fields_to_master.py`.
-          - Deliberately **not** dual-keyed: `meeting_templates`. Its three `master_router` endpoints (`meetings.py`) are keyed by a user-chosen `slug` with upsert (PUT) semantics, not an auto-incrementing id — two offline servers both creating a "safety-briefing" template is a content-naming collision, not an id-minting race, so there's nothing for a dual key to solve here.
-        - **Lockdown treatment** (central-authoritative; local catalogs reject create/update/delete with a 403 via a `_require_central()` guard, reads untouched):
-          - Done 2026-10-07: `organizations`, `organization_types`, `rank_structures`, `ranks`, `organization_rank_structure_overrides` (all in `organizations.py`); `resource_types`, `resource_capabilities` (`resource_types.py`); `form_families`, `form_templates`, `form_template_versions` (`forms.py`, `master_router` only — incident form instances on `incident_router` are untouched). Covered by `data/db/sarapp_db/api/routers/tests/test_lockdown_guards.py`.
-          - Done 2026-10-07: `task_types`/`team_types` (`lookup_types.py`). That router was previously mounted only in `mode="full"` even though it's pure master data with no incident scoping at all — moved its registration in `app.py` to the unconditional master-router section (both modes) so the guard means something, then added `_require_central()` the same way as the other lockdown routers. `incident_types` (same file) has no write endpoint at all (read-only with hardcoded fallback defaults), so it needed no guard. Covered by the same `test_lockdown_guards.py`.
-          - `certification_types`/`certification_tags`: investigated 2026-10-07, concluded these two Mongo collections (130/39 real docs on this install) are **dead legacy data**, not something to lock down. The actual certification catalog the app uses everywhere (`panels/personnel_cert_assign_panel.py` via `cert_api.list_catalog()`, `catalog_io.py`) is a hardcoded Python list in `modules/personnel/models/cert_catalog.py` (its own docstring: "authoritative in production... the code catalog is the single source of truth") — nothing anywhere reads or writes the Mongo collections, which is why no router exists for them. Out of scope for this migration; see the dedicated backlog item below about making certifications a real catalog instead, which is what would actually give these two collections (or their replacements) a reason to exist. The two audit logs (`organization_audit_log`, `rank_structure_audit_log`) need no separate guard since they're written only from inside the now-guarded `organizations.py` endpoints.
-          - Known tradeoff accepted by this treatment: a LAN/cloud server with no central connectivity yet has no way to create a brand-new organization/rank/resource type/form template locally anymore (previously it could, just disconnected from central). Worth flagging if initial server setup/seeding ever depends on local creation before a server has ever reached central.
-        - `personnel_certifications` needs neither — it's legacy and rides along with `personnel` entirely (see the `legacycode.md` entry added 2026-10-07).
-        - Not yet placed: `users`, `user_sessions`, `user_profiles`, `role_templates`, `client_connections`, `push_tokens` stay local-catalog-only by design (their routers only mount in `mode="full"`, never `master_only"`) — out of scope for this migration, not an oversight.
-        - Fixed 2026-10-07: `resource_types.py`, `strategy_templates.py`, and `objective_templates.py` each hardcoded the literal database name `"sarapp_master"` instead of calling `get_master_db()` — on the central catalog they'd have silently read/written a stray, wrong database instead of the real central catalog. All three now call `get_master_db()` like every other master router.
-      - Make certifications a real master catalog instead of a hardcoded list (wanted 2026-10-07, not started). Today `modules/personnel/models/cert_catalog.py`'s `CATALOG` constant is the sole source of truth (`cert_api.py`, `catalog_io.py`, `panels/personnel_cert_assign_panel.py` all read it directly — no Mongo collection involved). The existing `certification_types`/`certification_tags` Mongo collections are unused legacy data; whether a new catalog reuses those collection names or starts clean is an open question. Scope once picked up: a real router + schema (would be a dual-key or lockdown collection depending on whether field-level creation is wanted, same decision process as everything else in this section); migrating every current reader off the hardcoded `CATALOG` import; and — per that file's own docstring warning ("IDs are stable integers and MUST NOT be reused once shipped") — a migration plan that preserves existing numeric cert-type ids, since personnel records embed certifications by `cert_type_id` reference.
-      - Central-catalog sync config/status (2026-10-07): the only visible sync state used to be a fire-and-forget "Resync" button with no status, and getting a server pointed at the central catalog required a manually-set `SARAPP_CENTRAL_MASTER_URL` env var. Done:
-        - **No manual URL at all** — the central catalog lives inside `cloud_router` itself (mounted at `/central-master` on the same app that serves `/tunnel/register`), so `sarapp_db.sync.config.derive_central_master_url()` derives `SARAPP_CENTRAL_MASTER_URL` automatically from whatever `cloud_router_url` the server already uses for its tunnel. Wired into both `lan_server/server_manager.py` and `cloud_server/main.py`. (A first pass at this added a manual `central_master_url` console setting before the auto-derivation existed; removed once it did — don't reintroduce it.)
-        - LAN server console (`lan_server/server_console/`) shows a live "Central catalog sync" status line (Disabled / up to date / N pending) on the monitoring tab, backed by the new `sarapp_db.sync.status.get_sync_status()` helper and `GET /api/sync-trigger/status`. See `mongodb_schema_decisions.md` "Central-Master Sync Relay" for the full shape.
-        - Still needed: cloud server dashboard (`cloud_server/dashboard.py`) has no equivalent status surface yet — `GET /api/sync-trigger/status` exists for it to call, nothing wires it up there.
-      - Per-collection "last synced" indicator on the desktop's own Edit-menu catalog editor windows (done 2026-10-07). Shared helper: `utils/edit_window_kit.py::make_sync_status_label()`/`refresh_sync_status_label(owner, label, collection)` — builds a small label and populates it from `GET /api/sync-trigger/status`, showing "disabled" (server has no central sync configured), "not available for this catalog yet" (collection isn't in `SYNCABLE_MASTER_COLLECTIONS`), "never" (syncable but no pull has landed), or the last-pulled time. Covered by `utils/tests/test_edit_window_kit_sync_status.py`. Wired into all 14 distinct Edit-menu windows (`main.py` lines ~740-756; Hazard Type Library and Safety Analysis Templates share one window today, so that's 14 windows for 15 menu items): `ui/personnel/ui_personnel.py`, `panels/equipment_edit_panel.py`, `modules/logistics/vehicle/panels/vehicle_inventory_panel.py`, `modules/logistics/aircraft/panels/aircraft_inventory_window.py`, `panels/canned_comm_entries_window.py`, `modules/admin/gar_templates/windows/gar_template_manager_window.py`, `modules/admin/hazard_types/windows/hazard_type_library_window.py`, `modules/medical/hospitals/hospital_manager_dialog.py`, `modules/medical/panels/ems_agencies_window.py`, `panels/comms_resource_editor.py` (radio_channels), `modules/planning/widgets/objectives_editor.py` (objective_templates — this menu item edits the template library, not incident-scoped objectives), `modules/admin/resource_types/windows/resource_type_library_window.py`, and `modules/common/widgets/type_editors/base_editor.py` (shared base for both `task_types_editor.py` and `team_types_editor.py`, via a `sync_collection` class attribute). `resource_types`/`task_types`/`team_types` are lockdown collections not yet in `SYNCABLE_MASTER_COLLECTIONS`, so their labels correctly and honestly show "not available for this catalog yet" rather than claiming a sync status that doesn't exist — revisit once/if those get pulled down from central.
-      - The desktop app's own built-in offline server (`server/server_manager.py`) was found, while researching the above, to not be wired to `CentralSyncLoop`/the tunnel client at all — and its docstring claiming it's "functionally identical to the standalone LAN server" is stale (it even imports from an older `core.networking.*` path instead of `lan_server.networking.*`). Looks like drift, not an intentional offline-only design. Needs a decision — wire it up to match `lan_server/server_manager.py`, or explicitly document/keep it offline-only and fix the docstring — before a single-machine desktop deployment can be said to participate in central-catalog sync.
+      - Generalize the web GUI (`cloud_router/master_db/webgui.py`) from `personnel`/`equipment` to the rest of
+        the master inventory, each with a matching desktop "Resync" button where applicable. Most collections
+        already have their sync-relay dual-key/lockdown treatment decided and applied (see
+        `Design Documents/Instructions/mongodb_schema_decisions.md` "Personnel: central-vs-local record ids")
+        — this item is specifically about extending the admin GUI's CRUD coverage to match.
+      - Make certifications a real master catalog instead of a hardcoded list. Today `modules/personnel/models/cert_catalog.py`'s `CATALOG` constant is the sole source of truth (`cert_api.py`, `catalog_io.py`, `panels/personnel_cert_assign_panel.py` all read it directly — no Mongo collection involved). The existing `certification_types`/`certification_tags` Mongo collections are unused legacy data; whether a new catalog reuses those collection names or starts clean is an open question. Scope: a real router + schema (dual-key or lockdown treatment, same decision process as other collections); migrating every current reader off the hardcoded `CATALOG` import; and — per that file's own docstring warning ("IDs are stable integers and MUST NOT be reused once shipped") — a migration plan that preserves existing numeric cert-type ids, since personnel records embed certifications by `cert_type_id` reference.
+      - Cloud server dashboard (`cloud_server/dashboard.py`) has no "Central catalog sync" status surface yet, unlike the LAN server console — `GET /api/sync-trigger/status` exists for it to call, nothing wires it up there.
+      - The desktop app's own built-in offline server (`server/server_manager.py`) is not wired to `CentralSyncLoop`/the tunnel client at all, and its docstring claiming it's "functionally identical to the standalone LAN server" is stale (it even imports from an older `core.networking.*` path instead of `lan_server.networking.*`). Needs a decision — wire it up to match `lan_server/server_manager.py`, or explicitly document/keep it offline-only and fix the docstring — before a single-machine desktop deployment can be said to participate in central-catalog sync.
       - Extend the `master_link` sub-document beyond `incident_personnel` to the other master-resource-backed incident collections (vehicles/equipment/aircraft), once that copying is confirmed to exist.
       - Per-operator accounts/audit trail for the central catalog GUI (MVP is a single shared admin login, same pattern as `cloud_server/dashboard.py`).
       - Personnel duplicate merge workflow: two servers each creating a new personnel record offline before either syncs produces two distinct central documents (see `Design Documents/Instructions/mongodb_schema_decisions.md` "Personnel: central-vs-local record ids"). Needs a human-reviewed, operator-approved merge UI comparing multiple fields (name, person_id, org, contact info, etc.) — not an automatic match on any single field. Not started.
-      - Automatic incident→master write-back (MVP treats this as an explicit, operator-initiated action, not automatic).
       - `utils/catalog_cache.py` invalidation for remotely-synced master changes (today it only invalidates after locally-initiated writes).
       - MongoDB change streams as a latency optimization layered on the existing push/outbox/pull relay, only if the ~60s poll interval (or a manual resync) ever actually proves too slow — requires every deployment's MongoDB to run as a replica set, which none do today; see `Design Documents/Instructions/realtime_architecture_roadmap.md` ("Server ↔ central sync") for the tradeoff.
-      - Organization picker source-of-truth drift (found 2026-10-07): ICS-Mobile-App's profile screen organization
+      - Organization picker source-of-truth drift: ICS-Mobile-App's profile screen organization
         picker (`ICS-Mobile-App/lib/models/organizations.dart`, `Organizations.bundled`) hardcodes the full CAP
         Great Lakes Region roster (MI/IL/IN/KY/OH/WI wings + squadrons) plus a handful of state-agency/civilian
         entries as its offline-first fallback. Its docstring claims this mirrors an authoritative
@@ -339,7 +273,7 @@ Cost Summary
         be treated as the one hand-maintained copy with desktop reading from the synced catalog only, (3) the
         desktop app currently has no "Organizations" picker backed by this same roster at all outside the admin
         Units & Organizations panel — confirm whether any desktop UI needs one before building it.
-      - Master facilities catalog (requested 2026-10-07): a reusable, agency-wide directory of known physical
+      - Master facilities catalog: a reusable, agency-wide directory of known physical
         locations (airports/airstrips, hospitals, fairgrounds, EOCs, staging areas, CAP squadron buildings, etc.)
         with a geocoded address, distinct from the per-incident `modules/logistics/facilities/` module (ICP,
         staging, bases, etc. scoped to one incident) and from `organizations` (who, not where — organizations
