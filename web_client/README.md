@@ -42,6 +42,40 @@ Outputs to `dist/`. When that directory exists, `create_app()` mounts it at
 `/app` so the LAN server, cloud server, and built-in offline server all
 serve it automatically — no separate deploy step.
 
+## Deployment
+
+Two independent ways to serve the built app — pick one per deployment, not
+both:
+
+1. **Embedded**: `create_app()` (`data/db/sarapp_db/api/app.py`) mounts
+   `dist/` at `/app` automatically when it exists, so the LAN server, cloud
+   server, and built-in offline server serve it for free, same-origin with
+   their own API. No container of its own.
+2. **Standalone container** (this directory's `Dockerfile` +
+   `docker-compose.yml`): a self-contained image — Node build stage, then
+   nginx serving the result — with its own Traefik labels, same packaging
+   style as `cloud_server/` and `cloud_router/` but with no shared files or
+   images with either. Nothing server-side here: no database, no connect
+   code, no `SARAPP_*` env vars. Which incident/server it talks to is set
+   *in the browser* via the `/connection` screen below, not at deploy time.
+
+   ```
+   cd web_client
+   docker compose up -d --build
+   ```
+
+   Configurable via env vars (`.env` in this directory, see the defaults in
+   `docker-compose.yml`): `COMPOSE_PROJECT_NAME`, `SARAPP_WEB_CLIENT_ROUTE_RULE`
+   (Traefik router rule — defaults to serving under `/app` on whatever
+   domain Traefik already fronts; set to e.g. `` Host(`app.example.org`) ``
+   for a dedicated subdomain instead), `TRAEFIK_NETWORK` (the VPS's existing
+   external Traefik network name).
+
+   Reached this way, the app's own bundle loads directly under `/app` with
+   no connect-code prefix involved — the "known limitation" below is about
+   the *embedded* path reached through `cloud_router`'s tunnel, not this
+   container.
+
 ## Connection settings
 
 By default every request is same-origin/relative ("internal" — whatever

@@ -28,7 +28,12 @@ forking them per module.
 - **Build/serve**: `npm run build` outputs to `dist/`, which `create_app()`
   (`data/db/sarapp_db/api/app.py`) mounts at `/app` when present. Keep
   `vite.config.ts`'s `base: "/app/"` in sync with that mount path if it
-  ever changes.
+  ever changes. There's also a standalone deployment path — this
+  directory's own `Dockerfile`/`docker-compose.yml`/`nginx.conf` (same
+  packaging style as `cloud_server/`/`cloud_router/`, but self-contained:
+  no shared files or images with either) — see README.md's "Deployment"
+  section. Keep both paths serving the same `dist/` at the same `/app`
+  path convention; don't let them drift.
 - **Routing**: `HashRouter`, not `BrowserRouter` — the static mount in
   `app.py` has no server-side SPA catch-all, so a path like
   `/app/ops/teams/5` loaded directly would 404 under `BrowserRouter`. Don't
