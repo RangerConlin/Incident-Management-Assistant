@@ -1,11 +1,19 @@
-"""Hardcoded certification catalog (authoritative in production).
+"""Former hardcoded certification catalog — now a one-time migration seed only.
 
-This module defines the certification catalog used by the application.
-The code catalog is the single source of truth.
+As of 2026-10-10 the certification type catalog lives in Mongo
+(`MasterCollections.CERTIFICATION_TYPES`, see
+`data/db/sarapp_db/api/routers/certification_types.py`), a central-catalog
+-authoritative "lockdown" collection like `organizations`/`resource_types`.
+This module is kept only as the source `CATALOG` that
+`data/db/sarapp_db/migrations/seed_certification_types_from_hardcoded_catalog.py`
+seeded that collection from, preserving every existing numeric id. No
+application code imports `CATALOG` anymore — see
+`Design Documents/legacycode.md`.
 
-Notes
-- IDs are stable integers and MUST NOT be reused once shipped. Bump
-  CATALOG_VERSION any time entries change.
+Notes (for historical/seed reference)
+- IDs are stable integers and MUST NOT be reused — personnel records embed
+  certifications by `cert_type_id` reference. The new catalog continues
+  that rule going forward.
 - Tags allow grouping certifications into qualification profiles.
 - is_medical is the direct source of truth for the medic checkoff.
 """

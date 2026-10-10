@@ -1,8 +1,11 @@
 """Personnel certification API for UI usage.
 
-This API reads the catalog from the MongoDB master DB and edits embedded
-personnel certification levels. A personnel cert stores only cert_type_id and
-level; display data comes from the catalog.
+This API reads the certification type catalog and edits embedded personnel
+certification levels, both via the MongoDB-backed master API. A personnel
+cert stores only cert_type_id and level; display data comes from the
+catalog (`/api/master/certification-types`, see
+data/db/sarapp_db/api/routers/certification_types.py — a central-catalog
+-authoritative "lockdown" collection, same as organizations/resource types).
 """
 
 from __future__ import annotations
@@ -10,44 +13,45 @@ from __future__ import annotations
 from typing import List, Dict, Any
 
 from utils.api_client import api_client
-from utils.app_settings import DEV_MODE
-from modules.personnel.models.cert_catalog import CATALOG
 from modules.personnel.models.validation_profiles import PROFILES, get_profile
+
+_CATALOG_BASE = "/api/master/certification-types"
 
 
 def list_catalog(filter_text: str = "", category: str | None = None) -> List[Dict[str, Any]]:
-    """Return certification types from the hardcoded catalog."""
+    """Return certification types from the master catalog."""
+    try:
+        params: dict[str, Any] = {}
+        if filter_text:
+            params["search"] = filter_text
+        if category:
+            params["category"] = category
+        rows = api_client.get(_CATALOG_BASE, params=params) or []
+    except Exception:
+        return []
     results = [
         {
-            "id": ct.id,
-            "int_id": ct.id,
-            "code": ct.code,
-            "name": ct.name,
-            "category": ct.category,
-            "issuing_org": ct.issuing_org,
-            "parent_id": ct.parent_id,
-            "tags": list(ct.tags),
-            "is_medical": ct.is_medical,
+            "id": row["id"],
+            "int_id": row["id"],
+            "code": row.get("code", ""),
+            "name": row.get("name", ""),
+            "category": row.get("category", ""),
+            "issuing_org": row.get("issuing_org", ""),
+            "parent_id": row.get("parent_id"),
+            "tags": list(row.get("tags") or []),
+            "is_medical": bool(row.get("is_medical", False)),
         }
-        for ct in CATALOG
+        for row in rows
     ]
-    if category:
-        results = [c for c in results if c["category"] == category]
-    if filter_text:
-        ft = filter_text.lower()
-        results = [
-            c for c in results
-            if ft in c["code"].lower() or ft in c["name"].lower()
-            or ft in c["category"].lower() or ft in c["issuing_org"].lower()
-        ]
     return sorted(results, key=lambda c: (c["category"], c["code"]))
 
 
 def list_tags_for_cert(cert_type_id: int) -> list[str]:
-    for ct in CATALOG:
-        if ct.id == cert_type_id:
-            return list(ct.tags)
-    return []
+    try:
+        row = api_client.get(f"{_CATALOG_BASE}/{cert_type_id}")
+    except Exception:
+        return []
+    return list((row or {}).get("tags") or [])
 
 
 def list_personnel_certs(personnel_id: int) -> List[Dict[str, Any]]:
@@ -56,7 +60,7 @@ def list_personnel_certs(personnel_id: int) -> List[Dict[str, Any]]:
         rows = api_client.get(f"/api/master/certifications/personnel/{personnel_id}") or []
     except Exception:
         return []
-    catalog_by_id = {ct.id: ct for ct in CATALOG}
+    catalog_by_id = {ct["id"]: ct for ct in list_catalog()}
     result = []
     for row in rows:
         try:
@@ -68,13 +72,13 @@ def list_personnel_certs(personnel_id: int) -> List[Dict[str, Any]]:
             "cert_type_id": cert_type_id,
             "id": cert_type_id,
             "level": int(row.get("level") or 0),
-            "code": ct.code if ct else "",
-            "name": ct.name if ct else "",
-            "category": ct.category if ct else "",
-            "issuing_org": ct.issuing_org if ct else "",
-            "parent_id": ct.parent_id if ct else None,
-            "tags": list(ct.tags) if ct else [],
-            "is_medical": ct.is_medical if ct else False,
+            "code": ct["code"] if ct else "",
+            "name": ct["name"] if ct else "",
+            "category": ct["category"] if ct else "",
+            "issuing_org": ct["issuing_org"] if ct else "",
+            "parent_id": ct["parent_id"] if ct else None,
+            "tags": list(ct["tags"]) if ct else [],
+            "is_medical": ct["is_medical"] if ct else False,
         })
     return sorted(result, key=lambda c: (c["category"], c["code"]))
 
@@ -155,11 +159,6 @@ def person_meets_profile(personnel_id: int, profile_code: str) -> bool:
     return False
 
 
-def ensure_catalog_write_allowed() -> None:
-    if not DEV_MODE:
-        raise PermissionError("Catalog mutations are blocked in production build")
-
-
 __all__ = [
     "list_catalog",
     "list_personnel_certs",
@@ -168,5 +167,4 @@ __all__ = [
     "list_tags_for_cert",
     "list_profiles",
     "person_meets_profile",
-    "ensure_catalog_write_allowed",
 ]

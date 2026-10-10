@@ -38,6 +38,22 @@ Copy this section for each tracked item.
 
 Add entries below this line.
 
+### Hardcoded certification catalog (cert_catalog.py)
+- Status: `legacy-compat-candidate`
+- Location: `modules/personnel/models/cert_catalog.py` (`CATALOG`, `CertType`, `CATALOG_VERSION`)
+- Purpose: was "authoritative in production" per its own former docstring — every certification type (id, code, name, category, tags, is_medical) was a hardcoded Python list, editable only via a DEV_MODE-only tool that rewrote this file's source and required a rebuild/redeploy to ship. Replaced 2026-10-10 by a real Mongo-backed catalog (`MasterCollections.CERTIFICATION_TYPES`, `data/db/sarapp_db/api/routers/certification_types.py`, central-catalog-authoritative "lockdown" collection like `organizations`/`resource_types`), editable from the central dashboard. `cert_api.py`/`catalog_io.py` now call the API/router instead of importing `CATALOG`; `modules/operations/taskings/repository.py`'s own separate hardcoded `CAPF109_CERT_TYPE_CODES` dict (a duplicate of 5 of these ids) was replaced by a cached lookup against the same catalog.
+- Legacy Source: pre-cutover, when there was no Mongo-backed way to store this catalog at all.
+- Removal Condition: this module is kept only as the seed source for `data/db/sarapp_db/migrations/seed_certification_types_from_hardcoded_catalog.py` (a one-time migration, already run against this installation's local catalog). Safe to delete — along with that migration script and the dev-only `modules/devtools/panels/dev_cert_catalog_editor.py` (already removed) — once every server that needs the seed has run it and no one needs to re-derive it from this file again.
+- Verification: `rg -n "from modules.personnel.models.cert_catalog import|models\.cert_catalog" --glob '!*/migrations/*'` shows no remaining application-code imports, only the migration script.
+
+### Legacy `certification_types`/`certification_tags` pre-cutover data
+- Status: `legacy-compat-candidate`
+- Location: `sarapp_master.certification_types` / `sarapp_master.certification_tags` documents that predate the 2026-10-10 seed (identifiable by `certification_type_id` being a plain numeric *string* like `"1"`, `"2"`, `"7"` — an independent, unrelated sequential scheme, not the catalog's bucketed integer `id` field like `1001`/`2001`/`6004`).
+- Purpose: an older, differently-sourced CAP certification list (e.g. `"ADIS"`, `"AOBD"` under id `"2"`) that predates the current hardcoded-then-migrated catalog and was never read by any current code path.
+- Legacy Source: unknown prior data-entry/import pass; not traceable to any current importer.
+- Removal Condition: safe to delete (`db.certification_types.delete_many({"certification_type_id": {"$type": "string"}})` and the analogous `certification_tags` rows) once confirmed no historical/audit reason to keep them. Not deleted automatically by the seed migration, which only inserts alongside them.
+- Verification: `data/db/sarapp_db/migrations/seed_certification_types_from_hardcoded_catalog.py`'s docstring and the research that found this during the certification-catalog migration.
+
 ### Finance Attachments Use Filesystem Paths Instead Of GridFS
 - Status: `legacy-compat-candidate`
 - Location: `data/db/sarapp_db/api/routers/finance.py` (`AttachmentBody.file_path`, `create_attachment`)

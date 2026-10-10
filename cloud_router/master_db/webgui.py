@@ -3,9 +3,9 @@
 No master-data-editing web GUI exists anywhere else in the product — today
 master data is only edited through the desktop app's admin panels over
 LAN/localhost (see `Design Documents/Instructions/cloud_router_architecture.md`
-"Central Master Database"). This is the MVP: a handful of collections
-(personnel, equipment — more to follow once this shape proves out, see
-`backlog.md`), each with a plain list/create/edit/delete view.
+"Central Master Database"). The GUI exposes the flat master catalogs that
+can be safely edited with catalog-aware controls; nested/versioned catalogs
+stay out of this generic CRUD surface until they have purpose-built editors.
 
 This does **not** talk to Mongo directly. Each `CollectionSpec` below wraps
 the *existing* master-catalog router functions in
@@ -27,6 +27,7 @@ import csv
 import hmac
 import io
 import json
+import re
 from dataclasses import dataclass, field as dc_field
 from datetime import datetime, timedelta, timezone
 from html import escape
@@ -45,7 +46,7 @@ _SESSION_MAX_AGE_SECONDS = 12 * 60 * 60
 class FieldSpec:
     name: str
     label: str
-    input_type: str = "text"  # "text" | "password" | "number" | "checkbox" | "textarea" | "select" | "select_fk" | "combo"
+    input_type: str = "text"  # "text" | "password" | "number" | "checkbox" | "textarea" | "list" | "select" | "select_fk" | "combo"
     value_type: str = "str"  # "str" | "int" | "float" | "bool"
 
 
@@ -56,10 +57,11 @@ class CollectionSpec:
     record_field: str
     fields: list[FieldSpec]
     list_fn: Callable[[], list[dict[str, Any]]]
-    get_fn: Callable[[int], dict[str, Any]]
+    get_fn: Callable[[Any], dict[str, Any]]
     create_fn: Callable[[dict[str, Any]], dict[str, Any]]
-    update_fn: Callable[[int, dict[str, Any]], dict[str, Any]]
-    delete_fn: Optional[Callable[[int], None]]
+    update_fn: Callable[[Any, dict[str, Any]], dict[str, Any]]
+    delete_fn: Optional[Callable[[Any], None]]
+    record_id_type: str = "int"  # "int" | "str"
     # Import/export use a separate, usually larger field list than the
     # on-page edit form above — matching the desktop Edit-menu panel's
     # column set exactly (shared via modules.personnel.catalog_io /
@@ -103,6 +105,12 @@ def _field_labels(spec: CollectionSpec) -> dict[str, str]:
     labels = {field.name: field.label for field in spec.fields}
     labels.update(spec.export_field_labels)
     return labels
+
+
+def _record_route_arg(spec: CollectionSpec, record_id: str) -> Any:
+    if spec.record_id_type == "str":
+        return record_id
+    return int(record_id)
 
 
 def _gui_users_repo():
@@ -252,6 +260,23 @@ def _list_to_csv(value: Any) -> str:
     return str(value or "")
 
 
+def _list_to_lines(value: Any) -> str:
+    if isinstance(value, list):
+        return "\n".join(str(item) for item in value if str(item).strip())
+    return str(value or "")
+
+
+def _lines_to_list(value: Any) -> list[str]:
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    return [line.strip() for line in str(value or "").splitlines() if line.strip()]
+
+
+def _slugify(value: Any) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", str(value or "").strip().lower()).strip("-")
+    return slug or "template"
+
+
 def _hazard_form_row(doc: dict[str, Any]) -> dict[str, Any]:
     row = dict(doc)
     default_spe = row.get("default_spe") or {}
@@ -317,6 +342,165 @@ def _strategy_template_payload(form: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+_MEETING_TEMPLATE_LIST_FIELDS = {
+    "agenda_sections",
+    "required_attendee_roles",
+    "optional_attendee_roles",
+    "prep_checklist_items",
+    "agenda_checklist_items",
+    "closeout_checklist_items",
+}
+
+
+def _meeting_template_row(doc: dict[str, Any]) -> dict[str, Any]:
+    row = dict(doc)
+    for field_name in _MEETING_TEMPLATE_LIST_FIELDS:
+        row[field_name] = _list_to_lines(row.get(field_name))
+    return row
+
+
+def _meeting_template_payload(form: dict[str, Any]) -> dict[str, Any]:
+    name = str(form.get("name") or "").strip()
+    slug = _slugify(form.get("slug") or name)
+    return {
+        "slug": slug,
+        "name": name,
+        "default_duration_minutes": int(form.get("default_duration_minutes") or 60),
+        "agenda_sections": _lines_to_list(form.get("agenda_sections")),
+        "required_attendee_roles": _lines_to_list(form.get("required_attendee_roles")),
+        "optional_attendee_roles": _lines_to_list(form.get("optional_attendee_roles")),
+        "prep_checklist_items": _lines_to_list(form.get("prep_checklist_items")),
+        "agenda_checklist_items": _lines_to_list(form.get("agenda_checklist_items")),
+        "closeout_checklist_items": _lines_to_list(form.get("closeout_checklist_items")),
+        "appears_on_ics230_default": bool(form.get("appears_on_ics230_default")),
+        "active": bool(form.get("active")),
+    }
+
+
+def _create_meeting_template(body: dict[str, Any]) -> dict[str, Any]:
+    from sarapp_db.api.routers import meetings as meetings_router
+
+    slug = _slugify(body.get("slug") or body.get("name"))
+    return meetings_router.upsert_template(slug, body)
+
+
+def _hazard_entries_to_lines(value: Any) -> str:
+    lines: list[str] = []
+    for entry in value or []:
+        if not isinstance(entry, dict):
+            continue
+        hazard_type_id = entry.get("hazard_type_id")
+        if hazard_type_id in (None, ""):
+            continue
+        sort_order = entry.get("sort_order", "")
+        notes = str(entry.get("override_notes") or "").replace("\n", " ").strip()
+        lines.append(f"{hazard_type_id} | {sort_order} | {notes}".rstrip(" |"))
+    return "\n".join(lines)
+
+
+def _hazard_entries_from_lines(value: Any) -> list[dict[str, Any]]:
+    entries: list[dict[str, Any]] = []
+    for index, line in enumerate(str(value or "").splitlines(), start=1):
+        parts = [part.strip() for part in line.split("|")]
+        if not parts or not parts[0]:
+            continue
+        try:
+            hazard_type_id = int(parts[0])
+        except ValueError:
+            continue
+        try:
+            sort_order = int(parts[1]) if len(parts) > 1 and parts[1] else index
+        except ValueError:
+            sort_order = index
+        entries.append({
+            "hazard_type_id": hazard_type_id,
+            "sort_order": sort_order,
+            "override_notes": parts[2] if len(parts) > 2 else "",
+        })
+    return entries
+
+
+def _safety_template_row(doc: dict[str, Any]) -> dict[str, Any]:
+    row = dict(doc)
+    row["target_forms"] = _list_to_lines(row.get("target_forms"))
+    row["hazard_entries"] = _hazard_entries_to_lines(row.get("hazard_entries"))
+    return row
+
+
+def _safety_template_payload(form: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "name": str(form.get("name") or "").strip(),
+        "description": str(form.get("description") or ""),
+        "scenario_type": str(form.get("scenario_type") or "General"),
+        "target_forms": _lines_to_list(form.get("target_forms")),
+        "hazard_entries": _hazard_entries_from_lines(form.get("hazard_entries")),
+        "is_active": bool(form.get("is_active")),
+        "notes": str(form.get("notes") or ""),
+        "created_by": str(form.get("created_by") or ""),
+        "updated_by": str(form.get("updated_by") or ""),
+    }
+
+
+def _gar_payload(gar_body_cls: type, form: dict[str, Any]) -> Any:
+    name = str(form.get("name") or "").strip()
+    groups: list[dict[str, Any]] = []
+    group_count = int(form.get("gar_group_count") or 0)
+    for group_index in range(group_count):
+        group_name = str(form.get(f"gar_group_name_{group_index}") or "").strip()
+        if not group_name:
+            continue
+        rows: list[dict[str, Any]] = []
+        row_count = int(form.get(f"gar_row_count_{group_index}") or 0)
+        for row_index in range(row_count):
+            row_label = str(form.get(f"gar_row_label_{group_index}_{row_index}") or "").strip()
+            if not row_label:
+                continue
+            options: list[dict[str, Any]] = []
+            option_count = int(form.get(f"gar_option_count_{group_index}_{row_index}") or 0)
+            for option_index in range(option_count):
+                option_label = str(
+                    form.get(f"gar_option_label_{group_index}_{row_index}_{option_index}") or ""
+                ).strip()
+                if not option_label:
+                    continue
+                points_raw = str(
+                    form.get(f"gar_option_points_{group_index}_{row_index}_{option_index}") or "0"
+                ).strip()
+                options.append({
+                    "id": f"o{len(options) + 1}",
+                    "label": option_label,
+                    "points": int(points_raw or 0),
+                    "no_go": f"gar_option_no_go_{group_index}_{row_index}_{option_index}" in form,
+                })
+            if options:
+                rows.append({"id": f"r{len(rows) + 1}", "label": row_label, "options": options})
+        if rows:
+            groups.append({"id": f"g{len(groups) + 1}", "name": group_name, "rows": rows})
+
+    bands: list[dict[str, Any]] = []
+    band_count = int(form.get("gar_band_count") or 0)
+    for band_index in range(band_count):
+        label = str(form.get(f"gar_band_label_{band_index}") or "").strip()
+        if not label:
+            continue
+        floor_raw = str(form.get(f"gar_band_floor_{band_index}") or "0").strip()
+        bands.append({
+            "floor": int(floor_raw or 0),
+            "label": label,
+            "required_reviewer": str(form.get(f"gar_band_reviewer_{band_index}") or "").strip(),
+        })
+
+    return gar_body_cls(
+        name=name,
+        source=str(form.get("source") or ""),
+        description=str(form.get("description") or ""),
+        groups=groups,
+        bands=bands,
+        active=bool(form.get("active")),
+        updated_by=str(form.get("updated_by") or ""),
+    )
+
+
 def _vehicle_create_payload(vehicle_body_cls: type, body: dict[str, Any]) -> Any:
     payload = {key: value for key, value in body.items() if value is not None}
     return vehicle_body_cls(**payload)
@@ -327,6 +511,26 @@ def _aircraft_create_payload(aircraft_body_cls: type, body: dict[str, Any]) -> A
     if not payload.get("aircraft_id") and payload.get("tail_number"):
         payload["aircraft_id"] = payload["tail_number"]
     return aircraft_body_cls(**payload)
+
+
+def _certification_type_form_row(doc: dict[str, Any]) -> dict[str, Any]:
+    row = dict(doc)
+    row["tags"] = _list_to_csv(row.get("tags"))
+    return row
+
+
+def _certification_type_form_payload(form: dict[str, Any]) -> dict[str, Any]:
+    parent_id = str(form.get("parent_id") or "").strip()
+    return {
+        "code": str(form.get("code") or "").strip(),
+        "name": str(form.get("name") or "").strip(),
+        "category": str(form.get("category") or "").strip(),
+        "issuing_org": str(form.get("issuing_org") or "").strip(),
+        "parent_id": int(parent_id) if parent_id.isdigit() else None,
+        "tags": _csv_to_list(form.get("tags")),
+        "is_medical": bool(form.get("is_medical")),
+        "is_active": bool(form.get("is_active", True)),
+    }
 
 
 def _rank_display_text(rank_row: dict[str, Any]) -> str:
@@ -621,6 +825,10 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
     from sarapp_db.api.routers import strategy_templates as strategy_templates_router
     from sarapp_db.api.routers import communications as communications_router
     from sarapp_db.api.routers import canned_comm_entries as canned_comm_entries_router
+    from sarapp_db.api.routers import meetings as meetings_router
+    from sarapp_db.api.routers import safety_templates as safety_templates_router
+    from sarapp_db.api.routers import gar_templates as gar_templates_router
+    from sarapp_db.api.routers import certification_types as certification_types_router
     from modules.admin.resource_types.models.resource_type_models import RESOURCE_CATEGORIES, RESOURCE_SOURCES
     from modules.admin.hazard_types.models.hazard_type_models import HAZARD_CATEGORIES
     from modules.personnel.catalog_io import (
@@ -759,6 +967,37 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
         FieldSpec("priority", "Priority", input_type="select"),
         FieldSpec("active", "Active", input_type="checkbox", value_type="bool"),
         FieldSpec("tags", "Tags"),
+    ]
+    meeting_template_fields = [
+        FieldSpec("slug", "Slug"),
+        FieldSpec("name", "Name"),
+        FieldSpec("default_duration_minutes", "Default Duration Minutes", input_type="number", value_type="int"),
+        FieldSpec("agenda_sections", "Agenda Sections", input_type="list"),
+        FieldSpec("required_attendee_roles", "Required Attendee Roles", input_type="list"),
+        FieldSpec("optional_attendee_roles", "Optional Attendee Roles", input_type="list"),
+        FieldSpec("prep_checklist_items", "Prep Checklist Items", input_type="list"),
+        FieldSpec("agenda_checklist_items", "Agenda Checklist Items", input_type="list"),
+        FieldSpec("closeout_checklist_items", "Closeout Checklist Items", input_type="list"),
+        FieldSpec("appears_on_ics230_default", "Appears On ICS-230 By Default", input_type="checkbox", value_type="bool"),
+        FieldSpec("active", "Active", input_type="checkbox", value_type="bool"),
+    ]
+    safety_template_fields = [
+        FieldSpec("name", "Name"),
+        FieldSpec("description", "Description", input_type="textarea"),
+        FieldSpec("scenario_type", "Scenario Type", input_type="select"),
+        FieldSpec("target_forms", "Target Forms", input_type="list"),
+        FieldSpec("hazard_entries", "Hazard Entries", input_type="list"),
+        FieldSpec("is_active", "Active", input_type="checkbox", value_type="bool"),
+        FieldSpec("notes", "Notes", input_type="textarea"),
+        FieldSpec("created_by", "Created By"),
+        FieldSpec("updated_by", "Updated By"),
+    ]
+    gar_template_fields = [
+        FieldSpec("name", "Name"),
+        FieldSpec("source", "Source"),
+        FieldSpec("description", "Description", input_type="textarea"),
+        FieldSpec("active", "Active", input_type="checkbox", value_type="bool"),
+        FieldSpec("updated_by", "Updated By"),
     ]
     radio_channel_fields = [
         FieldSpec("name", "Name"),
@@ -901,6 +1140,7 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
             update_fn=hazard_types_router.save_hazard_type,
             delete_fn=None,
             form_row_fn=_hazard_form_row,
+            export_row_fn=_hazard_form_row,
             import_payload_fn=lambda row: _hazard_form_payload(
                 hazard_types_router.SaveHazardTypeRequest,
                 hazard_types_router.DefaultSpeInput,
@@ -927,6 +1167,8 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
             delete_fn=objective_templates_router.delete_objective_template,
             form_row_fn=_template_form_row,
             form_payload_fn=_objective_template_payload,
+            export_row_fn=_template_form_row,
+            import_payload_fn=_objective_template_payload,
             list_fields=["code", "title", "default_section", "priority", "active"],
         ),
         CollectionSpec(
@@ -943,8 +1185,63 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
             delete_fn=strategy_templates_router.delete_strategy_template,
             form_row_fn=_template_form_row,
             form_payload_fn=_strategy_template_payload,
+            export_row_fn=_template_form_row,
+            import_payload_fn=_strategy_template_payload,
             list_cell_fn=_strategy_template_list_cell,
             list_fields=["title", "objective_template_id", "assignment_kind", "priority", "active"],
+        ),
+        CollectionSpec(
+            key="meeting-templates",
+            title="Meeting Templates",
+            record_field="slug",
+            fields=meeting_template_fields,
+            list_fn=lambda: meetings_router.list_templates(active_only=False),
+            get_fn=meetings_router.get_template,
+            create_fn=_create_meeting_template,
+            update_fn=meetings_router.upsert_template,
+            delete_fn=None,
+            record_id_type="str",
+            form_row_fn=_meeting_template_row,
+            form_payload_fn=_meeting_template_payload,
+            export_row_fn=_meeting_template_row,
+            import_payload_fn=_meeting_template_payload,
+            list_fields=["name", "slug", "default_duration_minutes", "appears_on_ics230_default", "active"],
+        ),
+        CollectionSpec(
+            key="safety-analysis-templates",
+            title="Safety Analysis Templates",
+            record_field="template_id_master",
+            fields=safety_template_fields,
+            list_fn=lambda: safety_templates_router.list_templates(
+                search_text=None, scenario_type=None, include_inactive=True
+            ),
+            get_fn=safety_templates_router.get_template,
+            create_fn=safety_templates_router.create_template,
+            update_fn=safety_templates_router.update_template,
+            delete_fn=safety_templates_router.delete_template,
+            form_row_fn=_safety_template_row,
+            form_payload_fn=_safety_template_payload,
+            export_row_fn=_safety_template_row,
+            import_payload_fn=_safety_template_payload,
+            list_fields=["name", "scenario_type", "target_forms", "is_active"],
+        ),
+        CollectionSpec(
+            key="gar-templates",
+            title="GAR Templates",
+            record_field="id_master",
+            fields=gar_template_fields,
+            list_fn=lambda: gar_templates_router.list_gar_templates(include_inactive=True),
+            get_fn=gar_templates_router.get_gar_template,
+            create_fn=lambda body: gar_templates_router.create_gar_template(
+                _gar_payload(gar_templates_router.SaveGarTemplateRequest, body)
+            ),
+            update_fn=lambda record_id, body: gar_templates_router.save_gar_template(
+                record_id,
+                _gar_payload(gar_templates_router.SaveGarTemplateRequest, body),
+            ),
+            delete_fn=None,
+            form_payload_fn=lambda row: row,
+            list_fields=["name", "source", "description", "active"],
         ),
         CollectionSpec(
             key="radio-channels",
@@ -1080,6 +1377,29 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
             update_fn=_update_resource_capability,
             delete_fn=None,
             list_fields=["name", "category", "description", "is_active"],
+        ),
+        CollectionSpec(
+            key="certification-types",
+            title="Certification Types",
+            record_field="id",
+            fields=[
+                FieldSpec("code", "Code"),
+                FieldSpec("name", "Name"),
+                FieldSpec("category", "Category"),
+                FieldSpec("issuing_org", "Issuing Org"),
+                FieldSpec("parent_id", "Parent ID", value_type="int"),
+                FieldSpec("tags", "Tags (comma-separated)"),
+                FieldSpec("is_medical", "Medical", input_type="checkbox"),
+                FieldSpec("is_active", "Active", input_type="checkbox"),
+            ],
+            list_fn=lambda: certification_types_router.list_certification_types(search="", category="", include_inactive=True),
+            get_fn=certification_types_router.get_certification_type,
+            create_fn=certification_types_router.create_certification_type,
+            update_fn=certification_types_router.update_certification_type,
+            delete_fn=None,
+            form_row_fn=_certification_type_form_row,
+            form_payload_fn=_certification_type_form_payload,
+            list_fields=["code", "name", "category", "issuing_org", "is_medical", "is_active"],
         ),
         CollectionSpec(
             key="console-users",
@@ -1241,6 +1561,15 @@ def _page(title: str, body: str, request: Request) -> HTMLResponse:
     label {{ display:block; margin:0 0 5px; color:var(--muted); font-size:.88rem; }}
     .compact-check {{ display:inline-flex; align-items:center; gap:6px; margin:0; color:var(--text); white-space:nowrap; }}
     .form-actions {{ margin-top:16px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }}
+    .gar-editor {{ display:flex; flex-direction:column; gap:14px; margin-top:16px; }}
+    .gar-group, .gar-row, .gar-option, .gar-band {{ border:1px solid var(--line); border-radius:6px; padding:10px; background:rgba(255,255,255,.02); }}
+    .gar-group, .gar-row {{ display:flex; flex-direction:column; gap:10px; }}
+    .gar-row {{ margin-left:18px; }}
+    .gar-option, .gar-band {{ display:grid; grid-template-columns:minmax(180px, 1fr) 90px 140px auto; gap:10px; align-items:end; }}
+    .gar-band {{ grid-template-columns:90px minmax(180px, 1fr) minmax(160px, 1fr) auto; }}
+    .gar-subhead {{ display:flex; gap:10px; align-items:end; justify-content:space-between; flex-wrap:wrap; }}
+    .gar-subhead label {{ flex:1; min-width:220px; }}
+    .gar-actions {{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }}
     .danger {{ background:var(--danger); }}
     .muted {{ color:var(--muted); }}
     dialog {{ width:min(440px, calc(100vw - 32px)); border:1px solid var(--line); border-radius:8px; padding:0; background:var(--panel); color:var(--text); }}
@@ -1669,7 +1998,7 @@ def _field_input_html(
     safe_value = escape(str(value)) if value is not None else ""
     if field.input_type == "checkbox":
         is_checked = (
-            field.name in {"is_active", "active"} and value is None
+            field.name in {"is_active", "active", "appears_on_ics230_default"} and value is None
         ) or str(value).strip().lower() in {"1", "true", "yes", "y", "on"}
         checked = "checked" if is_checked else ""
         return f'<input type="checkbox" name="{escape(field.name)}" {checked}>'
@@ -1696,7 +2025,7 @@ def _field_input_html(
         return _combo_html(
             field.name, value, options, disabled=disabled, depends_on=(combo_depends or {}).get(field.name)
         )
-    if field.input_type == "textarea":
+    if field.input_type in {"textarea", "list"}:
         return f'<textarea name="{escape(field.name)}" rows="3">{safe_value}</textarea>'
     return f'<input type="text" name="{escape(field.name)}" value="{safe_value}">'
 
@@ -1712,7 +2041,124 @@ def _json_attr(value: Any) -> str:
     return escape(json.dumps(value, separators=(",", ":")).replace("</", "<\\/"), quote=True)
 
 
+def _gar_template_form_html(doc: dict[str, Any], *, action: str, submit_label: str) -> str:
+    groups = list(doc.get("groups") or [{
+        "name": "New Group",
+        "rows": [{"label": "New Row", "options": [{"label": "New Option", "points": 0, "no_go": False}]}],
+    }])
+    bands = list(doc.get("bands") or [{"floor": 0, "label": "New Band", "required_reviewer": ""}])
+
+    group_blocks: list[str] = []
+    for gi, group in enumerate(groups):
+        row_blocks: list[str] = []
+        rows = list(group.get("rows") or [])
+        for ri, row in enumerate(rows):
+            option_blocks: list[str] = []
+            options = list(row.get("options") or [])
+            for oi, option in enumerate(options):
+                checked = "checked" if option.get("no_go") else ""
+                option_blocks.append(
+                    f'<div class="gar-option" data-gar-option>'
+                    f'<label>Option<input type="text" name="gar_option_label_{gi}_{ri}_{oi}" value="{escape(str(option.get("label") or ""))}"></label>'
+                    f'<label>Points<input type="number" step="1" name="gar_option_points_{gi}_{ri}_{oi}" value="{escape(str(option.get("points") or 0))}"></label>'
+                    f'<label class="compact-check"><input type="checkbox" name="gar_option_no_go_{gi}_{ri}_{oi}" {checked}> No-Go</label>'
+                    f'<button type="button" class="danger" data-remove-block>Remove</button>'
+                    f'</div>'
+                )
+            row_blocks.append(
+                f'<div class="gar-row" data-gar-row>'
+                f'<div class="gar-subhead"><label>Row Label<input type="text" name="gar_row_label_{gi}_{ri}" value="{escape(str(row.get("label") or ""))}"></label>'
+                f'<div class="gar-actions"><button type="button" data-add-option>Add Option</button><button type="button" class="danger" data-remove-block>Remove Row</button></div></div>'
+                f'<input type="hidden" name="gar_option_count_{gi}_{ri}" value="{len(options)}" data-option-count>'
+                f'<div data-gar-options>{"".join(option_blocks)}</div></div>'
+            )
+        group_blocks.append(
+            f'<div class="gar-group" data-gar-group>'
+            f'<div class="gar-subhead"><label>Group Name<input type="text" name="gar_group_name_{gi}" value="{escape(str(group.get("name") or ""))}"></label>'
+            f'<div class="gar-actions"><button type="button" data-add-row>Add Row</button><button type="button" class="danger" data-remove-block>Remove Group</button></div></div>'
+            f'<input type="hidden" name="gar_row_count_{gi}" value="{len(rows)}" data-row-count>'
+            f'<div data-gar-rows>{"".join(row_blocks)}</div></div>'
+        )
+
+    band_blocks = [
+        f'<div class="gar-band" data-gar-band>'
+        f'<label>Floor<input type="number" step="1" name="gar_band_floor_{bi}" value="{escape(str(band.get("floor") or 0))}"></label>'
+        f'<label>Label<input type="text" name="gar_band_label_{bi}" value="{escape(str(band.get("label") or ""))}"></label>'
+        f'<label>Required Reviewer<input type="text" name="gar_band_reviewer_{bi}" value="{escape(str(band.get("required_reviewer") or ""))}"></label>'
+        f'<button type="button" class="danger" data-remove-block>Remove</button></div>'
+        for bi, band in enumerate(bands)
+    ]
+    active_checked = "checked" if doc.get("active", True) else ""
+    script = """<script>
+(() => {
+  const form = document.currentScript.closest("form");
+  const groups = form.querySelector("[data-gar-groups]");
+  const bands = form.querySelector("[data-gar-bands]");
+  const groupCount = form.querySelector("[data-group-count]");
+  const bandCount = form.querySelector("[data-band-count]");
+  const option = () => `<div class="gar-option" data-gar-option><label>Option<input type="text" name="gar_option_label_0_0_0" value="New Option"></label><label>Points<input type="number" step="1" name="gar_option_points_0_0_0" value="0"></label><label class="compact-check"><input type="checkbox" name="gar_option_no_go_0_0_0"> No-Go</label><button type="button" class="danger" data-remove-block>Remove</button></div>`;
+  const row = () => `<div class="gar-row" data-gar-row><div class="gar-subhead"><label>Row Label<input type="text" name="gar_row_label_0_0" value="New Row"></label><div class="gar-actions"><button type="button" data-add-option>Add Option</button><button type="button" class="danger" data-remove-block>Remove Row</button></div></div><input type="hidden" name="gar_option_count_0_0" value="1" data-option-count><div data-gar-options>${option()}</div></div>`;
+  const group = () => `<div class="gar-group" data-gar-group><div class="gar-subhead"><label>Group Name<input type="text" name="gar_group_name_0" value="New Group"></label><div class="gar-actions"><button type="button" data-add-row>Add Row</button><button type="button" class="danger" data-remove-block>Remove Group</button></div></div><input type="hidden" name="gar_row_count_0" value="1" data-row-count><div data-gar-rows>${row()}</div></div>`;
+  const band = () => `<div class="gar-band" data-gar-band><label>Floor<input type="number" step="1" name="gar_band_floor_0" value="0"></label><label>Label<input type="text" name="gar_band_label_0" value="New Band"></label><label>Required Reviewer<input type="text" name="gar_band_reviewer_0"></label><button type="button" class="danger" data-remove-block>Remove</button></div>`;
+  const renumber = () => {
+    [...groups.children].forEach((g, gi) => {
+      g.querySelector("input[name^='gar_group_name_']").name = `gar_group_name_${gi}`;
+      const rs = [...g.querySelector("[data-gar-rows]").children];
+      g.querySelector("[data-row-count]").name = `gar_row_count_${gi}`;
+      g.querySelector("[data-row-count]").value = rs.length;
+      rs.forEach((r, ri) => {
+        r.querySelector("input[name^='gar_row_label_']").name = `gar_row_label_${gi}_${ri}`;
+        const os = [...r.querySelector("[data-gar-options]").children];
+        r.querySelector("[data-option-count]").name = `gar_option_count_${gi}_${ri}`;
+        r.querySelector("[data-option-count]").value = os.length;
+        os.forEach((o, oi) => {
+          o.querySelector("input[name^='gar_option_label_']").name = `gar_option_label_${gi}_${ri}_${oi}`;
+          o.querySelector("input[name^='gar_option_points_']").name = `gar_option_points_${gi}_${ri}_${oi}`;
+          o.querySelector("input[name^='gar_option_no_go_']").name = `gar_option_no_go_${gi}_${ri}_${oi}`;
+        });
+      });
+    });
+    groupCount.value = groups.children.length;
+    [...bands.children].forEach((b, bi) => {
+      b.querySelector("input[name^='gar_band_floor_']").name = `gar_band_floor_${bi}`;
+      b.querySelector("input[name^='gar_band_label_']").name = `gar_band_label_${bi}`;
+      b.querySelector("input[name^='gar_band_reviewer_']").name = `gar_band_reviewer_${bi}`;
+    });
+    bandCount.value = bands.children.length;
+  };
+  form.addEventListener("click", (event) => {
+    const button = event.target.closest("button");
+    if (!button) return;
+    if (button.matches("[data-add-group]")) groups.insertAdjacentHTML("beforeend", group());
+    if (button.matches("[data-add-row]")) button.closest("[data-gar-group]").querySelector("[data-gar-rows]").insertAdjacentHTML("beforeend", row());
+    if (button.matches("[data-add-option]")) button.closest("[data-gar-row]").querySelector("[data-gar-options]").insertAdjacentHTML("beforeend", option());
+    if (button.matches("[data-add-band]")) bands.insertAdjacentHTML("beforeend", band());
+    if (button.matches("[data-remove-block]")) button.closest("[data-gar-group], [data-gar-row], [data-gar-option], [data-gar-band]").remove();
+    renumber();
+  });
+  renumber();
+})();
+</script>"""
+    return f"""<form method="post" action="{action}">
+  <div class="form-grid">
+    <div class="field"><label>Name</label><input type="text" name="name" value="{escape(str(doc.get("name") or ""))}"></div>
+    <div class="field"><label>Source</label><input type="text" name="source" value="{escape(str(doc.get("source") or ""))}"></div>
+    <div class="field"><label>Updated By</label><input type="text" name="updated_by" value="{escape(str(doc.get("updated_by") or ""))}"></div>
+    <div class="field"><label class="compact-check"><input type="checkbox" name="active" {active_checked}> Active</label></div>
+  </div>
+  <div class="field" style="margin-top:12px;"><label>Description</label><textarea name="description" rows="3">{escape(str(doc.get("description") or ""))}</textarea></div>
+  <div class="gar-editor">
+    <div class="gar-subhead"><h2>Groups / Rows / Options</h2><button type="button" data-add-group>Add Group</button></div>
+    <input type="hidden" name="gar_group_count" value="{len(groups)}" data-group-count><div data-gar-groups>{"".join(group_blocks)}</div>
+    <div class="gar-subhead"><h2>Score Bands</h2><button type="button" data-add-band>Add Band</button></div>
+    <input type="hidden" name="gar_band_count" value="{len(bands)}" data-band-count><div data-gar-bands>{"".join(band_blocks)}</div>
+  </div>
+  <div class="form-actions"><button type="submit">{escape(submit_label)}</button></div>{script}</form>"""
+
+
 def _form_html(spec: CollectionSpec, doc: dict[str, Any], *, action: str, submit_label: str) -> str:
+    if spec.key == "gar-templates":
+        return _gar_template_form_html(doc, action=action, submit_label=submit_label)
     combo_options: dict[str, list[tuple[str, str]]] = {}
     combo_depends: dict[str, str] = {}
     depmap_scripts = ""
@@ -1789,6 +2235,10 @@ def _form_html(spec: CollectionSpec, doc: dict[str, Any], *, action: str, submit
         from modules.admin.hazard_types.models.hazard_type_models import HAZARD_CATEGORIES
 
         combo_options["category"] = [(value, value) for value in HAZARD_CATEGORIES]
+    if spec.key == "safety-analysis-templates":
+        from modules.admin.hazard_types.models.hazard_type_models import SAFETY_SCENARIO_TYPES
+
+        combo_options["scenario_type"] = [(value, value) for value in SAFETY_SCENARIO_TYPES]
     if spec.key in {"objective-templates", "strategy-templates"}:
         combo_options["priority"] = [(value, value) for value in ["Low", "Normal", "High", "Immediate"]]
     if spec.key == "objective-templates":
@@ -2129,7 +2579,7 @@ def create_master_gui_router() -> APIRouter:
             for spec in visible_specs
         )
         body = f"""<section class="card"><div class="card-head"><div><h1>Master Catalog Collections</h1>
-  <p class="card-subtitle">Central source for personnel, equipment, vehicles, organizations, ranks, and console access.</p></div></div>
+  <p class="card-subtitle">Central source for agency master catalogs, templates, and console access.</p></div></div>
   <div class="collection-grid">{items}</div>
 </section>"""
         return _page("Collections", body, request)
@@ -2394,12 +2844,12 @@ def create_master_gui_router() -> APIRouter:
         for doc in docs:
             record_id = doc.get(spec.record_field)
             if record_id is not None:
-                spec.delete_fn(int(record_id))
+                spec.delete_fn(_record_route_arg(spec, str(record_id)))
         root_path = request.scope.get("root_path") or ""
         return RedirectResponse(f"{root_path}/gui/{collection_key}", status_code=303)
 
     @router.get("/gui/{collection_key}/{record_id}", response_class=HTMLResponse, response_model=None)
-    def edit_form(request: Request, collection_key: str, record_id: int) -> Response:
+    def edit_form(request: Request, collection_key: str, record_id: str) -> Response:
         try:
             _require_session(settings, request)
         except HTTPException:
@@ -2407,7 +2857,7 @@ def create_master_gui_router() -> APIRouter:
         spec = specs.get(collection_key)
         if spec is None:
             raise HTTPException(status_code=404, detail="Unknown collection")
-        doc = spec.get_fn(record_id)
+        doc = spec.get_fn(_record_route_arg(spec, record_id))
         root_path = request.scope.get("root_path") or ""
         form = _form_html(
             spec, _form_doc(spec, doc), action=f"{root_path}/gui/{collection_key}/{record_id}", submit_label="Save"
@@ -2438,7 +2888,7 @@ def create_master_gui_router() -> APIRouter:
 
     @router.post("/gui/{collection_key}/{record_id}/inline/{field_name}", response_model=None)
     async def inline_update_field(
-        request: Request, collection_key: str, record_id: int, field_name: str
+        request: Request, collection_key: str, record_id: str, field_name: str
     ) -> Response:
         try:
             _require_session(settings, request)
@@ -2455,6 +2905,8 @@ def create_master_gui_router() -> APIRouter:
         raw = str(form.get("value", "")).strip()
         if field.input_type == "checkbox":
             value: Any = 1 if raw.lower() in {"1", "true", "yes", "y", "on"} else 0
+        elif field.input_type == "list":
+            value = _lines_to_list(raw)
         elif field.value_type == "int":
             value = int(raw) if raw else None
         elif field.value_type == "float":
@@ -2463,11 +2915,11 @@ def create_master_gui_router() -> APIRouter:
             value = raw
 
         try:
-            spec.update_fn(record_id, {field_name: value})
+            spec.update_fn(_record_route_arg(spec, record_id), {field_name: value})
         except HTTPException as exc:
             return JSONResponse({"error": exc.detail}, status_code=exc.status_code)
 
-        doc = spec.get_fn(record_id)
+        doc = spec.get_fn(_record_route_arg(spec, record_id))
         display_doc = _form_doc(spec, doc)
         display_value = display_doc.get(field_name, "")
         if collection_key == "personnel" and field_name == "home_unit":
@@ -2478,7 +2930,7 @@ def create_master_gui_router() -> APIRouter:
         return JSONResponse({"display": _stringify(display_value), "raw": _stringify(value)})
 
     @router.post("/gui/{collection_key}/{record_id}")
-    async def update_record(request: Request, collection_key: str, record_id: int) -> Response:
+    async def update_record(request: Request, collection_key: str, record_id: str) -> Response:
         try:
             _require_session(settings, request)
         except HTTPException:
@@ -2488,12 +2940,12 @@ def create_master_gui_router() -> APIRouter:
             raise HTTPException(status_code=404, detail="Unknown collection")
         form = dict((await request.form()).items())
         body = _parse_form_body(spec, form)
-        spec.update_fn(record_id, body)
+        spec.update_fn(_record_route_arg(spec, record_id), body)
         root_path = request.scope.get("root_path") or ""
         return RedirectResponse(f"{root_path}/gui/{collection_key}/{record_id}", status_code=303)
 
     @router.post("/gui/{collection_key}/{record_id}/delete")
-    def delete_record(request: Request, collection_key: str, record_id: int) -> Response:
+    def delete_record(request: Request, collection_key: str, record_id: str) -> Response:
         try:
             _require_session(settings, request)
         except HTTPException:
@@ -2501,7 +2953,7 @@ def create_master_gui_router() -> APIRouter:
         spec = specs.get(collection_key)
         if spec is None or spec.delete_fn is None:
             raise HTTPException(status_code=404, detail="Unknown collection")
-        spec.delete_fn(record_id)
+        spec.delete_fn(_record_route_arg(spec, record_id))
         root_path = request.scope.get("root_path") or ""
         return RedirectResponse(f"{root_path}/gui/{collection_key}", status_code=303)
 

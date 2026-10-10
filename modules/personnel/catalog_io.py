@@ -50,17 +50,26 @@ def _clamp_level(value: Any) -> int:
 
 
 def certification_catalogs() -> tuple[dict[str, int], dict[int, dict[str, Any]]]:
-    """Return (catalog_by_code, catalog_by_id) from the hardcoded
-    certification catalog (`modules.personnel.models.cert_catalog.CATALOG`
-    — not an API call, so this is safe to call from any process)."""
-    from modules.personnel.models.cert_catalog import CATALOG
+    """Return (catalog_by_code, catalog_by_id) from the master certification
+    type catalog. Calls the router function directly rather than through
+    HTTP — every caller of this (cloud_router's web GUI, the catalog export
+    script) already runs in the same process as the master Mongo
+    connection, same as how webgui.py calls every other master router
+    directly rather than looping back through its own API."""
+    from sarapp_db.api.routers.certification_types import list_certification_types
 
     by_code: dict[str, int] = {}
     by_id: dict[int, dict[str, Any]] = {}
-    for ct in CATALOG:
-        by_id[ct.id] = {"code": ct.code, "name": ct.name}
-        if ct.code:
-            by_code[ct.code.strip().upper()] = ct.id
+    # Called as a plain Python function, not through FastAPI's request
+    # pipeline — every parameter must be passed explicitly, or the ones
+    # whose real default is a fastapi.params.Query sentinel (not a plain
+    # Python value) get used as-is and blow up downstream (see the same
+    # caution in cloud_router/master_db/webgui.py).
+    for row in list_certification_types(search="", category="", include_inactive=True):
+        by_id[row["id"]] = {"code": row.get("code", ""), "name": row.get("name", "")}
+        code = row.get("code")
+        if code:
+            by_code[str(code).strip().upper()] = row["id"]
     return by_code, by_id
 
 
