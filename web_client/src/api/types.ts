@@ -53,6 +53,7 @@ export interface TeamAssignmentRow {
   checkin_reference_at: string | null;
   team_status_updated: string | null;
   last_updated: string | null;
+  vehicle: string;
 }
 
 // GET /api/incidents/{id}/operations/task-rows — one row per task.
@@ -64,6 +65,17 @@ export interface TaskRow {
   status: string;
   priority: string;
   location: string;
+  category: string;
+  task_type: string;
+  due_datetime: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  created_by: string;
+  operational_period: string;
+  primary_team: string;
+  team_count: number;
+  sortie_count: number;
+  last_activity_at: string | null;
 }
 
 // GET/PATCH .../operations/teams/{team_id} — full team document.

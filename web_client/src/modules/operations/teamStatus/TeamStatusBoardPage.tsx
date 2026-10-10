@@ -74,6 +74,7 @@ export default function TeamStatusBoardPage() {
       render: (r) => <ElapsedTime since={r.last_updated} />,
       defaultWidth: 110,
     },
+    { key: "vehicle", header: "Vehicle", defaultWidth: 150 },
   ];
 
   const buildMenuSections = (row: TeamAssignmentRow): ContextMenuSection[] => [

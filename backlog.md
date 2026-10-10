@@ -249,14 +249,19 @@ Cost Summary
         - Also still needed whenever this is picked up: a password reset/change flow (today `/password/set` only
           works once per account, by design, to avoid building reset before enforcement even exists).
         See `Design Documents/Instructions/database_architecture.md` ("Authentication").
-      - Known gaps from building the first module, left for whoever touches these endpoints next rather than
-        silently worked around: `GET .../operations/task-rows` returns a thinner row (`id`, `number`, `name`,
-        `assigned_teams`, `status`, `priority`, `location`) than desktop's Task Status Board panel shows
-        (`_column_defs` also has due date, created/updated timestamps, created_by, operational period, primary
-        team, team/sortie counts, last activity, linked strategy) — the web board only shows what the endpoint
-        already returns rather than reintroducing a client-side join to get the rest. Same for team rows: desktop
-        shows a Vehicle column the `team-assignment-rows` endpoint doesn't return. Enriching those two endpoints
-        (or deciding the extra columns aren't worth it) is a small, separate follow-up.
+      - Fixed 2026-10-10: `task-rows`/`team-assignment-rows` were initially left thinner than desktop's panels
+        (see git history for the dropped detail) — enriched both once it turned out the gap was mostly just
+        unexported fields already sitting on documents these endpoints already load, not a real limitation.
+        `fetch_task_rows` now also returns `category`, `task_type`, `due_datetime`, `created_at`, `updated_at`,
+        `created_by`, `operational_period`, `primary_team`, `team_count`, `sortie_count`, `last_activity_at`
+        (mirroring `modules/statusboards/team_task_desk.py`'s local join, including its `sortie_count` field
+        literally counting task_team assignment records rather than distinct sorties — that's what desktop
+        itself shows). `fetch_team_assignment_rows` now returns `vehicle` (parsed from the team's own
+        `vehicles_json`/`aircraft_json`, which turned out to be genuinely unpopulated in desktop's own current
+        code path too — the old `add_team()` method that would have sourced it has no callers left). Deliberately
+        **not** added: `linked_strategy_summary` — desktop computes it via an actual extra HTTP round-trip per
+        task into a Planning-module endpoint, a real cross-module dependency on a module with no web presence
+        yet, not a trivial passthrough like the rest. Revisit once Planning gets its own web pass.
       - Team Detail's Personnel/Vehicles/Equipment tabs edit the team's `members_json`/`vehicles_json`/
         `equipment_json` arrays as plain strings (add/remove a name or ID), not against the Personnel/Logistics
         master catalogs — those aren't wired up to the web client yet. Fine for now; revisit once those modules

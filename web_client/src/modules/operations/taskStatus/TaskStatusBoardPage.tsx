@@ -6,6 +6,7 @@ import RowContextMenu, { type ContextMenuSection } from "../../../components/tab
 import StatusPill from "../../../components/table/StatusPill";
 import type { TaskRow } from "../../../api/types";
 import { useSession } from "../../../auth/SessionContext";
+import { formatDateTime } from "../../../utils/formatDateTime";
 import { TASK_STATUS_OPTIONS, useCreateTask, useSetTaskStatus, useTaskRows } from "./hooks";
 
 export default function TaskStatusBoardPage() {
@@ -49,6 +50,43 @@ export default function TaskStatusBoardPage() {
     },
     { key: "priority", header: "Priority", defaultWidth: 100 },
     { key: "location", header: "Location", defaultWidth: 180 },
+    // Hidden by default, matching desktop's own _column_defs default set —
+    // these are opt-in via the column menu there too, not a web-only cut.
+    { key: "category", header: "Category", defaultVisible: false, defaultWidth: 120 },
+    { key: "task_type", header: "Task Type", defaultVisible: false, defaultWidth: 120 },
+    {
+      key: "due_datetime",
+      header: "Due",
+      defaultVisible: false,
+      render: (r) => formatDateTime(r.due_datetime),
+      defaultWidth: 140,
+    },
+    {
+      key: "created_at",
+      header: "Created",
+      defaultVisible: false,
+      render: (r) => formatDateTime(r.created_at),
+      defaultWidth: 140,
+    },
+    {
+      key: "updated_at",
+      header: "Updated",
+      defaultVisible: false,
+      render: (r) => formatDateTime(r.updated_at),
+      defaultWidth: 140,
+    },
+    { key: "created_by", header: "Created By", defaultVisible: false, defaultWidth: 120 },
+    { key: "operational_period", header: "Op Period", defaultVisible: false, defaultWidth: 100 },
+    { key: "primary_team", header: "Primary Team", defaultVisible: false, defaultWidth: 150 },
+    { key: "team_count", header: "Team Count", defaultVisible: false, defaultWidth: 100 },
+    { key: "sortie_count", header: "Sortie Count", defaultVisible: false, defaultWidth: 100 },
+    {
+      key: "last_activity_at",
+      header: "Last Activity",
+      defaultVisible: false,
+      render: (r) => formatDateTime(r.last_activity_at),
+      defaultWidth: 140,
+    },
   ];
 
   const buildMenuSections = (row: TaskRow): ContextMenuSection[] => [
