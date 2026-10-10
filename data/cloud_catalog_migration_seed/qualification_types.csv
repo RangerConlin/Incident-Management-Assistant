@@ -1,0 +1,4 @@
+id,code,name,any_tags,all_tags,min_level,is_active,created_at,updated_at
+1,LSAR_TEAM_LEADER,LSAR Team Leader,"[""LSAR_TL""]",[],2,True,2026-10-10T04:28:21+00:00,2026-10-10T04:28:21+00:00
+2,MEDICAL_PROVIDER,Medical Provider (Field),"[""MEDIC""]",[],2,True,2026-10-10T04:28:21+00:00,2026-10-10T04:28:21+00:00
+3,COMMS_OPERATOR,Communications Operator,"[""RADIO""]",[],2,True,2026-10-10T04:28:21+00:00,2026-10-10T04:28:21+00:00

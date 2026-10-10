@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from sarapp_db.mongo.database_manager import get_master_db
 from sarapp_db.mongo.collection_names import MasterCollections
 from sarapp_db.mongo.int_id import _ensure_record_ids, dual_key_field, next_record_id
+from sarapp_db.sync.readthrough import refresh_collection_before_read
 
 router = APIRouter()
 
@@ -52,6 +53,7 @@ def list_vehicles(
     status_filter: str = Query(""),
     type_filter: str = Query(""),
 ) -> list[dict[str, Any]]:
+    refresh_collection_before_read(MasterCollections.VEHICLES)
     col = _col()
     _ensure_record_ids(col, _record_field(col))
     query: dict[str, Any] = {}
@@ -98,6 +100,7 @@ def list_vehicle_statuses() -> list[dict[str, Any]]:
 
 @router.get("/{vehicle_record}")
 def get_vehicle(vehicle_record: int) -> dict[str, Any]:
+    refresh_collection_before_read(MasterCollections.VEHICLES)
     doc = _find_by_record(_col(), vehicle_record)
     if not doc:
         raise HTTPException(status_code=404, detail="Vehicle not found")

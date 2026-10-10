@@ -1,50 +1,50 @@
-name,type,id_number,serial_number,condition,notes
-XTS-5000,,,3821402,Serviceable,
-Portable Repeater,Medical,,S75862,Fair,Auto-seeded
-Generator,Vehicle,,S35149,Fair,Auto-seeded
-Truck,Radio,,S26988,Needs Service,Auto-seeded
-Helicopter,Radio,,S72453,Fair,Auto-seeded
-Medical Kit,Radio,,S13806,Needs Service,Auto-seeded
-Truck,Vehicle,,S26986,Good,Auto-seeded
-Generator,Vehicle,,S67087,Good,Auto-seeded
-Helicopter,Aviation,,S57583,Good,Auto-seeded
-UTV,Aviation,,S36699,Needs Service,Auto-seeded
-Medical Kit,Vehicle,,S37894,Needs Service,Auto-seeded
-Truck,Radio,,S44191,Fair,Auto-seeded
-Medical Kit,Tool,,S71675,Good,Auto-seeded
-K9 Kit,Tool,,S96419,Needs Service,Auto-seeded
-ATV,Vehicle,,S79408,Fair,Auto-seeded
-Portable Repeater,Medical,,S17304,Fair,Auto-seeded
-ATV,Vehicle,,S12001,Good,Seed data
-Portable Repeater,Radio,,S54521,Good,OPS net coverage
-Medical Kit,Medical,,S77731,Good,ALS kit
-ATV,Tool,,S41975,Needs Service,Auto-seeded
-Medical Kit,Tool,,S56609,Good,Auto-seeded
-K9 Kit,Radio,,S46794,Needs Service,Auto-seeded
-UTV,Radio,,S44295,Good,Auto-seeded
-Helicopter,Tool,,S24704,Needs Service,Auto-seeded
-Boat,Tool,,S19489,Good,Auto-seeded
-Boat,Vehicle,,S30220,Good,Auto-seeded
-UTV,Tool,,S11781,Good,Auto-seeded
-K9 Kit,Medical,,S97919,Fair,Auto-seeded
-Truck,Medical,,S51469,Fair,Auto-seeded
-Truck,Vehicle,,S60671,Needs Service,Auto-seeded
-Portable Repeater,Vehicle,,S24789,Needs Service,Auto-seeded
-UTV,Vehicle,,S22001,Good,Seed data
-Generator,Tool,,S84521,Fair,Light tower support
-K9 Kit,Medical,,S66731,Good,Canine support kit
-K9 Kit,Vehicle,,S12815,Needs Service,Auto-seeded
-Truck,Medical,,S27574,Needs Service,Auto-seeded
-Generator,Aviation,,S58379,Good,Auto-seeded
-Generator,Radio,,S34085,Good,Auto-seeded
-UTV,Tool,,S65157,Needs Service,Auto-seeded
-Helicopter,Vehicle,,S84633,Needs Service,Auto-seeded
-Truck,Radio,,S39162,Needs Service,Auto-seeded
-Portable Repeater,Radio,,S59113,Good,Auto-seeded
-Helicopter,Radio,,S75679,Good,Auto-seeded
-Truck,Radio,,S81491,Good,Auto-seeded
-UTV,Radio,,S70817,Good,Auto-seeded
-UTV,Medical,,S70303,Fair,Auto-seeded
-Truck,Vehicle,,S33001,Good,4x4 crew cab
-Portable Repeater,Radio,,S94521,Good,OPS simplex extension
-seed,,,,,
+name,type,id_number,serial_number,organization,condition,notes
+XTS-5000,,,3821402,,Serviceable,
+Portable Repeater,Medical,,S75862,,Fair,Auto-seeded
+Generator,Vehicle,,S35149,,Fair,Auto-seeded
+Truck,Radio,,S26988,,Needs Service,Auto-seeded
+Helicopter,Radio,,S72453,,Fair,Auto-seeded
+Medical Kit,Radio,,S13806,,Needs Service,Auto-seeded
+Truck,Vehicle,,S26986,,Good,Auto-seeded
+Generator,Vehicle,,S67087,,Good,Auto-seeded
+Helicopter,Aviation,,S57583,,Good,Auto-seeded
+UTV,Aviation,,S36699,,Needs Service,Auto-seeded
+Medical Kit,Vehicle,,S37894,,Needs Service,Auto-seeded
+Truck,Radio,,S44191,,Fair,Auto-seeded
+Medical Kit,Tool,,S71675,,Good,Auto-seeded
+K9 Kit,Tool,,S96419,,Needs Service,Auto-seeded
+ATV,Vehicle,,S79408,,Fair,Auto-seeded
+Portable Repeater,Medical,,S17304,,Fair,Auto-seeded
+ATV,Vehicle,,S12001,,Good,Seed data
+Portable Repeater,Radio,,S54521,,Good,OPS net coverage
+Medical Kit,Medical,,S77731,,Good,ALS kit
+ATV,Tool,,S41975,,Needs Service,Auto-seeded
+Medical Kit,Tool,,S56609,,Good,Auto-seeded
+K9 Kit,Radio,,S46794,,Needs Service,Auto-seeded
+UTV,Radio,,S44295,,Good,Auto-seeded
+Helicopter,Tool,,S24704,,Needs Service,Auto-seeded
+Boat,Tool,,S19489,,Good,Auto-seeded
+Boat,Vehicle,,S30220,,Good,Auto-seeded
+UTV,Tool,,S11781,,Good,Auto-seeded
+K9 Kit,Medical,,S97919,,Fair,Auto-seeded
+Truck,Medical,,S51469,,Fair,Auto-seeded
+Truck,Vehicle,,S60671,,Needs Service,Auto-seeded
+Portable Repeater,Vehicle,,S24789,,Needs Service,Auto-seeded
+UTV,Vehicle,,S22001,,Good,Seed data
+Generator,Tool,,S84521,,Fair,Light tower support
+K9 Kit,Medical,,S66731,,Good,Canine support kit
+K9 Kit,Vehicle,,S12815,,Needs Service,Auto-seeded
+Truck,Medical,,S27574,,Needs Service,Auto-seeded
+Generator,Aviation,,S58379,,Good,Auto-seeded
+Generator,Radio,,S34085,,Good,Auto-seeded
+UTV,Tool,,S65157,,Needs Service,Auto-seeded
+Helicopter,Vehicle,,S84633,,Needs Service,Auto-seeded
+Truck,Radio,,S39162,,Needs Service,Auto-seeded
+Portable Repeater,Radio,,S59113,,Good,Auto-seeded
+Helicopter,Radio,,S75679,,Good,Auto-seeded
+Truck,Radio,,S81491,,Good,Auto-seeded
+UTV,Radio,,S70817,,Good,Auto-seeded
+UTV,Medical,,S70303,,Fair,Auto-seeded
+Truck,Vehicle,,S33001,,Good,4x4 crew cab
+Portable Repeater,Radio,,S94521,,Good,OPS simplex extension
+seed,,,,,,

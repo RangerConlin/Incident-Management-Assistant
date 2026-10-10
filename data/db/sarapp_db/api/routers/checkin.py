@@ -10,7 +10,7 @@ from fastapi import APIRouter, Body, HTTPException, Query
 
 from sarapp_db.mongo.database_manager import get_incident_db, get_master_db
 from sarapp_db.mongo.collection_names import MasterCollections, IncidentCollections
-from sarapp_db.mongo.int_id import _ensure_int_ids
+from sarapp_db.mongo.int_id import _ensure_int_ids, _ensure_record_ids
 from sarapp_db.mongo.repository import BaseRepository
 from sarapp_db.sync.readthrough import refresh_collection_before_read
 
@@ -145,6 +145,7 @@ def search_personnel(
 ) -> list[dict[str, Any]]:
     refresh_collection_before_read(MasterCollections.PERSONNEL)
     repo = _personnel_repo()
+    _ensure_record_ids(repo._col, _PERSON_RECORD)
     term = (q or "").strip().lower()
     docs = repo.find_many({}, sort=[("name", 1)])
     results = []

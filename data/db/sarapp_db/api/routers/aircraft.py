@@ -11,6 +11,7 @@ from sarapp_db.mongo.database_manager import get_master_db
 from sarapp_db.mongo.collection_names import MasterCollections
 from sarapp_db.mongo.repository import BaseRepository
 from sarapp_db.mongo.int_id import _ensure_record_ids, dual_key_field, next_record_id
+from sarapp_db.sync.readthrough import refresh_collection_before_read
 
 router = APIRouter()
 
@@ -46,6 +47,7 @@ def list_aircraft(
     status: str = Query(""),
     type_filter: str = Query(""),
 ) -> list[dict[str, Any]]:
+    refresh_collection_before_read(MasterCollections.AIRCRAFT)
     repo = _repo()
     _ensure_record_ids(repo._col, _record_field(repo))
     query: dict[str, Any] = {}
@@ -69,6 +71,7 @@ def list_aircraft(
 
 @router.get("/{aircraft_record}")
 def get_aircraft(aircraft_record: int) -> dict[str, Any]:
+    refresh_collection_before_read(MasterCollections.AIRCRAFT)
     repo = _repo()
     doc = repo.find_one({_record_field(repo): aircraft_record})
     if not doc:

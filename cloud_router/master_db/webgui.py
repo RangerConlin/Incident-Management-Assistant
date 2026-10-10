@@ -1436,7 +1436,7 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
             get_fn=certification_types_router.get_certification_type,
             create_fn=certification_types_router.create_certification_type,
             update_fn=certification_types_router.update_certification_type,
-            delete_fn=None,
+            delete_fn=certification_types_router.delete_certification_type,
             form_row_fn=_certification_type_form_row,
             form_payload_fn=_certification_type_form_payload,
             list_fields=["code", "name", "category", "issuing_org", "is_active"],
@@ -1457,7 +1457,7 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
             get_fn=qualification_types_router.get_qualification_type,
             create_fn=qualification_types_router.create_qualification_type,
             update_fn=qualification_types_router.update_qualification_type,
-            delete_fn=None,
+            delete_fn=qualification_types_router.delete_qualification_type,
             form_row_fn=_qualification_type_form_row,
             form_payload_fn=_qualification_type_form_payload,
             list_fields=["code", "name", "min_level", "is_active"],
@@ -2302,40 +2302,58 @@ def _personnel_certifications_picker_html(value: Any) -> str:
 </div>"""
 
 
-def _qualification_tag_vocabulary() -> list[str]:
-    """Distinct tags referenced by any qualification type's `any_tags`/
-    `all_tags` — the controlled vocabulary a certification type's own tags
-    are picked from (see `_certification_tags_picker_html` below and
-    Design Documents/Instructions/mongodb_schema_decisions.md). A cert's
-    tags only mean anything insofar as some qualification's any_tags/
-    all_tags references them, so the qualification catalog is the source
-    of truth for which tags exist, not free text typed on the cert."""
-    from sarapp_db.api.routers.qualification_types import list_qualification_types
+def _qualification_match_tags(qualification: dict[str, Any]) -> set[str]:
+    """The full set of tags a qualification cares about — any_tags union
+    all_tags. Used both to decide a picker checkbox's pre-checked state and
+    as the exact set of tags added to / removed from a certification when
+    its checkbox is toggled (see `_certification_tags_picker_html` and
+    `_qualification_certifications_html` below)."""
+    return set(qualification.get("any_tags") or []) | set(qualification.get("all_tags") or [])
 
-    tags: set[str] = set()
-    for qualification in list_qualification_types(search="", include_inactive=True):
-        tags.update(qualification.get("any_tags") or [])
-        tags.update(qualification.get("all_tags") or [])
-    return sorted(tags)
+
+def _cert_satisfies_qualification(cert_tags: set[str], qualification: dict[str, Any]) -> bool:
+    """Same any_tags/all_tags matching rule as
+    modules/personnel/api/cert_api.py's qualifications_met() — duplicated
+    here (rather than imported) since that module lives under modules/
+    alongside Qt-facing code cloud_router deliberately avoids importing
+    (see modules/personnel/catalog_io.py's own docstring on this)."""
+    any_tags = set(qualification.get("any_tags") or [])
+    all_tags = set(qualification.get("all_tags") or [])
+    if not any_tags and not all_tags:
+        return False
+    if all_tags and not all_tags.issubset(cert_tags):
+        return False
+    if any_tags and not (cert_tags & any_tags):
+        return False
+    return True
 
 
 def _certification_tags_picker_html(value: Any) -> str:
-    """Render a certification type's `tags` field as a checklist of the
-    qualification tag vocabulary instead of a free-text box, so a cert can
-    only be tagged with something a qualification type actually looks for
-    — no typos, no tags that silently match nothing."""
+    """Render a certification type's `tags` field as a checklist of
+    qualification NAMES instead of raw tag strings or free text — checking
+    "Medical Provider (Field)" tags this cert with whatever that
+    qualification actually looks for (any_tags | all_tags), so an admin
+    picks a qualification, not an abstract string they'd have to cross-
+    reference to understand."""
+    from sarapp_db.api.routers.qualification_types import list_qualification_types
+
     current = {tag.strip().upper() for tag in _csv_to_list(value)}
-    vocabulary = _qualification_tag_vocabulary()
+    qualifications = [
+        q for q in list_qualification_types(search="", include_inactive=True)
+        if _qualification_match_tags(q)
+    ]
     safe_value = escape(str(value)) if value is not None else ""
-    if not vocabulary:
+    if not qualifications:
         return (
             f'<input type="hidden" name="tags" value="{safe_value}">'
-            '<p class="muted">No qualification tags exist yet — add a Qualification Type with Any/All tags first, then they\'ll be pickable here.</p>'
+            '<p class="muted">No qualification types with Any/All tags exist yet — add one first, then it\'ll be pickable here.</p>'
         )
     checkboxes = "".join(
-        f'<label class="compact-check"><input type="checkbox" value="{escape(tag)}" data-cert-tag-checkbox'
-        f'{" checked" if tag in current else ""}> {escape(tag)}</label>'
-        for tag in vocabulary
+        f'<label class="compact-check"><input type="checkbox" data-cert-qual-checkbox '
+        f'data-tags="{_json_attr(sorted(_qualification_match_tags(q)))}"'
+        f'{" checked" if _cert_satisfies_qualification(current, q) else ""}> '
+        f'{escape(str(q.get("name") or q.get("code") or ""))}</label>'
+        for q in qualifications
     )
     script = """<script>
 (() => {
@@ -2343,8 +2361,11 @@ def _certification_tags_picker_html(value: Any) -> str:
   const form = wrap.closest("form");
   const hidden = wrap.querySelector("[data-cert-tags-value]");
   form.addEventListener("submit", () => {
-    const checked = [...wrap.querySelectorAll("[data-cert-tag-checkbox]:checked")].map((cb) => cb.value);
-    hidden.value = checked.join(", ");
+    const tags = new Set();
+    wrap.querySelectorAll("[data-cert-qual-checkbox]:checked").forEach((cb) => {
+      (JSON.parse(cb.dataset.tags || "[]")).forEach((tag) => tags.add(tag));
+    });
+    hidden.value = [...tags].join(", ");
   });
 })();
 </script>"""
@@ -2353,6 +2374,51 @@ def _certification_tags_picker_html(value: Any) -> str:
   <div class="tag-picker-options">{checkboxes}</div>
   {script}
 </div>"""
+
+
+def _qualification_certifications_html(qualification: dict[str, Any], record_id: Any, root_path: str) -> str:
+    """Reverse of `_certification_tags_picker_html` above: on a Qualification
+    Type's own edit page, show a checklist of every certification type,
+    pre-checked for whichever ones already satisfy this qualification.
+    Toggling a checkbox and saving adds/removes this qualification's tags
+    (any_tags | all_tags) on that certification directly — a second place
+    to establish the same cert<->qualification relationship, edited from
+    the qualification's side instead of the certification's. Posts to its
+    own sub-endpoint (see update_qualification_certifications below) since
+    it mutates OTHER documents (certification_types), not this one."""
+    from sarapp_db.api.routers.certification_types import list_certification_types
+
+    match_tags = _qualification_match_tags(qualification)
+    if not match_tags:
+        return """<section class="card"><div class="card-head"><div><h1>Certifications</h1>
+  <p class="card-subtitle">Add Any/All tags to this qualification first, then certifications satisfying it will be pickable here.</p></div></div>
+</section>"""
+    certs = list_certification_types(search="", category="", include_inactive=True)
+    rows_html = "".join(
+        f'<label class="compact-check"><input type="checkbox" data-qual-cert-checkbox value="{cert.get("id")}"'
+        f'{" checked" if _cert_satisfies_qualification(set(cert.get("tags") or []), qualification) else ""}> '
+        f'{escape(str(cert.get("code") or ""))} - {escape(str(cert.get("name") or ""))}</label>'
+        for cert in certs
+    )
+    script = """<script>
+(() => {
+  const form = document.currentScript.closest("form");
+  const hidden = form.querySelector("[data-qual-cert-ids]");
+  form.addEventListener("submit", () => {
+    const ids = [...form.querySelectorAll("[data-qual-cert-checkbox]:checked")].map((cb) => cb.value);
+    hidden.value = ids.join(",");
+  });
+})();
+</script>"""
+    return f"""<section class="card"><div class="card-head"><div><h1>Certifications</h1>
+  <p class="card-subtitle">Check which certifications satisfy this qualification. Saving adds/removes this qualification's tags on each certification you change.</p></div></div>
+  <form method="post" action="{root_path}/gui/qualification-types/{record_id}/certifications" data-confirm-title="Update certification tagging?" data-confirm="This adds or removes this qualification's tags on every certification you changed above." data-confirm-action="Save">
+    <input type="hidden" name="cert_ids" data-qual-cert-ids>
+    <div class="tag-picker-options">{rows_html}</div>
+    <div class="form-actions"><button type="submit">Save</button></div>
+    {script}
+  </form>
+</section>"""
 
 
 def _cell_html(value: Any) -> str:
@@ -2979,6 +3045,7 @@ def create_master_gui_router() -> APIRouter:
 
         inline_fields = set(spec.inline_edit_fields or [])
         bulk_fields = _bulk_editable_fields(spec)
+        show_select_col = bool(bulk_fields) or spec.delete_fn is not None
         bulk_field_meta: dict[str, dict[str, Any]] = {}
         for f in bulk_fields:
             bulk_editor_type = (
@@ -3054,17 +3121,20 @@ def create_master_gui_router() -> APIRouter:
             cells_html = "".join(cells)
             row_href = f"{root_path}/gui/{collection_key}/{record_id}"
             row_attr = "" if inline_fields else f' data-row-href="{row_href}"'
-            select_cell = (
-                f'<td class="select-col"><input type="checkbox" data-row-checkbox value="{escape(str(record_id))}"></td>'
-                if record_id is not None
-                else '<td class="select-col"></td>'
-            )
+            select_cell = ""
+            if show_select_col:
+                select_cell = (
+                    f'<td class="select-col"><input type="checkbox" data-row-checkbox value="{escape(str(record_id))}"></td>'
+                    if record_id is not None
+                    else '<td class="select-col"></td>'
+                )
             rows.append(
                 f'<tr data-row{row_attr}>{select_cell}<td class="record-cell">'
                 f'<a class="button-link secondary row-edit-link" href="{row_href}">Edit</a></td>{cells_html}</tr>'
             )
         rows.append(
-            f'<tr class="empty-row {"hidden" if docs else ""}"><td colspan="{len(shown_fields) + 2}">'
+            f'<tr class="empty-row {"hidden" if docs else ""}">'
+            f'<td colspan="{len(shown_fields) + 1 + (1 if show_select_col else 0)}">'
             "No matching records.</td></tr>"
         )
         inline_table_attrs = ""
@@ -3120,7 +3190,7 @@ def create_master_gui_router() -> APIRouter:
   {bulk_toolbar_html}
   <div class="table-wrap">
     <table id="{table_id}"{inline_table_attrs} data-bulk-table>
-      <thead><tr><th class="select-col"><input type="checkbox" data-select-all></th><th>Edit</th>{header_cells}</tr></thead>
+      <thead><tr>{'<th class="select-col"><input type="checkbox" data-select-all></th>' if show_select_col else ''}<th>Edit</th>{header_cells}</tr></thead>
       <tbody>{''.join(rows)}</tbody>
     </table>
   </div>
@@ -3273,6 +3343,8 @@ def create_master_gui_router() -> APIRouter:
         body = f'{back}<section class="card"><h1>{escape(spec.title)} {record_id}</h1>{form}<div class="form-actions">{delete_button}</div></section>'
         if spec.key == "rank-structures":
             body += _rank_structure_ranks_html(record_id, root_path)
+        elif spec.key == "qualification-types":
+            body += _qualification_certifications_html(doc, record_id, root_path)
         return _page(f"Edit {spec.title}", body, request)
 
     @router.post("/gui/rank-structures/{record_id}/ranks")
@@ -3285,6 +3357,33 @@ def create_master_gui_router() -> APIRouter:
         _parse_rank_rows(record_id, form)
         root_path = request.scope.get("root_path") or ""
         return RedirectResponse(f"{root_path}/gui/rank-structures/{record_id}", status_code=303)
+
+    @router.post("/gui/qualification-types/{record_id}/certifications")
+    async def update_qualification_certifications(request: Request, record_id: int) -> Response:
+        try:
+            _require_session(settings, request)
+        except HTTPException:
+            return _redirect_login(request)
+        from sarapp_db.api.routers.certification_types import list_certification_types, update_certification_type
+        from sarapp_db.api.routers.qualification_types import get_qualification_type
+
+        root_path = request.scope.get("root_path") or ""
+        qualification = get_qualification_type(record_id)
+        match_tags = _qualification_match_tags(qualification)
+        if match_tags:
+            form = dict((await request.form()).items())
+            checked_ids = {
+                int(part) for part in str(form.get("cert_ids") or "").split(",") if part.strip().isdigit()
+            }
+            for cert in list_certification_types(search="", category="", include_inactive=True):
+                cert_tags = set(cert.get("tags") or [])
+                currently_satisfied = _cert_satisfies_qualification(cert_tags, qualification)
+                should_satisfy = cert.get("id") in checked_ids
+                if should_satisfy and not currently_satisfied:
+                    update_certification_type(cert["id"], {"tags": sorted(cert_tags | match_tags)})
+                elif not should_satisfy and currently_satisfied:
+                    update_certification_type(cert["id"], {"tags": sorted(cert_tags - match_tags)})
+        return RedirectResponse(f"{root_path}/gui/qualification-types/{record_id}", status_code=303)
 
     @router.post("/gui/{collection_key}/{record_id}/inline/{field_name}", response_model=None)
     async def inline_update_field(
@@ -3329,34 +3428,11 @@ def create_master_gui_router() -> APIRouter:
 
         return JSONResponse({"display": _stringify(display_value), "raw": _stringify(value)})
 
-    @router.post("/gui/{collection_key}/{record_id}")
-    async def update_record(request: Request, collection_key: str, record_id: str) -> Response:
-        try:
-            _require_session(settings, request)
-        except HTTPException:
-            return _redirect_login(request)
-        spec = specs.get(collection_key)
-        if spec is None:
-            raise HTTPException(status_code=404, detail="Unknown collection")
-        form = dict((await request.form()).items())
-        body = _parse_form_body(spec, form)
-        spec.update_fn(_record_route_arg(spec, record_id), body)
-        root_path = request.scope.get("root_path") or ""
-        return RedirectResponse(f"{root_path}/gui/{collection_key}/{record_id}", status_code=303)
-
-    @router.post("/gui/{collection_key}/{record_id}/delete")
-    def delete_record(request: Request, collection_key: str, record_id: str) -> Response:
-        try:
-            _require_session(settings, request)
-        except HTTPException:
-            return _redirect_login(request)
-        spec = specs.get(collection_key)
-        if spec is None or spec.delete_fn is None:
-            raise HTTPException(status_code=404, detail="Unknown collection")
-        spec.delete_fn(_record_route_arg(spec, record_id))
-        root_path = request.scope.get("root_path") or ""
-        return RedirectResponse(f"{root_path}/gui/{collection_key}", status_code=303)
-
+    # These two must stay registered before the catch-all
+    # POST /gui/{collection_key}/{record_id} (update_record) below — Starlette
+    # matches routes in registration order, and "bulk-update"/"bulk-delete"
+    # would otherwise themselves match {record_id} and hit update_record
+    # instead (same reason delete-all above is also registered before it).
     @router.post("/gui/{collection_key}/bulk-delete")
     async def bulk_delete_records(request: Request, collection_key: str) -> Response:
         try:
@@ -3412,8 +3488,36 @@ def create_master_gui_router() -> APIRouter:
         for record_id in ids:
             try:
                 spec.update_fn(_record_route_arg(spec, record_id), {field.name: value})
-            except HTTPException:
+            except Exception:
                 continue
+        return RedirectResponse(f"{root_path}/gui/{collection_key}", status_code=303)
+
+    @router.post("/gui/{collection_key}/{record_id}")
+    async def update_record(request: Request, collection_key: str, record_id: str) -> Response:
+        try:
+            _require_session(settings, request)
+        except HTTPException:
+            return _redirect_login(request)
+        spec = specs.get(collection_key)
+        if spec is None:
+            raise HTTPException(status_code=404, detail="Unknown collection")
+        form = dict((await request.form()).items())
+        body = _parse_form_body(spec, form)
+        spec.update_fn(_record_route_arg(spec, record_id), body)
+        root_path = request.scope.get("root_path") or ""
+        return RedirectResponse(f"{root_path}/gui/{collection_key}/{record_id}", status_code=303)
+
+    @router.post("/gui/{collection_key}/{record_id}/delete")
+    def delete_record(request: Request, collection_key: str, record_id: str) -> Response:
+        try:
+            _require_session(settings, request)
+        except HTTPException:
+            return _redirect_login(request)
+        spec = specs.get(collection_key)
+        if spec is None or spec.delete_fn is None:
+            raise HTTPException(status_code=404, detail="Unknown collection")
+        spec.delete_fn(_record_route_arg(spec, record_id))
+        root_path = request.scope.get("root_path") or ""
         return RedirectResponse(f"{root_path}/gui/{collection_key}", status_code=303)
 
     return router

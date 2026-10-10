@@ -214,6 +214,39 @@ def _export_organizations(db) -> None:
     _write_csv("organizations.csv", keys, rows)
 
 
+def _export_radio_channels(db) -> None:
+    # The dashboard's import (cloud_router/master_db/webgui.py) matches CSV
+    # headers against radio_channel_fields' FieldSpec names (name, rx_freq,
+    # tx_freq, ...), not this collection's own internal Mongo storage names
+    # (channel_name, freq_rx, freq_tx, ...| see communications.py's
+    # _MASTER_CHANNEL_FIELD_MAP) — the generic raw-dump path below would
+    # write the storage names instead, which the importer doesn't recognize
+    # and silently drops. This mirrors that same rename so the file actually
+    # round-trips through the dashboard's Import button.
+    keys = [
+        "name", "function", "rx_freq", "tx_freq", "rx_tone", "tx_tone",
+        "system", "mode", "line_a", "line_c", "notes",
+    ]
+    docs = list(db["radio_channels"].find({}))
+    rows = [
+        {
+            "name": d.get("channel_name", ""),
+            "function": d.get("function", ""),
+            "rx_freq": d.get("freq_rx", ""),
+            "tx_freq": d.get("freq_tx", ""),
+            "rx_tone": d.get("rx_tone", ""),
+            "tx_tone": d.get("tx_tone", ""),
+            "system": d.get("system", ""),
+            "mode": d.get("mode", ""),
+            "line_a": d.get("line_a", False),
+            "line_c": d.get("line_c", False),
+            "notes": d.get("notes", ""),
+        }
+        for d in docs
+    ]
+    _write_csv("radio_channels.csv", keys, rows)
+
+
 _CURATED_EXPORTERS = {
     "personnel": _export_personnel,
     "equipment": _export_equipment,
@@ -223,6 +256,7 @@ _CURATED_EXPORTERS = {
     "rank_structures": _export_rank_structures,
     "ranks": _export_ranks,
     "organizations": _export_organizations,
+    "radio_channels": _export_radio_channels,
 }
 
 

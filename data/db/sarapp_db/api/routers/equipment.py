@@ -10,6 +10,7 @@ from sarapp_db.mongo.database_manager import get_master_db
 from sarapp_db.mongo.collection_names import MasterCollections
 from sarapp_db.mongo.repository import BaseRepository
 from sarapp_db.mongo.int_id import _ensure_record_ids, dual_key_field, next_record_id
+from sarapp_db.sync.readthrough import refresh_collection_before_read
 
 router = APIRouter()
 
@@ -44,6 +45,7 @@ def list_equipment(
     search: str = Query(""),
     limit: int = Query(200),
 ) -> list[dict[str, Any]]:
+    refresh_collection_before_read(MasterCollections.EQUIPMENT)
     repo = _repo()
     _ensure_record_ids(repo._col, _record_field(repo))
     docs = repo.find_many({}, sort=[("name", 1)], limit=limit)
@@ -61,6 +63,7 @@ def list_equipment(
 
 @router.get("/{equipment_record}")
 def get_equipment(equipment_record: int) -> dict[str, Any]:
+    refresh_collection_before_read(MasterCollections.EQUIPMENT)
     repo = _repo()
     doc = repo.find_one({_record_field(repo): equipment_record})
     if not doc:
