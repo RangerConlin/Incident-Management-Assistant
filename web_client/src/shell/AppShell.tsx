@@ -1,11 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { listIncidents } from "../api/endpoints";
 import { useSession } from "../auth/SessionContext";
 import { useConnectionStatus } from "../realtime/IncidentSocketProvider";
 import { applyTheme, getStoredTheme } from "../styles/statusColors";
-import { MODULE_REGISTRY } from "./moduleRegistry";
+import { findSectionForPath, MODULE_REGISTRY, type ModuleSection } from "./moduleRegistry";
 
 function ConnectionIndicator() {
   const status = useConnectionStatus();
@@ -45,10 +45,65 @@ function IncidentSwitcher() {
   );
 }
 
+function firstNavigableModule(section: ModuleSection) {
+  return section.modules.find((m) => m.status === "live") ?? section.modules[0];
+}
+
+function ModuleRail({ activeSection }: { activeSection: ModuleSection | undefined }) {
+  const navigate = useNavigate();
+  return (
+    <aside className="app-rail">
+      <div className="app-rail-brand">SA</div>
+      {MODULE_REGISTRY.map((section) => {
+        const hasLiveModule = section.modules.some((m) => m.status === "live");
+        const isActive = section.section === activeSection?.section;
+        return (
+          <button
+            key={section.section}
+            type="button"
+            className={"app-rail-button" + (isActive ? " active" : "") + (hasLiveModule ? "" : " disabled")}
+            title={section.section + (hasLiveModule ? "" : " (not built yet)")}
+            disabled={!hasLiveModule}
+            onClick={() => navigate(firstNavigableModule(section).path)}
+          >
+            {section.icon}
+          </button>
+        );
+      })}
+    </aside>
+  );
+}
+
+function ModuleTabs({ section }: { section: ModuleSection | undefined }) {
+  if (!section) return null;
+  return (
+    <div className="app-module-tabs">
+      <span className="app-module-tabs-label">{section.section}</span>
+      {section.modules.map((mod) =>
+        mod.status === "live" ? (
+          <NavLink
+            key={mod.key}
+            to={mod.path}
+            className={({ isActive }) => "app-module-tab" + (isActive ? " active" : "")}
+          >
+            {mod.label}
+          </NavLink>
+        ) : (
+          <span key={mod.key} className="app-module-tab planned" title="Not built yet">
+            {mod.label}
+          </span>
+        )
+      )}
+    </div>
+  );
+}
+
 export default function AppShell() {
   const { user, logout } = useSession();
   const navigate = useNavigate();
+  const location = useLocation();
   const [theme, setTheme] = useState(getStoredTheme());
+  const activeSection = findSectionForPath(location.pathname);
 
   const toggleTheme = () => {
     const next = theme === "dark" ? "light" : "dark";
@@ -58,30 +113,7 @@ export default function AppShell() {
 
   return (
     <div className="app-shell">
-      <aside className="app-sidebar">
-        <div className="app-sidebar-title">SARApp</div>
-        {MODULE_REGISTRY.map((section) => (
-          <div key={section.section} className="app-sidebar-section">
-            <div className="app-sidebar-section-label">{section.section}</div>
-            {section.modules.map((mod) =>
-              mod.status === "live" ? (
-                <NavLink
-                  key={mod.key}
-                  to={mod.path}
-                  className={({ isActive }) => "app-sidebar-link" + (isActive ? " active" : "")}
-                >
-                  {mod.label}
-                </NavLink>
-              ) : (
-                <span key={mod.key} className="app-sidebar-link planned" title="Not built yet">
-                  {mod.label}
-                  <span className="planned-badge">planned</span>
-                </span>
-              )
-            )}
-          </div>
-        ))}
-      </aside>
+      <ModuleRail activeSection={activeSection} />
       <div className="app-main">
         <header className="app-topbar">
           <IncidentSwitcher />
@@ -106,6 +138,7 @@ export default function AppShell() {
             </button>
           </div>
         </header>
+        <ModuleTabs section={activeSection} />
         <main className="app-content">
           <Outlet />
         </main>

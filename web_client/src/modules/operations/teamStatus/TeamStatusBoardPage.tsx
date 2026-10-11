@@ -5,7 +5,21 @@ import ElapsedTime from "../../../components/table/ElapsedTime";
 import FilterBar from "../../../components/table/FilterBar";
 import RowContextMenu, { type ContextMenuSection } from "../../../components/table/RowContextMenu";
 import StatusPill from "../../../components/table/StatusPill";
+import KpiStrip from "../../../components/KpiStrip";
 import { TEAM_STATUS_STEPS } from "../../../api/endpoints";
+
+// Sentinel statusFilter value for "needs_attention", a derived flag rather
+// than a literal status string, so it can share the same filter state as
+// the status dropdown/quick chips instead of needing a second variable.
+const NEEDS_ATTENTION = "__needs_attention__";
+
+const QUICK_CHIPS: { key: string; label: string }[] = [
+  { key: "", label: "All" },
+  { key: "assigned", label: "Assigned" },
+  { key: "enroute", label: "En Route" },
+  { key: "available", label: "Available" },
+  { key: NEEDS_ATTENTION, label: "Needs Attention" },
+];
 import type { TeamAssignmentRow } from "../../../api/types";
 import { useSession } from "../../../auth/SessionContext";
 import TaskPickerDialog from "./TaskPickerDialog";
@@ -35,7 +49,11 @@ export default function TeamStatusBoardPage() {
 
   const filteredRows = useMemo(() => {
     return rows.filter((r) => {
-      if (statusFilter && r.status !== statusFilter) return false;
+      if (statusFilter === NEEDS_ATTENTION) {
+        if (!r.needs_attention) return false;
+      } else if (statusFilter && r.status !== statusFilter) {
+        return false;
+      }
       if (search) {
         const haystack = `${r.name} ${r.leader} ${r.assignment}`.toLowerCase();
         if (!haystack.includes(search.toLowerCase())) return false;
@@ -43,6 +61,22 @@ export default function TeamStatusBoardPage() {
       return true;
     });
   }, [rows, search, statusFilter]);
+
+  const kpiTiles = useMemo(() => {
+    const count = (pred: (r: TeamAssignmentRow) => boolean) => rows.filter(pred).length;
+    return [
+      { key: "total", value: rows.length, label: "Teams" },
+      { key: "assigned", value: count((r) => r.status === "assigned"), label: "Assigned" },
+      { key: "enroute", value: count((r) => r.status === "enroute"), label: "En Route" },
+      { key: "available", value: count((r) => r.status === "available"), label: "Available" },
+      {
+        key: "needs_attention",
+        value: count((r) => r.needs_attention),
+        label: "Needs Attention",
+        tone: "warning" as const,
+      },
+    ];
+  }, [rows]);
 
   const applyStatus = (row: TeamAssignmentRow, statusKey: string) => {
     if (STATUSES_REQUIRING_TASK.has(statusKey) && row.task_id == null) {
@@ -112,10 +146,35 @@ export default function TeamStatusBoardPage() {
         </div>
       </div>
 
+      <KpiStrip tiles={kpiTiles} />
+
+      <div className="quick-chip-row">
+        {QUICK_CHIPS.map((c) => (
+          <button
+            key={c.key || "all"}
+            type="button"
+            className={"quick-chip" + (statusFilter === c.key ? " active" : "")}
+            onClick={() => setStatusFilter(c.key)}
+          >
+            {c.label}
+          </button>
+        ))}
+      </div>
+
       <FilterBar
         search={search}
         onSearchChange={setSearch}
-        activeFilters={statusFilter ? [{ key: "status", label: `Status: ${statusFilter}` }] : []}
+        activeFilters={
+          statusFilter
+            ? [
+                {
+                  key: "status",
+                  label:
+                    statusFilter === NEEDS_ATTENTION ? "Needs Attention" : `Status: ${statusFilter}`,
+                },
+              ]
+            : []
+        }
         onClearFilter={() => setStatusFilter("")}
         onResetAll={() => setStatusFilter("")}
       >
@@ -126,6 +185,7 @@ export default function TeamStatusBoardPage() {
               {s.label}
             </option>
           ))}
+          <option value={NEEDS_ATTENTION}>Needs Attention</option>
         </select>
       </FilterBar>
 

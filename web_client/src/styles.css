@@ -116,58 +116,104 @@ button + button {
   width: 100%;
 }
 
-.app-sidebar {
-  width: 240px;
+.app-rail {
+  width: 56px;
   flex-shrink: 0;
   background: #17191d;
   border-right: 1px solid #2a2d33;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 0;
   overflow-y: auto;
-  padding-bottom: 24px;
 }
 
-.app-sidebar-title {
+.app-rail-brand {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: #22343a;
+  color: var(--color-selected-outline, #5b9bd5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-weight: 700;
-  font-size: 1.1rem;
-  padding: 16px;
+  font-size: 0.68rem;
+  margin-bottom: 8px;
 }
 
-.app-sidebar-section-label {
+.app-rail-button {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  background: transparent;
+  color: #9aa0a8;
+  border: none;
+  border-left: 2px solid transparent;
+  border-radius: 6px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0;
+}
+
+.app-rail-button:hover:not(:disabled) {
+  background: #1d2025;
+  color: #e8e8e8;
+}
+
+.app-rail-button.active {
+  background: #22343a;
+  color: var(--color-selected-outline, #5b9bd5);
+  border-left: 2px solid var(--color-selected-outline, #5b9bd5);
+}
+
+.app-rail-button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.app-module-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 20px;
+  border-bottom: 1px solid #2a2d33;
+  overflow-x: auto;
+}
+
+.app-module-tabs-label {
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   opacity: 0.55;
-  padding: 14px 16px 4px;
+  margin-right: 10px;
+  flex-shrink: 0;
 }
 
-.app-sidebar-link {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 16px;
+.app-module-tab {
+  flex-shrink: 0;
+  padding: 5px 12px;
+  border-radius: 999px;
   text-decoration: none;
   color: inherit;
-  font-size: 0.9rem;
+  font-size: 0.82rem;
+  white-space: nowrap;
 }
 
-.app-sidebar-link:hover {
+.app-module-tab:hover {
   background: #1d2025;
 }
 
-.app-sidebar-link.active {
+.app-module-tab.active {
   background: #22343a;
-  border-right: 3px solid var(--color-selected-outline, #5b9bd5);
+  color: var(--color-selected-outline, #5b9bd5);
+  font-weight: 600;
 }
 
-.app-sidebar-link.planned {
-  opacity: 0.45;
+.app-module-tab.planned {
+  opacity: 0.4;
   cursor: default;
-}
-
-.planned-badge {
-  font-size: 0.65rem;
-  border: 1px solid #4a5058;
-  border-radius: 999px;
-  padding: 1px 6px;
 }
 
 .app-main {
@@ -365,6 +411,77 @@ table.data-table tbody tr.row-emergency {
 
 .row-context-menu button:hover {
   background: #2a2d33;
+}
+
+/* ---------------------------------------------------------------------
+ * KpiStrip
+ * ------------------------------------------------------------------- */
+
+.kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.kpi-tile {
+  background: #17191d;
+  border: 1px solid #2a2d33;
+  border-left: 3px solid #4a5058;
+  border-radius: 8px;
+  padding: 8px 14px;
+}
+
+.kpi-tile-warning {
+  border-left-color: #a88f1a;
+}
+
+.kpi-tile-danger {
+  border-left-color: #8c2f2f;
+}
+
+.kpi-tile-value {
+  font-size: 1.3rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.kpi-tile-label {
+  font-size: 0.72rem;
+  opacity: 0.65;
+  margin-top: 2px;
+}
+
+/* ---------------------------------------------------------------------
+ * Quick status chips (board-level, above FilterBar)
+ * ------------------------------------------------------------------- */
+
+.quick-chip-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.quick-chip {
+  width: auto;
+  background: transparent;
+  border: 1px solid #2a2d33;
+  color: #9aa0a8;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 999px;
+}
+
+.quick-chip:hover {
+  background: #1d2025;
+}
+
+.quick-chip.active {
+  background: #22343a;
+  color: var(--color-selected-outline, #5b9bd5);
+  border-color: var(--color-selected-outline, #5b9bd5);
 }
 
 /* ---------------------------------------------------------------------
