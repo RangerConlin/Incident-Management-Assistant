@@ -4,11 +4,20 @@ import {
   objectiveStatusVar,
   operationalPeriodStatusVar,
   resourceStatusVar,
+  sitrepStatusVar,
   taskStatusVar,
   teamStatusVar,
 } from "../../styles/statusColors";
 
-type Domain = "team" | "task" | "resource" | "objective" | "objective-priority" | "op-period" | "meeting";
+type Domain =
+  | "team"
+  | "task"
+  | "resource"
+  | "objective"
+  | "objective-priority"
+  | "op-period"
+  | "meeting"
+  | "sitrep";
 
 interface StatusPillProps {
   domain: Domain;
@@ -24,6 +33,7 @@ const RESOLVERS: Record<Domain, (key: string) => { bg: string; fg: string }> = {
   "objective-priority": objectivePriorityVar,
   "op-period": operationalPeriodStatusVar,
   meeting: meetingStatusVar,
+  sitrep: sitrepStatusVar,
 };
 
 export default function StatusPill({ domain, statusKey, label }: StatusPillProps) {

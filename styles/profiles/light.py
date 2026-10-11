@@ -183,6 +183,15 @@ MEETING_STATUS: Dict[str, Dict[str, str]] = {
     "canceled":         {"bg": "#E53935", "fg": "#ffffff"},
 }
 
+SITREP_STATUS: Dict[str, Dict[str, str]] = {
+    "draft":              {"bg": "#B0BEC5", "fg": "#1a1a1a"},
+    "ready_for_review":   {"bg": "#FFC107", "fg": "#1a1a1a"},
+    "needs_revision":     {"bg": "#E53935", "fg": "#ffffff"},
+    "approved":           {"bg": "#43A047", "fg": "#ffffff"},
+    "distributed":        {"bg": "#1E88E5", "fg": "#ffffff"},
+    "archived":           {"bg": "#90A4AE", "fg": "#1a1a1a"},
+}
+
 # Planning / Tactics & Resources module — Work Assignment planning status,
 # safety status, and priority chips (strategy board and detail window).
 WA_PLANNING_STATUS: Dict[str, Dict[str, str]] = {
@@ -410,6 +419,7 @@ __all__ = [
     "OBJECTIVE_PRIORITY",
     "OPERATIONAL_PERIOD_STATUS",
     "MEETING_STATUS",
+    "SITREP_STATUS",
     "NARRATIVE_STATUS",
     "CONNECTION_STATUS",
     "WEATHER_SEVERITY",

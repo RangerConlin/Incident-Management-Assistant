@@ -88,3 +88,22 @@ def test_unsynced_sync_trigger_resync_keeps_catalog_cache(monkeypatch) -> None:
 
     test_cache.get("organizations", "/api/master/organizations", loader=lambda: calls.append(1) or [{"id": 2}])
     assert calls == [1]
+
+
+def test_missing_sync_trigger_endpoint_reports_server_update_needed(monkeypatch) -> None:
+    client = api_client_module._APIClient.__new__(api_client_module._APIClient)
+    client._base_url = "http://testserver"
+    monkeypatch.setattr(
+        client,
+        "_request_with_retry",
+        lambda *_args, **_kwargs: httpx.Response(404, json={"detail": "Not Found"}),
+    )
+
+    try:
+        client.post("/api/sync-trigger/resync/personnel")
+    except api_client_module.APIError as exc:
+        assert exc.status_code == 404
+        assert "Restart or redeploy" in str(exc)
+        assert "sync-trigger routes" in str(exc)
+    else:
+        raise AssertionError("Expected APIError")

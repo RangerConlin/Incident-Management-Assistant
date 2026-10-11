@@ -37,6 +37,7 @@ STATUS_DICTS = [
     ("OBJECTIVE_PRIORITY", "objective-priority"),
     ("OPERATIONAL_PERIOD_STATUS", "op-period"),
     ("MEETING_STATUS", "meeting"),
+    ("SITREP_STATUS", "sitrep"),
 ]
 
 # Hand-kept values with no Python dict equivalent (UI chrome, not a status

@@ -157,6 +157,9 @@ _OPERATIONAL_PERIOD_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_D
 _MEETING_STATUS_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "MEETING_STATUS")
 _MEETING_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "MEETING_STATUS")
 
+_SITREP_STATUS_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "SITREP_STATUS")
+_SITREP_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "SITREP_STATUS")
+
 _NARRATIVE_STATUS_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "NARRATIVE_STATUS")
 _NARRATIVE_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "NARRATIVE_STATUS")
 
@@ -311,6 +314,10 @@ def operational_period_status_colors() -> Dict[str, Dict[str, QBrush]]:
 
 def meeting_status_colors() -> Dict[str, Dict[str, QBrush]]:
     return _MEETING_STATUS_LIGHT if THEME_NAME == "light" else _MEETING_STATUS_DARK
+
+
+def sitrep_status_colors() -> Dict[str, Dict[str, QBrush]]:
+    return _SITREP_STATUS_LIGHT if THEME_NAME == "light" else _SITREP_STATUS_DARK
 
 
 def narrative_status_colors() -> Dict[str, Dict[str, QBrush]]:
@@ -553,6 +560,7 @@ __all__ = [
     "objective_priority_colors",
     "operational_period_status_colors",
     "meeting_status_colors",
+    "sitrep_status_colors",
     "narrative_status_colors",
     "resource_status_colors",
     "TEAM_TYPE_COLORS",

@@ -45,7 +45,23 @@ export type OperationalPeriodStatusKey = "Planned" | "Active" | "Complete" | "Ca
 
 export type MeetingStatusKey = "draft" | "scheduled" | "ready" | "completed" | "canceled";
 
-type StatusDomain = "team" | "task" | "resource" | "objective" | "objective-priority" | "op-period" | "meeting";
+export type SitrepStatusKey =
+  | "draft"
+  | "ready_for_review"
+  | "needs_revision"
+  | "approved"
+  | "distributed"
+  | "archived";
+
+type StatusDomain =
+  | "team"
+  | "task"
+  | "resource"
+  | "objective"
+  | "objective-priority"
+  | "op-period"
+  | "meeting"
+  | "sitrep";
 
 function slug(key: string): string {
   return key.trim().toLowerCase().replace(/\s+/g, "-").replace(/\//g, "-");
@@ -82,6 +98,10 @@ export function operationalPeriodStatusVar(key: OperationalPeriodStatusKey | str
 
 export function meetingStatusVar(key: MeetingStatusKey | string) {
   return statusVar("meeting", key);
+}
+
+export function sitrepStatusVar(key: SitrepStatusKey | string) {
+  return statusVar("sitrep", key);
 }
 
 export function teamTypeVar(key: TeamTypeKey | string): string {

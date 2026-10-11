@@ -18,6 +18,8 @@ import OperationalPeriodsBoardPage from "./modules/planning/operationalPeriods/O
 import OperationalPeriodDetailPage from "./modules/planning/operationalPeriods/OperationalPeriodDetailPage";
 import MeetingsBoardPage from "./modules/planning/meetings/MeetingsBoardPage";
 import MeetingDetailPage from "./modules/planning/meetings/MeetingDetailPage";
+import SitrepsBoardPage from "./modules/planning/sitreps/SitrepsBoardPage";
+import SitrepDetailPage from "./modules/planning/sitreps/SitrepDetailPage";
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const { isAuthenticated } = useSession();
@@ -159,6 +161,22 @@ export default function App() {
           element={
             <RequireIncident>
               <MeetingDetailPage />
+            </RequireIncident>
+          }
+        />
+        <Route
+          path="planning/sitreps"
+          element={
+            <RequireIncident>
+              <SitrepsBoardPage />
+            </RequireIncident>
+          }
+        />
+        <Route
+          path="planning/sitreps/:sitrepId"
+          element={
+            <RequireIncident>
+              <SitrepDetailPage />
             </RequireIncident>
           }
         />

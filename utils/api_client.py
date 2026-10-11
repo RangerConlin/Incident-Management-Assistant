@@ -203,7 +203,21 @@ class _APIClient:
         request_ms = (time.perf_counter() - request_started) * 1000.0
         decode_started = time.perf_counter()
         try:
-            result = self._handle_response(resp)
+            try:
+                result = self._handle_response(resp)
+            except APIError as exc:
+                if (
+                    exc.status_code == 404
+                    and str(exc).strip() == "Not Found"
+                    and path.startswith("/api/sync-trigger/")
+                ):
+                    raise APIError(
+                        "Catalog sync endpoint not found on this server. "
+                        "Restart or redeploy the connected SARApp server so it includes the latest "
+                        "sync-trigger routes, then try again.",
+                        status_code=404,
+                    ) from exc
+                raise
             self._after_successful_response(method, path, result)
             return result
         finally:
