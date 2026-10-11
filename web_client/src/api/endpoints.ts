@@ -2,6 +2,15 @@ import { api } from "./client";
 import type {
   Incident,
   LoginResponse,
+  Meeting,
+  MeetingAttendee,
+  MeetingChecklistItem,
+  MeetingNote,
+  MeetingTemplate,
+  Objective,
+  ObjectiveAuditEntry,
+  ObjectiveTaskLink,
+  OperationalPeriod,
   PersonnelSummary,
   TaskDetail,
   TaskRow,
@@ -33,6 +42,14 @@ export function setPassword(username: string, password: string) {
 
 export function login(username: string, password: string) {
   return api.post<LoginResponse>("/api/auth/login", { username, password, device_name: "web" });
+}
+
+export function changePassword(username: string, currentPassword: string, newPassword: string) {
+  return api.post<{ status: string; username: string }>("/api/auth/password/change", {
+    username,
+    current_password: currentPassword,
+    new_password: newPassword,
+  });
 }
 
 export function listIncidents() {
@@ -168,4 +185,204 @@ export function createNarrative(
   body: { task_id: number; timestamp: string; narrative: string; entered_by?: string; team_num?: string; critical?: 0 | 1 }
 ) {
   return api.post<NarrativeEntry>(`/api/incidents/${incidentId}/narratives`, body);
+}
+
+// ---------------------------------------------------------------------------
+// Planning — Strategic Objectives (ICS-202 style objectives, task linkage,
+// audit trail). Backend: data/db/sarapp_db/api/routers/objectives.py, mounted
+// at /api/objectives (incident_id is a query param here, not a path segment,
+// unlike the operations endpoints above).
+// ---------------------------------------------------------------------------
+
+export const OBJECTIVE_STATUSES: { key: string; label: string }[] = [
+  { key: "draft", label: "Draft" },
+  { key: "active", label: "Active" },
+  { key: "deferred", label: "Deferred" },
+  { key: "completed", label: "Completed" },
+  { key: "cancelled", label: "Cancelled" },
+];
+
+export const OBJECTIVE_PRIORITIES: { key: string; label: string }[] = [
+  { key: "low", label: "Low" },
+  { key: "normal", label: "Normal" },
+  { key: "high", label: "High" },
+  { key: "urgent", label: "Urgent" },
+];
+
+export function listObjectives(incidentId: string) {
+  return api.get<Objective[]>(`/api/objectives?incident_id=${encodeURIComponent(incidentId)}`);
+}
+
+export function getObjective(incidentId: string, objectiveId: string) {
+  return api.get<Objective>(
+    `/api/objectives/${encodeURIComponent(objectiveId)}?incident_id=${encodeURIComponent(incidentId)}`
+  );
+}
+
+export function createObjective(
+  incidentId: string,
+  body: { text: string; priority?: string; status?: string; owner_section?: string; due_time?: string; created_by?: string }
+) {
+  return api.post<Objective>("/api/objectives", { incident_id: incidentId, ...body });
+}
+
+export function updateObjective(
+  incidentId: string,
+  objectiveId: string,
+  body: Partial<{
+    text: string;
+    priority: string;
+    status: string;
+    owner_section: string;
+    tags: string[];
+    op_period_id: string;
+    narrative: string;
+    updated_by: string;
+  }>
+) {
+  return api.patch<Objective>(
+    `/api/objectives/${encodeURIComponent(objectiveId)}?incident_id=${encodeURIComponent(incidentId)}`,
+    body
+  );
+}
+
+export function deleteObjective(incidentId: string, objectiveId: string) {
+  return api.delete<void>(
+    `/api/objectives/${encodeURIComponent(objectiveId)}?incident_id=${encodeURIComponent(incidentId)}`
+  );
+}
+
+export function reorderObjectives(incidentId: string, ids: string[]) {
+  return api.post<{ ok: boolean }>(`/api/objectives/reorder?incident_id=${encodeURIComponent(incidentId)}`, { ids });
+}
+
+export function listObjectiveTaskLinks(incidentId: string, objectiveId: string) {
+  return api.get<ObjectiveTaskLink[]>(
+    `/api/objectives/${encodeURIComponent(objectiveId)}/tasks?incident_id=${encodeURIComponent(incidentId)}`
+  );
+}
+
+export function linkObjectiveTask(
+  incidentId: string,
+  objectiveId: string,
+  body: { task_id: number; link_type?: string; created_by?: string }
+) {
+  return api.post<ObjectiveTaskLink>(
+    `/api/objectives/${encodeURIComponent(objectiveId)}/tasks?incident_id=${encodeURIComponent(incidentId)}`,
+    body
+  );
+}
+
+export function unlinkObjectiveTask(incidentId: string, objectiveId: string, linkId: number) {
+  return api.delete<void>(
+    `/api/objectives/${encodeURIComponent(objectiveId)}/tasks/${linkId}?incident_id=${encodeURIComponent(incidentId)}`
+  );
+}
+
+export function listObjectiveAudit(incidentId: string, objectiveId: string) {
+  return api.get<ObjectiveAuditEntry[]>(
+    `/api/objectives/${encodeURIComponent(objectiveId)}/audit?incident_id=${encodeURIComponent(incidentId)}`
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Planning — Operational Periods. Backend: operational_periods.py.
+// ---------------------------------------------------------------------------
+
+export function listOperationalPeriods(incidentId: string) {
+  return api.get<OperationalPeriod[]>(`/api/incidents/${incidentId}/planning/operational-periods`);
+}
+
+export function getActiveOperationalPeriod(incidentId: string) {
+  return api.get<OperationalPeriod | null>(`/api/incidents/${incidentId}/planning/operational-periods/active`);
+}
+
+export function getOperationalPeriod(incidentId: string, periodId: number) {
+  return api.get<OperationalPeriod>(`/api/incidents/${incidentId}/planning/operational-periods/${periodId}`);
+}
+
+export function createOperationalPeriod(incidentId: string, body: Record<string, unknown>) {
+  return api.post<OperationalPeriod>(`/api/incidents/${incidentId}/planning/operational-periods`, body);
+}
+
+export function updateOperationalPeriod(incidentId: string, periodId: number, body: Record<string, unknown>) {
+  return api.patch<OperationalPeriod>(`/api/incidents/${incidentId}/planning/operational-periods/${periodId}`, body);
+}
+
+export function setActiveOperationalPeriod(incidentId: string, periodId: number) {
+  return api.post<OperationalPeriod>(
+    `/api/incidents/${incidentId}/planning/operational-periods/${periodId}/set-active`
+  );
+}
+
+export function cloneOperationalPeriod(incidentId: string, periodId: number) {
+  return api.post<OperationalPeriod>(`/api/incidents/${incidentId}/planning/operational-periods/${periodId}/clone`);
+}
+
+// ---------------------------------------------------------------------------
+// Planning — Meetings. Backend: meetings.py.
+// ---------------------------------------------------------------------------
+
+export function listMeetingTemplates() {
+  return api.get<MeetingTemplate[]>("/api/master/meeting-templates");
+}
+
+export function listMeetings(incidentId: string) {
+  return api.get<Meeting[]>(`/api/incidents/${incidentId}/planning/meetings`);
+}
+
+export function getMeeting(incidentId: string, meetingId: number) {
+  return api.get<Meeting>(`/api/incidents/${incidentId}/planning/meetings/${meetingId}`);
+}
+
+export function createMeeting(incidentId: string, body: Record<string, unknown>) {
+  return api.post<Meeting>(`/api/incidents/${incidentId}/planning/meetings`, body);
+}
+
+export function updateMeeting(incidentId: string, meetingId: number, body: Record<string, unknown>) {
+  return api.patch<Meeting>(`/api/incidents/${incidentId}/planning/meetings/${meetingId}`, body);
+}
+
+export function deleteMeeting(incidentId: string, meetingId: number) {
+  return api.delete<void>(`/api/incidents/${incidentId}/planning/meetings/${meetingId}`);
+}
+
+export function addMeetingAttendee(incidentId: string, meetingId: number, body: Record<string, unknown>) {
+  return api.post<MeetingAttendee>(`/api/incidents/${incidentId}/planning/meetings/${meetingId}/attendees`, body);
+}
+
+export function updateMeetingAttendee(
+  incidentId: string,
+  meetingId: number,
+  attendeeId: number,
+  body: Record<string, unknown>
+) {
+  return api.patch<MeetingAttendee>(
+    `/api/incidents/${incidentId}/planning/meetings/${meetingId}/attendees/${attendeeId}`,
+    body
+  );
+}
+
+export function removeMeetingAttendee(incidentId: string, meetingId: number, attendeeId: number) {
+  return api.delete<void>(`/api/incidents/${incidentId}/planning/meetings/${meetingId}/attendees/${attendeeId}`);
+}
+
+export function addMeetingChecklistItem(incidentId: string, meetingId: number, body: Record<string, unknown>) {
+  return api.post<MeetingChecklistItem>(`/api/incidents/${incidentId}/planning/meetings/${meetingId}/checklist`, body);
+}
+
+export function updateMeetingChecklistItem(
+  incidentId: string,
+  meetingId: number,
+  itemId: number,
+  body: Record<string, unknown>
+) {
+  return api.patch<MeetingChecklistItem>(
+    `/api/incidents/${incidentId}/planning/meetings/${meetingId}/checklist/${itemId}`,
+    body
+  );
+}
+
+export function addMeetingNote(incidentId: string, meetingId: number, body: Record<string, unknown>) {
+  return api.post<MeetingNote>(`/api/incidents/${incidentId}/planning/meetings/${meetingId}/notes`, body);
 }

@@ -150,6 +150,39 @@ TASK_STATUS: Dict[str, Dict[str, str]] = {
     "cancelled":        {"bg": "#E53935", "fg": "#ffffff"},
 }
 
+# No prior light-theme variant existed (the desktop dialog this was promoted
+# from never themed these at all, dark or light); chosen to match this
+# file's general brighter/more-saturated pattern relative to dark.py.
+OBJECTIVE_STATUS: Dict[str, Dict[str, str]] = {
+    "draft":            {"bg": "#90A4AE", "fg": "#1a1a1a"},
+    "active":           {"bg": "#43A047", "fg": "#ffffff"},
+    "deferred":         {"bg": "#FFCA28", "fg": "#1a1a1a"},
+    "completed":        {"bg": "#1E88E5", "fg": "#ffffff"},
+    "cancelled":        {"bg": "#9E9E9E", "fg": "#1a1a1a"},
+}
+
+OBJECTIVE_PRIORITY: Dict[str, Dict[str, str]] = {
+    "low":              {"bg": "#78909C", "fg": "#1a1a1a"},
+    "normal":           {"bg": "#1E88E5", "fg": "#ffffff"},
+    "high":             {"bg": "#FB8C00", "fg": "#1a1a1a"},
+    "urgent":           {"bg": "#E53935", "fg": "#ffffff"},
+}
+
+OPERATIONAL_PERIOD_STATUS: Dict[str, Dict[str, str]] = {
+    "Planned":          {"bg": "#90A4AE", "fg": "#1a1a1a"},
+    "Active":           {"bg": "#43A047", "fg": "#ffffff"},
+    "Complete":         {"bg": "#1E88E5", "fg": "#ffffff"},
+    "Canceled":         {"bg": "#E53935", "fg": "#ffffff"},
+}
+
+MEETING_STATUS: Dict[str, Dict[str, str]] = {
+    "draft":            {"bg": "#CE93D8", "fg": "#1a1a1a"},
+    "scheduled":        {"bg": "#FFC107", "fg": "#1a1a1a"},
+    "ready":            {"bg": "#00ACC1", "fg": "#ffffff"},
+    "completed":        {"bg": "#2E7D32", "fg": "#ffffff"},
+    "canceled":         {"bg": "#E53935", "fg": "#ffffff"},
+}
+
 # Planning / Tactics & Resources module — Work Assignment planning status,
 # safety status, and priority chips (strategy board and detail window).
 WA_PLANNING_STATUS: Dict[str, Dict[str, str]] = {
@@ -373,6 +406,10 @@ __all__ = [
     "RESOURCE_STATUS",
     "TEAM_STATUS",
     "TASK_STATUS",
+    "OBJECTIVE_STATUS",
+    "OBJECTIVE_PRIORITY",
+    "OPERATIONAL_PERIOD_STATUS",
+    "MEETING_STATUS",
     "NARRATIVE_STATUS",
     "CONNECTION_STATUS",
     "WEATHER_SEVERITY",

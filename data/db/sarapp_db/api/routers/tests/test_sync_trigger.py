@@ -28,11 +28,6 @@ def test_resync_reports_not_configured_when_sync_disabled(monkeypatch) -> None:
 
 
 def test_resync_runs_a_tick_when_sync_enabled(monkeypatch) -> None:
-    # Points at a URL nothing is listening on — push/pull failures inside
-    # run_one_tick() are caught internally (see sync/loop.py), so this
-    # still reports "synced": True; the point of this test is just that
-    # the endpoint actually calls through to run_one_tick() rather than
-    # short-circuiting, which the "not configured" test already covers.
     monkeypatch.setenv("SARAPP_CENTRAL_MASTER_URL", "http://127.0.0.1:1")
     monkeypatch.setenv("SARAPP_CLOUD_ROUTER_TOKEN", "test-token")
 
@@ -41,7 +36,10 @@ def test_resync_runs_a_tick_when_sync_enabled(monkeypatch) -> None:
         response = client.post("/api/sync-trigger/resync")
 
     assert response.status_code == 200
-    assert response.json() == {"synced": True}
+    body = response.json()
+    assert body["synced"] is False
+    assert "could not complete a sync tick" in body["reason"]
+    assert "personnel" in body["details"]["pull_failed_collections"]
 
 
 def test_sync_trigger_router_absent_in_master_only_mode() -> None:

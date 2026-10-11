@@ -6,6 +6,7 @@ import FilterBar from "../../../components/table/FilterBar";
 import RowContextMenu, { type ContextMenuSection } from "../../../components/table/RowContextMenu";
 import StatusPill from "../../../components/table/StatusPill";
 import KpiStrip from "../../../components/KpiStrip";
+import { teamStatusVar } from "../../../styles/statusColors";
 import { TEAM_STATUS_STEPS } from "../../../api/endpoints";
 
 // Sentinel statusFilter value for "needs_attention", a derived flag rather
@@ -66,14 +67,29 @@ export default function TeamStatusBoardPage() {
     const count = (pred: (r: TeamAssignmentRow) => boolean) => rows.filter(pred).length;
     return [
       { key: "total", value: rows.length, label: "Teams" },
-      { key: "assigned", value: count((r) => r.status === "assigned"), label: "Assigned" },
-      { key: "enroute", value: count((r) => r.status === "enroute"), label: "En Route" },
-      { key: "available", value: count((r) => r.status === "available"), label: "Available" },
+      {
+        key: "assigned",
+        value: count((r) => r.status === "assigned"),
+        label: "Assigned",
+        accent: teamStatusVar("assigned").bg,
+      },
+      {
+        key: "enroute",
+        value: count((r) => r.status === "enroute"),
+        label: "En Route",
+        accent: teamStatusVar("enroute").bg,
+      },
+      {
+        key: "available",
+        value: count((r) => r.status === "available"),
+        label: "Available",
+        accent: teamStatusVar("available").bg,
+      },
       {
         key: "needs_attention",
         value: count((r) => r.needs_attention),
         label: "Needs Attention",
-        tone: "warning" as const,
+        accent: "var(--status-alert-attention-bg)",
       },
     ];
   }, [rows]);

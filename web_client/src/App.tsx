@@ -5,10 +5,19 @@ import AppShell from "./shell/AppShell";
 import LoginScreen from "./screens/LoginScreen";
 import AccountSetupScreen from "./screens/AccountSetupScreen";
 import ConnectionSettingsScreen from "./screens/ConnectionSettingsScreen";
+import SelectIncidentScreen from "./screens/SelectIncidentScreen";
+import ChangePasswordScreen from "./screens/ChangePasswordScreen";
 import TeamStatusBoardPage from "./modules/operations/teamStatus/TeamStatusBoardPage";
 import TeamDetailPage from "./modules/operations/teamStatus/TeamDetailPage";
 import TaskStatusBoardPage from "./modules/operations/taskStatus/TaskStatusBoardPage";
 import TaskDetailPage from "./modules/operations/taskStatus/TaskDetailPage";
+import PlanningDashboardPage from "./modules/planning/PlanningDashboardPage";
+import ObjectivesBoardPage from "./modules/planning/objectives/ObjectivesBoardPage";
+import ObjectiveDetailPage from "./modules/planning/objectives/ObjectiveDetailPage";
+import OperationalPeriodsBoardPage from "./modules/planning/operationalPeriods/OperationalPeriodsBoardPage";
+import OperationalPeriodDetailPage from "./modules/planning/operationalPeriods/OperationalPeriodDetailPage";
+import MeetingsBoardPage from "./modules/planning/meetings/MeetingsBoardPage";
+import MeetingDetailPage from "./modules/planning/meetings/MeetingDetailPage";
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const { isAuthenticated } = useSession();
@@ -17,7 +26,7 @@ function RequireAuth({ children }: { children: JSX.Element }) {
 
 function RequireIncident({ children }: { children: JSX.Element }) {
   const { incidentId } = useSession();
-  return incidentId ? children : <Navigate to="/" replace />;
+  return incidentId ? children : <Navigate to="/select-incident" replace />;
 }
 
 function ShellWithSocket() {
@@ -31,14 +40,7 @@ function ShellWithSocket() {
 
 function IndexContent() {
   const { incidentId } = useSession();
-  if (!incidentId) {
-    return (
-      <div className="screen">
-        <p>Select an incident from the top bar to get started.</p>
-      </div>
-    );
-  }
-  return <Navigate to="/ops/teams" replace />;
+  return <Navigate to={incidentId ? "/ops/teams" : "/select-incident"} replace />;
 }
 
 export default function App() {
@@ -47,6 +49,22 @@ export default function App() {
       <Route path="/login" element={<LoginScreen />} />
       <Route path="/setup" element={<AccountSetupScreen />} />
       <Route path="/connection" element={<ConnectionSettingsScreen />} />
+      <Route
+        path="/select-incident"
+        element={
+          <RequireAuth>
+            <SelectIncidentScreen />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/change-password"
+        element={
+          <RequireAuth>
+            <ChangePasswordScreen />
+          </RequireAuth>
+        }
+      />
       <Route
         path="/"
         element={
@@ -85,6 +103,62 @@ export default function App() {
           element={
             <RequireIncident>
               <TaskDetailPage />
+            </RequireIncident>
+          }
+        />
+        <Route
+          path="planning"
+          element={
+            <RequireIncident>
+              <PlanningDashboardPage />
+            </RequireIncident>
+          }
+        />
+        <Route
+          path="planning/objectives"
+          element={
+            <RequireIncident>
+              <ObjectivesBoardPage />
+            </RequireIncident>
+          }
+        />
+        <Route
+          path="planning/objectives/:objectiveId"
+          element={
+            <RequireIncident>
+              <ObjectiveDetailPage />
+            </RequireIncident>
+          }
+        />
+        <Route
+          path="planning/operational-periods"
+          element={
+            <RequireIncident>
+              <OperationalPeriodsBoardPage />
+            </RequireIncident>
+          }
+        />
+        <Route
+          path="planning/operational-periods/:periodId"
+          element={
+            <RequireIncident>
+              <OperationalPeriodDetailPage />
+            </RequireIncident>
+          }
+        />
+        <Route
+          path="planning/meetings"
+          element={
+            <RequireIncident>
+              <MeetingsBoardPage />
+            </RequireIncident>
+          }
+        />
+        <Route
+          path="planning/meetings/:meetingId"
+          element={
+            <RequireIncident>
+              <MeetingDetailPage />
             </RequireIncident>
           }
         />

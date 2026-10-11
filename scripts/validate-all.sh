@@ -24,7 +24,7 @@ run_validator() {
     echo "Running: $name"
     if bash "$script" 2>&1 | tee /tmp/validator_out.txt; then
         echo "✅ $name: PASS"
-        ((PASS_COUNT++))
+        PASS_COUNT=$((PASS_COUNT+1))
     else
         exit_code=$?
         output=$(cat /tmp/validator_out.txt)
@@ -32,10 +32,10 @@ run_validator() {
         # Check if it's a warning (exit 0 but had warnings) or failure
         if echo "$output" | grep -q "^❌"; then
             echo "❌ $name: FAIL"
-            ((FAIL_COUNT++))
+            FAIL_COUNT=$((FAIL_COUNT+1))
         else
             echo "⚠️  $name: WARNINGS"
-            ((WARN_COUNT++))
+            WARN_COUNT=$((WARN_COUNT+1))
         fi
     fi
     echo ""
@@ -45,6 +45,7 @@ run_validator "Hardcoded URIs" "scripts/validate-hardcoded-uri.sh"
 run_validator "Direct DB Access" "scripts/validate-direct-db-access.sh"
 run_validator "Structure Rules" "scripts/validate-structure.sh"
 run_validator "UI Styling" "scripts/validate-ui-styles.sh"
+run_validator "Web Status Colors" "scripts/validate-web-status-colors.sh"
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "📊 Summary"

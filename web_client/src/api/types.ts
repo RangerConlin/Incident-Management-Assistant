@@ -150,3 +150,133 @@ export interface TaskDetail {
   task_teams: TaskTeam[];
   active_team_ids: number[];
 }
+
+// GET /api/objectives?incident_id=... — see objectives.py's _normalize().
+export interface ObjectiveTaskLink {
+  id: number;
+  task_id: number;
+  link_type: string;
+  created_at: string;
+  created_by: string | null;
+}
+
+export interface ObjectiveAuditEntry {
+  ts: string;
+  action: string;
+  field: string | null;
+  old_value: unknown;
+  new_value: unknown;
+  user_id: string | null;
+}
+
+export interface Objective {
+  _id: string;
+  incident_id: string;
+  code: string;
+  text: string;
+  priority: string;
+  status: string;
+  owner_section: string | null;
+  op_period_id: string | null;
+  due_time: string | null;
+  tags: string[];
+  display_order: number;
+  narrative: string | null;
+  task_links: ObjectiveTaskLink[];
+  audit: ObjectiveAuditEntry[];
+  open_tasks: number;
+  total_tasks: number;
+  created_by: string | null;
+  updated_by: string | null;
+  origin_module: string | null;
+  origin_id: string | null;
+}
+
+// GET /api/incidents/{id}/planning/operational-periods — operational_periods.py.
+export interface OperationalPeriod {
+  id: number;
+  incident_id: string;
+  number: number;
+  name: string;
+  status: "Planned" | "Active" | "Complete" | "Canceled";
+  start_time: string;
+  end_time: string;
+  briefing_time: string;
+  debrief_time: string;
+  objectives: string;
+  weather_summary: string;
+  safety_message: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// GET /api/incidents/{id}/planning/meetings — meetings.py.
+export interface MeetingAttendee {
+  id: number;
+  meeting_id: number;
+  display_name: string;
+  attendee_type: string;
+  role: string;
+  requirement_status: string;
+  attendance_status: string;
+}
+
+export interface MeetingChecklistItem {
+  id: number;
+  meeting_id: number;
+  group_name: string;
+  text: string;
+  assigned_to: string;
+  is_complete: boolean;
+  is_not_applicable: boolean;
+  sort_order: number;
+}
+
+export interface MeetingNote {
+  id: number;
+  meeting_id: number;
+  category: string;
+  text: string;
+  author: string;
+  timestamp: string;
+  routing_status: string;
+  routed_log_refs: string[];
+  routed_at: string | null;
+}
+
+export interface Meeting {
+  id: number;
+  incident_id: string;
+  operational_period_id: string | null;
+  template_id: string | null;
+  title: string;
+  meeting_date: string;
+  start_time: string;
+  end_time: string;
+  location: string;
+  virtual_link: string;
+  owner: string;
+  status: string;
+  show_on_ics230: boolean;
+  freeform_notes: string;
+  notes_log_routing_status: string;
+  created_at: string;
+  updated_at: string;
+  attendees: MeetingAttendee[];
+  checklist_items: MeetingChecklistItem[];
+  structured_notes: MeetingNote[];
+}
+
+export interface MeetingTemplate {
+  slug: string;
+  name: string;
+  default_duration_minutes: number;
+  agenda_sections: string[];
+  required_attendee_roles: string[];
+  optional_attendee_roles: string[];
+  prep_checklist_items: string[];
+  agenda_checklist_items: string[];
+  closeout_checklist_items: string[];
+  appears_on_ics230_default: boolean;
+  active: boolean;
+}

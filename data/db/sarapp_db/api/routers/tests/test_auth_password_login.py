@@ -146,3 +146,80 @@ def test_login_unknown_username_is_unauthorized():
         )
     assert res.status_code == 401
     _clear()
+
+
+def test_change_password_then_login_with_new_password():
+    _clear()
+    _seed_personnel()
+    app = create_app()
+    with TestClient(app) as client:
+        client.post(
+            "/api/auth/password/set",
+            json={"username": USERNAME, "password": "a-real-password"},
+        )
+        change_res = client.post(
+            "/api/auth/password/change",
+            json={
+                "username": USERNAME,
+                "current_password": "a-real-password",
+                "new_password": "a-new-password",
+            },
+        )
+        assert change_res.status_code == 200
+        assert change_res.json() == {"status": "ok", "username": USERNAME}
+
+        old_login = client.post(
+            "/api/auth/login",
+            json={"username": USERNAME, "password": "a-real-password"},
+        )
+        assert old_login.status_code == 401
+
+        new_login = client.post(
+            "/api/auth/login",
+            json={"username": USERNAME, "password": "a-new-password"},
+        )
+    assert new_login.status_code == 200
+    assert new_login.json()["user"]["user_id"] == USERNAME
+    _clear()
+
+
+def test_change_password_wrong_current_password_is_unauthorized():
+    _clear()
+    _seed_personnel()
+    app = create_app()
+    with TestClient(app) as client:
+        client.post(
+            "/api/auth/password/set",
+            json={"username": USERNAME, "password": "a-real-password"},
+        )
+        res = client.post(
+            "/api/auth/password/change",
+            json={
+                "username": USERNAME,
+                "current_password": "not-the-password",
+                "new_password": "a-new-password",
+            },
+        )
+    assert res.status_code == 401
+    _clear()
+
+
+def test_change_password_too_short_is_bad_request():
+    _clear()
+    _seed_personnel()
+    app = create_app()
+    with TestClient(app) as client:
+        client.post(
+            "/api/auth/password/set",
+            json={"username": USERNAME, "password": "a-real-password"},
+        )
+        res = client.post(
+            "/api/auth/password/change",
+            json={
+                "username": USERNAME,
+                "current_password": "a-real-password",
+                "new_password": "short",
+            },
+        )
+    assert res.status_code == 400
+    _clear()

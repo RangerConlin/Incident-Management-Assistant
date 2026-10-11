@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import threading
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +46,7 @@ class CentralSyncLoop:
             self._stop_event.wait(self.interval_seconds)
 
 
-def run_one_tick() -> None:
+def run_one_tick() -> dict[str, Any]:
     """One drain-outbox-then-pull-changes pass. Exposed as a standalone
     function (not just a loop-internal method) so tests and a manual
     "sync now" admin action can trigger exactly one pass deterministically.
@@ -53,13 +54,21 @@ def run_one_tick() -> None:
     from sarapp_db.sync import config
 
     if not config.sync_enabled():
-        return
-    drain_outbox()
+        return {"enabled": False, "pull_failed_collections": [], "outbox_failed_count": 0}
+    drain_result = drain_outbox()
+    pull_failed_collections: list[str] = []
     for collection in config.SYNCABLE_MASTER_COLLECTIONS:
-        pull_and_apply(collection)
+        if not pull_and_apply(collection):
+            pull_failed_collections.append(collection)
+    return {
+        "enabled": True,
+        "pull_failed_collections": pull_failed_collections,
+        "outbox_failed_count": drain_result["failed_count"],
+        "outbox_sent_count": drain_result["sent_count"],
+    }
 
 
-def drain_outbox(*, local_master_db=None) -> None:
+def drain_outbox(*, local_master_db=None) -> dict[str, int]:
     """`local_master_db` is injectable for tests, which need it to mean
     something other than whatever `get_master_db()` resolves to in-process
     (e.g. a test simulating both the local server and the central database
@@ -72,6 +81,8 @@ def drain_outbox(*, local_master_db=None) -> None:
     system_db = get_system_db()
     master_db = local_master_db if local_master_db is not None else get_master_db()
     base_url, token = config.central_master_url(), config.sync_token()
+    sent_count = 0
+    failed_count = 0
 
     for entry in outbox.list_pending(system_db):
         collection, doc_id = entry["collection"], entry["doc_id"]
@@ -79,8 +90,10 @@ def drain_outbox(*, local_master_db=None) -> None:
         if entry.get("op") == "delete":
             if push_delete(base_url, token, collection=collection, doc_id=doc_id, deleted_at=entry.get("deleted_at")):
                 outbox.mark_sent(system_db, entry["_id"])
+                sent_count += 1
             else:
                 outbox.record_failure(system_db, entry["_id"], "delete push failed")
+                failed_count += 1
             continue
 
         doc = master_db[collection].find_one({"_id": doc_id})
@@ -89,14 +102,18 @@ def drain_outbox(*, local_master_db=None) -> None:
             # delete queued its own separate "delete" outbox entry) —
             # nothing left to send for this now-superseded "upsert" entry.
             outbox.mark_sent(system_db, entry["_id"])
+            sent_count += 1
             continue
         if push_one(base_url, token, collection=collection, doc=doc):
             outbox.mark_sent(system_db, entry["_id"])
+            sent_count += 1
         else:
             outbox.record_failure(system_db, entry["_id"], "push failed")
+            failed_count += 1
+    return {"sent_count": sent_count, "failed_count": failed_count}
 
 
-def pull_and_apply(collection: str, *, local_master_db=None) -> None:
+def pull_and_apply(collection: str, *, local_master_db=None) -> bool:
     """See `drain_outbox` for why `local_master_db` is injectable."""
     from sarapp_db.mongo.database_manager import get_master_db, get_system_db
     from sarapp_db.sync import checkpoint, config
@@ -107,7 +124,7 @@ def pull_and_apply(collection: str, *, local_master_db=None) -> None:
     since = checkpoint.get_last_pulled_at(system_db, collection)
     docs = pull_since(config.central_master_url(), config.sync_token(), collection=collection, since=since)
     if docs is None:
-        return  # pull failed — leave checkpoint alone, retry next tick.
+        return False  # pull failed — leave checkpoint alone, retry next tick.
 
     latest = since
     master_db = local_master_db if local_master_db is not None else get_master_db()
@@ -118,3 +135,4 @@ def pull_and_apply(collection: str, *, local_master_db=None) -> None:
             latest = updated_at
     if latest and latest != since:
         checkpoint.set_last_pulled_at(system_db, collection, latest)
+    return True

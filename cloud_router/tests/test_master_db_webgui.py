@@ -737,7 +737,7 @@ def test_collection_table_has_search_sort_and_row_edit_link(monkeypatch) -> None
         assert response.status_code == 200
         assert 'data-grid-search="grid-equipment"' in response.text
         assert 'class="sortable"' in response.text
-        assert 'data-row-href=' in response.text
+        assert 'class="button-link secondary row-edit-link"' in response.text
         assert "Delete All" in response.text
         assert "confirm-dialog" in response.text
         assert "data-confirm-title=" in response.text
@@ -783,7 +783,7 @@ def test_vehicle_catalog_create_edit_delete(monkeypatch) -> None:
         edit_page = client.get(f"/central-master/gui/vehicles/{record_id}")
         assert edit_page.status_code == 200
         assert "License Plate" in edit_page.text
-        assert "Resource Type ID" in edit_page.text
+        assert "Resource Type" in edit_page.text
 
         updated = client.post(
             f"/central-master/gui/vehicles/{record_id}",

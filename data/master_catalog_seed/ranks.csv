@@ -1,0 +1,62 @@
+Rank Structure ID,Rank Structure Name,Rank Code,Rank Name,Short Display,Sort Order,Active
+,Fire Department (Standard),FF,Firefighter,FF,0,Yes
+,Fire Department (Standard),ENG,Engineer / Driver,ENG,1,Yes
+,Fire Department (Standard),LT,Lieutenant,LT,2,Yes
+,Fire Department (Standard),CPT,Captain,Capt,3,Yes
+,Fire Department (Standard),BC,Battalion Chief,BC,4,Yes
+,Fire Department (Standard),DC,Division Chief,DC,5,Yes
+,Fire Department (Standard),AC,Assistant Chief,AC,6,Yes
+,Fire Department (Standard),DCH,Deputy Chief,DCH,7,Yes
+,Fire Department (Standard),CH,Fire Chief,Chief,8,Yes
+,Law Enforcement (Standard),PO,Police Officer,PO,0,Yes
+,Law Enforcement (Standard),SPO,Senior Police Officer,SPO,1,Yes
+,Law Enforcement (Standard),CPL,Corporal,Cpl,2,Yes
+,Law Enforcement (Standard),SGT,Sergeant,Sgt,3,Yes
+,Law Enforcement (Standard),LT,Lieutenant,Lt,4,Yes
+,Law Enforcement (Standard),CPT,Captain,Capt,5,Yes
+,Law Enforcement (Standard),MAJ,Major / Commander,Maj,6,Yes
+,Law Enforcement (Standard),DCH,Deputy Chief,DCH,7,Yes
+,Law Enforcement (Standard),CH,Chief of Police,Chief,8,Yes
+,EMS (Standard),EMT,EMT,EMT,0,Yes
+,EMS (Standard),AEMT,Advanced EMT,AEMT,1,Yes
+,EMS (Standard),PM,Paramedic,PM,2,Yes
+,EMS (Standard),FTO,Field Training Officer,FTO,3,Yes
+,EMS (Standard),SUP,Supervisor,Sup,4,Yes
+,EMS (Standard),CPT,Captain,Capt,5,Yes
+,EMS (Standard),BC,Battalion Chief,BC,6,Yes
+,EMS (Standard),CH,Chief,Chief,7,Yes
+,Search and Rescue (Standard),MEM,Member,Mbr,0,Yes
+,Search and Rescue (Standard),SMEM,Senior Member,SMbr,1,Yes
+,Search and Rescue (Standard),TL,Team Leader,TL,2,Yes
+,Search and Rescue (Standard),OPL,Operations Leader,Ops,3,Yes
+,Search and Rescue (Standard),PLN,Planning Lead,Plan,4,Yes
+,Search and Rescue (Standard),LOG,Logistics Lead,Log,5,Yes
+,Search and Rescue (Standard),SC,Section Chief,SC,6,Yes
+,Search and Rescue (Standard),IC,Incident Commander,IC,7,Yes
+,Volunteer / NGO (Standard),VOL,Volunteer,Vol,0,Yes
+,Volunteer / NGO (Standard),LV,Lead Volunteer,Lead,1,Yes
+,Volunteer / NGO (Standard),TL,Team Leader,TL,2,Yes
+,Volunteer / NGO (Standard),COOR,Coordinator,Coord,3,Yes
+,Volunteer / NGO (Standard),MGR,Manager,Mgr,4,Yes
+,Volunteer / NGO (Standard),DIR,Director,Dir,5,Yes
+,Civil Air Patrol (Standard),C/AB,Cadet Airman Basic,C/AB,0,Yes
+,Civil Air Patrol (Standard),C/Amn,Cadet Airman,C/Amn,1,Yes
+,Civil Air Patrol (Standard),C/A1C,Cadet Airman First Class,C/A1C,2,Yes
+,Civil Air Patrol (Standard),C/SrA,Cadet Senior Airman,C/SrA,3,Yes
+,Civil Air Patrol (Standard),C/SSgt,Cadet Staff Sergeant,C/SSgt,4,Yes
+,Civil Air Patrol (Standard),C/TSgt,Cadet Technical Sergeant,C/TSgt,5,Yes
+,Civil Air Patrol (Standard),C/MSgt,Cadet Master Sergeant,C/MSgt,6,Yes
+,Civil Air Patrol (Standard),C/SMSgt,Cadet Senior Master Sergeant,C/SMSgt,7,Yes
+,Civil Air Patrol (Standard),C/CMSgt,Cadet Chief Master Sergeant,C/CMSgt,8,Yes
+,Civil Air Patrol (Standard),C/2d Lt,Cadet Second Lieutenant,C/2d Lt,9,Yes
+,Civil Air Patrol (Standard),C/1st Lt,Cadet First Lieutenant,C/1st Lt,10,Yes
+,Civil Air Patrol (Standard),C/Capt,Cadet Captain,C/Capt,11,Yes
+,Civil Air Patrol (Standard),C/Maj,Cadet Major,C/Maj,12,Yes
+,Civil Air Patrol (Standard),C/Lt Col,Cadet Lieutenant Colonel,C/Lt Col,13,Yes
+,Civil Air Patrol (Standard),C/COL,Cadet Colonel,C/COL,14,Yes
+,Civil Air Patrol (Standard),2d Lt,Second Lieutenant,2d Lt,15,Yes
+,Civil Air Patrol (Standard),1st Lt,First Lieutenant,1st Lt,16,Yes
+,Civil Air Patrol (Standard),Capt,Captain,Capt,17,Yes
+,Civil Air Patrol (Standard),Maj,Major,Maj,18,Yes
+,Civil Air Patrol (Standard),Lt Col,Lieutenant Colonel,Lt Col,19,Yes
+,Civil Air Patrol (Standard),COL,Colonel,Col,20,Yes

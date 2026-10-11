@@ -360,6 +360,50 @@ def set_password(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
     return {"status": "ok", "username": username}
 
 
+@router.post("/password/change")
+def change_password(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    """Self-service password change for the web client.
+
+    Requires the current password, same as any "change password" form —
+    this is the self-service path only; there is still no reset flow for a
+    forgotten password (see /password/set's docstring), since that needs
+    some form of identity verification this app doesn't have yet (no email
+    sending, no server-side authorization on any route to gate an
+    admin-initiated reset safely).
+    """
+
+    username = str(body.get("username") or "").strip()
+    current_password = str(body.get("current_password") or "")
+    new_password = str(body.get("new_password") or "")
+    if not username or not current_password or not new_password:
+        raise HTTPException(
+            status_code=400, detail="username, current_password, and new_password are required"
+        )
+    if len(new_password) < 8:
+        raise HTTPException(status_code=400, detail="new password must be at least 8 characters")
+
+    user = _users_col().find_one({"user_id": username}) or _users_col().find_one({"username": username})
+    salt = (user or {}).get("password_salt")
+    expected = (user or {}).get("password_hash")
+    if not user or not salt or not expected or not hmac.compare_digest(
+        _hash_password(current_password, salt), expected
+    ):
+        raise HTTPException(status_code=401, detail="Current password is incorrect")
+
+    new_salt = secrets.token_hex(16)
+    _users_col().update_one(
+        {"_id": user["_id"]},
+        {
+            "$set": {
+                "password_hash": _hash_password(new_password, new_salt),
+                "password_salt": new_salt,
+                "updated_at": _utcnow(),
+            }
+        },
+    )
+    return {"status": "ok", "username": username}
+
+
 @router.post("/login")
 def login(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
     """Password login for the web client. Issues a JWT on success.

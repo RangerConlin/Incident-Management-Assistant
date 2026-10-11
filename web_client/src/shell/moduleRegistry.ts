@@ -28,8 +28,13 @@ export const MODULE_REGISTRY: ModuleSection[] = [
     section: "Planning",
     icon: "PL",
     modules: [
-      { key: "planning-dashboard", label: "Planning Dashboard", path: "/planning", status: "planned" },
-      { key: "strategic-objectives", label: "Strategic Objectives", path: "/planning/objectives", status: "planned" },
+      { key: "planning-dashboard", label: "Planning Dashboard", path: "/planning", status: "live" },
+      { key: "strategic-objectives", label: "Strategic Objectives", path: "/planning/objectives", status: "live" },
+      { key: "operational-periods", label: "Operational Periods", path: "/planning/operational-periods", status: "live" },
+      { key: "meetings", label: "Meetings", path: "/planning/meetings", status: "live" },
+      { key: "situation-reports", label: "Situation Reports", path: "/planning/sitreps", status: "planned" },
+      { key: "approvals", label: "Approvals", path: "/planning/approvals", status: "planned" },
+      { key: "demobilization", label: "Demobilization", path: "/planning/demobilization", status: "planned" },
     ],
   },
   {

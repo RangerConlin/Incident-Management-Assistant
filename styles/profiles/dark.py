@@ -143,6 +143,47 @@ TASK_STATUS: Dict[str, Dict[str, str]] = {
     "cancelled":        {"bg": "#8c2f2f", "fg": "#f5f5f5"},
 }
 
+# Previously hardcoded inline in modules/command/widgets/objective_detail_dialog.py
+# (a hard-rule violation — no light-theme variant existed either); promoted
+# here as the canonical source. Dark values match that file's originals
+# exactly so existing objective displays don't visually change.
+OBJECTIVE_STATUS: Dict[str, Dict[str, str]] = {
+    "draft":            {"bg": "#757575", "fg": "#f5f5f5"},
+    "active":           {"bg": "#2e7d32", "fg": "#f5f5f5"},
+    "deferred":         {"bg": "#f9a825", "fg": "#1a1a1a"},
+    "completed":        {"bg": "#1565c0", "fg": "#f5f5f5"},
+    "cancelled":        {"bg": "#616161", "fg": "#f5f5f5"},
+}
+
+OBJECTIVE_PRIORITY: Dict[str, Dict[str, str]] = {
+    "low":              {"bg": "#546e7a", "fg": "#f5f5f5"},
+    "normal":           {"bg": "#1565c0", "fg": "#f5f5f5"},
+    "high":             {"bg": "#e65100", "fg": "#f5f5f5"},
+    "urgent":           {"bg": "#c62828", "fg": "#f5f5f5"},
+}
+
+# operational_periods.py's STATUSES tuple ("Planned", "Active", "Complete",
+# "Canceled") — kept Title Case (unlike other status dicts) to match that
+# router's own casing exactly, since it title-cases any status value it's
+# given and compares against this exact tuple.
+OPERATIONAL_PERIOD_STATUS: Dict[str, Dict[str, str]] = {
+    "Planned":          {"bg": "#444c55", "fg": "#f5f5f5"},
+    "Active":           {"bg": "#2e7d32", "fg": "#f5f5f5"},
+    "Complete":         {"bg": "#1565c0", "fg": "#f5f5f5"},
+    "Canceled":         {"bg": "#8c2f2f", "fg": "#f5f5f5"},
+}
+
+# modules/planning/meetings/models.py's MEETING_STATUSES — desktop never
+# color-coded this status (plain text only), so these are new, chosen to
+# parallel TASK_STATUS's lifecycle coloring convention.
+MEETING_STATUS: Dict[str, Dict[str, str]] = {
+    "draft":            {"bg": "#6d5478", "fg": "#f5f5f5"},
+    "scheduled":        {"bg": "#a88f1a", "fg": "#f5f5f5"},
+    "ready":            {"bg": "#1f6088", "fg": "#f5f5f5"},
+    "completed":        {"bg": "#2f6d34", "fg": "#f5f5f5"},
+    "canceled":         {"bg": "#8c2f2f", "fg": "#f5f5f5"},
+}
+
 # Planning / Tactics & Resources module — Work Assignment planning status,
 # safety status, and priority chips (strategy board and detail window).
 WA_PLANNING_STATUS: Dict[str, Dict[str, str]] = {
@@ -366,6 +407,10 @@ __all__ = [
     "RESOURCE_STATUS",
     "TEAM_STATUS",
     "TASK_STATUS",
+    "OBJECTIVE_STATUS",
+    "OBJECTIVE_PRIORITY",
+    "OPERATIONAL_PERIOD_STATUS",
+    "MEETING_STATUS",
     "NARRATIVE_STATUS",
     "CONNECTION_STATUS",
     "WEATHER_SEVERITY",

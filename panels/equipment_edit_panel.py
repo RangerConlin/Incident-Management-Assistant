@@ -615,10 +615,12 @@ class EquipmentEditPanel(QWidget):
             return api_client.post("/api/sync-trigger/resync") or {}
 
         self.resync_button.setEnabled(False)
+        self.resync_button.setText("Resyncing...")
         run_async(self, _task, self._on_resync_done, self._on_resync_failed)
 
     def _on_resync_done(self, result: dict[str, Any]) -> None:
         self.resync_button.setEnabled(True)
+        self.resync_button.setText("Resync")
         if result.get("synced"):
             self._show_toast("Resync complete", "Equipment catalog resynced with the central master database.")
             self.refresh()
@@ -626,10 +628,14 @@ class EquipmentEditPanel(QWidget):
         else:
             reason = result.get("reason") or "Central sync is not configured on this server."
             self._show_toast("Resync unavailable", reason, severity="warning")
+            refresh_sync_status_label(self, self.sync_status_label, "equipment")
+            QMessageBox.warning(self, "Resync unavailable", reason)
 
     def _on_resync_failed(self, message: str) -> None:
         self.resync_button.setEnabled(True)
+        self.resync_button.setText("Resync")
         self._show_toast("Resync failed", message, severity="error")
+        QMessageBox.critical(self, "Resync failed", message)
 
     # ----- Toast helper ------------------------------------------------------
     def _show_toast(self, title: str, message: str, *, severity: str = "success") -> None:

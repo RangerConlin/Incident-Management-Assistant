@@ -19,29 +19,25 @@ function ConnectionIndicator() {
   );
 }
 
-function IncidentSwitcher() {
-  const { incidentId, selectIncident } = useSession();
+function CurrentIncident() {
+  const { incidentId } = useSession();
+  const navigate = useNavigate();
   const { data: incidents = [] } = useQuery({
     queryKey: ["incidents"],
     queryFn: listIncidents,
     staleTime: 60_000,
   });
+  const current = incidents.find((i) => i.id === incidentId);
 
   return (
-    <select
-      className="incident-switcher"
-      value={incidentId ?? ""}
-      onChange={(e) => selectIncident(e.target.value || null)}
-    >
-      <option value="" disabled>
-        Select incident…
-      </option>
-      {incidents.map((incident) => (
-        <option key={incident.id} value={incident.id}>
-          {incident.number} — {incident.name}
-        </option>
-      ))}
-    </select>
+    <div className="current-incident">
+      <span className="current-incident-label">
+        {current ? `${current.number} — ${current.name}` : "No incident selected"}
+      </span>
+      <button className="secondary" style={{ width: "auto" }} onClick={() => navigate("/select-incident")}>
+        Switch
+      </button>
+    </div>
   );
 }
 
@@ -116,7 +112,7 @@ export default function AppShell() {
       <ModuleRail activeSection={activeSection} />
       <div className="app-main">
         <header className="app-topbar">
-          <IncidentSwitcher />
+          <CurrentIncident />
           <div className="app-topbar-right">
             <ConnectionIndicator />
             <button className="secondary" style={{ width: "auto" }} onClick={toggleTheme}>
@@ -124,6 +120,9 @@ export default function AppShell() {
             </button>
             <button className="secondary" style={{ width: "auto" }} onClick={() => navigate("/connection")}>
               Connection
+            </button>
+            <button className="secondary" style={{ width: "auto" }} onClick={() => navigate("/change-password")}>
+              Change Password
             </button>
             <span>{user?.display_name}</span>
             <button

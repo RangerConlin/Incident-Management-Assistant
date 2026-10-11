@@ -26,8 +26,17 @@ def force_resync() -> dict[str, Any]:
     if not config.sync_enabled():
         return {"synced": False, "reason": "Central master sync is not configured on this server."}
 
-    run_one_tick()
-    return {"synced": True}
+    result = run_one_tick()
+    failed_collections = result.get("pull_failed_collections") or []
+    outbox_failed_count = int(result.get("outbox_failed_count") or 0)
+    if failed_collections or outbox_failed_count:
+        reason = "Central master sync is configured, but this server could not complete a sync tick."
+        if failed_collections:
+            reason += f" Pull failed for: {', '.join(failed_collections)}."
+        if outbox_failed_count:
+            reason += f" {outbox_failed_count} queued local change(s) could not be pushed."
+        return {"synced": False, "reason": reason, "details": result}
+    return {"synced": True, "details": result}
 
 
 @router.get("/status")

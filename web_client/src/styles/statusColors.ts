@@ -35,9 +35,17 @@ export type ResourceStatusKey =
   | "out of service"
   | "demobilized";
 
-export type TeamTypeKey = "gt" | "udf" | "lsar" | "df" | "gt/uas" | "udf/uas" | "uas" | "air";
+export type TeamTypeKey = "gt" | "udf" | "lsar" | "df" | "gt/uas" | "udf/uas" | "uas" | "air" | "k9" | "util";
 
-type StatusDomain = "team" | "task" | "resource";
+export type ObjectiveStatusKey = "draft" | "active" | "deferred" | "completed" | "cancelled";
+
+export type ObjectivePriorityKey = "low" | "normal" | "high" | "urgent";
+
+export type OperationalPeriodStatusKey = "Planned" | "Active" | "Complete" | "Canceled";
+
+export type MeetingStatusKey = "draft" | "scheduled" | "ready" | "completed" | "canceled";
+
+type StatusDomain = "team" | "task" | "resource" | "objective" | "objective-priority" | "op-period" | "meeting";
 
 function slug(key: string): string {
   return key.trim().toLowerCase().replace(/\s+/g, "-").replace(/\//g, "-");
@@ -58,6 +66,22 @@ export function taskStatusVar(key: TaskStatusKey | string) {
 
 export function resourceStatusVar(key: ResourceStatusKey | string) {
   return statusVar("resource", key);
+}
+
+export function objectiveStatusVar(key: ObjectiveStatusKey | string) {
+  return statusVar("objective", key);
+}
+
+export function objectivePriorityVar(key: ObjectivePriorityKey | string) {
+  return statusVar("objective-priority", key);
+}
+
+export function operationalPeriodStatusVar(key: OperationalPeriodStatusKey | string) {
+  return statusVar("op-period", key);
+}
+
+export function meetingStatusVar(key: MeetingStatusKey | string) {
+  return statusVar("meeting", key);
 }
 
 export function teamTypeVar(key: TeamTypeKey | string): string {

@@ -6,9 +6,10 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
 
-from sarapp_db.mongo.db_manager import DatabaseManager
+from sarapp_db.mongo.database_manager import get_incident_db
 from sarapp_db.mongo.collection_names import IncidentCollections
 from sarapp_db.mongo.int_id import _ensure_int_ids, next_int_id
+from sarapp_db.mongo.repository import BaseRepository
 
 router = APIRouter()
 
@@ -16,8 +17,15 @@ COL = IncidentCollections.OPERATIONAL_PERIODS
 STATUSES = ("Planned", "Active", "Complete", "Canceled")
 
 
-def _col(incident_id: str):
-    return DatabaseManager().get_incident_db(incident_id)[COL]
+class OperationalPeriodsRepository(BaseRepository):
+    collection_name = COL
+    # Keyed by sequential `int_id`, not `_id`; `deleted` is a plain flag
+    # checked ad hoc rather than via BaseRepository.soft_delete.
+    soft_deletes = False
+
+
+def _repo(incident_id: str) -> OperationalPeriodsRepository:
+    return OperationalPeriodsRepository(get_incident_db(incident_id))
 
 
 def _utcnow() -> str:
@@ -79,31 +87,28 @@ def _validate_no_overlap(col, incident_id: str, start_time: str, end_time: str, 
 
 @router.get("/incidents/{incident_id}/planning/operational-periods")
 def list_periods(incident_id: str) -> List[Dict[str, Any]]:
-    col = _col(incident_id)
-    _ensure_int_ids(col)
-    docs = list(col.find({"incident_id": incident_id, "deleted": {"$ne": True}}, sort=[("number", 1)]))
+    repo = _repo(incident_id)
+    _ensure_int_ids(repo._col)
+    docs = list(repo._col.find({"incident_id": incident_id, "deleted": {"$ne": True}}, sort=[("number", 1)]))
     return [_doc_to_record(d) for d in docs]
 
 
 @router.post("/incidents/{incident_id}/planning/operational-periods", status_code=201)
 def create_period(incident_id: str, body: Dict[str, Any]) -> Dict[str, Any]:
-    col = _col(incident_id)
-    _ensure_int_ids(col)
+    repo = _repo(incident_id)
+    _ensure_int_ids(repo._col)
     start_time = str(body.get("start_time") or "").strip()
     end_time = str(body.get("end_time") or "").strip()
-    _validate_no_overlap(col, incident_id, start_time, end_time)
+    _validate_no_overlap(repo._col, incident_id, start_time, end_time)
     # Determine next number
-    docs = list(col.find({"incident_id": incident_id, "deleted": {"$ne": True}}))
+    docs = list(repo._col.find({"incident_id": incident_id, "deleted": {"$ne": True}}))
     numbers = [d.get("number", 0) for d in docs]
     number = int(body.get("number") or ((max(numbers) + 1) if numbers else 1))
     status = str(body.get("status") or "Planned").strip().title()
     if status not in STATUSES:
         status = "Planned"
-    now = _utcnow()
-    new_id = next_int_id(col)
-    import uuid
+    new_id = next_int_id(repo._col)
     doc = {
-        "_id": str(uuid.uuid4()),
         "int_id": new_id,
         "incident_id": incident_id,
         "number": number,
@@ -116,18 +121,16 @@ def create_period(incident_id: str, body: Dict[str, Any]) -> Dict[str, Any]:
         "objectives": str(body.get("objectives") or "").strip(),
         "weather_summary": str(body.get("weather_summary") or "").strip(),
         "safety_message": str(body.get("safety_message") or "").strip(),
-        "created_at": now,
-        "updated_at": now,
     }
-    col.insert_one(doc)
+    doc = repo.insert_one(doc)
     return _doc_to_record(doc)
 
 
 @router.get("/incidents/{incident_id}/planning/operational-periods/active")
 def get_active_period(incident_id: str) -> Optional[Dict[str, Any]]:
-    col = _col(incident_id)
-    _ensure_int_ids(col)
-    doc = col.find_one(
+    repo = _repo(incident_id)
+    _ensure_int_ids(repo._col)
+    doc = repo._col.find_one(
         {"incident_id": incident_id, "status": "Active", "deleted": {"$ne": True}},
         sort=[("updated_at", -1)],
     )
@@ -136,9 +139,9 @@ def get_active_period(incident_id: str) -> Optional[Dict[str, Any]]:
 
 @router.get("/incidents/{incident_id}/planning/operational-periods/{period_id}")
 def get_period(incident_id: str, period_id: int) -> Dict[str, Any]:
-    col = _col(incident_id)
-    _ensure_int_ids(col)
-    doc = col.find_one({"incident_id": incident_id, "int_id": period_id, "deleted": {"$ne": True}})
+    repo = _repo(incident_id)
+    _ensure_int_ids(repo._col)
+    doc = repo._col.find_one({"incident_id": incident_id, "int_id": period_id, "deleted": {"$ne": True}})
     if not doc:
         raise HTTPException(status_code=404, detail="Operational period not found")
     return _doc_to_record(doc)
@@ -146,16 +149,16 @@ def get_period(incident_id: str, period_id: int) -> Dict[str, Any]:
 
 @router.patch("/incidents/{incident_id}/planning/operational-periods/{period_id}")
 def update_period(incident_id: str, period_id: int, body: Dict[str, Any]) -> Dict[str, Any]:
-    col = _col(incident_id)
-    _ensure_int_ids(col)
-    doc = col.find_one({"incident_id": incident_id, "int_id": period_id, "deleted": {"$ne": True}})
+    repo = _repo(incident_id)
+    _ensure_int_ids(repo._col)
+    doc = repo._col.find_one({"incident_id": incident_id, "int_id": period_id, "deleted": {"$ne": True}})
     if not doc:
         raise HTTPException(status_code=404, detail="Operational period not found")
     start_time = str(body.get("start_time") or doc.get("start_time") or "").strip()
     end_time = str(body.get("end_time") or doc.get("end_time") or "").strip()
     if "start_time" in body or "end_time" in body:
-        _validate_no_overlap(col, incident_id, start_time, end_time, exclude_id=period_id)
-    upd: Dict[str, Any] = {"updated_at": _utcnow()}
+        _validate_no_overlap(repo._col, incident_id, start_time, end_time, exclude_id=period_id)
+    upd: Dict[str, Any] = {}
     for field in ("name", "briefing_time", "debrief_time", "objectives", "weather_summary", "safety_message"):
         if field in body:
             upd[field] = str(body[field] or "").strip()
@@ -168,39 +171,48 @@ def update_period(incident_id: str, period_id: int, body: Dict[str, Any]) -> Dic
     if "status" in body:
         s = str(body["status"]).strip().title()
         upd["status"] = s if s in STATUSES else doc.get("status", "Planned")
-    col.update_one({"int_id": period_id, "incident_id": incident_id}, {"$set": upd})
+    repo.update_one(doc["_id"], upd, extra_filter={"int_id": period_id, "incident_id": incident_id})
     return get_period(incident_id, period_id)
 
 
 @router.post("/incidents/{incident_id}/planning/operational-periods/{period_id}/set-active")
 def set_active_period(incident_id: str, period_id: int) -> Dict[str, Any]:
-    col = _col(incident_id)
-    _ensure_int_ids(col)
-    doc = col.find_one({"incident_id": incident_id, "int_id": period_id, "deleted": {"$ne": True}})
+    repo = _repo(incident_id)
+    _ensure_int_ids(repo._col)
+    doc = repo._col.find_one({"incident_id": incident_id, "int_id": period_id, "deleted": {"$ne": True}})
     if not doc:
         raise HTTPException(status_code=404, detail="Operational period not found")
     now = _utcnow()
-    col.update_many(
-        {"incident_id": incident_id, "status": "Active", "int_id": {"$ne": period_id}},
-        {"$set": {"status": "Planned", "updated_at": now}},
-    )
-    col.update_one({"incident_id": incident_id, "int_id": period_id}, {"$set": {"status": "Active", "updated_at": now}})
+    # Bulk flip-off of Active status across the other periods in this
+    # incident is not expressible via BaseRepository's per-document API;
+    # drop to the raw collection and broadcast each affected doc, mirroring
+    # update_one (see forms.py's create_template_version for the same
+    # pattern).
+    others = list(repo._col.find({"incident_id": incident_id, "status": "Active", "int_id": {"$ne": period_id}}))
+    if others:
+        repo._col.update_many(
+            {"_id": {"$in": [d["_id"] for d in others]}},
+            {"$set": {"status": "Planned", "updated_at": now}},
+        )
+        for d in repo._col.find({"_id": {"$in": [d["_id"] for d in others]}}):
+            repo._broadcast("updated", d["_id"], d)
+    repo.update_one(doc["_id"], {"status": "Active"}, extra_filter={"incident_id": incident_id, "int_id": period_id})
     return get_period(incident_id, period_id)
 
 
 @router.post("/incidents/{incident_id}/planning/operational-periods/{period_id}/clone", status_code=201)
 def clone_period(incident_id: str, period_id: int) -> Dict[str, Any]:
     from datetime import timedelta
-    col = _col(incident_id)
-    _ensure_int_ids(col)
-    doc = col.find_one({"incident_id": incident_id, "int_id": period_id, "deleted": {"$ne": True}})
+    repo = _repo(incident_id)
+    _ensure_int_ids(repo._col)
+    doc = repo._col.find_one({"incident_id": incident_id, "int_id": period_id, "deleted": {"$ne": True}})
     if not doc:
         raise HTTPException(status_code=404, detail="Operational period not found")
     start_dt = _parse_dt(doc.get("start_time")) or datetime.now(timezone.utc)
     end_dt = _parse_dt(doc.get("end_time")) or (start_dt + timedelta(hours=12))
     duration = end_dt - start_dt
     docs = sorted(
-        [d for d in col.find({"incident_id": incident_id, "deleted": {"$ne": True}})],
+        [d for d in repo._col.find({"incident_id": incident_id, "deleted": {"$ne": True}})],
         key=lambda x: x.get("number", 0),
     )
     last = docs[-1] if docs else doc

@@ -82,13 +82,21 @@ forking them per module.
 - **Selected-row outline**: `DataTable` renders selection as an outline,
   never a fill (agents.md's hard rule for every table in this app, Python
   or web). Don't add alternating row colors or a selected-row background.
-- **Status colors**: `src/styles/statusColors.css` + `.ts` are the web
-  analog of `styles/profiles/{dark,light}.py` — same keys, same hex values,
-  hand-maintained side by side with those two files (no shared source,
-  same as the Python pair). A new status vocabulary (e.g. for the Intel
-  module) is one more CSS var block-pair + one more key union in
-  `statusColors.ts`, nothing else changes. Theme is a `data-theme` attribute
-  on `<html>` (`applyTheme`/`getStoredTheme`), not a React re-render.
+- **Status colors**: `src/styles/statusColors.css` is **generated** from
+  `styles/profiles/{dark,light}.py` by
+  `scripts/generate_web_status_colors.py` — run it after changing a color in
+  either Python profile, and never hand-edit `statusColors.css` directly (a
+  hand-edit is just overwritten by the next run and won't survive review).
+  `--check` exits non-zero if the file is stale, for a pre-commit/CI gate.
+  This replaced an earlier hand-maintained-with-no-shared-source copy that
+  silently drifted (`TEAM_TYPE_COLORS`' `K9`/`UTIL` entries existed on
+  desktop for a while before they were added here). `src/styles/statusColors.ts`
+  is still hand-written (it's just type unions + a lookup-by-key helper, no
+  literal color values, so it can't drift the same way) — a new status
+  vocabulary (e.g. for the Intel module) needs a new dict in the Python
+  profiles (regenerate the CSS) plus one new key union in `statusColors.ts`.
+  Theme is a `data-theme` attribute on `<html>` (`applyTheme`/`getStoredTheme`),
+  not a React re-render.
 - **Auth**: the JWT from `/api/auth/login` is enforced by **no router at
   all** today — this was attempted in a tunnel-scoped form and reverted
   (see `backlog.md`'s `web_client` entry). Don't assume server-side access

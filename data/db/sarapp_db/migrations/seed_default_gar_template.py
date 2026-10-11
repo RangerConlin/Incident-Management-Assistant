@@ -25,6 +25,7 @@ import logging
 
 from sarapp_db.mongo.collection_names import MasterCollections
 from sarapp_db.mongo.database_manager import get_master_db
+from sarapp_db.mongo.int_id import dual_key_field
 from sarapp_db.mongo.repository import BaseRepository
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(message)s")
@@ -235,19 +236,21 @@ def seed(*, dry_run: bool = False) -> bool:
     repo = _GarTemplatesRepository(get_master_db())
     existing = repo.find_one({"name": TEMPLATE_NAME})
     if existing:
-        log.info("Template '%s' already exists (id=%s) — nothing to do.", TEMPLATE_NAME, existing.get("id"))
+        field = dual_key_field(repo._db, "id", "id_master")
+        log.info("Template '%s' already exists (%s=%s) — nothing to do.", TEMPLATE_NAME, field, existing.get(field))
         return False
 
     doc = build_default_template()
-    docs = repo.find_many({"id": {"$exists": True}}, sort=[("id", -1)], limit=1)
-    doc["id"] = int((docs[0] if docs else {}).get("id") or 0) + 1
+    field = dual_key_field(repo._db, "id", "id_master")
+    docs = repo.find_many({field: {"$exists": True}}, sort=[(field, -1)], limit=1)
+    doc[field] = int((docs[0] if docs else {}).get(field) or 0) + 1
 
     if dry_run:
-        log.info("[dry-run] Would insert template '%s' with id=%s", TEMPLATE_NAME, doc["id"])
+        log.info("[dry-run] Would insert template '%s' with %s=%s", TEMPLATE_NAME, field, doc[field])
         return True
 
     repo.insert_one(doc)
-    log.info("Inserted template '%s' with id=%s", TEMPLATE_NAME, doc["id"])
+    log.info("Inserted template '%s' with %s=%s", TEMPLATE_NAME, field, doc[field])
     return True
 
 

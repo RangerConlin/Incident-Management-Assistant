@@ -1,11 +1,13 @@
 /*
- * Status color tokens — the web analog of styles/profiles/dark.py and
- * light.py. Same keys, same hex values, hand-maintained side by side with
- * those two files (see decision 4 in the design plan): if a status color
- * changes on desktop, mirror it here too, there is no shared source.
- * Multi-word status keys use hyphens in the variable name (e.g. "out of
- * service" -> --status-team-out-of-service-bg); src/styles/statusColors.ts
- * does the same substitution when looking a key up.
+ * Status color tokens — GENERATED from styles/profiles/dark.py and light.py
+ * by scripts/generate_web_status_colors.py. Do not hand-edit: edit the
+ * Python source and re-run that script. This used to be a hand-maintained
+ * duplicate with no shared source, which silently drifted (TEAM_TYPE_COLORS'
+ * K9/UTIL entries existed on desktop but were missing here until this
+ * generator was added). Multi-word status keys use hyphens in the variable
+ * name (e.g. "out of service" -> --status-team-out-of-service-bg);
+ * src/styles/statusColors.ts does the same substitution when looking a key
+ * up.
  */
 
 :root[data-theme="dark"] {
@@ -35,7 +37,7 @@
   --status-task-complete-bg: #2f6d34; --status-task-complete-fg: #f5f5f5;
   --status-task-cancelled-bg: #8c2f2f; --status-task-cancelled-fg: #f5f5f5;
 
-  /* RESOURCE_STATUS (check-in / ci_status) */
+  /* RESOURCE_STATUS */
   --status-resource-pending-bg: #4e3c00; --status-resource-pending-fg: #dbdbdb;
   --status-resource-enroute-bg: #0d2a4a; --status-resource-enroute-fg: #dbdbdb;
   --status-resource-checked-in-bg: #1b3a1f; --status-resource-checked-in-fg: #dbdbdb;
@@ -43,6 +45,32 @@
   --status-resource-available-bg: #003636; --status-resource-available-fg: #dbdbdb;
   --status-resource-out-of-service-bg: #4a1200; --status-resource-out-of-service-fg: #dbdbdb;
   --status-resource-demobilized-bg: #1c2226; --status-resource-demobilized-fg: #dbdbdb;
+
+  /* OBJECTIVE_STATUS */
+  --status-objective-draft-bg: #757575; --status-objective-draft-fg: #f5f5f5;
+  --status-objective-active-bg: #2e7d32; --status-objective-active-fg: #f5f5f5;
+  --status-objective-deferred-bg: #f9a825; --status-objective-deferred-fg: #1a1a1a;
+  --status-objective-completed-bg: #1565c0; --status-objective-completed-fg: #f5f5f5;
+  --status-objective-cancelled-bg: #616161; --status-objective-cancelled-fg: #f5f5f5;
+
+  /* OBJECTIVE_PRIORITY */
+  --status-objective-priority-low-bg: #546e7a; --status-objective-priority-low-fg: #f5f5f5;
+  --status-objective-priority-normal-bg: #1565c0; --status-objective-priority-normal-fg: #f5f5f5;
+  --status-objective-priority-high-bg: #e65100; --status-objective-priority-high-fg: #f5f5f5;
+  --status-objective-priority-urgent-bg: #c62828; --status-objective-priority-urgent-fg: #f5f5f5;
+
+  /* OPERATIONAL_PERIOD_STATUS */
+  --status-op-period-planned-bg: #444c55; --status-op-period-planned-fg: #f5f5f5;
+  --status-op-period-active-bg: #2e7d32; --status-op-period-active-fg: #f5f5f5;
+  --status-op-period-complete-bg: #1565c0; --status-op-period-complete-fg: #f5f5f5;
+  --status-op-period-canceled-bg: #8c2f2f; --status-op-period-canceled-fg: #f5f5f5;
+
+  /* MEETING_STATUS */
+  --status-meeting-draft-bg: #6d5478; --status-meeting-draft-fg: #f5f5f5;
+  --status-meeting-scheduled-bg: #a88f1a; --status-meeting-scheduled-fg: #f5f5f5;
+  --status-meeting-ready-bg: #1f6088; --status-meeting-ready-fg: #f5f5f5;
+  --status-meeting-completed-bg: #2f6d34; --status-meeting-completed-fg: #f5f5f5;
+  --status-meeting-canceled-bg: #8c2f2f; --status-meeting-canceled-fg: #f5f5f5;
 
   /* TEAM_TYPE_COLORS (single swatch, no fg pair) */
   --team-type-gt: #2f6d34;
@@ -53,9 +81,14 @@
   --team-type-udf-uas: #c59b3f;
   --team-type-uas: #1f7a83;
   --team-type-air: #3583c4;
+  --team-type-k9: #a03a3a;
+  --team-type-util: #5a5a5a;
 
   /* Selected-row outline (agents.md hard rule: every table needs one) */
   --color-selected-outline: #5b9bd5;
+
+  /* Cross-cutting alert accent (needs-attention/overdue), not a status value */
+  --status-alert-attention-bg: #a88f1a;
 }
 
 :root[data-theme="light"] {
@@ -85,7 +118,7 @@
   --status-task-complete-bg: #2e7d32; --status-task-complete-fg: #ffffff;
   --status-task-cancelled-bg: #e53935; --status-task-cancelled-fg: #ffffff;
 
-  /* RESOURCE_STATUS (check-in / ci_status) */
+  /* RESOURCE_STATUS */
   --status-resource-pending-bg: #efe229; --status-resource-pending-fg: #000000;
   --status-resource-enroute-bg: #006ab6; --status-resource-enroute-fg: #000000;
   --status-resource-checked-in-bg: #00e113; --status-resource-checked-in-fg: #000000;
@@ -93,6 +126,32 @@
   --status-resource-available-bg: #098d00; --status-resource-available-fg: #000000;
   --status-resource-out-of-service-bg: #c73221; --status-resource-out-of-service-fg: #010101;
   --status-resource-demobilized-bg: #888888; --status-resource-demobilized-fg: #363636;
+
+  /* OBJECTIVE_STATUS */
+  --status-objective-draft-bg: #90a4ae; --status-objective-draft-fg: #1a1a1a;
+  --status-objective-active-bg: #43a047; --status-objective-active-fg: #ffffff;
+  --status-objective-deferred-bg: #ffca28; --status-objective-deferred-fg: #1a1a1a;
+  --status-objective-completed-bg: #1e88e5; --status-objective-completed-fg: #ffffff;
+  --status-objective-cancelled-bg: #9e9e9e; --status-objective-cancelled-fg: #1a1a1a;
+
+  /* OBJECTIVE_PRIORITY */
+  --status-objective-priority-low-bg: #78909c; --status-objective-priority-low-fg: #1a1a1a;
+  --status-objective-priority-normal-bg: #1e88e5; --status-objective-priority-normal-fg: #ffffff;
+  --status-objective-priority-high-bg: #fb8c00; --status-objective-priority-high-fg: #1a1a1a;
+  --status-objective-priority-urgent-bg: #e53935; --status-objective-priority-urgent-fg: #ffffff;
+
+  /* OPERATIONAL_PERIOD_STATUS */
+  --status-op-period-planned-bg: #90a4ae; --status-op-period-planned-fg: #1a1a1a;
+  --status-op-period-active-bg: #43a047; --status-op-period-active-fg: #ffffff;
+  --status-op-period-complete-bg: #1e88e5; --status-op-period-complete-fg: #ffffff;
+  --status-op-period-canceled-bg: #e53935; --status-op-period-canceled-fg: #ffffff;
+
+  /* MEETING_STATUS */
+  --status-meeting-draft-bg: #ce93d8; --status-meeting-draft-fg: #1a1a1a;
+  --status-meeting-scheduled-bg: #ffc107; --status-meeting-scheduled-fg: #1a1a1a;
+  --status-meeting-ready-bg: #00acc1; --status-meeting-ready-fg: #ffffff;
+  --status-meeting-completed-bg: #2e7d32; --status-meeting-completed-fg: #ffffff;
+  --status-meeting-canceled-bg: #e53935; --status-meeting-canceled-fg: #ffffff;
 
   /* TEAM_TYPE_COLORS (single swatch, no fg pair) */
   --team-type-gt: #228b22;
@@ -103,6 +162,12 @@
   --team-type-udf-uas: #ffd54f;
   --team-type-uas: #00cec9;
   --team-type-air: #00a8ff;
+  --team-type-k9: #8b0000;
+  --team-type-util: #7a7a7a;
 
+  /* Selected-row outline (agents.md hard rule: every table needs one) */
   --color-selected-outline: #1565c0;
+
+  /* Cross-cutting alert accent (needs-attention/overdue), not a status value */
+  --status-alert-attention-bg: #ffc107;
 }

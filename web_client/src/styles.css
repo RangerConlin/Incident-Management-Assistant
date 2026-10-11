@@ -244,8 +244,14 @@ button + button {
   font-size: 0.85rem;
 }
 
-.incident-switcher {
-  min-width: 240px;
+.current-incident {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.current-incident-label {
+  font-weight: 600;
 }
 
 .connection-indicator {
@@ -430,14 +436,6 @@ table.data-table tbody tr.row-emergency {
   border-left: 3px solid #4a5058;
   border-radius: 8px;
   padding: 8px 14px;
-}
-
-.kpi-tile-warning {
-  border-left-color: #a88f1a;
-}
-
-.kpi-tile-danger {
-  border-left-color: #8c2f2f;
 }
 
 .kpi-tile-value {
