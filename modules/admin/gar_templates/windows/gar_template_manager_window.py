@@ -34,7 +34,7 @@ from PySide6.QtWidgets import (
 )
 
 from modules.admin.gar_templates.data import gar_template_repository as repo
-from utils.edit_window_kit import make_sync_status_label, refresh_sync_status_label
+from utils.edit_window_kit import make_resync_button, make_sync_status_label, refresh_sync_status_label
 
 _GROUP_LEVEL = 0
 _ROW_LEVEL = 1
@@ -84,6 +84,13 @@ class GarTemplateManagerWindow(QDialog):
 
         self._sync_status_label = make_sync_status_label()
         left.addWidget(self._sync_status_label)
+        self._resync_button = make_resync_button(
+            self,
+            "gar_templates",
+            status_label=self._sync_status_label,
+            refresh_callback=self.reload,
+        )
+        left.addWidget(self._resync_button)
 
         left_widget = QWidget()
         left_widget.setLayout(left)

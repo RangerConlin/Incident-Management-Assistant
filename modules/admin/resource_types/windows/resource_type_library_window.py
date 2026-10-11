@@ -45,6 +45,7 @@ from utils.edit_window_kit import (
     PillDelegate,
     PaginationControls,
     default_export_directory,
+    make_resync_button,
     make_sync_status_label,
     refresh_sync_status_label,
     run_async,
@@ -229,6 +230,13 @@ class ResourceTypeLibraryWindow(QWidget):
 
         self.sync_status_label = make_sync_status_label()
         header.addWidget(self.sync_status_label)
+        self.resync_button = make_resync_button(
+            self,
+            "resource_types",
+            status_label=self.sync_status_label,
+            refresh_callback=self.refresh,
+        )
+        header.addWidget(self.resync_button)
 
         card_layout.addLayout(header)
 

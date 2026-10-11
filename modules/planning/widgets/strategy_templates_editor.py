@@ -35,6 +35,7 @@ from modules.planning.models.strategy_templates_dao import (
     StrategyTemplate,
     StrategyTemplatesDAO,
 )
+from utils.edit_window_kit import make_resync_button, make_sync_status_label, refresh_sync_status_label
 from utils.table_view_styles import apply_statusboard_table_behavior
 
 SETTINGS_GROUP = "Modules/Planning/StrategyTemplatesEditor"
@@ -60,6 +61,7 @@ class StrategyTemplatesEditor(QMainWindow):
         self._build_ui()
         self._restore_state()
         self._reload()
+        refresh_sync_status_label(self, self._sync_status_label, "strategy_templates")
 
     # ------------------------------------------------------------------
     def _build_ui(self) -> None:
@@ -85,6 +87,16 @@ class StrategyTemplatesEditor(QMainWindow):
         new_btn.clicked.connect(self._on_new_clicked)
         search_row.addWidget(new_btn)
         table_layout.addLayout(search_row)
+
+        self._sync_status_label = make_sync_status_label()
+        table_layout.addWidget(self._sync_status_label)
+        self._resync_button = make_resync_button(
+            self,
+            "strategy_templates",
+            status_label=self._sync_status_label,
+            refresh_callback=self._reload,
+        )
+        table_layout.addWidget(self._resync_button)
 
         self._table = QTableWidget(0, 4)
         self._table.setHorizontalHeaderLabels(["Title", "Objective Template", "Assignment Kind", "Priority"])

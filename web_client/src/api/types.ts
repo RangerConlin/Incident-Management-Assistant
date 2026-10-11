@@ -212,8 +212,11 @@ export interface OperationalPeriod {
 
 // GET /api/incidents/{id}/planning/meetings — meetings.py.
 export interface MeetingAttendee {
-  id: number;
-  meeting_id: number;
+  // Some older meetings were seeded without per-item ids (legacy data) --
+  // see MeetingDetailPage's "addressable" guard for what that means for
+  // editing/removing such a row.
+  id: number | null;
+  meeting_id: number | null;
   display_name: string;
   attendee_type: string;
   role: string;
@@ -222,8 +225,8 @@ export interface MeetingAttendee {
 }
 
 export interface MeetingChecklistItem {
-  id: number;
-  meeting_id: number;
+  id: number | null;
+  meeting_id: number | null;
   group_name: string;
   text: string;
   assigned_to: string;

@@ -89,7 +89,7 @@ except ImportError:  # pragma: no cover - fallback when QtConcurrent watcher is 
 
 from notifications.models import Notification
 from notifications.services import get_notifier
-from utils.edit_window_kit import default_export_directory, make_sync_status_label, refresh_sync_status_label
+from utils.edit_window_kit import default_export_directory, make_resync_button, make_sync_status_label, refresh_sync_status_label
 
 from modules.logistics.vehicle.panels.vehicle_edit_window import VehicleEditDialog, VehicleRepository
 
@@ -1431,6 +1431,13 @@ class VehicleInventoryPanel(QWidget):
 
         self.sync_status_label = make_sync_status_label()
         header_layout.addWidget(self.sync_status_label)
+        self.resync_button = make_resync_button(
+            self,
+            "vehicles",
+            status_label=self.sync_status_label,
+            refresh_callback=lambda: self.refresh(reset_page=True),
+        )
+        header_layout.addWidget(self.resync_button)
 
         card_layout.addLayout(header_layout)
 

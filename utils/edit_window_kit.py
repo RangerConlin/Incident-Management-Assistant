@@ -55,6 +55,7 @@ __all__ = [
     "run_async",
     "write_export_file",
     "make_sync_status_label",
+    "make_resync_button",
     "refresh_sync_status_label",
 ]
 
@@ -713,6 +714,77 @@ def make_sync_status_label() -> QLabel:
     label = QLabel("")
     label.setStyleSheet("color: #666;")
     return label
+
+
+def make_resync_button(
+    owner: QObject,
+    collection: str,
+    *,
+    status_label: QLabel | None = None,
+    refresh_callback: Callable[[], None] | None = None,
+) -> QPushButton:
+    """Build a standard manual central-catalog Resync button.
+
+    The server endpoint syncs all configured master collections in one tick;
+    ``collection`` is used to refresh this window's status label afterward.
+    """
+    button = QPushButton("Resync")
+    button.setToolTip("Force an immediate resync with the central master catalog")
+    try:
+        from PySide6.QtWidgets import QStyle
+
+        style = owner.style() if hasattr(owner, "style") else None
+        if style is not None:
+            button.setIcon(style.standardIcon(QStyle.StandardPixmap.SP_BrowserReload))
+    except Exception:
+        pass
+    button.clicked.connect(
+        lambda: _run_catalog_resync(
+            owner,
+            button,
+            collection,
+            status_label=status_label,
+            refresh_callback=refresh_callback,
+        )
+    )
+    return button
+
+
+def _run_catalog_resync(
+    owner: QObject,
+    button: QPushButton,
+    collection: str,
+    *,
+    status_label: QLabel | None,
+    refresh_callback: Callable[[], None] | None,
+) -> None:
+    from utils.api_client import api_client
+
+    def _task() -> dict[str, Any]:
+        return api_client.post("/api/sync-trigger/resync") or {}
+
+    def _done(result: dict[str, Any]) -> None:
+        button.setEnabled(True)
+        button.setText("Resync")
+        if result.get("synced"):
+            if refresh_callback is not None:
+                refresh_callback()
+            if status_label is not None:
+                refresh_sync_status_label(owner, status_label, collection)
+            return
+        reason = result.get("reason") or "Central sync is not configured on this server."
+        if status_label is not None:
+            refresh_sync_status_label(owner, status_label, collection)
+        QMessageBox.warning(button, "Resync unavailable", reason)
+
+    def _error(message: str) -> None:
+        button.setEnabled(True)
+        button.setText("Resync")
+        QMessageBox.critical(button, "Resync failed", message)
+
+    button.setEnabled(False)
+    button.setText("Resyncing...")
+    run_async(owner, _task, _done, _error)
 
 
 def refresh_sync_status_label(owner: QObject, label: QLabel, collection: str) -> None:

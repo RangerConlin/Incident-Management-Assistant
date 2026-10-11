@@ -158,30 +158,48 @@ export default function MeetingDetailPage() {
           {meeting.attendees.length === 0 ? (
             <p style={{ opacity: 0.6 }}>No attendees yet.</p>
           ) : (
-            meeting.attendees.map((a) => (
-              <div key={a.id} className="list-item" style={{ cursor: "default" }}>
-                <div>
-                  <div style={{ fontWeight: 600 }}>{a.display_name}</div>
-                  <div style={{ fontSize: "0.85rem", opacity: 0.7 }}>
-                    {a.role || a.attendee_type} · {a.requirement_status}
+            meeting.attendees.map((a, i) => {
+              // Some older meetings were seeded with sub-items that never
+              // got an `id` assigned (legacy data, not a template-created
+              // row) -- those can't be addressed by the attendee/{id}
+              // endpoints, so edits are disabled for them rather than
+              // silently sending a broken `null` id to the API.
+              const attendeeId = a.id;
+              return (
+                <div key={attendeeId ?? `unindexed-${i}`} className="list-item" style={{ cursor: "default" }}>
+                  <div>
+                    <div style={{ fontWeight: 600 }}>{a.display_name}</div>
+                    <div style={{ fontSize: "0.85rem", opacity: 0.7 }}>
+                      {a.role || a.attendee_type} · {a.requirement_status}
+                      {attendeeId == null && " · read-only (legacy record, no id)"}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <select
+                      value={a.attendance_status}
+                      disabled={attendeeId == null}
+                      onChange={(e) =>
+                        attendeeId != null &&
+                        updateAttendee.mutate({ attendeeId, body: { attendance_status: e.target.value } })
+                      }
+                    >
+                      <option value="invited">Invited</option>
+                      <option value="confirmed">Confirmed</option>
+                      <option value="attended">Attended</option>
+                      <option value="no-show">No-show</option>
+                    </select>
+                    <button
+                      className="secondary"
+                      style={{ width: "auto" }}
+                      disabled={attendeeId == null}
+                      onClick={() => attendeeId != null && removeAttendee.mutate(attendeeId)}
+                    >
+                      Remove
+                    </button>
                   </div>
                 </div>
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <select
-                    value={a.attendance_status}
-                    onChange={(e) => updateAttendee.mutate({ attendeeId: a.id, body: { attendance_status: e.target.value } })}
-                  >
-                    <option value="invited">Invited</option>
-                    <option value="confirmed">Confirmed</option>
-                    <option value="attended">Attended</option>
-                    <option value="no-show">No-show</option>
-                  </select>
-                  <button className="secondary" style={{ width: "auto" }} onClick={() => removeAttendee.mutate(a.id)}>
-                    Remove
-                  </button>
-                </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       )}
@@ -208,23 +226,40 @@ export default function MeetingDetailPage() {
           {meeting.checklist_items.length === 0 ? (
             <p style={{ opacity: 0.6 }}>No checklist items yet.</p>
           ) : (
-            meeting.checklist_items.map((c) => (
-              <div key={c.id} className="list-item" style={{ cursor: "default" }}>
-                <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
-                  <input
-                    type="checkbox"
-                    checked={c.is_complete}
-                    onChange={(e) =>
-                      updateChecklistItem.mutate({ itemId: c.id, body: { is_complete: e.target.checked } })
-                    }
-                  />
-                  <span style={{ textDecoration: c.is_complete ? "line-through" : "none", opacity: c.is_complete ? 0.6 : 1 }}>
-                    {c.text}
-                  </span>
-                </label>
-                {c.assigned_to && <span style={{ fontSize: "0.85rem", opacity: 0.7 }}>{c.assigned_to}</span>}
-              </div>
-            ))
+            meeting.checklist_items.map((c, i) => {
+              // See the attendees tab above for why some legacy items have
+              // no addressable id.
+              const itemId = c.id;
+              return (
+                <div key={itemId ?? `unindexed-${i}`} className="list-item" style={{ cursor: "default" }}>
+                  <label
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      cursor: itemId != null ? "pointer" : "default",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={c.is_complete}
+                      disabled={itemId == null}
+                      onChange={(e) =>
+                        itemId != null &&
+                        updateChecklistItem.mutate({ itemId, body: { is_complete: e.target.checked } })
+                      }
+                    />
+                    <span style={{ textDecoration: c.is_complete ? "line-through" : "none", opacity: c.is_complete ? 0.6 : 1 }}>
+                      {c.text}
+                    </span>
+                    {itemId == null && (
+                      <span style={{ fontSize: "0.78rem", opacity: 0.5 }}>(legacy record, read-only)</span>
+                    )}
+                  </label>
+                  {c.assigned_to && <span style={{ fontSize: "0.85rem", opacity: 0.7 }}>{c.assigned_to}</span>}
+                </div>
+              );
+            })
           )}
         </div>
       )}

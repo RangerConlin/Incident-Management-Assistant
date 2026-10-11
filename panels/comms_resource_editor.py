@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from utils.edit_window_kit import make_sync_status_label, refresh_sync_status_label
+from utils.edit_window_kit import make_resync_button, make_sync_status_label, refresh_sync_status_label
 
 log = logging.getLogger(__name__)
 
@@ -294,6 +294,13 @@ class CommsResourceEditor(QtWidgets.QMainWindow):
 
         self.sync_status_label = make_sync_status_label()
         tb.addWidget(self.sync_status_label)
+        self.resync_button = make_resync_button(
+            self,
+            "radio_channels",
+            status_label=self.sync_status_label,
+            refresh_callback=self.refresh,
+        )
+        tb.addWidget(self.resync_button)
 
         tb.addStretch(1)
         tb.addWidget(QtWidgets.QLabel("Search:"))

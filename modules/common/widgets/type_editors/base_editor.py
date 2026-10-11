@@ -13,7 +13,7 @@ from PySide6.QtCore import (
     Qt,
 )
 from PySide6.QtGui import QBrush, QColor, QKeySequence, QPalette, QShortcut
-from utils.edit_window_kit import make_sync_status_label, refresh_sync_status_label
+from utils.edit_window_kit import make_resync_button, make_sync_status_label, refresh_sync_status_label
 from utils.itemview_delegates import RowOutlineSelectionDelegate
 from PySide6.QtWidgets import (
     QApplication,
@@ -217,6 +217,14 @@ class BaseTypeEditorDialog(QWidget):
 
         self.sync_status_label = make_sync_status_label()
         toolbar.addWidget(self.sync_status_label)
+        if self.sync_collection:
+            self.resync_button = make_resync_button(
+                self,
+                self.sync_collection,
+                status_label=self.sync_status_label,
+                refresh_callback=self.refresh,
+            )
+            toolbar.addWidget(self.resync_button)
 
         spacer = QWidget(self)
         spacer.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
