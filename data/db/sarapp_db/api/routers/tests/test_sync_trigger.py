@@ -86,6 +86,35 @@ def test_resync_reports_collection_error_details(monkeypatch) -> None:
     assert "bad vehicle doc" in body["reason"]
 
 
+def test_collection_resync_only_pulls_requested_collection(monkeypatch) -> None:
+    calls: list[str] = []
+    monkeypatch.setenv("SARAPP_CENTRAL_MASTER_URL", "http://central-master.test")
+    monkeypatch.setattr("sarapp_db.sync.loop.pull_and_apply", lambda collection: calls.append(collection) or True)
+
+    app = create_app()
+    with TestClient(app) as client:
+        response = client.post("/api/sync-trigger/resync/personnel")
+
+    assert response.status_code == 200
+    assert response.json()["synced"] is True
+    assert calls == ["personnel"]
+
+
+def test_collection_resync_reports_requested_collection_failure(monkeypatch) -> None:
+    monkeypatch.setenv("SARAPP_CENTRAL_MASTER_URL", "http://central-master.test")
+    monkeypatch.setattr("sarapp_db.sync.loop.pull_and_apply", lambda collection: False)
+
+    app = create_app()
+    with TestClient(app) as client:
+        response = client.post("/api/sync-trigger/resync/personnel")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["synced"] is False
+    assert "personnel" in body["reason"]
+    assert "vehicles" not in body["reason"]
+
+
 def test_resync_reports_failure_instead_of_500_for_legacy_tick_return(monkeypatch) -> None:
     monkeypatch.setenv("SARAPP_CENTRAL_MASTER_URL", "http://central-master.test")
     monkeypatch.setattr("sarapp_db.sync.loop.run_one_tick", lambda: None)

@@ -622,7 +622,7 @@ class EquipmentEditPanel(QWidget):
         from utils.api_client import api_client
 
         def _task() -> dict[str, Any]:
-            return api_client.post("/api/sync-trigger/resync") or {}
+            return api_client.post("/api/sync-trigger/resync/equipment") or {}
 
         self.resync_button.setEnabled(False)
         self.resync_button.setText("Resyncing...")

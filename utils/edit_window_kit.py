@@ -726,8 +726,8 @@ def make_resync_button(
 ) -> QPushButton:
     """Build a standard manual central-catalog Resync button.
 
-    The server endpoint syncs all configured master collections in one tick;
-    ``collection`` is used to refresh this window's status label afterward.
+    The server endpoint pulls only this collection so one broken catalog does
+    not block a different window's manual refresh.
     """
     button = QPushButton("Resync")
     button.setToolTip("Force an immediate resync with the central master catalog")
@@ -818,8 +818,7 @@ def _run_local_catalog_reset(
     def _done(result: dict[str, Any]) -> None:
         button.setEnabled(True)
         button.setText("Delete All")
-        if refresh_callback is not None:
-            refresh_callback()
+        _clear_local_catalog_view(owner)
         if status_label is not None:
             refresh_sync_status_label(owner, status_label, collection)
         try:
@@ -845,6 +844,55 @@ def _run_local_catalog_reset(
     run_async(owner, _task, _done, _error)
 
 
+def _clear_local_catalog_view(owner: QObject) -> None:
+    """Best-effort clear of common catalog window models after local reset."""
+    for attr in ("_all_records", "_filtered_records", "_all_rows", "_filtered_rows", "_records", "_templates"):
+        if hasattr(owner, attr):
+            try:
+                setattr(owner, attr, [])
+            except Exception:
+                pass
+    for attr in ("_current_id", "_current_hazard_id", "_current_vehicle_id", "_selected_vehicle_id"):
+        if hasattr(owner, attr):
+            try:
+                setattr(owner, attr, None)
+            except Exception:
+                pass
+
+    for attr in ("_list", "list_widget", "template_list"):
+        widget = getattr(owner, attr, None)
+        if widget is not None and hasattr(widget, "clear"):
+            try:
+                widget.clear()
+            except Exception:
+                pass
+
+    for attr in ("_model", "model", "table_model"):
+        model = getattr(owner, attr, None)
+        if model is None:
+            continue
+        for method_name in ("set_records", "set_rows", "load"):
+            method = getattr(model, method_name, None)
+            if method is not None:
+                try:
+                    method([])
+                    break
+                except Exception:
+                    pass
+
+    for method_name in ("_render_page", "_apply_filters", "_update_count", "_set_editor_enabled"):
+        method = getattr(owner, method_name, None)
+        if method is None:
+            continue
+        try:
+            if method_name == "_set_editor_enabled":
+                method(False)
+            else:
+                method()
+        except Exception:
+            pass
+
+
 def _run_catalog_resync(
     owner: QObject,
     button: QPushButton,
@@ -856,7 +904,7 @@ def _run_catalog_resync(
     from utils.api_client import api_client
 
     def _task() -> dict[str, Any]:
-        return api_client.post("/api/sync-trigger/resync") or {}
+        return api_client.post(f"/api/sync-trigger/resync/{collection}") or {}
 
     def _done(result: dict[str, Any]) -> None:
         button.setEnabled(True)

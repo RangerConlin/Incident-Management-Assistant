@@ -231,7 +231,7 @@ class _APIClient:
 
     def _after_successful_response(self, method: str, path: str, result: Any) -> None:
         """Apply client-side housekeeping tied to successful API responses."""
-        if method.upper() != "POST" or path != "/api/sync-trigger/resync":
+        if method.upper() != "POST" or not path.startswith("/api/sync-trigger/resync"):
             return
         if not isinstance(result, dict) or not result.get("synced"):
             return

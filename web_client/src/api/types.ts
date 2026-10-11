@@ -283,3 +283,75 @@ export interface MeetingTemplate {
   appears_on_ics230_default: boolean;
   active: boolean;
 }
+
+// GET /api/incidents/{id}/sitreps — sitrep.py.
+export interface SitrepSection {
+  section_type: string;
+  title: string;
+  auto_content: string;
+  edited_content: string;
+  visibility: string;
+  review_status: string;
+  last_refreshed_at: string | null;
+}
+
+export interface Sitrep {
+  id: string;
+  incident_id: string;
+  sitrep_number: number;
+  operational_period_id: string | null;
+  created_at: string;
+  updated_at: string;
+  prepared_by: string;
+  status: string;
+  audience: string;
+  approved_by: string | null;
+  approved_at: string | null;
+  distributed_at: string | null;
+  summary: string;
+  current_priority: string;
+  current_tempo: string;
+  next_update_due: string | null;
+  sections: SitrepSection[];
+}
+
+export interface SitrepOperationalSummary {
+  teams: Record<string, number>;
+  tasks: Record<string, number>;
+  total_checked_in: number;
+  alerts: { message: string; source: string }[];
+}
+
+export interface SitrepEvent {
+  id: string;
+  incident_id: string;
+  sitrep_id: string | null;
+  timestamp: string;
+  event_type: string;
+  summary: string;
+  source: string;
+  impact: string;
+  visibility: string;
+  include_in_sitrep: boolean;
+  include_in_214: boolean;
+  reviewed_by: string | null;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SitrepDistribution {
+  id: string;
+  sitrep_id: string;
+  incident_id: string;
+  version_name: string;
+  audience: string;
+  recipient_group: string;
+  delivery_method: string;
+  approved_by: string | null;
+  distributed_by: string;
+  distributed_at: string;
+  export_file_path: string | null;
+  notes: string;
+  created_at: string;
+}

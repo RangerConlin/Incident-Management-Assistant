@@ -177,15 +177,18 @@ to avoid clobbering this relay's state; it's scoped to incident database
 mirroring only now.
 
 **Manual resync trigger:** `data/db/sarapp_db/api/routers/sync_trigger.py`
-(`POST /api/sync-trigger/resync`, mounted on every `mode="full"` server —
-LAN/cloud/offline, never on cloud_router's `master_only` process) calls
+exposes a full trigger (`POST /api/sync-trigger/resync`, mounted on every
+`mode="full"` server — LAN/cloud/offline, never on cloud_router's
+`master_only` process) and a collection-scoped trigger
+(`POST /api/sync-trigger/resync/{collection}`). The full trigger calls
 `sync.loop.run_one_tick()` immediately instead of waiting for
-`CentralSyncLoop`'s next scheduled tick, so a user doesn't have to wait up
-to the poll interval for a change to show up. The desktop Personnel
-Inventory window (`ui/personnel/ui_personnel.py`) and Equipment panel
-(`panels/equipment_edit_panel.py`) each have a "Resync" button next to
-Add/Delete/Import/Export that calls this endpoint and then refreshes the
-list. Reports `{"synced": false, "reason": "..."}` rather than erroring
+`CentralSyncLoop`'s next scheduled tick. Desktop catalog editor windows use
+the collection-scoped trigger so a user refreshing one catalog isn't blocked
+by an unrelated catalog's sync error. The same router also exposes
+`POST /api/sync-trigger/local-catalog/{collection}/reset` for Delete All,
+which clears only the local copy and its per-collection checkpoint/outbox
+entries; the user can then redownload that collection with Resync. These
+endpoints report `{"synced": false, "reason": "..."}` rather than erroring
 when sync isn't configured on that server.
 
 Deletes relay too: `BaseRepository.delete_one` (hard delete, used by

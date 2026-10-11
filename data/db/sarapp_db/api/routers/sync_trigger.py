@@ -64,6 +64,34 @@ def force_resync() -> dict[str, Any]:
     return {"synced": True, "details": result}
 
 
+@router.post("/resync/{collection}")
+def force_collection_resync(collection: str) -> dict[str, Any]:
+    from sarapp_db.sync import config
+    from sarapp_db.sync.loop import pull_and_apply
+
+    if collection not in config.SYNCABLE_MASTER_COLLECTIONS:
+        raise HTTPException(status_code=404, detail=f"'{collection}' is not a syncable collection")
+    if not config.sync_enabled():
+        return {"synced": False, "reason": "Central master sync is not configured on this server."}
+
+    try:
+        pulled = pull_and_apply(collection)
+    except Exception as exc:
+        logger.exception("Manual central master resync failed for %s.", collection)
+        return {
+            "synced": False,
+            "reason": f"Central master sync failed for {collection}: {exc}",
+            "details": {"collection": collection, "error": str(exc)},
+        }
+    if not pulled:
+        return {
+            "synced": False,
+            "reason": f"Central master sync could not pull {collection}.",
+            "details": {"collection": collection},
+        }
+    return {"synced": True, "details": {"collection": collection}}
+
+
 @router.get("/status")
 def sync_status() -> dict[str, Any]:
     from sarapp_db.sync.status import get_sync_status

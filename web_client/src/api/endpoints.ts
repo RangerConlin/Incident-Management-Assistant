@@ -12,6 +12,10 @@ import type {
   ObjectiveTaskLink,
   OperationalPeriod,
   PersonnelSummary,
+  Sitrep,
+  SitrepDistribution,
+  SitrepEvent,
+  SitrepOperationalSummary,
   TaskDetail,
   TaskRow,
   TaskTeam,
@@ -385,4 +389,65 @@ export function updateMeetingChecklistItem(
 
 export function addMeetingNote(incidentId: string, meetingId: number, body: Record<string, unknown>) {
   return api.post<MeetingNote>(`/api/incidents/${incidentId}/planning/meetings/${meetingId}/notes`, body);
+}
+
+// ---------------------------------------------------------------------------
+// Planning — Situation Reports (ICS-209-style). Backend: sitrep.py.
+// ---------------------------------------------------------------------------
+
+export function listSitreps(incidentId: string) {
+  return api.get<Sitrep[]>(`/api/incidents/${incidentId}/sitreps`);
+}
+
+export function getSitrep(incidentId: string, sitrepId: string) {
+  return api.get<Sitrep>(`/api/incidents/${incidentId}/sitreps/${sitrepId}`);
+}
+
+export function getSitrepOperationalSummary(incidentId: string) {
+  return api.get<SitrepOperationalSummary>(`/api/incidents/${incidentId}/sitreps/operational-summary`);
+}
+
+export function createSitrep(incidentId: string, body: Record<string, unknown>) {
+  return api.post<Sitrep>(`/api/incidents/${incidentId}/sitreps`, body);
+}
+
+export function updateSitrep(incidentId: string, sitrepId: string, body: Record<string, unknown>) {
+  return api.patch<Sitrep>(`/api/incidents/${incidentId}/sitreps/${sitrepId}`, body);
+}
+
+export function deleteSitrep(incidentId: string, sitrepId: string) {
+  return api.delete<void>(`/api/incidents/${incidentId}/sitreps/${sitrepId}`);
+}
+
+export function duplicateSitrep(incidentId: string, sitrepId: string, body?: Record<string, unknown>) {
+  return api.post<Sitrep>(`/api/incidents/${incidentId}/sitreps/${sitrepId}/duplicate`, body ?? {});
+}
+
+export function refreshSitrep(incidentId: string, sitrepId: string) {
+  return api.post<Sitrep>(`/api/incidents/${incidentId}/sitreps/${sitrepId}/refresh`);
+}
+
+export function listSitrepEvents(incidentId: string, sitrepId?: string) {
+  const qs = sitrepId ? `?sitrep_id=${encodeURIComponent(sitrepId)}` : "";
+  return api.get<SitrepEvent[]>(`/api/incidents/${incidentId}/sitrep-events${qs}`);
+}
+
+export function createSitrepEvent(incidentId: string, body: Record<string, unknown>) {
+  return api.post<SitrepEvent>(`/api/incidents/${incidentId}/sitrep-events`, body);
+}
+
+export function updateSitrepEvent(incidentId: string, eventId: string, body: Record<string, unknown>) {
+  return api.patch<SitrepEvent>(`/api/incidents/${incidentId}/sitrep-events/${eventId}`, body);
+}
+
+export function deleteSitrepEvent(incidentId: string, eventId: string) {
+  return api.delete<void>(`/api/incidents/${incidentId}/sitrep-events/${eventId}`);
+}
+
+export function listSitrepDistributions(incidentId: string, sitrepId: string) {
+  return api.get<SitrepDistribution[]>(`/api/incidents/${incidentId}/sitreps/${sitrepId}/distributions`);
+}
+
+export function createSitrepDistribution(incidentId: string, sitrepId: string, body: Record<string, unknown>) {
+  return api.post<SitrepDistribution>(`/api/incidents/${incidentId}/sitreps/${sitrepId}/distributions`, body);
 }

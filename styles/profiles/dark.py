@@ -184,6 +184,18 @@ MEETING_STATUS: Dict[str, Dict[str, str]] = {
     "canceled":         {"bg": "#8c2f2f", "fg": "#f5f5f5"},
 }
 
+# Exact hex values from modules/command/sitrep/panel.py's _STATUS_COLORS
+# dict (hardcoded there, no light variant, same violation pattern as
+# objectives' colors were) -- promoted here as the canonical source.
+SITREP_STATUS: Dict[str, Dict[str, str]] = {
+    "draft":              {"bg": "#888888", "fg": "#f5f5f5"},
+    "ready_for_review":   {"bg": "#d4a017", "fg": "#1a1a1a"},
+    "needs_revision":     {"bg": "#c0392b", "fg": "#f5f5f5"},
+    "approved":           {"bg": "#27ae60", "fg": "#f5f5f5"},
+    "distributed":        {"bg": "#2980b9", "fg": "#f5f5f5"},
+    "archived":           {"bg": "#7f8c8d", "fg": "#1a1a1a"},
+}
+
 # Planning / Tactics & Resources module — Work Assignment planning status,
 # safety status, and priority chips (strategy board and detail window).
 WA_PLANNING_STATUS: Dict[str, Dict[str, str]] = {
@@ -411,6 +423,7 @@ __all__ = [
     "OBJECTIVE_PRIORITY",
     "OPERATIONAL_PERIOD_STATUS",
     "MEETING_STATUS",
+    "SITREP_STATUS",
     "NARRATIVE_STATUS",
     "CONNECTION_STATUS",
     "WEATHER_SEVERITY",
