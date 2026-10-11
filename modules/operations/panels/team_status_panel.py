@@ -14,7 +14,6 @@ from PySide6.QtWidgets import (
     QDialog,
     QWidgetAction,
     QSpinBox,
-    QButtonGroup,
 )
 from PySide6.QtCore import Qt, QTimer, QRect, QRectF, QEvent, QByteArray
 from PySide6.QtGui import QPainter, QPixmap, QColor, QBrush, QImage, QFont, QFontMetrics
@@ -256,26 +255,11 @@ from modules.statusboards.team_task_desk import get_team_task_desk
 
 
 
-_STATUS_CHIPS: list[tuple[str, str]] = [
-    ("all", "All"),
-    ("assigned", "Assigned"),
-    ("enroute", "En Route"),
-    ("available", "Available"),
-    ("needs_attention", "Needs Attention"),
-]
-
-
 class TeamStatusPanel(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
 
         layout = QVBoxLayout(self)
-        self._status_chip: str = "all"
-
-        self._kpi_strip, self._kpi_value_labels = self._build_kpi_strip()
-        layout.addWidget(self._kpi_strip)
-        layout.addWidget(self._build_chip_row())
-
         # Header actions
         header_bar = QWidget()
         hb = QHBoxLayout(header_bar)
@@ -977,105 +961,10 @@ class TeamStatusPanel(QWidget):
             self._update_thresholds_from_config()
             self.table.setRowCount(0)
             rows = self._apply_filters(rows)
-            self._update_kpis(rows)
-            rows = self._apply_status_chip(rows)
             for data in rows:
                 self._add_team_row(data)
         except Exception as e:
             QMessageBox.critical(self, "Team Board Error", f"Failed to render team assignments:\n{e}")
-
-    # --------------------------- KPI strip / status chips --------------------------- #
-    def _build_kpi_strip(self) -> tuple[QWidget, dict[str, "QLabel"]]:
-        from PySide6.QtWidgets import QLabel, QFrame
-
-        strip = QWidget()
-        row = QHBoxLayout(strip)
-        row.setContentsMargins(0, 0, 0, 8)
-        row.setSpacing(8)
-
-        tiles = [
-            ("total", "Teams"),
-            ("assigned", "Assigned"),
-            ("enroute", "En Route"),
-            ("available", "Available"),
-            ("needs_attention", "Needs Attention"),
-        ]
-        value_labels: dict[str, QLabel] = {}
-        for key, label_text in tiles:
-            tile = QFrame()
-            tile.setObjectName("KpiTile")
-            tile.setProperty("kpiKey", key)
-            tile_layout = QVBoxLayout(tile)
-            tile_layout.setContentsMargins(10, 6, 10, 6)
-            tile_layout.setSpacing(0)
-            value_lbl = QLabel("0")
-            value_lbl.setObjectName("KpiValue")
-            caption_lbl = QLabel(label_text)
-            caption_lbl.setObjectName("KpiCaption")
-            tile_layout.addWidget(value_lbl)
-            tile_layout.addWidget(caption_lbl)
-            row.addWidget(tile)
-            value_labels[key] = value_lbl
-        row.addStretch(1)
-        return strip, value_labels
-
-    def _build_chip_row(self) -> QWidget:
-        chip_row = QWidget()
-        hb = QHBoxLayout(chip_row)
-        hb.setContentsMargins(0, 0, 0, 8)
-        hb.setSpacing(6)
-
-        self._chip_group = QButtonGroup(chip_row)
-        self._chip_group.setExclusive(True)
-        for key, label_text in _STATUS_CHIPS:
-            btn = QToolButton(chip_row)
-            btn.setObjectName("StatusChip")
-            btn.setText(label_text)
-            btn.setCheckable(True)
-            btn.setChecked(key == self._status_chip)
-            btn.clicked.connect(lambda checked, k=key: self._set_status_chip(k))
-            self._chip_group.addButton(btn)
-            hb.addWidget(btn)
-        hb.addStretch(1)
-        return chip_row
-
-    def _set_status_chip(self, key: str) -> None:
-        if key == self._status_chip:
-            return
-        self._status_chip = key
-        self.reload()
-
-    def _row_alert_kind(self, data: dict) -> str:
-        try:
-            status_key = str(data.get("status", "") or "").strip().lower()
-            payload = self._build_alert_payload(data, status_key)
-            state = self._icon_delegate._state_from_payload(payload)
-            if state is None:
-                return AlertKind.NONE
-            return compute_alert_kind(state, now=self._now_provider(), thresholds=self._thresholds)
-        except Exception:
-            return AlertKind.NONE
-
-    def _apply_status_chip(self, rows: list[dict]) -> list[dict]:
-        key = self._status_chip
-        if key == "all":
-            return rows
-        if key == "needs_attention":
-            return [r for r in rows if self._row_alert_kind(r) != AlertKind.NONE]
-        return [r for r in rows if str(r.get("status", "") or "").strip().lower() == key]
-
-    def _update_kpis(self, rows: list[dict]) -> None:
-        if not getattr(self, "_kpi_value_labels", None):
-            return
-        counts = {"total": len(rows), "assigned": 0, "enroute": 0, "available": 0, "needs_attention": 0}
-        for r in rows:
-            status_key = str(r.get("status", "") or "").strip().lower()
-            if status_key in ("assigned", "enroute", "available"):
-                counts[status_key] += 1
-            if self._row_alert_kind(r) != AlertKind.NONE:
-                counts["needs_attention"] += 1
-        for key, lbl in self._kpi_value_labels.items():
-            lbl.setText(str(counts.get(key, 0)))
 
     # --------------------------- Filters / Presets --------------------------- #
     def _open_filters_dialog(self) -> None:

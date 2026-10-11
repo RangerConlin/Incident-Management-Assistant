@@ -22,12 +22,8 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QInputDialog,
     QFileDialog,
-    QToolBar,
-    QToolButton,
-    QButtonGroup,
-    QSizePolicy,
 )
-from PySide6.QtGui import QAction, QActionGroup, QKeySequence, QPalette, QColor, QFont, QFontInfo
+from PySide6.QtGui import QAction, QActionGroup, QKeySequence, QPalette, QColor
 from PySide6.QtCore import Qt, QUrl, QSettings, QTimer, QObject, QEvent
 from PySide6QtAds import (
     CDockManager,
@@ -521,14 +517,6 @@ class MainWindow(QMainWindow):
 
         # Build the physical menu bar (visible UI)
         self.init_module_menus()
-
-        # Fast primary nav: one icon per module, jumps straight to its main
-        # dashboard via the same open_module() router every menu action uses.
-        # Added alongside the full menus (not a replacement for them) since
-        # the menus are the only path to a module's non-dashboard panels
-        # (e.g. Command's IAP Builder, ICS-209) and removing them would cut
-        # off that access with no visual way to verify the regression here.
-        self._build_module_rail()
 
         # Fill the empty right portion of the menu bar so it paints the same
         # background color as the rest of the bar (Windows 11 leaves it white).
@@ -1062,62 +1050,6 @@ class MainWindow(QMainWindow):
 
         self._refresh_toolkit_menu_gates()
         # you can toggle feature availability here, e.g.: {"planned.promotions": False}
-
-    # Module key, short rail glyph (no icon asset system exists yet — see
-    # agents.md's no-hardcoded-color rule for why this stays text, not a
-    # color-coded icon), tooltip, and the open_module() key for that
-    # module's primary dashboard.
-    _MODULE_RAIL_ENTRIES: list[tuple[str, str, str]] = [
-        ("HM", "Home", "window.home_dashboard"),
-        ("CM", "Command", "command.incident_dashboard"),
-        ("PL", "Planning", "planning.glance"),
-        ("OP", "Operations", "operations.dashboard"),
-        ("LG", "Logistics", "logistics.dashboard"),
-        ("CO", "Communications", "comms.log_board"),
-        ("IN", "Intel", "intel.dashboard"),
-        ("MS", "Medical && Safety", "safety.risk_manager"),
-        ("LI", "Liaison", "liaison.dashboard"),
-        ("PI", "Public Information", "public.dashboard"),
-        ("FA", "Finance/Admin", "finance.dashboard"),
-        ("TK", "Toolkits", "toolkit.projection_dashboard"),
-        ("RL", "Reference Library", "library"),
-    ]
-
-    def _build_module_rail(self) -> None:
-        """Persistent left icon rail: one click to a module's main dashboard.
-
-        Lives in a real QToolBar docked to the left of the QMainWindow, so it
-        sits outside/around the ADS CDockManager's own central area and never
-        competes with ADS for dock space. Every button routes through the
-        same open_module() central router every menu action already uses, so
-        it reuses existing panel-factory wiring instead of duplicating it.
-        """
-        rail = QToolBar("Module Navigation", self)
-        rail.setObjectName("ModuleRail")
-        rail.setMovable(False)
-        rail.setFloatable(False)
-        rail.setOrientation(Qt.Vertical)
-        rail.setToolButtonStyle(Qt.ToolButtonTextOnly)
-
-        group = QButtonGroup(rail)
-        group.setExclusive(True)
-
-        for glyph, label, module_key in self._MODULE_RAIL_ENTRIES:
-            btn = QToolButton(rail)
-            btn.setObjectName("ModuleRailButton")
-            btn.setText(glyph)
-            btn.setToolTip(label)
-            btn.setCheckable(True)
-            btn.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-            btn.setFixedSize(36, 36)
-            btn.clicked.connect(lambda checked, k=module_key: self.open_module(k))
-            group.addButton(btn)
-            rail.addWidget(btn)
-            if glyph == "HM":
-                btn.setChecked(True)
-
-        self.addToolBar(Qt.LeftToolBarArea, rail)
-        self._module_rail = rail
 
     def _gate_menus_by_availability(self, enabled_map: dict[str, bool]):
         """Grey-out actions whose module keys are disabled in enabled_map."""
@@ -4183,14 +4115,6 @@ if __name__ == "__main__":
 
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
-    # Explicit app-wide font: Fusion falls back to the platform's default
-    # (e.g. "MS Shell Dlg 2" on Windows), which renders larger/coarser than
-    # Segoe UI and inflates every table/list row height. Segoe UI at 9pt
-    # keeps row heights compact so tables fit more rows without scrolling.
-    _app_font = QFont("Segoe UI", 9)
-    if not QFontInfo(_app_font).exactMatch():
-        _app_font = QFont("Arial", 9)
-    app.setFont(_app_font)
     _size_title_filter = _WindowSizeTitleFilter()
     app.installEventFilter(_size_title_filter)
 
