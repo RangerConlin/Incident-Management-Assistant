@@ -54,17 +54,30 @@ def run_one_tick() -> dict[str, Any]:
     from sarapp_db.sync import config
 
     if not config.sync_enabled():
-        return {"enabled": False, "pull_failed_collections": [], "outbox_failed_count": 0}
-    drain_result = drain_outbox()
+        return {"enabled": False, "pull_failed_collections": [], "outbox_failed_count": 0, "errors": []}
+    errors: list[dict[str, str]] = []
+    try:
+        drain_result = drain_outbox()
+    except Exception as exc:
+        logger.exception("Central sync outbox drain failed.")
+        drain_result = {"sent_count": 0, "failed_count": 1}
+        errors.append({"phase": "drain_outbox", "collection": "", "error": str(exc)})
     pull_failed_collections: list[str] = []
     for collection in config.SYNCABLE_MASTER_COLLECTIONS:
-        if not pull_and_apply(collection):
+        try:
+            pulled = pull_and_apply(collection)
+        except Exception as exc:
+            logger.exception("Central sync pull/apply failed for %s.", collection)
+            pulled = False
+            errors.append({"phase": "pull_and_apply", "collection": collection, "error": str(exc)})
+        if not pulled:
             pull_failed_collections.append(collection)
     return {
         "enabled": True,
         "pull_failed_collections": pull_failed_collections,
         "outbox_failed_count": drain_result["failed_count"],
         "outbox_sent_count": drain_result["sent_count"],
+        "errors": errors,
     }
 
 

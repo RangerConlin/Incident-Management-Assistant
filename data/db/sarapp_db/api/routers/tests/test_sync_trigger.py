@@ -42,6 +42,62 @@ def test_resync_runs_a_tick_when_sync_enabled(monkeypatch) -> None:
     assert "personnel" in body["details"]["pull_failed_collections"]
 
 
+def test_resync_reports_failure_instead_of_500_when_tick_raises(monkeypatch) -> None:
+    monkeypatch.setenv("SARAPP_CENTRAL_MASTER_URL", "http://central-master.test")
+
+    def boom() -> dict:
+        raise RuntimeError("simulated sync crash")
+
+    monkeypatch.setattr("sarapp_db.sync.loop.run_one_tick", boom)
+
+    app = create_app()
+    with TestClient(app) as client:
+        response = client.post("/api/sync-trigger/resync")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["synced"] is False
+    assert "simulated sync crash" in body["reason"]
+
+
+def test_resync_reports_collection_error_details(monkeypatch) -> None:
+    monkeypatch.setenv("SARAPP_CENTRAL_MASTER_URL", "http://central-master.test")
+    monkeypatch.setattr(
+        "sarapp_db.sync.loop.run_one_tick",
+        lambda: {
+            "enabled": True,
+            "pull_failed_collections": ["vehicles"],
+            "outbox_failed_count": 0,
+            "outbox_sent_count": 0,
+            "errors": [{"phase": "pull_and_apply", "collection": "vehicles", "error": "bad vehicle doc"}],
+        },
+    )
+
+    app = create_app()
+    with TestClient(app) as client:
+        response = client.post("/api/sync-trigger/resync")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["synced"] is False
+    assert "vehicles" in body["reason"]
+    assert "bad vehicle doc" in body["reason"]
+
+
+def test_resync_reports_failure_instead_of_500_for_legacy_tick_return(monkeypatch) -> None:
+    monkeypatch.setenv("SARAPP_CENTRAL_MASTER_URL", "http://central-master.test")
+    monkeypatch.setattr("sarapp_db.sync.loop.run_one_tick", lambda: None)
+
+    app = create_app()
+    with TestClient(app) as client:
+        response = client.post("/api/sync-trigger/resync")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["synced"] is False
+    assert "did not return a status summary" in body["reason"]
+
+
 def test_sync_trigger_router_absent_in_master_only_mode() -> None:
     app = create_app(mode="master_only")
     paths = {route.path for route in app.routes}
