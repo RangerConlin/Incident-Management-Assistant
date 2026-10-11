@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Body, HTTPException, Query
@@ -11,6 +10,7 @@ from pydantic import BaseModel
 from sarapp_db.mongo.database_manager import get_master_db
 from sarapp_db.mongo.collection_names import MasterCollections
 from sarapp_db.mongo.int_id import _ensure_record_ids, dual_key_field, next_record_id
+from sarapp_db.mongo.repository import BaseRepository
 from sarapp_db.sync.readthrough import refresh_collection_before_read
 
 router = APIRouter()
@@ -22,16 +22,17 @@ _DEFAULT_STATUSES = ["Available", "In Service", "Out of Service", "Retired"]
 _DEFAULT_TYPES = ["Passenger Vehicle", "Utility", "Support", "Other"]
 
 
-def _col():
-    return get_master_db()[MasterCollections.VEHICLES]
+class VehicleRepository(BaseRepository):
+    collection_name = MasterCollections.VEHICLES
+    soft_deletes = False
 
 
-def _record_field(col) -> str:
-    return dual_key_field(col.database, _RECORD_FIELD, _MASTER_RECORD_FIELD)
+def _repo() -> VehicleRepository:
+    return VehicleRepository(get_master_db())
 
 
-def _utcnow() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+def _record_field(repo: VehicleRepository) -> str:
+    return dual_key_field(repo._db, _RECORD_FIELD, _MASTER_RECORD_FIELD)
 
 
 def _normalize(doc: dict[str, Any]) -> dict[str, Any]:
@@ -43,8 +44,8 @@ def _normalize(doc: dict[str, Any]) -> dict[str, Any]:
     return d
 
 
-def _find_by_record(col, vehicle_record: int) -> dict[str, Any] | None:
-    return col.find_one({_record_field(col): vehicle_record})
+def _find_by_record(repo: VehicleRepository, vehicle_record: int) -> dict[str, Any] | None:
+    return repo.find_one({_record_field(repo): vehicle_record})
 
 
 @router.get("")
@@ -54,14 +55,14 @@ def list_vehicles(
     type_filter: str = Query(""),
 ) -> list[dict[str, Any]]:
     refresh_collection_before_read(MasterCollections.VEHICLES)
-    col = _col()
-    _ensure_record_ids(col, _record_field(col))
+    repo = _repo()
+    _ensure_record_ids(repo._col, _record_field(repo))
     query: dict[str, Any] = {}
     if status_filter:
         query["status_id"] = status_filter
     if type_filter:
         query["type_id"] = type_filter
-    docs = list(col.find(query).sort("vehicle_id", 1))
+    docs = repo.find_many(query, sort=[("vehicle_id", 1)])
     if search.strip():
         t = search.strip().lower()
         docs = [
@@ -78,8 +79,8 @@ def list_vehicles(
 
 @router.get("/types")
 def list_vehicle_types() -> list[dict[str, Any]]:
-    col = _col()
-    values = col.distinct("type_id", {"type_id": {"$nin": [None, ""]}})
+    repo = _repo()
+    values = repo._col.distinct("type_id", {"type_id": {"$nin": [None, ""]}})
     entries = [{"id": v, "name": v} for v in sorted(values) if v]
     if not entries:
         entries = [{"id": t, "name": t} for t in _DEFAULT_TYPES]
@@ -88,8 +89,8 @@ def list_vehicle_types() -> list[dict[str, Any]]:
 
 @router.get("/statuses")
 def list_vehicle_statuses() -> list[dict[str, Any]]:
-    col = _col()
-    values = col.distinct("status_id", {"status_id": {"$nin": [None, ""]}})
+    repo = _repo()
+    values = repo._col.distinct("status_id", {"status_id": {"$nin": [None, ""]}})
     seen = {v for v in values if v}
     entries = [{"id": v, "name": v} for v in sorted(seen)]
     for default in _DEFAULT_STATUSES:
@@ -101,7 +102,7 @@ def list_vehicle_statuses() -> list[dict[str, Any]]:
 @router.get("/{vehicle_record}")
 def get_vehicle(vehicle_record: int) -> dict[str, Any]:
     refresh_collection_before_read(MasterCollections.VEHICLES)
-    doc = _find_by_record(_col(), vehicle_record)
+    doc = _find_by_record(_repo(), vehicle_record)
     if not doc:
         raise HTTPException(status_code=404, detail="Vehicle not found")
     return _normalize(doc)
@@ -124,18 +125,13 @@ class VehicleBody(BaseModel):
 
 @router.post("", status_code=201)
 def create_vehicle(body: VehicleBody) -> dict[str, Any]:
-    col = _col()
-    field = _record_field(col)
-    next_id = next_record_id(col, field)
-    now = _utcnow()
+    repo = _repo()
+    field = _record_field(repo)
     doc: dict[str, Any] = {
-        field: next_id,
+        field: next_record_id(repo._col, field),
         **body.model_dump(),
-        "created_at": now,
-        "updated_at": now,
     }
-    col.insert_one(doc)
-    doc.pop("_id", None)
+    doc = repo.insert_one(doc)
     return _normalize(doc)
 
 
@@ -143,24 +139,23 @@ def create_vehicle(body: VehicleBody) -> dict[str, Any]:
 def update_vehicle(
     vehicle_record: int, body: dict[str, Any] = Body(...)
 ) -> dict[str, Any]:
-    col = _col()
-    existing = _find_by_record(col, vehicle_record)
+    repo = _repo()
+    existing = _find_by_record(repo, vehicle_record)
     if not existing:
         raise HTTPException(status_code=404, detail="Vehicle not found")
 
     body.pop(_RECORD_FIELD, None)
     body.pop(_MASTER_RECORD_FIELD, None)
     body.pop("_id", None)
-    body["updated_at"] = _utcnow()
-    col.update_one({"_id": existing["_id"]}, {"$set": body})
-    doc = col.find_one({"_id": existing["_id"]})
+    repo.update_one(existing["_id"], body)
+    doc = repo.find_by_id(existing["_id"])
     return _normalize(doc)
 
 
 @router.delete("/{vehicle_record}", status_code=204)
 def delete_vehicle(vehicle_record: int) -> None:
-    col = _col()
-    existing = _find_by_record(col, vehicle_record)
+    repo = _repo()
+    existing = _find_by_record(repo, vehicle_record)
     if not existing:
         raise HTTPException(status_code=404, detail="Vehicle not found")
-    col.delete_one({"_id": existing["_id"]})
+    repo.delete_one(existing["_id"])

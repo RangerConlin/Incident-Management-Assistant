@@ -42,6 +42,11 @@ class _LocalEquipmentRepository(BaseRepository):
     soft_deletes = False
 
 
+class _LocalVehicleRepository(BaseRepository):
+    collection_name = "vehicles"
+    soft_deletes = False
+
+
 class _LocalMeetingTemplatesRepository(BaseRepository):
     collection_name = "meeting_templates"
     soft_deletes = False
@@ -201,6 +206,44 @@ def test_push_assigns_equipment_record_master_once(sync_env):
     central_doc = _central_db()["equipment"].find_one({"_id": saved["_id"]})
     assert central_doc is not None
     assert isinstance(central_doc["equipment_record_master"], int)
+
+
+def test_vehicle_router_writes_relay_to_central(sync_env, monkeypatch):
+    """Vehicle API writes must go through BaseRepository like personnel and
+    equipment, otherwise local vehicle edits bypass the central-sync outbox.
+    """
+    from sarapp_db.api.routers import vehicles as vehicles_router
+
+    monkeypatch.setattr(vehicles_router, "get_master_db", _local_db)
+
+    saved = vehicles_router.create_vehicle(
+        vehicles_router.VehicleBody(
+            vehicle_id="Unit 12",
+            make="Ford",
+            model="F-150",
+            status_id="Available",
+        )
+    )
+
+    central_doc = _central_db()["vehicles"].find_one({"vehicle_id": "Unit 12"})
+    assert central_doc is not None
+    assert central_doc["make"] == "Ford"
+    assert isinstance(saved["vehicle_record"], int)
+    assert saved.get("vehicle_record_master") is None
+    assert isinstance(central_doc["vehicle_record_master"], int)
+    assert "vehicle_record" not in central_doc
+    assert outbox.list_pending(_system_db()) == []
+
+
+def test_vehicle_hard_delete_relays_as_tombstone(sync_env):
+    repo = _LocalVehicleRepository(_local_db())
+    saved = repo.insert_one({"vehicle_id": "Unit 13", "vehicle_record": 1})
+    assert _central_db()["vehicles"].find_one({"_id": saved["_id"]}) is not None
+
+    repo.delete_one(saved["_id"])
+
+    assert _central_db()["vehicles"].find_one({"_id": saved["_id"]}) is None
+    assert _central_db()["sync_tombstones"].find_one({"collection": "vehicles", "doc_id": saved["_id"]}) is not None
 
 
 def test_local_hard_delete_relays_as_tombstone_and_a_second_pull_removes_it_elsewhere(sync_env):

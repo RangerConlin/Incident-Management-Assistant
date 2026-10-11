@@ -12,7 +12,7 @@
 - Use **"incident"** everywhere, never "mission".
 - Do not create new git branches or forks without being instructed to.
 - Do not start or restart the mobile emulator without specific instructions to
-- Versioning is tracked per deployable component, not per file. The versioned components are the desktop client, LAN server, cloud server, cloud router, and web client. Start each at `0.0.1` when versioning is introduced, and increment the affected component version with each commit/change that modifies that component.
+- Versioning is tracked per deployable component, not per file. The versioned components are the desktop client, LAN server, cloud server, cloud router, and web client. Start each at `0.0.1` when versioning is introduced, and increment the affected component version with each commit/change that modifies that component. Each program/app must display its current component version somewhere in its footer/status area.
 
 ## Hard Rules
 - No new QML files. Treat existing QML-facing bridges/docstrings as legacy compatibility unless explicitly asked to remove or migrate them.
