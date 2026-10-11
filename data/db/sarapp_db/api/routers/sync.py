@@ -18,6 +18,7 @@ from fastapi import APIRouter, Body, Header, HTTPException, Query
 from sarapp_db.mongo.collection_names import MasterCollections
 from sarapp_db.mongo.database_manager import get_master_db
 from sarapp_db.mongo.int_id import next_record_id
+from sarapp_db.mongo.json_safe import json_safe
 from sarapp_db.sync.config import DUAL_KEY_RECORD_FIELDS, SYNCABLE_MASTER_COLLECTIONS
 from sarapp_db.sync.relay import apply_incoming
 
@@ -148,4 +149,5 @@ def pull(
     ]
 
     combined = sorted(docs + tombstones, key=lambda d: str(d.get("updated_at") or ""))[:_PULL_BATCH_LIMIT]
+    combined = [json_safe(doc) for doc in combined]
     return {"docs": combined}

@@ -246,6 +246,108 @@ def test_vehicle_hard_delete_relays_as_tombstone(sync_env):
     assert _central_db()["sync_tombstones"].find_one({"collection": "vehicles", "doc_id": saved["_id"]}) is not None
 
 
+def test_pull_serializes_legacy_vehicle_object_ids(sync_env):
+    """Vehicle rows created by the old raw-Mongo router can have ObjectId
+    primary keys. The central pull API must JSON-sanitize them instead of
+    failing the whole vehicle pull with a 500.
+    """
+    _central_db()["vehicles"].insert_one(
+        {
+            "vehicle_id": "Legacy Unit 14",
+            "vehicle_record_master": 14,
+            "make": "Ford",
+            "updated_at": "2026-01-03T00:00:00",
+        }
+    )
+
+    assert pull_and_apply("vehicles", local_master_db=_local_db()) is True
+
+    pulled = _local_db()["vehicles"].find_one({"vehicle_id": "Legacy Unit 14"})
+    assert pulled is not None
+    assert isinstance(pulled["_id"], str)
+    assert pulled["vehicle_record_master"] == 14
+    assert pulled["vehicle_record"] == 1
+
+
+def test_central_pull_serializes_legacy_object_ids_for_every_syncable_catalog(sync_env):
+    app = _central_app()
+    headers = {"x-sarapp-sync-token": TOKEN}
+
+    for collection in config.SYNCABLE_MASTER_COLLECTIONS:
+        _central_db()[collection].delete_many({"legacy_probe": True})
+        doc = {
+            "legacy_probe": True,
+            "name": f"Legacy {collection}",
+            "updated_at": "2026-01-04T00:00:00",
+        }
+        fields = config.DUAL_KEY_RECORD_FIELDS.get(collection)
+        if fields is not None:
+            _local_field, master_field = fields
+            doc[master_field] = 9001
+        if collection == "meeting_templates":
+            doc["slug"] = "legacy-probe"
+        _central_db()[collection].insert_one(doc)
+
+        try:
+            with TestClient(app) as client:
+                response = client.get(
+                    "/api/sync/pull",
+                    params={"collection": collection, "since": ""},
+                    headers=headers,
+                )
+
+            assert response.status_code == 200, collection
+            docs = [item for item in response.json()["docs"] if item.get("legacy_probe") is True]
+            assert docs, collection
+            assert isinstance(docs[0]["_id"], str)
+        finally:
+            _central_db()[collection].delete_many({"legacy_probe": True})
+
+
+def test_objective_template_router_writes_relay_to_central(sync_env, monkeypatch):
+    from sarapp_db.api.routers import objective_templates
+
+    monkeypatch.setattr(objective_templates, "get_master_db", _local_db)
+
+    saved = objective_templates.create_objective_template(
+        {
+            "code": "OBJ-1",
+            "title": "Search Area A",
+            "description": "Search the assigned area.",
+            "tags": ["search"],
+        }
+    )
+
+    central_doc = _central_db()["objective_templates"].find_one({"title": "Search Area A"})
+    assert central_doc is not None
+    assert saved.get("int_id_master") is None
+    assert isinstance(central_doc["int_id_master"], int)
+    assert "int_id" not in central_doc
+    assert outbox.list_pending(_system_db()) == []
+
+
+def test_strategy_template_router_writes_relay_to_central(sync_env, monkeypatch):
+    from sarapp_db.api.routers import strategy_templates
+
+    monkeypatch.setattr(strategy_templates, "get_master_db", _local_db)
+
+    saved = strategy_templates.create_strategy_template(
+        {
+            "objective_template_id": 1,
+            "title": "Grid Search",
+            "description": "Run a grid search.",
+            "tags": ["search"],
+        }
+    )
+
+    central_doc = _central_db()["strategy_templates"].find_one({"title": "Grid Search"})
+    assert central_doc is not None
+    assert saved.get("int_id_master") is None
+    assert isinstance(central_doc["int_id_master"], int)
+    assert "int_id" not in central_doc
+    assert outbox.list_pending(_system_db()) == []
+
+
 def test_local_hard_delete_relays_as_tombstone_and_a_second_pull_removes_it_elsewhere(sync_env):
     """equipment.delete_equipment hard-deletes locally. That delete must
     still reach the central database (as a tombstone, since a literal

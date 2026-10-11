@@ -8,7 +8,6 @@ any objective.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
@@ -16,6 +15,7 @@ from fastapi import APIRouter, HTTPException
 from sarapp_db.mongo.database_manager import get_master_db
 from sarapp_db.mongo.collection_names import MasterCollections
 from sarapp_db.mongo.int_id import _ensure_record_ids, dual_key_field, next_record_id
+from sarapp_db.mongo.repository import BaseRepository
 
 router = APIRouter()
 
@@ -23,16 +23,17 @@ _RECORD_FIELD = "int_id"
 _MASTER_RECORD_FIELD = "int_id_master"
 
 
-def _col():
-    return get_master_db()[MasterCollections.STRATEGY_TEMPLATES]
+class StrategyTemplatesRepository(BaseRepository):
+    collection_name = MasterCollections.STRATEGY_TEMPLATES
+    soft_deletes = False
 
 
-def _record_field(col) -> str:
-    return dual_key_field(col.database, _RECORD_FIELD, _MASTER_RECORD_FIELD)
+def _repo() -> StrategyTemplatesRepository:
+    return StrategyTemplatesRepository(get_master_db())
 
 
-def _now() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+def _record_field(repo: StrategyTemplatesRepository) -> str:
+    return dual_key_field(repo._db, _RECORD_FIELD, _MASTER_RECORD_FIELD)
 
 
 def _strip(doc: dict) -> dict:
@@ -51,9 +52,9 @@ def list_strategy_templates(
     objective_template_id: int | None = None,
     tag: str = "",
 ) -> list[dict[str, Any]]:
-    col = _col()
-    field = _record_field(col)
-    _ensure_record_ids(col, field)
+    repo = _repo()
+    field = _record_field(repo)
+    _ensure_record_ids(repo._col, field)
     query: dict[str, Any] = {}
     if not include_archived:
         query["active"] = {"$ne": False}
@@ -64,14 +65,14 @@ def list_strategy_templates(
         query["$or"] = [{"title": pattern}, {"description": pattern}]
     if tag:
         query["tags"] = tag.strip()
-    docs = list(col.find(query, sort=[("updated_at", -1), (field, -1)]))
+    docs = repo.find_many(query, sort=[("updated_at", -1), (field, -1)])
     return [_strip(d) for d in docs]
 
 
 @router.get("/tags")
 def list_tags() -> list[str]:
-    col = _col()
-    tags = col.distinct("tags", {"active": {"$ne": False}})
+    repo = _repo()
+    tags = repo._col.distinct("tags", {"active": {"$ne": False}})
     return sorted(t for t in tags if t)
 
 
@@ -81,12 +82,11 @@ def list_tags() -> list[str]:
 
 @router.post("", status_code=201)
 def create_strategy_template(body: dict[str, Any]) -> dict[str, Any]:
-    col = _col()
-    field = _record_field(col)
-    now = _now()
+    repo = _repo()
+    field = _record_field(repo)
     tags = [t.strip() for t in (body.get("tags") or []) if str(t).strip()]
     doc = {
-        field: next_record_id(col, field),
+        field: next_record_id(repo._col, field),
         "objective_template_id": body.get("objective_template_id"),
         "title": str(body.get("title") or ""),
         "description": str(body.get("description") or ""),
@@ -96,17 +96,15 @@ def create_strategy_template(body: dict[str, Any]) -> dict[str, Any]:
         "priority": body.get("priority") or "Normal",
         "active": body.get("active", True),
         "tags": tags,
-        "created_at": now,
-        "updated_at": now,
     }
-    col.insert_one(doc)
-    return _strip(doc)
+    saved = repo.insert_one(doc)
+    return _strip(saved)
 
 
 @router.get("/{template_id}")
 def get_strategy_template(template_id: int) -> dict[str, Any]:
-    col = _col()
-    doc = col.find_one({_record_field(col): template_id})
+    repo = _repo()
+    doc = repo.find_one({_record_field(repo): template_id})
     if not doc:
         raise HTTPException(404, f"Strategy template {template_id} not found")
     return _strip(doc)
@@ -114,8 +112,12 @@ def get_strategy_template(template_id: int) -> dict[str, Any]:
 
 @router.patch("/{template_id}")
 def update_strategy_template(template_id: int, body: dict[str, Any]) -> dict[str, Any]:
-    col = _col()
-    update: dict[str, Any] = {"updated_at": _now()}
+    repo = _repo()
+    field = _record_field(repo)
+    existing = repo.find_one({field: template_id})
+    if not existing:
+        raise HTTPException(404, f"Strategy template {template_id} not found")
+    update: dict[str, Any] = {}
     for field in (
         "objective_template_id", "title", "description", "assignment_kind",
         "branch", "division_group", "priority", "active",
@@ -124,33 +126,29 @@ def update_strategy_template(template_id: int, body: dict[str, Any]) -> dict[str
             update[field] = body[field]
     if "tags" in body:
         update["tags"] = [t.strip() for t in (body["tags"] or []) if str(t).strip()]
-    doc = col.find_one_and_update(
-        {_record_field(col): template_id},
-        {"$set": update},
-        return_document=True,
-    )
-    if not doc:
-        raise HTTPException(404, f"Strategy template {template_id} not found")
+    update.pop(_RECORD_FIELD, None)
+    update.pop(_MASTER_RECORD_FIELD, None)
+    repo.update_one(existing["_id"], update)
+    doc = repo.find_by_id(existing["_id"])
     return _strip(doc)
 
 
 @router.delete("/{template_id}", status_code=204)
 def delete_strategy_template(template_id: int) -> None:
-    col = _col()
-    result = col.delete_one({_record_field(col): template_id})
-    if result.deleted_count == 0:
+    repo = _repo()
+    existing = repo.find_one({_record_field(repo): template_id})
+    if not existing:
         raise HTTPException(404, f"Strategy template {template_id} not found")
+    repo.delete_one(existing["_id"])
 
 
 @router.patch("/{template_id}/active")
 def set_active(template_id: int, body: dict[str, Any]) -> dict[str, Any]:
-    col = _col()
+    repo = _repo()
     active = bool(body.get("active", True))
-    doc = col.find_one_and_update(
-        {_record_field(col): template_id},
-        {"$set": {"active": active, "updated_at": _now()}},
-        return_document=True,
-    )
-    if not doc:
+    existing = repo.find_one({_record_field(repo): template_id})
+    if not existing:
         raise HTTPException(404, f"Strategy template {template_id} not found")
+    repo.update_one(existing["_id"], {"active": active})
+    doc = repo.find_by_id(existing["_id"])
     return _strip(doc)

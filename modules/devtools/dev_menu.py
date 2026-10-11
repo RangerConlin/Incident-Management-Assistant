@@ -10,6 +10,7 @@ from PySide6.QtWidgets import QDialog, QVBoxLayout, QMessageBox, QInputDialog, Q
 
 from .panels.template_debug_panel import TemplateDebugPanel
 from .panels.profile_manager_panel import ProfileManagerPanel
+from .panels.notification_test_panel import NotificationTestPanel
 
 
 def attach_dev_menu(main_window):
@@ -81,6 +82,39 @@ def attach_dev_menu(main_window):
 
     act_forms.triggered.connect(_open_forms)
     dev_menu.addAction(act_forms)
+
+    # Notification Tester
+    act_notifications = QAction("Notification Tester…", main_window)
+
+    def _open_notifications():
+        try:
+            panel = NotificationTestPanel(parent=main_window)
+            dlg = QDialog(main_window)
+            dlg.setWindowTitle("Notification Tester")
+            dlg.setAttribute(Qt.WA_DeleteOnClose, True)
+
+            v = QVBoxLayout(dlg)
+            v.setContentsMargins(8, 8, 8, 8)
+            v.addWidget(panel)
+
+            dlg.resize(980, 720)
+            if not hasattr(main_window, "_devtools_dialogs"):
+                main_window._devtools_dialogs = []
+            main_window._devtools_dialogs.append(dlg)
+
+            def _forget_dialog(*_):
+                try:
+                    main_window._devtools_dialogs.remove(dlg)
+                except ValueError:
+                    pass
+
+            dlg.destroyed.connect(_forget_dialog)
+            dlg.show()
+        except Exception as e:
+            QMessageBox.critical(main_window, "Developer Tools", str(e))
+
+    act_notifications.triggered.connect(_open_notifications)
+    dev_menu.addAction(act_notifications)
 
     # Sync Local -> Cloud MongoDB (incident databases only — the master
     # catalog now syncs via the central-master relay, see
