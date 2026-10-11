@@ -56,6 +56,7 @@ __all__ = [
     "write_export_file",
     "make_sync_status_label",
     "make_resync_button",
+    "make_delete_all_button",
     "refresh_sync_status_label",
 ]
 
@@ -748,6 +749,100 @@ def make_resync_button(
         )
     )
     return button
+
+
+def make_delete_all_button(
+    owner: QObject,
+    collection: str,
+    *,
+    item_label: str,
+    refresh_callback: Callable[[], None] | None = None,
+    status_label: QLabel | None = None,
+) -> QPushButton:
+    """Build a local-only catalog reset button.
+
+    This calls the sync-trigger reset endpoint, not the collection's normal
+    delete route, so the clear does not propagate as central tombstones.
+    """
+    button = QPushButton("Delete All")
+    button.setToolTip(f"Delete all local {item_label} records and reset this catalog's sync checkpoint")
+    try:
+        from PySide6.QtWidgets import QStyle
+
+        style = owner.style() if hasattr(owner, "style") else None
+        if style is not None:
+            button.setIcon(style.standardIcon(QStyle.StandardPixmap.SP_TrashIcon))
+    except Exception:
+        pass
+    button.clicked.connect(
+        lambda: _run_local_catalog_reset(
+            owner,
+            button,
+            collection,
+            item_label=item_label,
+            refresh_callback=refresh_callback,
+            status_label=status_label,
+        )
+    )
+    return button
+
+
+def _run_local_catalog_reset(
+    owner: QObject,
+    button: QPushButton,
+    collection: str,
+    *,
+    item_label: str,
+    refresh_callback: Callable[[], None] | None,
+    status_label: QLabel | None,
+) -> None:
+    from utils.api_client import api_client
+
+    label = item_label.strip() or collection.replace("_", " ")
+    if QMessageBox.question(
+        button,
+        "Delete All Local Records",
+        (
+            f"Delete all local {label} records?\n\n"
+            "This clears only this server's local catalog and resets its sync checkpoint. "
+            "Central catalog records are not deleted."
+        ),
+        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        QMessageBox.StandardButton.No,
+    ) != QMessageBox.StandardButton.Yes:
+        return
+
+    def _task() -> dict[str, Any]:
+        return api_client.post(f"/api/sync-trigger/local-catalog/{collection}/reset") or {}
+
+    def _done(result: dict[str, Any]) -> None:
+        button.setEnabled(True)
+        button.setText("Delete All")
+        if refresh_callback is not None:
+            refresh_callback()
+        if status_label is not None:
+            refresh_sync_status_label(owner, status_label, collection)
+        try:
+            from utils.catalog_cache import catalog_cache
+
+            catalog_cache.invalidate()
+        except Exception:
+            pass
+        deleted_count = int(result.get("deleted_count") or 0)
+        QMessageBox.information(
+            button,
+            "Local Catalog Cleared",
+            f"Deleted {deleted_count} local {label} record(s). Use Resync to redownload from central.",
+        )
+
+    def _error(message: str) -> None:
+        button.setEnabled(True)
+        button.setText("Delete All")
+        QMessageBox.critical(button, "Delete All Failed", message)
+
+    button.setEnabled(False)
+    button.setText("Deleting...")
+    run_async(owner, _task, _done, _error)
 
 
 def _run_catalog_resync(

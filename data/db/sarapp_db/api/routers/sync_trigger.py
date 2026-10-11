@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -69,3 +69,33 @@ def sync_status() -> dict[str, Any]:
     from sarapp_db.sync.status import get_sync_status
 
     return get_sync_status()
+
+
+@router.post("/local-catalog/{collection}/reset")
+def reset_local_catalog(collection: str) -> dict[str, Any]:
+    """Clear one local master catalog so it can be rebuilt from central.
+
+    This intentionally bypasses each collection's ordinary DELETE route:
+    a local reset must not relay tombstones back to the central master.
+    """
+    from sarapp_db.mongo.collection_names import SystemCollections
+    from sarapp_db.mongo.database_manager import get_master_db, get_system_db, is_central_master_db
+    from sarapp_db.sync import checkpoint, config
+
+    if collection not in config.SYNCABLE_MASTER_COLLECTIONS:
+        raise HTTPException(status_code=404, detail=f"'{collection}' is not a resettable sync catalog")
+
+    master_db = get_master_db()
+    if is_central_master_db(master_db):
+        raise HTTPException(status_code=400, detail="Local catalog reset is not available on the central master")
+
+    result = master_db[collection].delete_many({})
+    system_db = get_system_db()
+    checkpoint.clear_last_pulled_at(system_db, collection)
+    outbox_result = system_db[SystemCollections.SYNC_STATE].delete_many({"collection": collection})
+    return {
+        "reset": True,
+        "collection": collection,
+        "deleted_count": int(result.deleted_count),
+        "cleared_outbox_count": int(outbox_result.deleted_count),
+    }

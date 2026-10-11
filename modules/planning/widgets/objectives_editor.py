@@ -58,7 +58,12 @@ from modules.planning.models.objectives_dao import (
     ObjectiveTemplate,
     ObjectivesDAO,
 )
-from utils.edit_window_kit import make_resync_button, make_sync_status_label, refresh_sync_status_label
+from utils.edit_window_kit import (
+    make_delete_all_button,
+    make_resync_button,
+    make_sync_status_label,
+    refresh_sync_status_label,
+)
 
 
 TAG_SEPARATOR = ", "
@@ -364,6 +369,14 @@ class ObjectivesEditor(_QMainWindow):
             refresh_callback=self._refresh_table,
         )
         table_layout.addWidget(self.resync_button)
+        self.delete_all_button = make_delete_all_button(
+            self,
+            "objective_templates",
+            item_label="objective templates",
+            refresh_callback=self._refresh_table,
+            status_label=self.sync_status_label,
+        )
+        table_layout.addWidget(self.delete_all_button)
 
         self._table = QTableView()
         self._table.setModel(self._model)

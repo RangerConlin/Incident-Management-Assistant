@@ -14,6 +14,7 @@ from pymongo.database import Database
 from pymongo.errors import OperationFailure
 
 from sarapp_db.mongo.collection_names import IncidentCollections, MasterCollections
+from sarapp_db.mongo.database_manager import is_central_master_db
 
 logger = logging.getLogger(__name__)
 
@@ -445,7 +446,12 @@ def _create_personnel_indexes(master_db: Database) -> None:
     personnel = master_db[MasterCollections.PERSONNEL]
     # Drop stale unique index from old schema that used personnel_id instead of person_id
     _drop_index_if_exists(personnel, "personnel_id_1")
-    _ensure_index(personnel, [("person_record", ASCENDING)], unique=True)
+    _ensure_dual_key_record_index(
+        master_db,
+        personnel,
+        local_field="person_record",
+        master_field="person_record_master",
+    )
     _ensure_index(personnel, [("last_name", ASCENDING)])
     _ensure_index(personnel, [("organization", ASCENDING)])
     _ensure_index(personnel, [("status", ASCENDING)])
@@ -499,7 +505,12 @@ def _create_hazard_types_indexes(master_db: Database) -> None:
 
 def _create_vehicles_indexes(master_db: Database) -> None:
     vehicles = master_db[MasterCollections.VEHICLES]
-    _ensure_index(vehicles, [("vehicle_record", ASCENDING)], unique=True)
+    _ensure_dual_key_record_index(
+        master_db,
+        vehicles,
+        local_field="vehicle_record",
+        master_field="vehicle_record_master",
+    )
     _ensure_index(vehicles, [("vehicle_id", ASCENDING)])
     _ensure_index(vehicles, [("organization", ASCENDING)])
     _ensure_index(vehicles, [("status_id", ASCENDING)])
@@ -508,7 +519,12 @@ def _create_vehicles_indexes(master_db: Database) -> None:
 
 def _create_aircraft_indexes(master_db: Database) -> None:
     aircraft = master_db[MasterCollections.AIRCRAFT]
-    _ensure_index(aircraft, [("aircraft_record", ASCENDING)], unique=True)
+    _ensure_dual_key_record_index(
+        master_db,
+        aircraft,
+        local_field="aircraft_record",
+        master_field="aircraft_record_master",
+    )
     _ensure_index(aircraft, [("agency", ASCENDING)])
     _ensure_index(aircraft, [("status", ASCENDING)])
     _ensure_index(aircraft, [("aircraft_type", ASCENDING)])
@@ -516,7 +532,12 @@ def _create_aircraft_indexes(master_db: Database) -> None:
 
 def _create_equipment_indexes(master_db: Database) -> None:
     equipment = master_db[MasterCollections.EQUIPMENT]
-    _ensure_index(equipment, [("equipment_record", ASCENDING)], unique=True)
+    _ensure_dual_key_record_index(
+        master_db,
+        equipment,
+        local_field="equipment_record",
+        master_field="equipment_record_master",
+    )
     _ensure_index(equipment, [("agency", ASCENDING)])
     _ensure_index(equipment, [("status", ASCENDING)])
     _ensure_index(equipment, [("equipment_type", ASCENDING)])
@@ -526,6 +547,23 @@ def _create_push_token_indexes(master_db: Database) -> None:
     tokens = master_db[MasterCollections.PUSH_TOKENS]
     _ensure_index(tokens, [("token", ASCENDING)], unique=True)
     _ensure_index(tokens, [("person_record", ASCENDING)])
+
+
+def _ensure_dual_key_record_index(
+    master_db: Database,
+    collection,
+    *,
+    local_field: str,
+    master_field: str,
+) -> None:
+    """Use local ids in local catalogs and master ids in the central catalog."""
+    if is_central_master_db(master_db):
+        _drop_index_if_exists(collection, f"{local_field}_1")
+        _ensure_index(collection, [(master_field, ASCENDING)], unique=True, sparse=True)
+        return
+
+    _drop_index_if_exists(collection, f"{master_field}_1")
+    _ensure_index(collection, [(local_field, ASCENDING)], unique=True)
 
 
 def _create_sitrep_indexes(incident_db: Database) -> None:

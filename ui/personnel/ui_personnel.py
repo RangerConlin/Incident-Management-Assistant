@@ -32,6 +32,7 @@ from utils.edit_window_kit import (
     FieldSpec,
     ImportWizard,
     default_export_directory as _default_export_directory,
+    make_delete_all_button,
     make_sync_status_label,
     refresh_sync_status_label,
     run_async,
@@ -974,6 +975,15 @@ class PersonnelInventoryWindow(QtWidgets.QWidget):
 
         self.sync_status_label = make_sync_status_label()
         header.addWidget(self.sync_status_label)
+
+        self.delete_all_button = make_delete_all_button(
+            self,
+            "personnel",
+            item_label="personnel",
+            refresh_callback=self.refresh,
+            status_label=self.sync_status_label,
+        )
+        header.addWidget(self.delete_all_button)
 
         card_layout.addLayout(header)
 

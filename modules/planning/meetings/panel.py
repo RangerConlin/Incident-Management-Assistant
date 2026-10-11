@@ -30,7 +30,12 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from utils.edit_window_kit import make_resync_button, make_sync_status_label, refresh_sync_status_label
+from utils.edit_window_kit import (
+    make_delete_all_button,
+    make_resync_button,
+    make_sync_status_label,
+    refresh_sync_status_label,
+)
 from utils.table_view_styles import apply_statusboard_table_behavior
 
 logger = logging.getLogger(__name__)
@@ -758,6 +763,14 @@ class _TemplateManagerWindow(QDialog):
             refresh_callback=self._load_list,
         )
         left_layout.addWidget(self.resync_button)
+        self.delete_all_button = make_delete_all_button(
+            self,
+            "meeting_templates",
+            item_label="meeting templates",
+            refresh_callback=self._load_list,
+            status_label=self.sync_status_label,
+        )
+        left_layout.addWidget(self.delete_all_button)
         left.setFixedWidth(200)
         meeting_root.addWidget(left)
 

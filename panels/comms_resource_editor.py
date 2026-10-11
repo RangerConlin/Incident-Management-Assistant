@@ -8,7 +8,12 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from utils.edit_window_kit import make_resync_button, make_sync_status_label, refresh_sync_status_label
+from utils.edit_window_kit import (
+    make_delete_all_button,
+    make_resync_button,
+    make_sync_status_label,
+    refresh_sync_status_label,
+)
 
 log = logging.getLogger(__name__)
 
@@ -301,6 +306,14 @@ class CommsResourceEditor(QtWidgets.QMainWindow):
             refresh_callback=self.refresh,
         )
         tb.addWidget(self.resync_button)
+        self.delete_all_button = make_delete_all_button(
+            self,
+            "radio_channels",
+            item_label="radio channels",
+            refresh_callback=self.refresh,
+            status_label=self.sync_status_label,
+        )
+        tb.addWidget(self.delete_all_button)
 
         tb.addStretch(1)
         tb.addWidget(QtWidgets.QLabel("Search:"))

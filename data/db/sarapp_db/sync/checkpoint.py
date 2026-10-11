@@ -19,3 +19,7 @@ def set_last_pulled_at(system_db: Database, collection: str, timestamp: str) -> 
     system_db[SystemCollections.SYNC_PULL_CHECKPOINTS].update_one(
         {"_id": collection}, {"$set": {"last_pulled_at": timestamp}}, upsert=True
     )
+
+
+def clear_last_pulled_at(system_db: Database, collection: str) -> None:
+    system_db[SystemCollections.SYNC_PULL_CHECKPOINTS].delete_one({"_id": collection})

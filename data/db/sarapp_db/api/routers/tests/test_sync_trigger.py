@@ -15,6 +15,8 @@ os.environ.setdefault("SARAPP_MONGO_URI", "mongodb://localhost:27017")
 from fastapi.testclient import TestClient
 
 from sarapp_db.api.app import create_app
+from sarapp_db.mongo.database_manager import get_master_db, get_system_db
+from sarapp_db.mongo.collection_names import SystemCollections
 
 
 def test_resync_reports_not_configured_when_sync_disabled(monkeypatch) -> None:
@@ -102,3 +104,43 @@ def test_sync_trigger_router_absent_in_master_only_mode() -> None:
     app = create_app(mode="master_only")
     paths = {route.path for route in app.routes}
     assert "/api/sync-trigger/resync" not in paths
+
+
+def test_reset_local_catalog_clears_collection_checkpoint_and_outbox(monkeypatch) -> None:
+    monkeypatch.delenv("SARAPP_MASTER_DB_NAME", raising=False)
+    collection = "personnel"
+    master_db = get_master_db()
+    system_db = get_system_db()
+    master_db[collection].delete_many({})
+    system_db[SystemCollections.SYNC_PULL_CHECKPOINTS].delete_many({"_id": collection})
+    system_db[SystemCollections.SYNC_STATE].delete_many({"collection": collection})
+    master_db[collection].insert_many(
+        [
+            {"_id": "reset-person-1", "person_record": 1, "name": "Reset One"},
+            {"_id": "reset-person-2", "person_record": 2, "name": "Reset Two"},
+        ]
+    )
+    system_db[SystemCollections.SYNC_PULL_CHECKPOINTS].insert_one(
+        {"_id": collection, "last_pulled_at": "2026-01-01T00:00:00+00:00"}
+    )
+    system_db[SystemCollections.SYNC_STATE].insert_one(
+        {"_id": "queued-reset-person", "collection": collection, "doc_id": "reset-person-1"}
+    )
+
+    try:
+        app = create_app()
+        with TestClient(app) as client:
+            response = client.post(f"/api/sync-trigger/local-catalog/{collection}/reset")
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["reset"] is True
+        assert body["deleted_count"] == 2
+        assert body["cleared_outbox_count"] == 1
+        assert master_db[collection].count_documents({}) == 0
+        assert system_db[SystemCollections.SYNC_PULL_CHECKPOINTS].find_one({"_id": collection}) is None
+        assert system_db[SystemCollections.SYNC_STATE].find_one({"collection": collection}) is None
+    finally:
+        master_db[collection].delete_many({"_id": {"$in": ["reset-person-1", "reset-person-2"]}})
+        system_db[SystemCollections.SYNC_PULL_CHECKPOINTS].delete_many({"_id": collection})
+        system_db[SystemCollections.SYNC_STATE].delete_many({"collection": collection})

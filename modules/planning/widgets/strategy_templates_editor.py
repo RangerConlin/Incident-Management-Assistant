@@ -35,7 +35,12 @@ from modules.planning.models.strategy_templates_dao import (
     StrategyTemplate,
     StrategyTemplatesDAO,
 )
-from utils.edit_window_kit import make_resync_button, make_sync_status_label, refresh_sync_status_label
+from utils.edit_window_kit import (
+    make_delete_all_button,
+    make_resync_button,
+    make_sync_status_label,
+    refresh_sync_status_label,
+)
 from utils.table_view_styles import apply_statusboard_table_behavior
 
 SETTINGS_GROUP = "Modules/Planning/StrategyTemplatesEditor"
@@ -97,6 +102,14 @@ class StrategyTemplatesEditor(QMainWindow):
             refresh_callback=self._reload,
         )
         table_layout.addWidget(self._resync_button)
+        self._delete_all_button = make_delete_all_button(
+            self,
+            "strategy_templates",
+            item_label="strategy templates",
+            refresh_callback=self._reload,
+            status_label=self._sync_status_label,
+        )
+        table_layout.addWidget(self._delete_all_button)
 
         self._table = QTableWidget(0, 4)
         self._table.setHorizontalHeaderLabels(["Title", "Objective Template", "Assignment Kind", "Priority"])

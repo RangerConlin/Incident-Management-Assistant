@@ -11,7 +11,12 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, QObject, Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QColor, QKeySequence, QShortcut, QTextDocument
-from utils.edit_window_kit import make_resync_button, make_sync_status_label, refresh_sync_status_label
+from utils.edit_window_kit import (
+    make_delete_all_button,
+    make_resync_button,
+    make_sync_status_label,
+    refresh_sync_status_label,
+)
 from utils.itemview_delegates import RowOutlineSelectionDelegate
 from PySide6.QtPrintSupport import QPrinter
 from PySide6.QtWidgets import (
@@ -1389,6 +1394,14 @@ class AircraftInventoryWindow(QMainWindow):
             refresh_callback=self._load_records,
         )
         toolbar.addWidget(self.resync_button)
+        self.delete_all_button = make_delete_all_button(
+            self,
+            "aircraft",
+            item_label="aircraft",
+            refresh_callback=self._load_records,
+            status_label=self.sync_status_label,
+        )
+        toolbar.addWidget(self.delete_all_button)
         layout.addLayout(toolbar)
 
         # Filters

@@ -18,6 +18,8 @@ from typing import Any, Literal
 
 from pymongo.database import Database
 
+from sarapp_db.mongo.database_manager import is_central_master_db
+from sarapp_db.mongo.int_id import next_record_id
 from sarapp_db.sync import config, outbox
 from sarapp_db.sync.central_client import push_delete, push_one
 
@@ -37,7 +39,13 @@ def _content_equal(a: dict[str, Any], b: dict[str, Any]) -> bool:
     return strip(a) == strip(b)
 
 
-def apply_incoming(db: Database, collection: str, doc: dict[str, Any]) -> ApplyResult:
+def apply_incoming(
+    db: Database,
+    collection: str,
+    doc: dict[str, Any],
+    *,
+    central_catalog: bool = False,
+) -> ApplyResult:
     """Apply one incoming document to `db[collection]`.
 
     Safe to call repeatedly with the same document (idempotent) —
@@ -61,9 +69,10 @@ def apply_incoming(db: Database, collection: str, doc: dict[str, Any]) -> ApplyR
     col = db[collection]
     doc_id = doc.get("_id")
     existing = col.find_one({"_id": doc_id}) if doc_id else None
+    doc = _normalize_dual_key_fields(db, collection, dict(doc), existing, central_catalog=central_catalog)
 
     if existing is None:
-        col.insert_one(dict(doc))
+        col.insert_one(doc)
         return "inserted"
 
     if _content_equal(existing, doc):
@@ -73,10 +82,44 @@ def apply_incoming(db: Database, collection: str, doc: dict[str, Any]) -> ApplyR
     existing_updated = str(existing.get("updated_at") or "")
 
     if incoming_updated >= existing_updated:
-        col.replace_one({"_id": doc_id}, dict(doc))
+        col.replace_one({"_id": doc_id}, doc)
         return "applied"
 
     return "skipped_same_or_older"
+
+
+def _normalize_dual_key_fields(
+    db: Database,
+    collection: str,
+    doc: dict[str, Any],
+    existing: dict[str, Any] | None,
+    *,
+    central_catalog: bool = False,
+) -> dict[str, Any]:
+    """Keep server-local record ids local while syncing shared documents.
+
+    Central documents carry the agency-wide `*_master` field. The paired
+    local field (`person_record`, `vehicle_record`, etc.) is unique only
+    inside one server's local catalog, so copying another server's value
+    causes duplicate-key failures and, worse, would make local URLs/foreign
+    keys ambiguous.
+    """
+    fields = config.DUAL_KEY_RECORD_FIELDS.get(collection)
+    if fields is None:
+        return doc
+
+    local_field, _master_field = fields
+    if central_catalog or is_central_master_db(db):
+        doc.pop(local_field, None)
+        return doc
+
+    if existing and existing.get(local_field) is not None:
+        doc[local_field] = existing[local_field]
+        return doc
+
+    doc.pop(local_field, None)
+    doc[local_field] = next_record_id(db[collection], local_field)
+    return doc
 
 
 def _apply_incoming_delete(db: Database, collection: str, tombstone: dict[str, Any]) -> ApplyResult:

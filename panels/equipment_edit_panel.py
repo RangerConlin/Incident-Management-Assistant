@@ -45,6 +45,7 @@ from utils.edit_window_kit import (
     PillDelegate,
     PaginationControls,
     default_export_directory,
+    make_delete_all_button,
     make_sync_status_label,
     refresh_sync_status_label,
     run_async,
@@ -274,6 +275,15 @@ class EquipmentEditPanel(QWidget):
 
         self.sync_status_label = make_sync_status_label()
         header.addWidget(self.sync_status_label)
+
+        self.delete_all_button = make_delete_all_button(
+            self,
+            "equipment",
+            item_label="equipment",
+            refresh_callback=self.refresh,
+            status_label=self.sync_status_label,
+        )
+        header.addWidget(self.delete_all_button)
 
         card_layout.addLayout(header)
 

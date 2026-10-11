@@ -35,7 +35,12 @@ from PySide6.QtWidgets import (
     QScrollArea,
 )
 
-from utils.edit_window_kit import make_resync_button, make_sync_status_label, refresh_sync_status_label
+from utils.edit_window_kit import (
+    make_delete_all_button,
+    make_resync_button,
+    make_sync_status_label,
+    refresh_sync_status_label,
+)
 from utils.itemview_delegates import RowOutlineSelectionDelegate
 
 _BASE = "/api/master/hospitals"
@@ -285,6 +290,14 @@ class HospitalManagerDialog(QMainWindow):
             refresh_callback=self.refresh,
         )
         tb.addWidget(self.resync_button)
+        self.delete_all_button = make_delete_all_button(
+            self,
+            "hospitals",
+            item_label="hospitals",
+            refresh_callback=self.refresh,
+            status_label=self.sync_status_label,
+        )
+        tb.addWidget(self.delete_all_button)
 
         tb.addStretch(1)
         tb.addWidget(QLabel("Search:"))

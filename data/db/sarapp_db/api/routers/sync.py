@@ -18,7 +18,7 @@ from fastapi import APIRouter, Body, Header, HTTPException, Query
 from sarapp_db.mongo.collection_names import MasterCollections
 from sarapp_db.mongo.database_manager import get_master_db
 from sarapp_db.mongo.int_id import next_record_id
-from sarapp_db.sync.config import SYNCABLE_MASTER_COLLECTIONS
+from sarapp_db.sync.config import DUAL_KEY_RECORD_FIELDS, SYNCABLE_MASTER_COLLECTIONS
 from sarapp_db.sync.relay import apply_incoming
 
 router = APIRouter()
@@ -36,18 +36,12 @@ _PULL_BATCH_LIMIT = 500
 # "lockdown" (central-authoritative, nothing ever created locally to mint
 # an id for in the first place).
 _DUAL_KEY_MASTER_FIELDS = {
-    "personnel": "person_record_master",
-    "equipment": "equipment_record_master",
-    "vehicles": "vehicle_record_master",
-    "aircraft": "aircraft_record_master",
-    "hazard_types": "id_master",
-    "gar_templates": "id_master",
-    "canned_comm_entries": "id_master",
-    "hospitals": "id_master",
-    "objective_templates": "int_id_master",
-    "strategy_templates": "int_id_master",
-    "radio_channels": "channel_id_master",
-    "safety_analysis_templates": "template_id_master",
+    collection: master_field
+    for collection, (_local_field, master_field) in DUAL_KEY_RECORD_FIELDS.items()
+}
+_DUAL_KEY_LOCAL_FIELDS = {
+    collection: local_field
+    for collection, (local_field, _master_field) in DUAL_KEY_RECORD_FIELDS.items()
 }
 
 
@@ -98,7 +92,7 @@ def push(
             raise HTTPException(status_code=400, detail="doc_id is required for a delete")
         db = get_master_db()
         tombstone = {"_id": doc_id, "deleted": True, "updated_at": deleted_at}
-        result = apply_incoming(db, collection, tombstone)
+        result = apply_incoming(db, collection, tombstone, central_catalog=True)
         # Retained separately from the real collection (which apply_incoming
         # just hard-deleted the document out of, same as any other
         # receiver) specifically so a later "what changed since X" pull —
@@ -118,7 +112,12 @@ def push(
     if not isinstance(doc, dict) or not doc.get("_id"):
         raise HTTPException(status_code=400, detail="doc with an _id is required")
 
-    result = apply_incoming(get_master_db(), collection, doc)
+    doc = dict(doc)
+    local_field = _DUAL_KEY_LOCAL_FIELDS.get(collection)
+    if local_field:
+        doc.pop(local_field, None)
+
+    result = apply_incoming(get_master_db(), collection, doc, central_catalog=True)
     if result in ("inserted", "applied"):
         _assign_master_record_if_missing(collection, doc["_id"])
     return {"result": result}
@@ -136,6 +135,10 @@ def pull(
     db = get_master_db()
     query: dict[str, Any] = {"updated_at": {"$gt": since}} if since else {}
     docs = list(db[collection].find(query))
+    local_field = _DUAL_KEY_LOCAL_FIELDS.get(collection)
+    if local_field:
+        for doc in docs:
+            doc.pop(local_field, None)
 
     tombstone_query: dict[str, Any] = {"collection": collection}
     tombstone_query["deleted_at"] = {"$gt": since} if since else {"$exists": True}

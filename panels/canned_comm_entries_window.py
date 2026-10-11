@@ -30,7 +30,12 @@ from PySide6.QtWidgets import (
 )
 
 from utils.constants import TEAM_STATUSES
-from utils.edit_window_kit import make_resync_button, make_sync_status_label, refresh_sync_status_label
+from utils.edit_window_kit import (
+    make_delete_all_button,
+    make_resync_button,
+    make_sync_status_label,
+    refresh_sync_status_label,
+)
 from modules.communications.traffic_log.models import (
     PRIORITY_EMERGENCY,
     PRIORITY_PRIORITY,
@@ -265,6 +270,14 @@ class CannedCommEntriesWindow(QMainWindow):
             refresh_callback=self.refresh_entries,
         )
         toolbar.addWidget(self.resync_button)
+        self.delete_all_button = make_delete_all_button(
+            self,
+            "canned_comm_entries",
+            item_label="canned communication entries",
+            refresh_callback=self.refresh_entries,
+            status_label=self.sync_status_label,
+        )
+        toolbar.addWidget(self.delete_all_button)
 
         toolbar.addStretch()
 

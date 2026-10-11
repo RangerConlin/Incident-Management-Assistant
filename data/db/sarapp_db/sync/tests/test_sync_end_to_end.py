@@ -274,6 +274,7 @@ def test_push_assigns_person_record_master_once_and_pull_propagates_it(sync_env)
     assert central_doc is not None
     assigned = central_doc["person_record_master"]
     assert isinstance(assigned, int)
+    assert "person_record" not in central_doc
 
     # Pushing the exact same unchanged document again must not mint a
     # second id — the field is already set, so apply_incoming treats it as
@@ -282,7 +283,9 @@ def test_push_assigns_person_record_master_once_and_pull_propagates_it(sync_env)
         config.central_master_url(), config.sync_token(), collection="personnel", doc=saved
     )
     assert second_push is True
-    assert _central_db()["personnel"].find_one({"_id": saved["_id"]})["person_record_master"] == assigned
+    central_doc = _central_db()["personnel"].find_one({"_id": saved["_id"]})
+    assert central_doc["person_record_master"] == assigned
+    assert "person_record" not in central_doc
 
     other_server_db_name = "TEST_SYNC_OTHER_SERVER_MASTER_PERSONNEL"
     get_client().drop_database(other_server_db_name)
@@ -292,11 +295,44 @@ def test_push_assigns_person_record_master_once_and_pull_propagates_it(sync_env)
         pulled = other_server_db["personnel"].find_one({"_id": saved["_id"]})
         assert pulled is not None
         assert pulled["person_record_master"] == assigned
-        # The local-only person_record travels along untouched — it is
-        # meaningless on a different server, but nothing strips it.
-        assert pulled["person_record"] == 7
+        # person_record is server-local. The receiving server gets its own
+        # local id while preserving the central agency id.
+        assert pulled["person_record"] == 1
     finally:
         get_client().drop_database(other_server_db_name)
+
+
+def test_pull_reassigns_server_local_record_id_when_central_doc_has_foreign_local_id(sync_env):
+    """Regression for demo-server resync failure:
+    central used to echo `person_record` from one server back to another.
+    Since person_record is unique only within one local catalog, that caused
+    duplicate-key failures on the receiving server.
+    """
+    local_db = _local_db()
+    local_db["personnel"].insert_one(
+        {
+            "_id": "already-local",
+            "name": "Existing Local Person",
+            "person_record": 1,
+            "updated_at": "2026-01-01T00:00:00",
+        }
+    )
+    _central_db()["personnel"].insert_one(
+        {
+            "_id": "central-person",
+            "name": "Central Person",
+            "person_record": 1,
+            "person_record_master": 99,
+            "updated_at": "2026-01-02T00:00:00",
+        }
+    )
+
+    pull_and_apply("personnel", local_master_db=local_db)
+
+    pulled = local_db["personnel"].find_one({"_id": "central-person"})
+    assert pulled is not None
+    assert pulled["person_record_master"] == 99
+    assert pulled["person_record"] == 2
 
 
 def test_push_rejected_for_non_syncable_collection(sync_env):
