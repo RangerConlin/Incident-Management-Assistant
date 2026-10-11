@@ -1,15 +1,16 @@
 """Work Assignments router — per-incident, mirrors WorkAssignmentRepository."""
 from __future__ import annotations
 
-import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
 
-from sarapp_db.mongo.db_manager import DatabaseManager
+from sarapp_db.mongo.database_manager import get_incident_db
 from sarapp_db.mongo.collection_names import IncidentCollections
 from sarapp_db.mongo.int_id import _ensure_int_ids, next_int_id
+from sarapp_db.mongo.repository import BaseRepository
+from sarapp_db.api.routers.liaison import LiaisonAgencyRequestsRepository
 
 router = APIRouter()
 
@@ -17,8 +18,15 @@ COL = IncidentCollections.WORK_ASSIGNMENTS
 OUTPUT_TYPE_VALUES = ["ICS 204", "ICS 215", "ICS 215A", "ICS 213RR"]
 
 
-def _col(incident_id: str):
-    return DatabaseManager().get_incident_db(incident_id)[COL]
+class WorkAssignmentsRepository(BaseRepository):
+    collection_name = COL
+    # Keyed by sequential `int_id`, not `_id`; `deleted` is a plain flag
+    # checked ad hoc rather than via BaseRepository.soft_delete.
+    soft_deletes = False
+
+
+def _repo(incident_id: str) -> WorkAssignmentsRepository:
+    return WorkAssignmentsRepository(get_incident_db(incident_id))
 
 
 def _utcnow() -> str:
@@ -179,11 +187,22 @@ def _output_out(o: dict) -> dict:
 
 
 def _get_doc(incident_id: str, wa_id: int) -> dict:
-    col = _col(incident_id)
-    _ensure_int_ids(col)
-    doc = col.find_one({"incident_id": incident_id, "int_id": wa_id, "deleted": {"$ne": True}})
+    repo = _repo(incident_id)
+    _ensure_int_ids(repo._col)
+    doc = repo._col.find_one({"incident_id": incident_id, "int_id": wa_id, "deleted": {"$ne": True}})
     if not doc:
         raise HTTPException(status_code=404, detail="Work assignment not found")
+    return doc
+
+
+def _broadcast_updated(repo: WorkAssignmentsRepository, incident_id: str, wa_id: int) -> dict:
+    """$push/$pull array mutations aren't expressible via BaseRepository's
+    generic methods — drop to the raw collection for the mutation itself,
+    then re-fetch and broadcast, mirroring meetings.py's attendee/checklist
+    pattern."""
+    doc = repo._col.find_one({"incident_id": incident_id, "int_id": wa_id})
+    if doc:
+        repo._broadcast("updated", doc["_id"], doc)
     return doc
 
 
@@ -204,8 +223,8 @@ def list_work_assignments(
     objective_id: Optional[str] = None,
     show_archived: bool = False,
 ) -> List[Dict[str, Any]]:
-    col = _col(incident_id)
-    _ensure_int_ids(col)
+    repo = _repo(incident_id)
+    _ensure_int_ids(repo._col)
     q: Dict[str, Any] = {"incident_id": incident_id, "deleted": {"$ne": True}}
     if not show_archived:
         q["is_archived"] = {"$ne": True}
@@ -223,7 +242,7 @@ def list_work_assignments(
         q["operational_period_id"] = op_period_id
     if objective_id is not None:
         q["objective_id"] = objective_id
-    docs = list(col.find(q, sort=[("updated_at", -1)]))
+    docs = list(repo._col.find(q, sort=[("updated_at", -1)]))
     if search:
         s = search.lower()
         docs = [d for d in docs if s in (d.get("assignment_name") or "").lower() or s in (d.get("assignment_number") or "").lower()]
@@ -232,13 +251,11 @@ def list_work_assignments(
 
 @router.post("/incidents/{incident_id}/planning/work-assignments", status_code=201)
 def create_work_assignment(incident_id: str, body: Dict[str, Any]) -> Dict[str, Any]:
-    col = _col(incident_id)
-    _ensure_int_ids(col)
-    now = _utcnow()
-    new_id = next_int_id(col)
+    repo = _repo(incident_id)
+    _ensure_int_ids(repo._col)
+    new_id = next_int_id(repo._col)
     initial_outputs = [{"id": i + 1, "output_type": ot, "status": "Not Started"} for i, ot in enumerate(OUTPUT_TYPE_VALUES)]
     doc = {
-        "_id": str(uuid.uuid4()),
         "int_id": new_id,
         "incident_id": incident_id,
         "assignment_number": body.get("assignment_number") or f"ST-{new_id}",
@@ -259,8 +276,6 @@ def create_work_assignment(incident_id: str, body: Dict[str, Any]) -> Dict[str, 
         "special_instructions": str(body.get("special_instructions") or ""),
         "prepared_by": body.get("prepared_by"),
         "approved_by": body.get("approved_by"),
-        "created_at": now,
-        "updated_at": now,
         "created_by": body.get("created_by"),
         "updated_by": body.get("updated_by"),
         "is_archived": False,
@@ -272,7 +287,7 @@ def create_work_assignment(incident_id: str, body: Dict[str, Any]) -> Dict[str, 
         "log_entries": [],
         "outputs": initial_outputs,
     }
-    col.insert_one(doc)
+    doc = repo.insert_one(doc)
     return _wa_out(doc)
 
 
@@ -283,8 +298,9 @@ def get_work_assignment(incident_id: str, wa_id: int) -> Dict[str, Any]:
 
 @router.patch("/incidents/{incident_id}/planning/work-assignments/{wa_id}")
 def update_work_assignment(incident_id: str, wa_id: int, body: Dict[str, Any]) -> Dict[str, Any]:
-    col = _col(incident_id)
-    _ensure_int_ids(col)
+    repo = _repo(incident_id)
+    _ensure_int_ids(repo._col)
+    doc = _get_doc(incident_id, wa_id)
     updatable = {
         "assignment_number", "assignment_name", "objective_id", "operational_period_id",
         "branch", "division_group", "location", "location_facility_id", "assignment_kind", "priority",
@@ -295,29 +311,32 @@ def update_work_assignment(incident_id: str, wa_id: int, body: Dict[str, Any]) -
     upd = {k: v for k, v in body.items() if k in updatable}
     if not upd:
         return get_work_assignment(incident_id, wa_id)
-    upd["updated_at"] = _utcnow()
-    col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$set": upd})
+    repo.update_one(doc["_id"], upd, extra_filter={"incident_id": incident_id, "int_id": wa_id})
     return get_work_assignment(incident_id, wa_id)
 
 
 @router.patch("/incidents/{incident_id}/planning/work-assignments/{wa_id}/archive")
 def archive_work_assignment(incident_id: str, wa_id: int) -> Dict[str, Any]:
-    col = _col(incident_id)
-    col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$set": {"is_archived": True, "updated_at": _utcnow()}})
+    repo = _repo(incident_id)
+    doc = _get_doc(incident_id, wa_id)
+    repo.update_one(doc["_id"], {"is_archived": True}, extra_filter={"incident_id": incident_id, "int_id": wa_id})
     return get_work_assignment(incident_id, wa_id)
 
 
 @router.patch("/incidents/{incident_id}/planning/work-assignments/{wa_id}/restore")
 def restore_work_assignment(incident_id: str, wa_id: int) -> Dict[str, Any]:
-    col = _col(incident_id)
-    col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$set": {"is_archived": False, "updated_at": _utcnow()}})
+    repo = _repo(incident_id)
+    doc = _get_doc(incident_id, wa_id)
+    repo.update_one(doc["_id"], {"is_archived": False}, extra_filter={"incident_id": incident_id, "int_id": wa_id})
     return get_work_assignment(incident_id, wa_id)
 
 
 @router.delete("/incidents/{incident_id}/planning/work-assignments/{wa_id}", status_code=204)
 def delete_work_assignment(incident_id: str, wa_id: int) -> None:
-    col = _col(incident_id)
-    col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$set": {"deleted": True}})
+    repo = _repo(incident_id)
+    doc = repo._col.find_one({"incident_id": incident_id, "int_id": wa_id})
+    if doc:
+        repo.update_one(doc["_id"], {"deleted": True}, extra_filter={"incident_id": incident_id, "int_id": wa_id})
 
 
 @router.post("/incidents/{incident_id}/planning/work-assignments/{wa_id}/clone", status_code=201)
@@ -340,9 +359,9 @@ def clone_work_assignment(incident_id: str, wa_id: int) -> Dict[str, Any]:
 
 @router.get("/incidents/{incident_id}/planning/work-assignment-status-rows")
 def list_status_rows(incident_id: str) -> List[Dict[str, Any]]:
-    col = _col(incident_id)
-    _ensure_int_ids(col)
-    docs = list(col.find({"incident_id": incident_id, "is_archived": {"$ne": True}, "deleted": {"$ne": True}},
+    repo = _repo(incident_id)
+    _ensure_int_ids(repo._col)
+    docs = list(repo._col.find({"incident_id": incident_id, "is_archived": {"$ne": True}, "deleted": {"$ne": True}},
                          sort=[("updated_at", -1)]))
     return [{
         "id": d.get("int_id"),
@@ -365,7 +384,7 @@ def list_resources(incident_id: str, wa_id: int) -> List[Dict[str, Any]]:
 
 @router.post("/incidents/{incident_id}/planning/work-assignments/{wa_id}/resources", status_code=201)
 def add_resource(incident_id: str, wa_id: int, body: Dict[str, Any]) -> Dict[str, Any]:
-    col = _col(incident_id)
+    repo = _repo(incident_id)
     doc = _get_doc(incident_id, wa_id)
     now = _utcnow()
     qty = max(1, int(body.get("quantity_required") or 1))
@@ -389,13 +408,17 @@ def add_resource(incident_id: str, wa_id: int, body: Dict[str, Any]) -> Dict[str
         "updated_at": now,
         "assignments": [],
     }
-    col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$push": {"resources": req}})
+    # $push to an embedded array — not expressible via BaseRepository's
+    # generic methods, so we drop to the raw collection and broadcast
+    # ourselves, mirroring meetings.py's attendee/checklist pattern.
+    repo._col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$push": {"resources": req}})
+    _broadcast_updated(repo, incident_id, wa_id)
     return _req_out(req)
 
 
 @router.patch("/incidents/{incident_id}/planning/work-assignments/{wa_id}/resources/{req_id}")
 def update_resource(incident_id: str, wa_id: int, req_id: int, body: Dict[str, Any]) -> Dict[str, Any]:
-    col = _col(incident_id)
+    repo = _repo(incident_id)
     doc = _get_doc(incident_id, wa_id)
     resources = doc.get("resources", [])
     updatable = {"resource_type_id", "resource_type_text", "capability_id", "capability_text",
@@ -410,20 +433,21 @@ def update_resource(incident_id: str, wa_id: int, req_id: int, body: Dict[str, A
             # Recalculate gap
             gap = max(int(resources[i].get("quantity_required", 1)) - int(resources[i].get("quantity_assigned", 0)), 0)
             resources[i]["quantity_gap"] = gap
-            col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$set": {"resources": resources}})
+            repo.update_one(doc["_id"], {"resources": resources})
             return _req_out(resources[i])
     raise HTTPException(status_code=404, detail="Resource requirement not found")
 
 
 @router.delete("/incidents/{incident_id}/planning/work-assignments/{wa_id}/resources/{req_id}", status_code=204)
 def remove_resource(incident_id: str, wa_id: int, req_id: int) -> None:
-    col = _col(incident_id)
-    col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$pull": {"resources": {"id": req_id}}})
+    repo = _repo(incident_id)
+    repo._col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$pull": {"resources": {"id": req_id}}})
+    _broadcast_updated(repo, incident_id, wa_id)
 
 
 @router.post("/incidents/{incident_id}/planning/work-assignments/{wa_id}/resources/{req_id}/assignments", status_code=201)
 def assign_resource(incident_id: str, wa_id: int, req_id: int, body: Dict[str, Any]) -> Dict[str, Any]:
-    col = _col(incident_id)
+    repo = _repo(incident_id)
     doc = _get_doc(incident_id, wa_id)
     resources = doc.get("resources", [])
     for i, r in enumerate(resources):
@@ -443,14 +467,14 @@ def assign_resource(incident_id: str, wa_id: int, req_id: int, body: Dict[str, A
             resources[i]["quantity_assigned"] = len(resources[i]["assignments"])
             resources[i]["quantity_gap"] = max(int(resources[i].get("quantity_required", 1)) - resources[i]["quantity_assigned"], 0)
             resources[i]["updated_at"] = _utcnow()
-            col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$set": {"resources": resources}})
+            repo.update_one(doc["_id"], {"resources": resources})
             return _ra_out(assignment)
     raise HTTPException(status_code=404, detail="Resource requirement not found")
 
 
 @router.patch("/incidents/{incident_id}/planning/work-assignments/{wa_id}/resources/{req_id}/assignments/{assignment_id}")
 def update_assignment(incident_id: str, wa_id: int, req_id: int, assignment_id: int, body: Dict[str, Any]) -> Dict[str, Any]:
-    col = _col(incident_id)
+    repo = _repo(incident_id)
     doc = _get_doc(incident_id, wa_id)
     resources = doc.get("resources", [])
     updatable = {"status", "resource_kind", "resource_id", "display_name", "notes", "released_at"}
@@ -463,7 +487,7 @@ def update_assignment(incident_id: str, wa_id: int, req_id: int, assignment_id: 
                         if k in body:
                             assignments[j][k] = body[k]
                     resources[i]["updated_at"] = _utcnow()
-                    col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$set": {"resources": resources}})
+                    repo.update_one(doc["_id"], {"resources": resources})
                     return _ra_out(assignments[j])
             raise HTTPException(status_code=404, detail="Assignment not found")
     raise HTTPException(status_code=404, detail="Resource requirement not found")
@@ -471,7 +495,7 @@ def update_assignment(incident_id: str, wa_id: int, req_id: int, assignment_id: 
 
 @router.delete("/incidents/{incident_id}/planning/work-assignments/{wa_id}/resources/{req_id}/assignments/{assignment_id}", status_code=204)
 def remove_assignment(incident_id: str, wa_id: int, req_id: int, assignment_id: int) -> None:
-    col = _col(incident_id)
+    repo = _repo(incident_id)
     doc = _get_doc(incident_id, wa_id)
     resources = doc.get("resources", [])
     for i, r in enumerate(resources):
@@ -481,7 +505,7 @@ def remove_assignment(incident_id: str, wa_id: int, req_id: int, assignment_id: 
             resources[i]["quantity_assigned"] = len(assignments)
             resources[i]["quantity_gap"] = max(int(resources[i].get("quantity_required", 1)) - len(assignments), 0)
             resources[i]["updated_at"] = _utcnow()
-            col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$set": {"resources": resources}})
+            repo.update_one(doc["_id"], {"resources": resources})
             return
     raise HTTPException(status_code=404, detail="Resource requirement not found")
 
@@ -497,7 +521,7 @@ def list_hazards(incident_id: str, wa_id: int) -> List[Dict[str, Any]]:
 
 @router.post("/incidents/{incident_id}/planning/work-assignments/{wa_id}/hazards", status_code=201)
 def add_hazard(incident_id: str, wa_id: int, body: Dict[str, Any]) -> Dict[str, Any]:
-    col = _col(incident_id)
+    repo = _repo(incident_id)
     doc = _get_doc(incident_id, wa_id)
     now = _utcnow()
     new_id = _next_sub_id(doc.get("hazards", []))
@@ -519,13 +543,14 @@ def add_hazard(incident_id: str, wa_id: int, body: Dict[str, Any]) -> Dict[str, 
         "created_at": now,
         "updated_at": now,
     }
-    col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$push": {"hazards": hazard}})
+    repo._col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$push": {"hazards": hazard}})
+    _broadcast_updated(repo, incident_id, wa_id)
     return _hazard_out(hazard)
 
 
 @router.patch("/incidents/{incident_id}/planning/work-assignments/{wa_id}/hazards/{hazard_id}")
 def update_hazard(incident_id: str, wa_id: int, hazard_id: int, body: Dict[str, Any]) -> Dict[str, Any]:
-    col = _col(incident_id)
+    repo = _repo(incident_id)
     doc = _get_doc(incident_id, wa_id)
     hazards = doc.get("hazards", [])
     updatable = {"hazard_type_id", "hazard_type_text", "category", "risk_level", "likelihood",
@@ -537,15 +562,16 @@ def update_hazard(incident_id: str, wa_id: int, hazard_id: int, body: Dict[str, 
                 if k in body:
                     hazards[i][k] = body[k]
             hazards[i]["updated_at"] = _utcnow()
-            col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$set": {"hazards": hazards}})
+            repo.update_one(doc["_id"], {"hazards": hazards})
             return _hazard_out(hazards[i])
     raise HTTPException(status_code=404, detail="Hazard not found")
 
 
 @router.delete("/incidents/{incident_id}/planning/work-assignments/{wa_id}/hazards/{hazard_id}", status_code=204)
 def remove_hazard(incident_id: str, wa_id: int, hazard_id: int) -> None:
-    col = _col(incident_id)
-    col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$pull": {"hazards": {"id": hazard_id}}})
+    repo = _repo(incident_id)
+    repo._col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$pull": {"hazards": {"id": hazard_id}}})
+    _broadcast_updated(repo, incident_id, wa_id)
 
 
 # -------------------------------------------------------------------------
@@ -561,7 +587,7 @@ def list_comms(incident_id: str, wa_id: int) -> List[Dict[str, Any]]:
 
 @router.post("/incidents/{incident_id}/planning/work-assignments/{wa_id}/comms", status_code=201)
 def add_comms(incident_id: str, wa_id: int, body: Dict[str, Any]) -> Dict[str, Any]:
-    col = _col(incident_id)
+    repo = _repo(incident_id)
     doc = _get_doc(incident_id, wa_id)
     now = _utcnow()
     new_id = _next_sub_id(doc.get("comms", []))
@@ -583,13 +609,14 @@ def add_comms(incident_id: str, wa_id: int, body: Dict[str, Any]) -> Dict[str, A
         "created_at": now,
         "updated_at": now,
     }
-    col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$push": {"comms": comm}})
+    repo._col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$push": {"comms": comm}})
+    _broadcast_updated(repo, incident_id, wa_id)
     return _comms_out(comm)
 
 
 @router.patch("/incidents/{incident_id}/planning/work-assignments/{wa_id}/comms/{comms_id}")
 def update_comms(incident_id: str, wa_id: int, comms_id: int, body: Dict[str, Any]) -> Dict[str, Any]:
-    col = _col(incident_id)
+    repo = _repo(incident_id)
     doc = _get_doc(incident_id, wa_id)
     comms_list = doc.get("comms", [])
     updatable = {"channel_name", "function", "zone", "channel_number", "rx_freq", "rx_tone",
@@ -600,15 +627,16 @@ def update_comms(incident_id: str, wa_id: int, comms_id: int, body: Dict[str, An
                 if k in body:
                     comms_list[i][k] = body[k]
             comms_list[i]["updated_at"] = _utcnow()
-            col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$set": {"comms": comms_list}})
+            repo.update_one(doc["_id"], {"comms": comms_list})
             return _comms_out(comms_list[i])
     raise HTTPException(status_code=404, detail="Comms channel not found")
 
 
 @router.delete("/incidents/{incident_id}/planning/work-assignments/{wa_id}/comms/{comms_id}", status_code=204)
 def remove_comms(incident_id: str, wa_id: int, comms_id: int) -> None:
-    col = _col(incident_id)
-    col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$pull": {"comms": {"id": comms_id}}})
+    repo = _repo(incident_id)
+    repo._col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$pull": {"comms": {"id": comms_id}}})
+    _broadcast_updated(repo, incident_id, wa_id)
 
 
 # -------------------------------------------------------------------------
@@ -622,7 +650,7 @@ def list_task_links(incident_id: str, wa_id: int) -> List[Dict[str, Any]]:
 
 @router.post("/incidents/{incident_id}/planning/work-assignments/{wa_id}/task-links", status_code=201)
 def link_task(incident_id: str, wa_id: int, body: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    col = _col(incident_id)
+    repo = _repo(incident_id)
     doc = _get_doc(incident_id, wa_id)
     task_id = int(body.get("task_id") or 0)
     existing = [t for t in doc.get("task_links", []) if t.get("task_id") == task_id]
@@ -636,18 +664,20 @@ def link_task(incident_id: str, wa_id: int, body: Dict[str, Any]) -> Optional[Di
         "created_at": _utcnow(),
         "notes": str(body.get("notes") or ""),
     }
-    col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$push": {"task_links": link}})
+    repo._col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$push": {"task_links": link}})
+    _broadcast_updated(repo, incident_id, wa_id)
     return _link_out(link)
 
 
 @router.delete("/incidents/{incident_id}/planning/work-assignments/{wa_id}/task-links/{link_id}", status_code=204)
 def unlink_task(incident_id: str, wa_id: int, link_id: int) -> None:
-    col = _col(incident_id)
-    col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$pull": {"task_links": {"id": link_id}}})
+    repo = _repo(incident_id)
+    repo._col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$pull": {"task_links": {"id": link_id}}})
+    _broadcast_updated(repo, incident_id, wa_id)
 
 
-def _agency_requests_col(incident_id: str):
-    return DatabaseManager().get_incident_db(incident_id)[IncidentCollections.LIAISON_AGENCY_REQUESTS]
+def _agency_requests_repo(incident_id: str) -> LiaisonAgencyRequestsRepository:
+    return LiaisonAgencyRequestsRepository(get_incident_db(incident_id))
 
 
 def _agency_request_link_out(link: dict) -> dict:
@@ -662,10 +692,10 @@ def _agency_request_link_out(link: dict) -> dict:
 def list_agency_request_links(incident_id: str, wa_id: int) -> List[Dict[str, Any]]:
     doc = _get_doc(incident_id, wa_id)
     links = doc.get("agency_request_links", [])
-    req_col = _agency_requests_col(incident_id)
+    req_repo = _agency_requests_repo(incident_id)
     result = []
     for link in links:
-        req = req_col.find_one({"incident_id": incident_id, "int_id": link.get("agency_request_id")})
+        req = req_repo._col.find_one({"incident_id": incident_id, "int_id": link.get("agency_request_id")})
         result.append({
             "link_id": link.get("id"),
             "agency_request_id": link.get("agency_request_id"),
@@ -679,47 +709,55 @@ def list_agency_request_links(incident_id: str, wa_id: int) -> List[Dict[str, An
 
 @router.post("/incidents/{incident_id}/planning/work-assignments/{wa_id}/agency-requests", status_code=201)
 def link_agency_request(incident_id: str, wa_id: int, body: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    col = _col(incident_id)
+    repo = _repo(incident_id)
     doc = _get_doc(incident_id, wa_id)
     agency_request_id = int(body.get("agency_request_id") or 0)
     existing = [l for l in doc.get("agency_request_links", []) if l.get("agency_request_id") == agency_request_id]
     if existing:
         return None
-    req_col = _agency_requests_col(incident_id)
-    req = req_col.find_one({"incident_id": incident_id, "int_id": agency_request_id})
+    req_repo = _agency_requests_repo(incident_id)
+    req = req_repo._col.find_one({"incident_id": incident_id, "int_id": agency_request_id})
     if not req:
         raise HTTPException(status_code=404, detail="Agency request not found")
     new_id = _next_sub_id(doc.get("agency_request_links", []))
     link = {"id": new_id, "agency_request_id": agency_request_id, "created_at": _utcnow()}
-    col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$push": {"agency_request_links": link}})
+    repo._col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$push": {"agency_request_links": link}})
+    _broadcast_updated(repo, incident_id, wa_id)
     reverse_link = {"id": new_id, "work_assignment_id": wa_id, "wa_link_id": new_id, "created_at": _utcnow()}
-    req_col.update_one(
+    req_repo._col.update_one(
         {"incident_id": incident_id, "int_id": agency_request_id},
         {"$push": {"strategy_links": reverse_link}},
     )
+    updated_req = req_repo._col.find_one({"incident_id": incident_id, "int_id": agency_request_id})
+    if updated_req:
+        req_repo._broadcast("updated", updated_req["_id"], updated_req)
     return _agency_request_link_out(link)
 
 
 @router.delete("/incidents/{incident_id}/planning/work-assignments/{wa_id}/agency-requests/{link_id}", status_code=204)
 def unlink_agency_request(incident_id: str, wa_id: int, link_id: int) -> None:
-    col = _col(incident_id)
+    repo = _repo(incident_id)
     doc = _get_doc(incident_id, wa_id)
     links = doc.get("agency_request_links", [])
     target = next((l for l in links if l.get("id") == link_id), None)
-    col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$pull": {"agency_request_links": {"id": link_id}}})
+    repo._col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$pull": {"agency_request_links": {"id": link_id}}})
+    _broadcast_updated(repo, incident_id, wa_id)
     if target:
-        req_col = _agency_requests_col(incident_id)
-        req_col.update_one(
+        req_repo = _agency_requests_repo(incident_id)
+        req_repo._col.update_one(
             {"incident_id": incident_id, "int_id": target.get("agency_request_id")},
             {"$pull": {"strategy_links": {"wa_link_id": link_id, "work_assignment_id": wa_id}}},
         )
+        updated_req = req_repo._col.find_one({"incident_id": incident_id, "int_id": target.get("agency_request_id")})
+        if updated_req:
+            req_repo._broadcast("updated", updated_req["_id"], updated_req)
 
 
 @router.get("/incidents/{incident_id}/planning/tasks/{task_id}/work-assignments")
 def list_strategies_for_task(incident_id: str, task_id: int) -> List[Dict[str, Any]]:
-    col = _col(incident_id)
-    _ensure_int_ids(col)
-    docs = list(col.find({"incident_id": incident_id, "task_links.task_id": task_id, "deleted": {"$ne": True}}))
+    repo = _repo(incident_id)
+    _ensure_int_ids(repo._col)
+    docs = list(repo._col.find({"incident_id": incident_id, "task_links.task_id": task_id, "deleted": {"$ne": True}}))
     result = []
     for d in docs:
         for link in d.get("task_links", []):
@@ -749,7 +787,7 @@ def list_log(incident_id: str, wa_id: int) -> List[Dict[str, Any]]:
 
 @router.post("/incidents/{incident_id}/planning/work-assignments/{wa_id}/log", status_code=201)
 def add_log_entry(incident_id: str, wa_id: int, body: Dict[str, Any]) -> Dict[str, Any]:
-    col = _col(incident_id)
+    repo = _repo(incident_id)
     doc = _get_doc(incident_id, wa_id)
     new_id = _next_sub_id(doc.get("log_entries", []))
     entry = {
@@ -760,13 +798,14 @@ def add_log_entry(incident_id: str, wa_id: int, body: Dict[str, Any]) -> Dict[st
         "critical": bool(body.get("critical", False)),
         "entered_by": body.get("entered_by"),
     }
-    col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$push": {"log_entries": entry}})
+    repo._col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$push": {"log_entries": entry}})
+    _broadcast_updated(repo, incident_id, wa_id)
     return _log_out(entry)
 
 
 @router.patch("/incidents/{incident_id}/planning/work-assignments/{wa_id}/log/{log_id}")
 def update_log_entry(incident_id: str, wa_id: int, log_id: int, body: Dict[str, Any]) -> Dict[str, Any]:
-    col = _col(incident_id)
+    repo = _repo(incident_id)
     doc = _get_doc(incident_id, wa_id)
     entries = doc.get("log_entries", [])
     updatable = {"entry_text", "entry_type", "critical"}
@@ -775,15 +814,16 @@ def update_log_entry(incident_id: str, wa_id: int, log_id: int, body: Dict[str, 
             for k in updatable:
                 if k in body:
                     entries[i][k] = body[k]
-            col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$set": {"log_entries": entries}})
+            repo.update_one(doc["_id"], {"log_entries": entries})
             return _log_out(entries[i])
     raise HTTPException(status_code=404, detail="Log entry not found")
 
 
 @router.delete("/incidents/{incident_id}/planning/work-assignments/{wa_id}/log/{log_id}", status_code=204)
 def remove_log_entry(incident_id: str, wa_id: int, log_id: int) -> None:
-    col = _col(incident_id)
-    col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$pull": {"log_entries": {"id": log_id}}})
+    repo = _repo(incident_id)
+    repo._col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$pull": {"log_entries": {"id": log_id}}})
+    _broadcast_updated(repo, incident_id, wa_id)
 
 
 # -------------------------------------------------------------------------
@@ -797,7 +837,7 @@ def list_outputs(incident_id: str, wa_id: int) -> List[Dict[str, Any]]:
 
 @router.patch("/incidents/{incident_id}/planning/work-assignments/{wa_id}/outputs/{output_type}")
 def update_output(incident_id: str, wa_id: int, output_type: str, body: Dict[str, Any]) -> Dict[str, Any]:
-    col = _col(incident_id)
+    repo = _repo(incident_id)
     doc = _get_doc(incident_id, wa_id)
     outputs = doc.get("outputs", [])
     updatable = {"status", "notes", "generated_file_path", "generated_at", "generated_by"}
@@ -806,7 +846,7 @@ def update_output(incident_id: str, wa_id: int, output_type: str, body: Dict[str
             for key in updatable:
                 if key in body:
                     outputs[i][key] = body[key]
-            col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$set": {"outputs": outputs}})
+            repo.update_one(doc["_id"], {"outputs": outputs})
             return _output_out(outputs[i])
     # Not found — create it
     new_id = _next_sub_id(outputs)
@@ -819,5 +859,6 @@ def update_output(incident_id: str, wa_id: int, output_type: str, body: Dict[str
         "generated_at": body.get("generated_at"),
         "generated_by": body.get("generated_by"),
     }
-    col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$push": {"outputs": entry}})
+    repo._col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$push": {"outputs": entry}})
+    _broadcast_updated(repo, incident_id, wa_id)
     return _output_out(entry)

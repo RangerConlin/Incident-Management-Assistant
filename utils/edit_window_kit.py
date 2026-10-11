@@ -58,6 +58,7 @@ __all__ = [
     "make_resync_button",
     "make_delete_all_button",
     "refresh_sync_status_label",
+    "sync_result_allows_collection_refresh",
 ]
 
 
@@ -893,6 +894,19 @@ def _clear_local_catalog_view(owner: QObject) -> None:
             pass
 
 
+def sync_result_allows_collection_refresh(result: dict[str, Any], collection: str) -> bool:
+    """Return whether a resync response should refresh this collection's UI."""
+    if result.get("synced"):
+        return True
+    details = result.get("details")
+    if not isinstance(details, dict):
+        return False
+    failed_collections = {str(item) for item in (details.get("pull_failed_collections") or [])}
+    if not failed_collections:
+        return False
+    return collection not in failed_collections
+
+
 def _run_catalog_resync(
     owner: QObject,
     button: QPushButton,
@@ -904,12 +918,12 @@ def _run_catalog_resync(
     from utils.api_client import api_client
 
     def _task() -> dict[str, Any]:
-        return api_client.post(f"/api/sync-trigger/resync/{collection}") or {}
+        return api_client.post("/api/sync-trigger/resync", params={"collection": collection}) or {}
 
     def _done(result: dict[str, Any]) -> None:
         button.setEnabled(True)
         button.setText("Resync")
-        if result.get("synced"):
+        if sync_result_allows_collection_refresh(result, collection):
             if refresh_callback is not None:
                 refresh_callback()
             if status_label is not None:

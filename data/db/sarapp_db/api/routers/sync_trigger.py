@@ -21,9 +21,12 @@ logger = logging.getLogger(__name__)
 
 
 @router.post("/resync")
-def force_resync() -> dict[str, Any]:
+def force_resync(collection: str | None = None) -> dict[str, Any]:
     from sarapp_db.sync import config
     from sarapp_db.sync.loop import run_one_tick
+
+    if collection:
+        return _force_collection_resync(collection)
 
     if not config.sync_enabled():
         return {"synced": False, "reason": "Central master sync is not configured on this server."}
@@ -66,6 +69,10 @@ def force_resync() -> dict[str, Any]:
 
 @router.post("/resync/{collection}")
 def force_collection_resync(collection: str) -> dict[str, Any]:
+    return _force_collection_resync(collection)
+
+
+def _force_collection_resync(collection: str) -> dict[str, Any]:
     from sarapp_db.sync import config
     from sarapp_db.sync.loop import pull_and_apply
 

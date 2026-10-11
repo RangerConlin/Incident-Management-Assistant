@@ -20,6 +20,8 @@ import MeetingsBoardPage from "./modules/planning/meetings/MeetingsBoardPage";
 import MeetingDetailPage from "./modules/planning/meetings/MeetingDetailPage";
 import SitrepsBoardPage from "./modules/planning/sitreps/SitrepsBoardPage";
 import SitrepDetailPage from "./modules/planning/sitreps/SitrepDetailPage";
+import WorkAssignmentsBoardPage from "./modules/planning/workAssignments/WorkAssignmentsBoardPage";
+import WorkAssignmentDetailPage from "./modules/planning/workAssignments/WorkAssignmentDetailPage";
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const { isAuthenticated } = useSession();
@@ -177,6 +179,22 @@ export default function App() {
           element={
             <RequireIncident>
               <SitrepDetailPage />
+            </RequireIncident>
+          }
+        />
+        <Route
+          path="planning/work-assignments"
+          element={
+            <RequireIncident>
+              <WorkAssignmentsBoardPage />
+            </RequireIncident>
+          }
+        />
+        <Route
+          path="planning/work-assignments/:waId"
+          element={
+            <RequireIncident>
+              <WorkAssignmentDetailPage />
             </RequireIncident>
           }
         />

@@ -93,7 +93,7 @@ def test_collection_resync_only_pulls_requested_collection(monkeypatch) -> None:
 
     app = create_app()
     with TestClient(app) as client:
-        response = client.post("/api/sync-trigger/resync/personnel")
+        response = client.post("/api/sync-trigger/resync", params={"collection": "personnel"})
 
     assert response.status_code == 200
     assert response.json()["synced"] is True
@@ -106,7 +106,7 @@ def test_collection_resync_reports_requested_collection_failure(monkeypatch) -> 
 
     app = create_app()
     with TestClient(app) as client:
-        response = client.post("/api/sync-trigger/resync/personnel")
+        response = client.post("/api/sync-trigger/resync", params={"collection": "personnel"})
 
     assert response.status_code == 200
     body = response.json()

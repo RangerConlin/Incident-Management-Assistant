@@ -179,12 +179,13 @@ mirroring only now.
 **Manual resync trigger:** `data/db/sarapp_db/api/routers/sync_trigger.py`
 exposes a full trigger (`POST /api/sync-trigger/resync`, mounted on every
 `mode="full"` server — LAN/cloud/offline, never on cloud_router's
-`master_only` process) and a collection-scoped trigger
-(`POST /api/sync-trigger/resync/{collection}`). The full trigger calls
-`sync.loop.run_one_tick()` immediately instead of waiting for
-`CentralSyncLoop`'s next scheduled tick. Desktop catalog editor windows use
-the collection-scoped trigger so a user refreshing one catalog isn't blocked
-by an unrelated catalog's sync error. The same router also exposes
+`master_only` process), and that same endpoint accepts `?collection=<name>`
+to pull only one catalog. The full trigger calls `sync.loop.run_one_tick()`
+immediately instead of waiting for `CentralSyncLoop`'s next scheduled tick.
+Desktop catalog editor windows use the query-param scoped form so a user
+refreshing one catalog isn't blocked by an unrelated catalog's sync error.
+`POST /api/sync-trigger/resync/{collection}` exists only as a route alias for
+newer direct callers. The same router also exposes
 `POST /api/sync-trigger/local-catalog/{collection}/reset` for Delete All,
 which clears only the local copy and its per-collection checkpoint/outbox
 entries; the user can then redownload that collection with Resync. These

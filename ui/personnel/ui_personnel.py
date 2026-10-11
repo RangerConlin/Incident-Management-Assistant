@@ -36,6 +36,7 @@ from utils.edit_window_kit import (
     make_sync_status_label,
     refresh_sync_status_label,
     run_async,
+    sync_result_allows_collection_refresh,
     write_export_file,
 )
 from utils.itemview_delegates import RowOutlineSelectionDelegate
@@ -1290,7 +1291,7 @@ class PersonnelInventoryWindow(QtWidgets.QWidget):
         from utils.api_client import api_client
 
         def _task() -> dict[str, Any]:
-            return api_client.post("/api/sync-trigger/resync/personnel") or {}
+            return api_client.post("/api/sync-trigger/resync", params={"collection": "personnel"}) or {}
 
         self.resync_button.setEnabled(False)
         self.resync_button.setText("Resyncing...")
@@ -1299,8 +1300,11 @@ class PersonnelInventoryWindow(QtWidgets.QWidget):
     def _on_resync_done(self, result: dict[str, Any]) -> None:
         self.resync_button.setEnabled(True)
         self.resync_button.setText("Resync")
-        if result.get("synced"):
-            self._show_toast("Resync complete", "Personnel catalog resynced with the central master database.")
+        if sync_result_allows_collection_refresh(result, "personnel"):
+            message = "Personnel catalog resynced with the central master database."
+            if not result.get("synced"):
+                message = "Personnel catalog refreshed; unrelated catalog sync warnings were ignored."
+            self._show_toast("Resync complete", message)
             self.refresh()
             refresh_sync_status_label(self, self.sync_status_label, "personnel")
         else:

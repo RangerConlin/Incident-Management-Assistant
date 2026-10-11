@@ -21,6 +21,10 @@ import type {
   TaskTeam,
   TeamAssignmentRow,
   TeamDetail,
+  WorkAssignment,
+  WorkAssignmentResourceAssignment,
+  WorkAssignmentResourceRequirement,
+  WorkAssignmentTaskLink,
 } from "./types";
 
 export function lookupPerson(personId: string) {
@@ -450,4 +454,96 @@ export function listSitrepDistributions(incidentId: string, sitrepId: string) {
 
 export function createSitrepDistribution(incidentId: string, sitrepId: string, body: Record<string, unknown>) {
   return api.post<SitrepDistribution>(`/api/incidents/${incidentId}/sitreps/${sitrepId}/distributions`, body);
+}
+
+// ---------------------------------------------------------------------------
+// Planning — Work Assignments (ICS-215/204 tactics planner). Backend:
+// work_assignments.py. hazards/comms/agency-requests/log-entries/outputs
+// exist on the backend doc but have no UI here yet (scope cut to keep this
+// a real, working slice rather than a half-built everything).
+// ---------------------------------------------------------------------------
+
+export const WA_PLANNING_STATUSES = [
+  "Draft", "Under Review", "Approved", "Ready for IAP",
+  "Assigned to Operations", "In Progress", "Complete", "Cancelled", "Archived",
+];
+export const WA_SAFETY_STATUSES = [
+  "Unchecked", "Needs Review", "Hazards Identified", "Mitigations Complete", "Safety Approved", "Safety Concern",
+];
+export const WA_RESOURCE_STATUSES = [
+  "Unreviewed", "Needs Identified", "Partially Filled", "Filled", "Overfilled", "Gap Exists", "Logistics Requested",
+];
+
+export function listWorkAssignments(incidentId: string) {
+  return api.get<WorkAssignment[]>(`/api/incidents/${incidentId}/planning/work-assignments`);
+}
+
+export function getWorkAssignment(incidentId: string, waId: number) {
+  return api.get<WorkAssignment>(`/api/incidents/${incidentId}/planning/work-assignments/${waId}`);
+}
+
+export function createWorkAssignment(incidentId: string, body: Record<string, unknown>) {
+  return api.post<WorkAssignment>(`/api/incidents/${incidentId}/planning/work-assignments`, body);
+}
+
+export function updateWorkAssignment(incidentId: string, waId: number, body: Record<string, unknown>) {
+  return api.patch<WorkAssignment>(`/api/incidents/${incidentId}/planning/work-assignments/${waId}`, body);
+}
+
+export function archiveWorkAssignment(incidentId: string, waId: number) {
+  return api.patch<WorkAssignment>(`/api/incidents/${incidentId}/planning/work-assignments/${waId}/archive`);
+}
+
+export function cloneWorkAssignment(incidentId: string, waId: number) {
+  return api.post<WorkAssignment>(`/api/incidents/${incidentId}/planning/work-assignments/${waId}/clone`);
+}
+
+export function addWorkAssignmentResource(incidentId: string, waId: number, body: Record<string, unknown>) {
+  return api.post<WorkAssignmentResourceRequirement>(
+    `/api/incidents/${incidentId}/planning/work-assignments/${waId}/resources`,
+    body
+  );
+}
+
+export function removeWorkAssignmentResource(incidentId: string, waId: number, reqId: number) {
+  return api.delete<void>(`/api/incidents/${incidentId}/planning/work-assignments/${waId}/resources/${reqId}`);
+}
+
+export function assignWorkAssignmentResource(
+  incidentId: string,
+  waId: number,
+  reqId: number,
+  body: Record<string, unknown>
+) {
+  return api.post<WorkAssignmentResourceAssignment>(
+    `/api/incidents/${incidentId}/planning/work-assignments/${waId}/resources/${reqId}/assignments`,
+    body
+  );
+}
+
+export function updateWorkAssignmentAssignment(
+  incidentId: string,
+  waId: number,
+  reqId: number,
+  assignmentId: number,
+  body: Record<string, unknown>
+) {
+  return api.patch<WorkAssignmentResourceAssignment>(
+    `/api/incidents/${incidentId}/planning/work-assignments/${waId}/resources/${reqId}/assignments/${assignmentId}`,
+    body
+  );
+}
+
+export function removeWorkAssignmentAssignment(incidentId: string, waId: number, reqId: number, assignmentId: number) {
+  return api.delete<void>(
+    `/api/incidents/${incidentId}/planning/work-assignments/${waId}/resources/${reqId}/assignments/${assignmentId}`
+  );
+}
+
+export function linkWorkAssignmentTask(incidentId: string, waId: number, body: Record<string, unknown>) {
+  return api.post<WorkAssignmentTaskLink>(`/api/incidents/${incidentId}/planning/work-assignments/${waId}/task-links`, body);
+}
+
+export function unlinkWorkAssignmentTask(incidentId: string, waId: number, linkId: number) {
+  return api.delete<void>(`/api/incidents/${incidentId}/planning/work-assignments/${waId}/task-links/${linkId}`);
 }

@@ -340,6 +340,76 @@ export interface SitrepEvent {
   updated_at: string;
 }
 
+// GET /api/incidents/{id}/planning/work-assignments — work_assignments.py.
+// ICS-215/204-style tactics planner. Only the fields this client's UI uses
+// are modeled here (hazards/comms/agency_request_links/log_entries/outputs
+// exist on the real doc but have no web UI yet).
+export interface WorkAssignmentResourceAssignment {
+  id: number;
+  resource_kind: string;
+  resource_id: string;
+  display_name: string;
+  status: string;
+  assigned_at: string | null;
+  released_at: string | null;
+  notes: string;
+}
+
+export interface WorkAssignmentResourceRequirement {
+  id: number;
+  resource_type_id: string | null;
+  resource_type_text: string;
+  capability_id: string | null;
+  capability_text: string;
+  quantity_required: number;
+  quantity_assigned: number;
+  quantity_available: number;
+  quantity_gap: number;
+  unit: string;
+  priority: string;
+  source_note: string;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+  assignments: WorkAssignmentResourceAssignment[];
+}
+
+export interface WorkAssignmentTaskLink {
+  id: number;
+  task_id: number;
+  link_type: string;
+  created_at: string;
+  notes: string;
+}
+
+export interface WorkAssignment {
+  id: number;
+  assignment_number: string;
+  assignment_name: string;
+  objective_id: string | null;
+  operational_period_id: number | null;
+  branch: string;
+  division_group: string;
+  location: string;
+  location_facility_id: string;
+  assignment_kind: string;
+  priority: string;
+  planning_status: string;
+  safety_status: string;
+  resource_status: string;
+  description: string;
+  tactics_summary: string;
+  special_instructions: string;
+  prepared_by: string | null;
+  approved_by: string | null;
+  created_at: string;
+  updated_at: string;
+  is_archived: boolean;
+  notes: string;
+  resources: WorkAssignmentResourceRequirement[];
+  task_links: WorkAssignmentTaskLink[];
+}
+
 export interface SitrepDistribution {
   id: string;
   sitrep_id: string;

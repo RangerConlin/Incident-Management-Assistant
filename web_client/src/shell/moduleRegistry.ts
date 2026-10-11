@@ -33,6 +33,7 @@ export const MODULE_REGISTRY: ModuleSection[] = [
       { key: "operational-periods", label: "Operational Periods", path: "/planning/operational-periods", status: "live" },
       { key: "meetings", label: "Meetings", path: "/planning/meetings", status: "live" },
       { key: "situation-reports", label: "Situation Reports", path: "/planning/sitreps", status: "live" },
+      { key: "work-assignments", label: "Work Assignments", path: "/planning/work-assignments", status: "live" },
       { key: "approvals", label: "Approvals", path: "/planning/approvals", status: "planned" },
       { key: "demobilization", label: "Demobilization", path: "/planning/demobilization", status: "planned" },
     ],
