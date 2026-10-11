@@ -21,8 +21,7 @@ from sarapp_db.mongo.repository import BaseRepository
 master_router = APIRouter()
 incident_router = APIRouter()
 
-# Lockdown collections (see mongodb_schema_decisions.md and backlog.md's
-# dual-key/lockdown split): the form catalog (families/templates/versions)
+# Lockdown collections: the form catalog (families/templates/versions)
 # is admin-controlled, not something a field user creates ad hoc. Writes
 # are central-catalog authoritative only — incident form *instances*
 # (incident_router, below) are unaffected, those are ordinary incident data.

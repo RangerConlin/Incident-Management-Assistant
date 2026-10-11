@@ -12,8 +12,7 @@ from sarapp_db.mongo.repository import BaseRepository
 
 router = APIRouter()
 
-# Lockdown collections (see mongodb_schema_decisions.md and backlog.md's
-# dual-key/lockdown split): task/team types are admin-controlled
+# Lockdown collections: task/team types are admin-controlled
 # taxonomies, not something a field user creates ad hoc. Writes are
 # central-catalog authoritative only. incident_types has no write endpoint
 # at all (read-only with hardcoded fallback defaults below), so it needs

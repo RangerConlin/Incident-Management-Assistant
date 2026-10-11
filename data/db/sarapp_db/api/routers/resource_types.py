@@ -14,8 +14,7 @@ from sarapp_db.mongo.collection_names import MasterCollections
 
 router = APIRouter()
 
-# Lockdown collection (see mongodb_schema_decisions.md and backlog.md's
-# dual-key/lockdown split): resource types/capabilities are an admin-
+# Lockdown collection: resource types/capabilities are an admin-
 # controlled taxonomy, not something a field user creates ad hoc. Writes
 # are central-catalog authoritative only.
 _LOCKDOWN_DETAIL = "Resource types/capabilities are central-catalog authoritative; edit them on the central catalog."

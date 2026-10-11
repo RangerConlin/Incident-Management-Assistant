@@ -183,7 +183,7 @@ def create_app(server_info_fn=None, request_log_fn=None, mode: str = "full") -> 
     # task_types/team_types/incident_types are master-catalog data, not
     # incident-scoped — mounted here (both modes) rather than inside
     # include_incident_routers below, so the central catalog can enforce
-    # its own lockdown guard on them (see lookup_types.py, backlog.md).
+    # its own lockdown guard on them (see lookup_types.py).
     from sarapp_db.api.routers import lookup_types
     app.include_router(lookup_types.router, prefix="/api/lookup", tags=["lookup-types"])
 

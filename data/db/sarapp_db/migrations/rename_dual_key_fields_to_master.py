@@ -35,8 +35,8 @@ from sarapp_db.mongo.database_manager import DB_CENTRAL_MASTER, get_client
 logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(message)s")
 log = logging.getLogger(__name__)
 
-# collection -> (local field, master field). Add an entry here each time a
-# new collection gets the dual-key treatment — see backlog.md.
+# collection -> (local field, master field). Add an entry here for each
+# central catalog collection using a local-id/master-id pair.
 _DUAL_KEY_FIELDS: dict[str, tuple[str, str]] = {
     "personnel": ("person_record", "person_record_master"),
     "equipment": ("equipment_record", "equipment_record_master"),

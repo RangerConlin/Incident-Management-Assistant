@@ -1,5 +1,4 @@
-"""Coverage for the "lockdown" collections (see Design Documents/Instructions/
-mongodb_schema_decisions.md and backlog.md's dual-key/lockdown split):
+"""Coverage for the "lockdown" collections:
 organizations/ranks, resource types/capabilities, and the form catalog are
 admin-controlled taxonomies, writable only on the central catalog
 (sarapp_central_master). A local catalog (sarapp_master) must get a 403 on

@@ -171,7 +171,7 @@ class BaseTypeEditorDialog(QWidget):
     # "last synced" status label — task_types/team_types are lockdown
     # collections today (no local writes, and not yet pulled down from the
     # central catalog either), so the label will honestly read "not
-    # available for this catalog yet" until that changes. See backlog.md.
+    # available for this catalog yet" until that changes.
     sync_collection: str | None = None
 
     def __init__(self, parent: Optional[QWidget] = None) -> None:

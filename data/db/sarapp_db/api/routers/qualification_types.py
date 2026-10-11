@@ -1,7 +1,7 @@
 """Master qualification catalog API router.
 
 Lockdown collection (see Design Documents/Instructions/
-mongodb_schema_decisions.md and backlog.md's dual-key/lockdown split):
+mongodb_schema_decisions.md):
 qualification profiles are an admin-controlled taxonomy describing
 higher-level role requirements (e.g. "Medic", "Pilot", "Team Leader"),
 expressed in terms of tags on the certification catalog

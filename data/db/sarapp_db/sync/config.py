@@ -15,8 +15,7 @@ _INTERVAL_ENV_VAR = "SARAPP_CENTRAL_SYNC_INTERVAL_SECONDS"
 
 DEFAULT_INTERVAL_SECONDS = 60.0
 
-# Collections known to copy fields from a master record are added here one
-# at a time as each is verified end to end — see backlog.md.
+# Collections known to sync through the central-master relay.
 SYNCABLE_MASTER_COLLECTIONS = (
     "personnel", "equipment", "vehicles", "aircraft",
     "hazard_types", "gar_templates", "canned_comm_entries", "hospitals",

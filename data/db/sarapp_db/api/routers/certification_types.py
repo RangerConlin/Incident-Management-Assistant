@@ -1,7 +1,7 @@
 """Master certification type catalog API router.
 
 Lockdown collection (see Design Documents/Instructions/
-mongodb_schema_decisions.md and backlog.md's dual-key/lockdown split):
+mongodb_schema_decisions.md):
 certification types are an admin-controlled taxonomy, not something a field
 user creates ad hoc, and ids must stay stable once shipped (personnel
 records embed certifications by `cert_type_id` reference, and

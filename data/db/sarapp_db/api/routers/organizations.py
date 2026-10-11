@@ -14,8 +14,8 @@ from sarapp_db.mongo.repository import BaseRepository
 router = APIRouter()
 
 # Lockdown collections (see Design Documents/Instructions/
-# mongodb_schema_decisions.md "Personnel: central-vs-local record ids" and
-# backlog.md's dual-key/lockdown split): organization types, rank
+# mongodb_schema_decisions.md "Personnel: central-vs-local record ids"):
+# organization types, rank
 # structures, organizations, and ranks are admin-controlled taxonomies, not
 # something a field user creates ad hoc. Writes are central-catalog
 # authoritative only; a local catalog is read-only/pull-only for these.

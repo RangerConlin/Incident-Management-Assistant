@@ -1,6 +1,5 @@
 """Coverage for cert_api.qualifications_met() — the pure tag/level matching
-logic backing the personnel editor's live "Qualifications Met" display (see
-ui/personnel/ui_personnel.py and backlog.md's qualification catalog entry).
+logic backing the personnel editor's live "Qualifications Met" display.
 """
 from __future__ import annotations
 
