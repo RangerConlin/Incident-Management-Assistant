@@ -1,0 +1,42 @@
+name: tracelet_android
+description: Android implementation of the Tracelet background geolocation plugin.
+version: 3.5.6
+topics:
+  - location
+  - background
+  - geofencing
+  - android
+license: Apache-2.0
+homepage: https://github.com/Ikolvi/Tracelet
+documentation: https://tracelet.ikolvi.com
+repository: https://github.com/Ikolvi/Tracelet/tree/main/packages/tracelet_android
+funding:
+  - https://github.com/sponsors/GalacticTitan
+  - https://www.buymeacoffee.com/kiranbjm
+  - https://thanks.dev/d/gh/galactictitan/dependencies
+  - https://www.patreon.com/c/kiranbjm
+
+resolution: workspace
+
+environment:
+  sdk: ^3.10.3
+  flutter: '>=3.22.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  tracelet_platform_interface: ^3.5.6
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  plugin:
+    implements: tracelet
+    platforms:
+      android:
+        package: com.ikolvi.tracelet.flutter
+        pluginClass: TraceletAndroidPlugin
+        dartPluginClass: TraceletAndroid

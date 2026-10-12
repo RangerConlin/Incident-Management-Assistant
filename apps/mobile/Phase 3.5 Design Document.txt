@@ -1,0 +1,55 @@
+ICS Command Assistant: Mobile App Phase 3.5 Design Plan
+
+⚙️ Phase 3.5 Overview
+Phase 3.5 introduces field productivity and safety tools focused on search and rescue efficiency, hazard awareness, and user experience enhancements. This phase strengthens the field user's toolkit with tactical aids and better incident control.
+
+📅 Phase 3.5 Feature Scope
+1. SAR-Specific Task Types and Tools
+Search pattern instructions (parallel, grid, etc.)
+GPS breadcrumb recording
+Map overlays for clue markers and sectors
+Support for “Last Known Point” and “Point Last Seen”
+2. Hazard & Safety Reporting
+Field submission of hazard/safety issues
+Reports include photos, geolocation, and type
+Accessible by Command via safety dashboard
+3. Quick Navigation Tools
+GPS coordinate access for:
+Team members
+Assigned sectors
+Task destinations
+Option to launch external map apps (Google Maps, Gaia, etc.)
+4. Battery Saving Mode
+Reduces frequency of GPS and data sync
+Manual toggle with visual indicator
+Prioritizes power conservation in extended ops
+5. Field QR Scan Utility
+Equipment/location/team QR code scanning
+Supports offline capture and later sync
+Used for check-ins, asset tracking, and location IDs
+
+📁 Backend/API Additions
+Feature
+Module
+Endpoint(s)
+Tables
+SAR Task Types
+Ops / Tasking
+GET /api/tasks/sar
+Tasks, ClueMarkers
+Hazard Reports
+Safety
+POST /api/safety/report
+HazardReports
+Navigation Tool
+Location Services
+GET /api/location/targets
+Users, Tasks
+Battery Settings
+Local Storage
+None (local only)
+—
+QR Scan Handler
+Equipment / Logs
+POST /api/qr/scan, GET /api/qr/history
+QRLog

@@ -12,7 +12,7 @@ Scaffold a new BaseRepository subclass for MongoDB data access.
 
 ## What It Creates
 
-`data/db/sarapp_db/mongo/repositories/incident_repository.py`
+`server/sarapp_db/sarapp_db/mongo/repositories/incident_repository.py`
 
 ```python
 class IncidentRepository(BaseRepository):

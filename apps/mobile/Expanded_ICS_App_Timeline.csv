@@ -1,0 +1,41 @@
+Phase,Task,Start Day,End Day
+Phase 1,Login & Authentication,0,2
+Phase 1,Mission Selection & Role Setup,4,6
+Phase 1,Check-In Workflow,8,11
+Phase 1,Basic Status Update System,13,16
+Phase 2,Tasking System (Active911-style),18,21
+Phase 2,ICS 214 Logging (Field),23,26
+Phase 2,Comms/Med Plan Viewers,28,31
+Phase 2,Basic Task Log Sync,33,35
+Phase 3,Offline Storage & Sync Engine,37,41
+Phase 3,Live GPS Sharing,43,46
+Phase 3,Push Notification System,48,50
+Phase 3,Team Status Viewer,52,54
+Phase 3.5,SAR Search Tools UI & Logic,56,59
+Phase 3.5,Hazard Reporting System,61,63
+Phase 3.5,Quick Navigation Tool,65,66
+Phase 3.5,Battery Saver Mode,68,69
+Phase 3.5,QR Scanner & Offline Sync,71,74
+Phase 4,Command Map Dashboard,76,80
+Phase 4,Live Task Board UI,82,85
+Phase 4,Messaging System (Command),87,90
+Phase 4,Personnel/Team Overview,92,95
+Phase 5,Fillable ICS Form Renderer,97,100
+Phase 5,Reference Library Viewer,102,104
+Phase 5,AAR Submission Workflow,106,108
+Phase 5,Broadcast Alert System,110,112
+Phase 6,Analytics Dashboard,114,117
+Phase 6,Audit Logs & Session Tracking,119,121
+Phase 6,Export & Archive Tools,123,125
+Phase 6,Interoperability API Preview,127,129
+Phase 6,Admin Role Management Tools,131,133
+Phase 7,Multi-Agency Participation Logic,135,138
+Phase 7,Shared Operations Feed,140,142
+Phase 7,Cross-Agency Messaging,144,146
+Phase 7,Joint Resource Viewer,148,150
+Phase 7,Role Mapping Admin Tools,152,154
+Phase 8,Auto-Fill for ICS Forms,156,159
+Phase 8,AI Assistant Bot,161,163
+Phase 8,Predictive Routing Tools,165,167
+Phase 8,Task Reprioritization Logic,169,171
+Phase 8,Mission Summary Generator,173,175

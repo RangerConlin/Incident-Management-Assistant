@@ -30,7 +30,7 @@ After setup:
 ```bash
 python main.py                    # Start desktop app
 pytest tests/ --cov              # Run test suite
-bash scripts/validate-all.sh      # Validate code quality
+bash tools/scripts/validate-all.sh      # Validate code quality
 ```
 
 ## Troubleshooting

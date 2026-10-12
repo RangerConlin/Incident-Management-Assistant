@@ -10,7 +10,7 @@ Universal project knowledge and tasks. Discoverable by all tools and agents (Cla
 
 ### Development Workflows
 - **`new-module`** — Scaffold new functional module with correct structure
-- **`new-router`** — Create API router under `data/db/sarapp_db/api/routers/`
+- **`new-router`** — Create API router under `server/sarapp_db/sarapp_db/api/routers/`
 - **`new-repository`** — Create BaseRepository subclass for MongoDB data access
 - **`new-ui-panel`** — Scaffold UI panel/widget following design standards
 
@@ -58,10 +58,10 @@ To create a new skill:
 Skills are:
 - **Claude Code** — Invoked with `/skillname`
 - **Codex** — Can reference these docs for guidance
-- **CI/CD** — Can call underlying scripts/tools referenced in skills
+- **CI/CD** — Can call underlying tools/scripts/tools referenced in skills
 - **Any tool** — Just reference the markdown as documentation
 
 Skills work alongside:
-- `scripts/` — Validation scripts (called by skills and hooks)
-- `Design Documents/Instructions/` — Detailed guidance
+- `tools/scripts/` — Validation scripts (called by skills and hooks)
+- `docs/archive/design-documents/Instructions/` — Detailed guidance
 - `agents.md` — Hard rules and architecture decisions

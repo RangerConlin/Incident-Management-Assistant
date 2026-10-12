@@ -146,6 +146,6 @@ Docs:   http://localhost:8000/docs  (Swagger UI)
 
 ## Documentation
 
-See `Design Documents/Instructions/api_router_rules.md` for:
+See `docs/archive/design-documents/Instructions/api_router_rules.md` for:
 - Endpoint design patterns
 - Error handling

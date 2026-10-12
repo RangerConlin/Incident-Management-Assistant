@@ -11,7 +11,7 @@ Create a new API router under the shared FastAPI app.
 
 ## What It Creates
 
-**Router** — `data/db/sarapp_db/api/routers/myrouter.py`
+**Router** — `server/sarapp_db/sarapp_db/api/routers/myrouter.py`
 
 ```python
 @router.get("/api/myrouter")
@@ -24,7 +24,7 @@ async def create(data: MySchema):
 ```
 
 This is the only copy that needs to exist. `cloud_server/` imports the shared
-FastAPI app from `data/db/sarapp_db/api/app.py` and must not keep a mirrored
+FastAPI app from `server/sarapp_db/sarapp_db/api/app.py` and must not keep a mirrored
 router tree, so there is nothing to mirror.
 
 ## Options

@@ -202,8 +202,8 @@ Cost Summary
 
 **************************************************************************************************************
 [Tech Debt / Infrastructure]
-    - Web client (`web_client/`): full-CRUD browser clone of the desktop app, built module by module — see
-      `web_client/AGENTS.md` for conventions and `src/shell/moduleRegistry.ts` for the full module list and
+    - Web client (`apps/web/`): full-CRUD browser clone of the desktop app, built module by module — see
+      `apps/web/AGENTS.md` for conventions and `src/shell/moduleRegistry.ts` for the full module list and
       which are live.
       - Auth is not enforced anywhere (`POST /api/auth/login` issues a JWT; no router checks it). A
         tunnel-scoped enforcement design (require it only on requests that arrived via `cloud_router`'s
@@ -215,7 +215,7 @@ Cost Summary
         before enforcement can flip on anywhere) — a middle path is building the verification dependency
         disabled by default (env-var gated) so it's ready once that rollout happens. Also still needed: a
         password reset/change flow (`/password/set` only works once per account today). See
-        `Design Documents/Instructions/database_architecture.md` ("Authentication").
+        `docs/archive/design-documents/Instructions/database_architecture.md` ("Authentication").
       - `linked_strategy_summary` (one of desktop's Task Status Board columns) is deliberately not
         exposed via `GET .../operations/task-rows` — it needs a real extra HTTP round-trip per task into
         a Planning-module endpoint, a cross-module dependency on a module with no web presence yet.
@@ -225,7 +225,7 @@ Cost Summary
         Personnel/Logistics master catalogs — those aren't wired up to the web client yet. Revisit once
         those modules get their own web pass.
       - The app's own bundle can't be reached through a `/r/<code>/app/...` connect-code URL yet:
-        `web_client/vite.config.ts`'s `base: "/app/"` bakes absolute asset paths into `index.html`, which
+        `apps/web/vite.config.ts`'s `base: "/app/"` bakes absolute asset paths into `index.html`, which
         lose the `/r/<code>` prefix when a browser resolves them (`cloud_router` strips that prefix on the
         request it proxies, but doesn't rewrite the HTML it returns). `src/api/connection.ts`'s domain +
         connect-code setting only redirects data calls made after the app has already loaded, not the
@@ -241,25 +241,25 @@ Cost Summary
         product development.
       - Heavily in-development modules: leave the remaining collections alone for now except to
         avoid adding new duplicate collections or fields.
-    - Cloud router (`cloud_server/router/`) forwards request/response and WebSocket bodies over the reverse tunnel as base64-in-JSON, capped at 10MB each direction (`SARAPP_ROUTER_MAX_BODY_BYTES`). Fine for typical form/photo sizes; revisit with a streaming transport if large file uploads/downloads through the router prove too slow. See `Design Documents/Instructions/cloud_router_architecture.md`.
+    - Cloud router (`services/cloud_router/`) forwards request/response and WebSocket bodies over the reverse tunnel as base64-in-JSON, capped at 10MB each direction (`SARAPP_ROUTER_MAX_BODY_BYTES`). Fine for typical form/photo sizes; revisit with a streaming transport if large file uploads/downloads through the router prove too slow. See `docs/archive/design-documents/Instructions/cloud_router_architecture.md`.
     - Mobile photo upload isn't implemented yet (Report Hazard's "Attach Photo" is a placeholder button, no `image_picker` dependency). When it's built, submit one photo per request rather than batching several into one multipart body, to stay clear of the 10MB tunnel cap above.
-    - Central master database (`cloud_router/master_db/`, embedded `sarapp_central_master` Mongo — see `Design Documents/Instructions/cloud_router_architecture.md`):
-      - Cloud server dashboard (`cloud_server/dashboard.py`) needs a central-catalog sync status surface using
+    - Central master database (`services/cloud_router/master_db/`, embedded `sarapp_central_master` Mongo — see `docs/archive/design-documents/Instructions/cloud_router_architecture.md`):
+      - Cloud server dashboard (`services/cloud_server/dashboard.py`) needs a central-catalog sync status surface using
         `GET /api/sync-trigger/status`.
       - Decide whether the desktop app's built-in offline server (`server/server_manager.py`) should participate
-        in central-catalog sync like `lan_server/server_manager.py`; if not, update the stale docstring that says
+        in central-catalog sync like `services/lan_server/server_manager.py`; if not, update the stale docstring that says
         it is functionally identical to the standalone LAN server.
       - Extend the `master_link` sub-document beyond `incident_personnel` to the other master-resource-backed incident collections (vehicles/equipment/aircraft), once that copying is confirmed to exist.
-      - Per-operator accounts/audit trail for the central catalog GUI (MVP is a single shared admin login, same pattern as `cloud_server/dashboard.py`).
+      - Per-operator accounts/audit trail for the central catalog GUI (MVP is a single shared admin login, same pattern as `services/cloud_server/dashboard.py`).
       - Cloud central catalog GUI follow-up: add purpose-built structured editors for nested/versioned catalogs instead of exposing them through the generic free-text CRUD form. Remaining known case is form families/templates/template versions.
       - Personnel duplicate merge workflow: two servers each creating a new personnel record offline before either syncs produces two distinct central documents. Needs a human-reviewed, operator-approved merge UI comparing multiple fields (name, person_id, org, contact info, etc.) — not an automatic match on any single field.
       - `utils/catalog_cache.py` invalidation for remotely-synced master changes (today it only invalidates after locally-initiated writes).
-      - MongoDB change streams as a latency optimization layered on the existing push/outbox/pull relay, only if the ~60s poll interval (or a manual resync) ever actually proves too slow — requires every deployment's MongoDB to run as a replica set, which none do today; see `Design Documents/Instructions/realtime_architecture_roadmap.md` ("Server ↔ central sync") for the tradeoff.
+      - MongoDB change streams as a latency optimization layered on the existing push/outbox/pull relay, only if the ~60s poll interval (or a manual resync) ever actually proves too slow — requires every deployment's MongoDB to run as a replica set, which none do today; see `docs/archive/design-documents/Instructions/realtime_architecture_roadmap.md` ("Server ↔ central sync") for the tradeoff.
       - Organization picker source-of-truth drift: ICS-Mobile-App's profile screen organization
         picker (`ICS-Mobile-App/lib/models/organizations.dart`, `Organizations.bundled`) hardcodes the full CAP
         Great Lakes Region roster (MI/IL/IN/KY/OH/WI wings + squadrons) plus a handful of state-agency/civilian
         entries as its offline-first fallback. Its docstring claims this mirrors an authoritative
-        `data/db/sarapp_db/org_catalog.py` in this repo, but that file does not exist here (never committed, not
+        `server/sarapp_db/sarapp_db/org_catalog.py` in this repo, but that file does not exist here (never committed, not
         in any worktree/stash) — the desktop app has no equivalent seeded organization list at all, and the
         central master catalog's `organizations` collection starts empty. A CSV derived from the Dart list
         (`data/master_catalog_seed/organizations_glr_seed.csv`) exists to seed the catalog via
@@ -277,12 +277,19 @@ Cost Summary
         staging, bases, etc. scoped to one incident) and from `organizations` (who, not where). Candidate shape:
         name, facility type, address, lat/lon, contact info, notes, maybe a parent organization link. Follow the
         same pattern as the `personnel`/`equipment`/`vehicles`/`organizations` master collections (BaseRepository
-        + router under `data/db/sarapp_db/api/routers/`, a `CollectionSpec` entry in
-        `cloud_router/master_db/webgui.py`, and a desktop Edit-menu panel). Open question: whether addresses
+        + router under `server/sarapp_db/sarapp_db/api/routers/`, a `CollectionSpec` entry in
+        `services/cloud_router/master_db/webgui.py`, and a desktop Edit-menu panel). Open question: whether addresses
         entered here/on organizations get geocoded automatically (needs a geocoding service decision — Nominatim/
         OSM vs. a paid provider vs. manual lat/lon entry only, which is all that exists today) or stay manual-only
         for now; see the Aviation Facilities reference-layer backlog item under `[GIS]` for a related, separate
         read-only external dataset that could feed or coexist with this catalog.
+      - ICS-Mobile-App light theme: the mobile app is currently always-dark by design
+        (`lib/theme/app_theme.dart`'s `AppTheme` — "a deliberate, always-dark look for a single-purpose field ops
+        tool", not following the device's light/dark setting). A light palette doesn't exist yet. If a light mode
+        is added later, it needs its own legibility/contrast pass (glare in daylight field use is exactly what the
+        dark-only decision was protecting against) rather than just inverting the dark colors, and should wire
+        into the Settings screen's Appearance section (`ics_mobile_app` repo) alongside the text-size preference
+        already there.
 
 **************************************************************************************************************
 [GIS]

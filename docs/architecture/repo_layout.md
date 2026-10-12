@@ -121,7 +121,7 @@ Incident-Management-Assistant/
     deploy/
 
   tools/
-    scripts/
+    tools/scripts/
     dev/
     audits/
 

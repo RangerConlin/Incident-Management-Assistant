@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "154385490414",
+    "project_id": "sarapp-mobile-companion",
+    "storage_bucket": "sarapp-mobile-companion.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:154385490414:android:47e4a4ae4f6cf31a4baeff",
+        "android_client_info": {
+          "package_name": "com.icscommand.sarapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBqaSNqiknvA7Gs8-Zr4-MMCEx4VN3TBqY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,168 @@
+ICS Command Assistant: Mobile App Phase 8 Design Plan
+
+🤖 Phase 8 Overview
+
+Phase 8 introduces intelligent automation and predictive assistance into the ICS mobile ecosystem. It enhances user efficiency and decision-making with AI-driven support, smart data entry, and emerging capabilities like routing and forecasting.
+
+📅 Phase 8 Feature Scope
+
+1. Smart Auto-Fill for ICS Forms
+
+Predictive suggestions for fields like:
+
+Date/time
+
+Team assignments
+
+Weather
+
+Location
+
+Pull from system state and previous submissions
+
+Applied to ICS 214, 213, AAR, and custom forms
+
+2. AI Assistant (Embedded Help Bot)
+
+Natural language assistant embedded in the app
+
+Users can:
+
+Ask how to complete forms
+
+Request definitions (e.g., LKP vs PLS)
+
+Get workflow guidance (e.g., "how do I check out?")
+
+Operates on-device or queries remote backend model
+
+3. Predictive Routing Suggestions
+
+Based on team location and terrain
+
+Suggests optimal travel routes for tasks
+
+Future capability: avoid hazards or inaccessible zones
+
+Optional integration with agency mapping layers
+
+4. Smart Task Reprioritization (Command)
+
+Backend flags overdue, duplicate, or conflicting tasking
+
+Prompts for reassignment or team alert
+
+Command dashboard notification and review queue
+
+5. Incident Summary Generation
+
+Auto-generate incident summary based on:
+
+Logs (ICS 214)
+
+Status changes
+
+Messaging records
+
+Hazard & clue reports
+
+Command staff can edit/export the summary
+
+📁 Backend/API Additions
+
+Feature
+
+Backend Module
+
+Endpoint Needed
+
+Mongo Scope / Collection
+
+Smart Auto-Fill Engine
+
+Forms
+
+No current suggestion endpoint. Existing forms routers and binding data can provide source data for a future /api/forms/suggest route.
+
+sarapp_master.form_templates, sarapp_incident_<id>.forms, incident profile, teams, tasks
+
+AI Assistant API
+
+System Help
+
+No current AI assistant endpoint.
+
+Future AI/help service; should read documented schemas and selected incident context
+
+Routing Suggestions
+
+Operations / GIS
+
+No current routing endpoint. Future route service should use GIS routes/layers and operations task locations.
+
+sarapp_incident_<id>.tasks, spatial_features, spatial_feature_links, hazards
+
+Task Reprioritization
+
+Operations / Command
+
+GET /api/incidents/{incident_id}/alerts provides current alert basis; predictive reprioritization endpoint is future work.
+
+sarapp_incident_<id>.tasks, teams
+
+Incident Summary Builder
+
+Docs / Logs
+
+No current summary endpoint. Future summary should aggregate current module routers and form/log collections.
+
+sarapp_incident_<id>.communications_log, ics_214_logs, unit_logs, tasks, teams, hazards, forms
+
+🧭 UI & Navigation Additions
+
+New Tools or Enhancements:
+
+[✨ Smart Form Suggestions]
+
+[🤖 Ask Assistant]
+
+[🗺️ Suggested Route]
+
+[⚠️ Task Alerts]
+
+[📄 Auto Summary Builder]
+
+⏳ Suggested Timeline (~2–3 Weeks)
+
+Day(s)
+
+Task
+
+1–3
+
+Build form auto-fill logic + UI injection
+
+4–5
+
+Integrate AI assistant as floating or tabbed tool
+
+6–7
+
+Implement routing engine and route viewer
+
+8–9
+
+Create task alerting & reprioritization logic
+
+10–12
+
+Generate summary builder and document preview
+
+13–15
+
+Backend wiring + optional LLM setup
+
+16–17
+
+Final polish and QA
+

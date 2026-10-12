@@ -1,0 +1,164 @@
+ICS Command Assistant: Mobile App Phase 7 Design Plan
+
+🌐 Phase 7 Overview
+
+Phase 7 enables real-time inter-agency collaboration, focusing on operational coordination between multiple jurisdictions, mutual aid teams, and external partners. It introduces shared incident channels, joint visibility tools, and permissions that respect agency boundaries.
+
+📅 Phase 7 Feature Scope
+
+1. Multi-Agency Incident Support
+
+Enable a single incident to include users from multiple distinct organizations
+
+Users retain their home agency affiliation but are assigned to unified incident teams
+
+Support different roles/permissions per agency per incident
+
+2. Shared Ops Channel (Interagency Feed)
+
+Command staff can view a feed of:
+
+Status updates
+
+Field logs
+
+Location pings (if permitted)
+
+Feed can be filtered by agency/team/tasking
+
+Includes agency badge/branding per entry
+
+3. Secure Cross-Agency Messaging
+
+Chat channels scoped to:
+
+All agencies
+
+Specific agency-to-agency
+
+Incident-wide
+
+Encrypted transport
+
+Visibility controlled via roles and agency rules
+
+4. Joint Resource Visibility
+
+View combined personnel, tasking, and assets across participating orgs
+
+Visual indicator of agency origin
+
+Filter resources by affiliation, team, and assignment
+
+5. Agency Role Mapping Tool
+
+Admin UI to map roles across orgs:
+
+“Rescue Tech (Org A)” = “Field User (Unified)”
+
+“Comms Officer (Org B)” = “Comms Lead (Unified)”
+
+Supports consistent access control in mixed incidents
+
+📁 Backend/API Additions
+
+Feature
+
+Backend Module
+
+Endpoint Needed
+
+Mongo Scope / Collection
+
+Multi-Agency Incidents
+
+Organizations / Personnel / Incident Resources
+
+Current support is through master organization/personnel records and incident-scoped resources. No dedicated join endpoint currently exists.
+
+sarapp_master.organizations, sarapp_master.personnel, sarapp_incident_<id>.incident_personnel, check_in_out
+
+Shared Ops Feed
+
+Operations / Logs / Comms
+
+No unified feed endpoint currently exists. Candidate read model should aggregate operations, comms log, ICS 214, and status changes.
+
+sarapp_incident_<id>.tasks, communications_log, ics_214_logs, teams
+
+Messaging System
+
+Communications
+
+Use existing communications routers under /api/incidents/{incident_id}/comms-log and related message routes; cross-agency chat endpoint is future work.
+
+sarapp_incident_<id>.communications_log, ics_213_messages
+
+Resource Viewer
+
+Incident Resources / Operations
+
+GET /api/incidents/{incident_id}/resources, GET /api/incidents/{incident_id}/operations/teams, GET /api/incidents/{incident_id}/checkin/roster
+
+sarapp_incident_<id>.check_in_out, teams, checkins
+
+Role Mapping Tool
+
+Organizations / Auth
+
+No active auth role-mapping endpoint currently exists.
+
+sarapp_master.role_templates, sarapp_master.user_profiles, organization collections
+
+🧭 UI & Navigation
+
+New Tabs or Screens:
+
+[🛰️ Interagency Feed]
+
+[💬 Cross-Agency Messaging]
+
+[👥 Resource Overview]
+
+[🔧 Role Mapping Console] (command only)
+
+Mobile App (Field Side):
+
+Users see badge or label of team/agency on assignments and updates
+
+Access to chat channels per role/agency policy
+
+⏳ Suggested Timeline (~2–3 Weeks)
+
+Day(s)
+
+Task
+
+1–2
+
+Multi-agency incident participation logic
+
+3–4
+
+Build shared ops feed UI + backend
+
+5–6
+
+Implement cross-agency messaging logic
+
+7–8
+
+Create role mapping admin console
+
+9–10
+
+Joint resource viewer & filtering
+
+11–13
+
+Backend permissions + integration testing
+
+14–17
+
+UI polish, documentation, QA
+

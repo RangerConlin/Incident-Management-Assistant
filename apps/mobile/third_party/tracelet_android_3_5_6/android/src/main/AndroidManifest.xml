@@ -1,0 +1,30 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.ikolvi.tracelet.flutter">
+
+    <!--
+      Permissions and SDK components (LocationService, BootReceiver,
+      GeofenceBroadcastReceiver, PeriodicAlarmReceiver) are declared in the
+      tracelet-sdk library manifest and merged automatically by the Android
+      manifest merger.
+    -->
+
+    <application>
+        <!-- Headless Dart execution service (Flutter-specific) -->
+        <service
+            android:name=".service.HeadlessTaskService"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
+
+        <!--
+          Process-start hook. Runs on every process creation (including a
+          BootReceiver-spawned process after reboot) to wire the headless Dart
+          sync bridge so background HTTP sync works without a UI engine.
+          Authority is namespaced per host app via ${applicationId}.
+        -->
+        <provider
+            android:name=".TraceletStartupProvider"
+            android:authorities="${applicationId}.tracelet-startup"
+            android:exported="false"
+            android:initOrder="100" />
+    </application>
+</manifest>

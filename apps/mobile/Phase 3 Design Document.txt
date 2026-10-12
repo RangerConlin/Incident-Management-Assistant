@@ -1,0 +1,179 @@
+ICS Command Assistant: Mobile App Phase 3 Design Plan
+
+🔄 Phase 3 Overview
+
+Phase 3 expands mobile functionality with field autonomy, offline support, enhanced communication, and improved situational awareness. It bridges mobile workflows with command visibility and introduces data redundancy for disconnected ops.
+
+📅 Phase 3 Feature Scope
+
+1. Offline Mode with Sync Engine
+
+Store critical data locally (tasks, comms plan, med plan, ICS 214 logs)
+
+User can operate fully offline:
+
+View assignments
+
+Log ICS 214 entries
+
+Update task status
+
+Sync queued changes when connectivity returns
+
+Show sync status (icon or banner)
+
+2. Live Location Updates (Opt-In)
+
+Field users can enable live GPS tracking
+
+Sends periodic location pings to backend
+
+Viewable by command staff on map dashboard (Phase 4)
+
+Role-based enablement, battery optimized
+
+3. Push Notifications (Firebase Cloud Messaging)
+
+Receive:
+
+Task assignments
+
+Message alerts
+
+Priority updates or recalls
+
+Opt-in per device, token registered with backend
+
+Android-first implementation; iOS APNs configuration deferred until a macOS/Xcode
+build path exists (see Platform Priority note in Phase 1 doc)
+
+5. Team Overview Screen (Field Users)
+
+View current status of team members
+
+Show role, last check-in, last known status
+
+Pulled from incident personnel records
+
+6. Role-Based Lockout and Access Control
+
+Admin can restrict access to certain functions by role or assignment
+
+Prevents unauthorized log access, location tracking, or status reporting
+
+📁 Backend/API Additions
+
+Feature
+
+Backend Module
+
+Endpoint Needed
+
+Mongo Scope / Collection
+
+Offline Sync
+
+Core Sync Engine
+
+Not currently implemented as a mobile sync API. Use read-through caching from existing endpoints until a sync router exists.
+
+All relevant sarapp_incident_<id> collections
+
+Location Updates
+
+Operations / GIS
+
+No dedicated mobile location endpoint currently exists. Candidate target: PATCH /api/incidents/{incident_id}/operations/teams/{team_id} with location fields, or a future GIS/location router.
+
+sarapp_incident_<id>.teams, sarapp_incident_<id>.spatial_features
+
+Notifications
+
+Comms / System
+
+No push-token or notification polling endpoint currently exists.
+
+Future system/mobile notification collection
+
+Team Overview
+
+Operations
+
+GET /api/incidents/{incident_id}/operations/team-assignment-rows, GET /api/incidents/{incident_id}/teams
+
+sarapp_incident_<id>.teams
+
+Role Restrictions
+
+Auth / Admin
+
+No current mobile permissions endpoint. Server has master user profile scaffolding but no active auth router.
+
+sarapp_master.user_profiles, sarapp_master.role_templates
+
+📊 UI & Navigation Overview
+
+New Tabs or Views:
+
+Field:
+
+[📡 Sync Status]
+
+
+
+[👥 My Team]
+
+Command:
+
+No major additions in-app (focus on control from web/desktop tools)
+
+System Banners & Warnings:
+
+Offline warning banner when disconnected
+
+Sync conflict or success indicators
+
+Push notification previews
+
+⏳ Suggested Timeline (~2–3 Weeks)
+
+Day(s)
+
+Task
+
+1–2
+
+Setup local storage structure (SQLite or async storage)
+
+3–4
+
+Build offline caching + data fetch fallback
+
+5–6
+
+Implement live GPS update logic with backend ping
+
+7–8
+
+Add push notification registration and handler
+
+9
+
+Build team overview screen
+
+10–11
+
+Add voice-to-text input field and attach to 214
+
+12–13
+
+Sync test cycle, offline recovery logic
+
+14–15
+
+Final polish, failover testing, QA
+
+16–17
+
+Package and release
+
