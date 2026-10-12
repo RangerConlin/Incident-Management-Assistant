@@ -18,11 +18,13 @@ from __future__ import annotations
 import csv
 import json
 import pathlib
+import sqlite3
 import sys
 
 _REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_REPO_ROOT))
 sys.path.insert(0, str(_REPO_ROOT / "server" / "sarapp_db"))
+sys.path.insert(0, str(_REPO_ROOT / "apps" / "desktop" / "sarapp_desktop"))
 
 import os
 
@@ -247,6 +249,53 @@ def _export_radio_channels(db) -> None:
     _write_csv("radio_channels.csv", keys, rows)
 
 
+def _export_canned_comm_entries(db) -> None:
+    keys = ["title", "category", "message", "priority", "notification_level", "status_update", "is_active"]
+    docs = list(db["canned_comm_entries"].find({}))
+    if docs:
+        rows = [{k: d.get(k, "") for k in keys} for d in docs]
+        _write_csv("canned_comm_entries.csv", keys, rows)
+        return
+
+    legacy_path = _REPO_ROOT / "data" / "master.db"
+    if not legacy_path.exists():
+        print("skip canned_comm_entries (empty or missing)")
+        return
+    with sqlite3.connect(legacy_path) as conn:
+        conn.row_factory = sqlite3.Row
+        table = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type = ? AND name = ?",
+            ("table", "canned_comm_entries"),
+        ).fetchone()
+        if table is None:
+            print("skip canned_comm_entries (empty or missing)")
+            return
+        columns = {row["name"] for row in conn.execute("PRAGMA table_info(canned_comm_entries)")}
+        message_column = "message" if "message" in columns else "body"
+
+        def cell(row: sqlite3.Row, column: str, default=""):
+            return row[column] if column in columns else default
+
+        rows = [
+            {
+                "title": cell(row, "title") or "",
+                "category": cell(row, "category") or "",
+                "message": cell(row, message_column) or "",
+                "priority": cell(row, "priority") or "",
+                "notification_level": cell(row, "notification_level", 0) or 0,
+                "status_update": cell(row, "status_update") or "",
+                "is_active": cell(row, "is_active", 1) if cell(row, "is_active", 1) is not None else 1,
+            }
+            for row in conn.execute(
+                "SELECT * FROM canned_comm_entries ORDER BY id"
+            )
+        ]
+    if not rows:
+        print("skip canned_comm_entries (empty)")
+        return
+    _write_csv("canned_comm_entries.csv", keys, rows)
+
+
 _CURATED_EXPORTERS = {
     "personnel": _export_personnel,
     "equipment": _export_equipment,
@@ -257,6 +306,7 @@ _CURATED_EXPORTERS = {
     "ranks": _export_ranks,
     "organizations": _export_organizations,
     "radio_channels": _export_radio_channels,
+    "canned_comm_entries": _export_canned_comm_entries,
 }
 
 
@@ -293,7 +343,9 @@ def main() -> None:
     all_collections = set(db.list_collection_names())
 
     for collection, exporter in _CURATED_EXPORTERS.items():
-        if collection in all_collections and db[collection].count_documents({}) > 0:
+        if collection == "canned_comm_entries":
+            exporter(db)
+        elif collection in all_collections and db[collection].count_documents({}) > 0:
             exporter(db)
         else:
             print(f"skip {collection} (empty or missing)")

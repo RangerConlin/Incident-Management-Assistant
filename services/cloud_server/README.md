@@ -19,24 +19,20 @@ a deliberately separate direct-access deployment.
 
 ## First Install
 
-Clone only the pieces this service needs with Git sparse checkout:
+Use a full repo checkout on the VPS. This service builds from the repo root
+because it vendors the shared `server/sarapp_db` package, and the VPS can host
+the router, server, and web client as separate Compose projects from the same
+checkout:
 
 ```bash
 cd /opt
-git clone --filter=blob:none --sparse https://github.com/RangerConlin/Incident-Management-Assistant.git sarapp-cloud-server-db
-cd /opt/sarapp-cloud-server-db
-git sparse-checkout set .dockerignore services/cloud_server server/sarapp_db/sarapp_db
+git clone https://github.com/RangerConlin/Incident-Management-Assistant.git sarapp
+cd /opt/sarapp
 cd services/cloud_server
 cp .env.example .env
 nano .env
 docker compose -p sarapp-cloud-server-db-test --env-file .env up -d --build
 ```
-
-That checkout contains only:
-
-- `.dockerignore`
-- `services/cloud_server/`
-- `server/sarapp_db/sarapp_db/`
 
 The required router registration settings in `services/cloud_server/.env` are:
 
@@ -49,7 +45,7 @@ The required router registration settings in `services/cloud_server/.env` are:
 From the VPS:
 
 ```bash
-cd /opt/sarapp-cloud-server-db/services/cloud_server
+cd /opt/sarapp/services/cloud_server
 git -C ../.. pull --ff-only
 docker compose -p sarapp-cloud-server-db-test --env-file .env up -d --build --remove-orphans
 ```
@@ -57,7 +53,7 @@ docker compose -p sarapp-cloud-server-db-test --env-file .env up -d --build --re
 Or use the helper script:
 
 ```bash
-cd /opt/sarapp-cloud-server-db/services/cloud_server
+cd /opt/sarapp/services/cloud_server
 sh ./update_service.sh sarapp-cloud-server-db-test
 ```
 
@@ -99,7 +95,7 @@ The update button is enabled by `CLOUD_UPDATE_COMMAND`. The browser never
 supplies command text; the dashboard only starts the fixed command from the
 environment and shows its recent output.
 
-The default Compose file mounts the Docker socket and the sparse checkout into
+The default Compose file mounts the Docker socket and the repo checkout into
 the app container so this command can update the host deployment:
 
 ```env
@@ -124,6 +120,7 @@ with the supplied suffix.
 
 Direct Traefik exposure is off by default with `TRAEFIK_DIRECT_ENABLE=false`.
 That avoids competing with the existing old router route. If you intentionally
-turn it on, this Compose file assumes an existing external Docker network named
-`traefik` and a Traefik HTTPS entrypoint named `websecure`. Override the
-network name with `TRAEFIK_NETWORK`.
+turn it on, this Compose file uses Traefik labels only. On the current VPS,
+Traefik runs with Docker `host` networking and discovers containers through the
+Docker socket, so this service does not join or require a shared external
+`traefik` network. The HTTPS entrypoint is expected to be named `websecure`.

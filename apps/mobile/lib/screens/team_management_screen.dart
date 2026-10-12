@@ -1014,7 +1014,7 @@ class _PersonEditDialogState extends State<_PersonEditDialog> {
           mainAxisSize: MainAxisSize.min,
           children: [
             DropdownButtonFormField<String>(
-              value: _status,
+              initialValue: _status,
               decoration: const InputDecoration(labelText: 'Status'),
               items: _statusOptions
                   .map((status) => DropdownMenuItem(value: status, child: Text(status)))
@@ -1526,7 +1526,7 @@ class _ResourceEditDialogState extends State<_ResourceEditDialog> {
               const SizedBox(height: 12),
             ],
             DropdownButtonFormField<String>(
-              value: _resourceType,
+              initialValue: _resourceType,
               decoration: const InputDecoration(labelText: 'Resource type'),
               items: _types
                   .map((type) => DropdownMenuItem(
@@ -1549,7 +1549,7 @@ class _ResourceEditDialogState extends State<_ResourceEditDialog> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              value: _status,
+              initialValue: _status,
               decoration: const InputDecoration(labelText: 'Status'),
               items: _statuses
                   .map((status) => DropdownMenuItem(value: status, child: Text(status)))

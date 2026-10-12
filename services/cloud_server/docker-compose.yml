@@ -33,27 +33,15 @@ services:
       - traefik.http.routers.${COMPOSE_PROJECT_NAME:-sarapp-cloud-server-db}.entrypoints=websecure
       - traefik.http.routers.${COMPOSE_PROJECT_NAME:-sarapp-cloud-server-db}.tls=true
       - traefik.http.services.${COMPOSE_PROJECT_NAME:-sarapp-cloud-server-db}.loadbalancer.server.port=8000
-    networks:
-      - traefik
-      - internal
 
   mongo:
     image: mongo:7
     restart: unless-stopped
     volumes:
       - mongo-data:/data/db
-    networks:
-      - internal
 
 volumes:
   mongo-data:
   backups:
   config:
-
-networks:
-  internal:
-    internal: true
-  traefik:
-    external: true
-    name: ${TRAEFIK_NETWORK:-traefik}
 

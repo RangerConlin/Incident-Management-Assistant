@@ -1,0 +1,67 @@
+title,category,message,priority,notification_level,status_update,is_active
+Check-In,Status,Unit checked in with dispatch.,,1,Available,1
+Assigned,Status,Unit assigned to new tasking.,,0,Assigned,1
+Briefed,Status,Unit briefed on assignment.,,0,Briefed,1
+En Route,Status,Unit en route to assignment.,,0,Enroute,1
+Arrival,Status,Unit arrived at assignment location.,,0,Arrival,1
+On Break,Status,Unit on break.,,0,Break,1
+Rest,Status,Unit in rest status.,,0,Rest,1
+At Other Location,Status,Unit operating at other location.,,0,At Other Location,1
+To Other Location,Status,Unit moving to other location.,Routine,0,To Other Location,1
+Returning,Status,Unit returning to base.,,0,Returning to Base,1
+Available,Status,Unit available for tasking.,,0,Available,1
+Out of Service,Status,Unit out of service.,,1,Out of Service,1
+Report Writing,Status,Unit in report writing.,,0,Report Writing,1
+Complete,Status,Assignment marked complete.,,0,Complete,1
+Find,Status,Unit reports a find; details to follow.,,2,Find,1
+Post Incident,Status,Unit in post incident management activities.,,0,Post Incident Management,1
+Wheels Down,Air Ops,Aircraft wheels down at destination.,Routine,0,Wheels Down,1
+Air En Route,Air Ops,Aircraft en route to assignment area.,,0,Enroute,1
+Air Arrival,Air Ops,Aircraft arrived on station.,,0,Arrival,1
+Air RTB,Air Ops,Aircraft returning to base.,,0,Returning to Base,1
+Air Complete,Air Ops,Air assignment complete.,,0,Complete,1
+Acknowledged,Message,Message acknowledged.,Routine,0,,1
+Check Traffic,Message,Checking for pending traffic.,,0,,1
+Hold Traffic,Message,"Hold non-priority traffic, stand by.",,1,,1
+Shift Change,Message,Shift change notification posted.,,0,,1
+Location Confirm,Message,Confirming current location.,,0,,1
+ETA Update,Message,ETA updated and logged.,,0,,1
+Contact Attempt,Message,Attempted contact; no answer.,,0,,1
+Contact Made,Message,Contact made; message delivered.,,0,,1
+Emergency Traffic Only,Alert,Emergency traffic only on this channel.,,2,,1
+No Response,Alert,Unable to reach unit—no response.,,1,,1
+Unit Needs Assistance,Alert,Unit requesting immediate assistance.,,2,,1
+Evacuate Area,Alert,Evacuate the area immediately.,,2,,1
+Shelter In Place,Alert,Shelter in place until further notice.,,1,,1
+Hazard Reported,Alert,Hazard reported; avoid area.,,1,,1
+Comms Outage,Alert,Communications outage reported; using alternates.,Priority,1,,1
+Priority Message,Alert,Priority message follows.,,1,,1
+Weather Warning,Alert,Weather warning in effect for ops area.,,1,,1
+Lost Comms Procedure,Alert,Initiating lost comms procedures for unit.,Emergency,2,,1
+Resource Assigned,Logistics,Requested resource assigned.,,0,Assigned,1
+Supply Delivered,Logistics,Supplies delivered to location.,,0,,1
+Vehicle Out of Service,Logistics,Vehicle reported out of service.,,1,Out of Service,1
+Pickup Scheduled,Logistics,Pickup scheduled; unit to stand by.,,0,,1
+Drop-Off Complete,Logistics,Drop-off complete; resource on scene.,,0,Arrival,1
+Transport En Route,Logistics,Transport en route to your location.,,0,Enroute,1
+Transport Returning,Logistics,Transport returning to base.,,0,Returning to Base,1
+Medical Request,Medical,Medical request forwarded to Medical/Safety.,,1,,1
+Patient Evacuated,Medical,Patient evacuated to medical facility.,,1,Returning to Base,1
+Responder Injury,Medical,Responder injury reported; details to follow.,,2,,1
+Exposure Report,Medical,Potential exposure reported; safety notified.,,1,,1
+Standby Medic,Medical,Medical team on standby for operations.,,0,,1
+Clear for Ops,Medical,Area cleared for operations by Safety.,,0,,1
+Stop Work,Medical,Stop work order until hazard mitigated.,,2,,1
+Heat Precautions,Medical,Heat precautions in effect; monitor for signs.,,0,,1
+Cold Precautions,Medical,Cold-weather precautions in effect.,,0,,1
+Weather Update,Info,Weather update relayed to all units.,,0,,1
+Road Closure,Info,Road closure reported; reroute as needed.,,0,,1
+Traffic Delay,Info,Traffic delays expected in operations area.,,0,,1
+Radio Check Good,Info,Radio check: good readability.,,0,,1
+Radio Check Weak,Info,Radio check: weak but readable.,,0,,1
+Alt Channel,Info,Switch to alternate channel as directed.,,0,,1
+SITREP Sent,Info,Situation report sent to Command.,,0,,1
+Unit Check,Info,Status check requested from unit.,,0,,1
+Log Start,Admin,Communications log opened for this period.,,0,,1
+Log End,Admin,Communications log closed for this period.,,0,,1
+Handoff,Admin,Position handoff completed; new operator on duty.,,0,,1

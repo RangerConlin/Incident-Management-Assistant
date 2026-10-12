@@ -9,6 +9,8 @@ from datetime import datetime, timezone
 from threading import Lock
 from typing import Any
 
+CLOUD_SERVER_VERSION = "0.1.1"
+
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -76,7 +78,7 @@ class ServerRuntime:
         return {
             "server_id": self.server_id,
             "server_name": self.server_name,
-            "version": "0.1.0",
+            "version": CLOUD_SERVER_VERSION,
             "status": "available",
             "host": "0.0.0.0",
             "port": 8000,
