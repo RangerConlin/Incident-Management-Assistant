@@ -11,23 +11,30 @@ import sys
 def _ensure_repo_packages_on_path() -> None:
     """Allow local runs without requiring editable installs first.
 
-    Only ``data/db`` is added here — it is the canonical ``sarapp_db``
+    Only ``server/sarapp_db`` is added here — it is the canonical ``sarapp_db``
     package. ``cloud_server`` imports that same package for Docker
     deployment; local desktop runs should keep resolving the canonical package
-    from ``data/db``.
+    from ``server/sarapp_db``.
     """
     repo_root = Path(__file__).resolve().parent
-    package_root = repo_root / "data" / "db"
+    package_root = repo_root / "server" / "sarapp_db"
     package_root_str = str(package_root)
     if package_root.exists():
         sys.path = [p for p in sys.path if p != package_root_str]
         sys.path.insert(0, package_root_str)
 
+    # Desktop packages (core, services, etc.) now live under
+    # apps/desktop/sarapp_desktop; expose them on sys.path by their bare names.
+    sarapp_desktop_dir = repo_root / "apps" / "desktop" / "sarapp_desktop"
+    sarapp_desktop_dir_str = str(sarapp_desktop_dir)
+    if sarapp_desktop_dir.exists() and sarapp_desktop_dir_str not in sys.path:
+        sys.path.insert(0, sarapp_desktop_dir_str)
+
 
 _ensure_repo_packages_on_path()
 
 from core.networking.server_info import DEFAULT_LOCAL_SERVER_NAME, DEFAULT_SERVER_PORT
-from server.server_manager import SARAppServerManager
+from services.lan_server.legacy_server.server_manager import SARAppServerManager
 
 DEFAULT_SERVER_HOST = "0.0.0.0"
 

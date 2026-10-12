@@ -1,0 +1,158 @@
+ICS Command Assistant: Mobile App Phase 5 Design Plan
+
+🧩 Phase 5 Overview
+
+Phase 5 focuses on unifying field and command operations with form workflows, reporting tools, and intelligent automation. This phase expands the mobile app’s ability to handle documentation, feedback loops, and dynamic decision support.
+
+📅 Phase 5 Feature Scope
+
+1. Fillable ICS Forms (Mobile)
+
+Field users can access and fill out mobile-friendly ICS forms (e.g., ICS 214, 213)
+
+Forms are tied to user, team, and incident context
+
+Auto-fill key metadata (date, time, team, user)
+
+Submit to backend for inclusion in incident package
+
+2. Dynamic Form Library (Form Engine Integration)
+
+Load custom or agency-provided forms uploaded to backend (Module 11)
+
+Field users can view and fill any assigned or public forms
+
+Submit responses synced to structured backend records
+
+3. After-Action Report (AAR) Submission
+
+At incident end, users can provide structured feedback
+
+Fielded form includes prompts for:
+
+Communication
+
+Safety issues
+
+Recommendations
+
+Submitted responses aid post-incident reviews
+
+4. Incident Notifications & Broadcast Alerts
+
+Push priority notifications from command
+
+Support emergency broadcasts (e.g., evacuate, radio silence)
+
+Audible/vibration alert on field device
+
+5. Field Resources Reference Viewer
+
+Mobile reference library viewer (linked to Module 10)
+
+Field users can access PDFs, SOPs, training guides, maps
+
+Downloadable and cacheable for offline use
+
+📁 Backend/API Additions
+
+Feature
+
+Backend Module
+
+Endpoint Needed
+
+Mongo Scope / Collection
+
+Fillable ICS Forms
+
+Forms / Docs
+
+GET /api/forms, incident form routes under /api/incidents/{incident_id}/forms
+
+sarapp_master.form_templates, sarapp_incident_<id>.forms, form_instance_* collections
+
+Form Library Integration
+
+Forms / Reference
+
+GET /api/forms, GET /api/master/reference-library routes
+
+sarapp_master.form_families, sarapp_master.form_templates, reference library storage
+
+After-Action Reports
+
+Planning / Forms
+
+No dedicated AAR endpoint currently exists. Use forms infrastructure for an AAR form until a first-class AAR router is added.
+
+sarapp_incident_<id>.forms
+
+Broadcast Alerts
+
+Comms / Notifications
+
+No dedicated command broadcast or mobile push endpoint currently exists.
+
+Future notifications/alerts collection
+
+Resource Viewer
+
+Reference Library
+
+GET /api/master/reference-library routes
+
+Reference library records and stored files
+
+📲 UI & Navigation Changes
+
+New Tabs or Screens (Field):
+
+[📄 My Forms]
+
+[📚 Reference Library]
+
+[⚠️ Alerts Center]
+
+[📝 AAR Submission]
+
+Command App Enhancements:
+
+Broadcast Alerts Panel
+
+AAR Collection Dashboard
+
+⏳ Suggested Timeline (~2–3 Weeks)
+
+Day(s)
+
+Task
+
+1–3
+
+Build dynamic form renderer for ICS & agency forms
+
+4–5
+
+Create form submission logic, autofill, metadata sync
+
+6–7
+
+Design & implement AAR flow
+
+8–9
+
+Build reference file viewer (cacheable for offline)
+
+10–11
+
+Implement priority alert & broadcast push system
+
+12–14
+
+Backend sync & testing
+
+15–17
+
+Final QA, usability checks, packaging
+

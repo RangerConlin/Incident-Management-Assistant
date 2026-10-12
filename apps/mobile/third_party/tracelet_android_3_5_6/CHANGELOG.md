@@ -1,0 +1,791 @@
+## 3.5.6
+
+**FIX**: Custom sync body 400 Bad Request HTTP errors now gracefully return fallback results instead of propagating fatal exceptions in native Sync engines ([#238](https://github.com/Ikolvi/Tracelet/issues/238)).
+
+## 3.5.5
+
+**FIX**: Ensure foreground service is properly started in periodic mode when configured ([#237](https://github.com/Ikolvi/Tracelet/issues/237)).
+
+## 3.5.4
+
+**FIX**: Enrich geofence transition events with real coordinate metrics (accuracy/speed/heading/altitude) from the last GPS fix and attach the battery snapshot, instead of hardcoded zeros ([#231](https://github.com/Ikolvi/Tracelet/issues/231)).
+**FIX**: Propagate runtime `setConfig` changes to the active native tracking/sensor loops by performing a clean full-pipeline restart (location + motion/speed) when a tracking-relevant key changes ([#230](https://github.com/Ikolvi/Tracelet/issues/230)).
+**FIX**: Null-guard subsystems in `destroyAll()` so engine/Activity teardown never throws when the SDK was never initialized (fatal `Unable to destroy activity`) ([#227](https://github.com/Ikolvi/Tracelet/issues/227)).
+**FIX**: Android: standard geofence mode no longer starts a foreground service, complying with Google Play's policy (effective 2026-10-28) that prohibits using a foreground service solely for geofencing. Native geofences keep firing while the app is suspended/terminated; geofence-only apps can remove `FOREGROUND_SERVICE_LOCATION` from their manifest.
+
+## 3.5.3
+
+**FIX**: Added explicit ProGuard keep rules for `TraceletStartupProvider` in the `tracelet_android` package to prevent `ClassNotFoundException` on process start when aggressive shrinking (like R8 full mode) is used ([#228](https://github.com/Ikolvi/Tracelet/issues/228)).
+
+## 3.5.2
+
+**FIX**: Android continuous tracking no longer silently stops after a while on aggressive OEMs (Samsung One UI, etc.). The foreground-service wakelock used a fixed 10-minute auto-expiry and was never renewed, so once it lapsed the CPU could deep-sleep and FusedLocationProvider stopped delivering updates with no error or callback. The wakelock is now renewed for the lifetime of tracking ([#222](https://github.com/Ikolvi/Tracelet/issues/222)).
+
+## 3.5.1
+
+**FEAT**: Crash detection now uses the device barometer as an extra confirmation clue — a serious crash or airbag deployment causes a quick cabin air-pressure change, which raises crash confidence on phones that have a pressure sensor. Phones without one simply skip this check, with no downside ([#173](https://github.com/Ikolvi/Tracelet/issues/173)).
+**FEAT**: Crashes are now corroborated by a sudden post-impact speed collapse — when the vehicle goes from fast to nearly stopped in the seconds right after the jolt, crash confidence is raised. It only ever adds confidence, never cancels a real crash ([#181](https://github.com/Ikolvi/Tracelet/issues/181)).
+**FEAT**: Falls are now corroborated by the classic free-fall → impact → stillness signature — a brief weightless drop followed by the body coming to rest raises fall confidence ([#180](https://github.com/Ikolvi/Tracelet/issues/180)).
+**FEAT**: Crash/fall confirmation is now process-death-safe — if the OS kills the app during the cancel countdown (phone thrown, vehicle at rest, Doze), the confirmed event is still delivered from a re-armed exact `AlarmManager` wake-up ([#182](https://github.com/Ikolvi/Tracelet/issues/182)).
+**DOCS**: Rewrote the Driving & Safety crash/fall confirmation section in plain, beginner-friendly language.
+
+## 3.5.0
+
+**FEAT**: Crash-detection ML model promoted from **beta to stable** — the shipped model is trained on the CC0 / public-domain Smartphone IMU Road Accident Detection dataset, so it is cleared for commercial use in production apps ([#183](https://github.com/Ikolvi/Tracelet/issues/183)).
+**FEAT**: The on-device encrypted model cache now auto-re-downloads when a new model version is published (SHA-256 of the cached blob no longer matches the expected digest), so model upgrades roll out in the same session instead of falling back to the rule engine for a cycle.
+**FEAT** (example): Driving & Safety page now shows a live crash-model download/load status indicator, a "Crash (ML model)" debug inference path, a "Benign bump" demo, and a bench "Throw-test" mode.
+**PERF**: Per-window crash-model probability is now logged for on-device observability.
+
+## 3.4.2
+
+ - **FEAT**: implement telematics deduplication with synced-state tracking and improved foreground service fault tolerance. ([0581c6e7](https://github.com/Ikolvi/Tracelet/commit/0581c6e7a30a5d436ceb2e8c5d75e46505431e4b))
+
+## 3.4.1
+
+ - **FEAT**(geofence): cross-platform geofenceModeHighAccuracy via GeofenceConfig. ([491d5b83](https://github.com/Ikolvi/Tracelet/commit/491d5b836fbd98a2e456d7d07bafc500f95a2fac))
+
+## 3.4.0
+
+ - **FIX**: a single location batch is uploaded exactly once — replacing/cancelling a previously-registered sync provider prevents duplicate `requestSyncBody` calls and duplicate uploads/DB rows ([#204](https://github.com/Ikolvi/Tracelet/issues/204)).
+ - **FIX**: `getCurrentPosition` floors passive priority to balanced so an explicit one-shot always obtains a fix instead of failing with `LOCATION_FAILURE`; per-call extras merge with global extras ([#201](https://github.com/Ikolvi/Tracelet/issues/201)).
+ - **REFACTOR**: extract issues 185 and 198, fix iOS config mapping. ([1d088e0d](https://github.com/Ikolvi/Tracelet/commit/1d088e0d58e863b11217c5040410381f91930e59))
+
+## 3.3.4
+
+**FIX**: resolve battery and extras DB persistence (#175)
+
+## 3.3.3
+
+ - **FIX**(android): deliver headless geofence events after reboot in high-accuracy mode ([#185](https://github.com/Ikolvi/Tracelet/issues/185)). ([b197dc5f](https://github.com/Ikolvi/Tracelet/commit/b197dc5f0e4b5f081590e806b27a6eb52a4ed253))
+
+## 3.3.2
+
+* **FIX** (Location data, Android/iOS): Several location-map fields surfaced as static/default values in the Dart layer because the native-map → platform-channel converters dropped or mis-keyed them ([#175](https://github.com/Ikolvi/Tracelet/issues/175)):
+  * `getCurrentPosition(extras:, desiredAccuracy:)` were silently ignored on Android (never forwarded to the SDK) — now applied.
+  * `battery.isCharging` was always `false` — the converter read `isCharging` instead of the native snake_case `is_charging`.
+  * `isMoving` was always `false` — read `isMoving` instead of native `is_moving`.
+
+  Converters now read the native keys (with camelCase fallback), and field-by-field regression tests over the converters were added on both platforms to prevent recurrence.
+* **TUNE** (Crash detection): Lowered the default `crashGThreshold` from `3.0 g` to `2.0 g`. Validation against the large [VZCrash](https://huggingface.co/datasets/vzc-research-chapter/VZCrash) field dataset showed the 3.0 g speed-gated rule missed ~48% of real crashes (median impact ~2.2 g) while the false-positive budget was small. Crash detection is opt-in with a cancel-countdown, so the default now favours recall — raise it if you see too many prompts. See [#173](https://github.com/Ikolvi/Tracelet/issues/173). *(Crash detection remains beta pending first-party field validation.)*
+
+## 3.3.1
+
+ - **REFACTOR**(logging): route all SDK logs through TraceletLogger (no raw Log/NSLog). ([e42b676a](https://github.com/Ikolvi/Tracelet/commit/e42b676ae63581d80cee4ac6e35c6103cf7dd0f6))
+
+## 3.3.0
+
+* **FEAT** (Battery, Android): Motion-gated wakelock — drop the OEM partial wakelock when stationary and re-assert it on movement, via `AndroidConfig.releaseWakelockWhenStationary` (opt-in, default off; gated on the hardware significant-motion wake sensor) ([#162](https://github.com/Ikolvi/Tracelet/issues/162)).
+* **FEAT** (Driving & Safety): On-device driving-behavior telematics — `harsh_braking` / `harsh_acceleration` / `harsh_cornering` / `speeding` via `TelematicsConfig` + `Tracelet.onDrivingEvent` (opt-in, default off) ([#163](https://github.com/Ikolvi/Tracelet/issues/163)).
+* **FEAT** (Driving & Safety): On-device transport-mode classifier (still/walking/running/cycling/vehicle) fusing accelerometer + GPS via `ClassifierConfig` + `Tracelet.onModeChange` ([#164](https://github.com/Ikolvi/Tracelet/issues/164)).
+* **FEAT** (Driving & Safety): Crash & fall detection with a cancel-countdown confirmation flow via `ImpactConfig` + `Tracelet.onImpact` and `Tracelet.confirmImpact` / `Tracelet.cancelImpact` (opt-in, default off) ([#165](https://github.com/Ikolvi/Tracelet/issues/165)).
+* All three features are **default-off** and side-channel — no change to existing tracking when disabled. See [Driving & Safety](https://github.com/Ikolvi/Tracelet/blob/main/help/DRIVING-AND-SAFETY.md).
+
+## 3.2.19
+
+**CHORE**: version bump for patch release
+
+## 3.2.18
+
+* **FIX** (Native): `ready()` / `getState()` now populate `State.config` with the active configuration instead of leaving it permanently `null` ([#147](https://github.com/Ikolvi/Tracelet/issues/147)).
+* **FEAT**: Add `HttpConfig.syncInterval` for interval-based sync — the documented repeating-timer cadence was missing from the Dart config and the Pigeon layer; the native interval timer now flushes the offline queue on this cadence ([#149](https://github.com/Ikolvi/Tracelet/issues/149)).
+* **FIX** (Native): `destroySyncedLocations()` returns the real number of synced-and-pruned locations instead of a hardcoded `0` stub ([#154](https://github.com/Ikolvi/Tracelet/issues/154)).
+* **FEAT**: Expose the offline queue with `getPendingLocations()` and `getPendingLocationCount()` ([#159](https://github.com/Ikolvi/Tracelet/issues/159)).
+* **FIX** (Native): Honor the `useKalmanFilter` config key so the Extended Kalman Filter is no longer silently disabled by a key mismatch ([#148](https://github.com/Ikolvi/Tracelet/issues/148)).
+* **FIX** (Native): Propagate the detected activity (walking / driving / still) into recorded locations — fixes a permanent `"activity": "unknown"` ([#155](https://github.com/Ikolvi/Tracelet/issues/155)).
+* **FIX** (Native): Rebuild the native location processor when `ready()` applies a new config, so settings such as `distanceFilter` take effect immediately instead of using stale defaults ([#157](https://github.com/Ikolvi/Tracelet/issues/157)).
+* **FIX** (Native): `getCount()` honors time-bound queries instead of always returning the whole-database total ([#152](https://github.com/Ikolvi/Tracelet/issues/152)).
+* **FIX**: Guard the `AuditConfig` hash-algorithm mapping so configuring `sha384` / `sha512` no longer crashes with a fatal `RangeError` during `ready()` — unsupported variants fall back to `sha256` ([#150](https://github.com/Ikolvi/Tracelet/issues/150)).
+* **FIX** (Native): The HTTP sync payload now includes each point's motion state `is_moving` ([#151](https://github.com/Ikolvi/Tracelet/issues/151)) and its trigger `event` (location / motionchange / heartbeat / geofence) ([#156](https://github.com/Ikolvi/Tracelet/issues/156)) — both were previously omitted by the native sync record.
+
+## 3.2.17
+
+* **FIX** (Native): Resolve iOS auto-sync thread starvation by offloading synchronous HTTP requests to a background DispatchQueue to prevent blocking Swift Concurrency pools ([#146](https://github.com/Ikolvi/Tracelet/issues/146)).
+* **CHORE** (Docs): Fix Nextra changelog rendering bug and improve auto-translation glossary script for internationalization.
+
+## 3.2.16
+
+* **FIX** (Native): Resolve Android/iOS getting stuck in the moving state and never transitioning back to stationary, which kept continuous GPS active and drained the battery. The accelerometer stillness sampler now stays active during the stop-timeout countdown and requires sustained motion — rather than a single noisy or stale sample — to abort it ([#142](https://github.com/Ikolvi/Tracelet/issues/142)).
+* **FIX** (Native): Background and post-reboot location captures are persisted (and therefore synced) again. Headless tracking (killed-state relaunch / boot) never calls `ready()`, so an internal readiness guard silently dropped every captured location before it reached the database, leaving auto-sync with nothing to upload.
+* **FIX** (Android): The foreground-service notification now reliably appears when the app is backgrounded or terminated with `showNotificationOnPauseOnly` enabled. The app's own foreground service skewed foreground/background detection (and OS process-importance updates lag), so the pause-only notification was suppressed even though tracking and syncing continued.
+
+## 3.2.15
+
+* **FIX** (Native): Allow `getState()` and `stop()` to be called before `ready()` is invoked, correctly reporting persistent state and shutting down background services if the app was restarted from a killed state.
+* **CHORE**: Update dependencies and constraints.
+* **FIX**: Resolve `MissingPluginException` and test timing issues with `setHasCustomSyncBodyBuilder`.
+
+## 3.2.14
+
+ - **FIX**(sync): fix background auto-sync abortion when no custom builder is registered (Issue [#134](https://github.com/Ikolvi/Tracelet/issues/134)). ([631542a1](https://github.com/Ikolvi/Tracelet/commit/631542a1c89cece565160966c6f6301a0e18098a))
+ - **FIX**(android): prevent headless engine from overwriting sync interceptor (Issue 136). ([b166bcd5](https://github.com/Ikolvi/Tracelet/commit/b166bcd56ad171e488b8c9aed9dda63ef2cc58bd))
+ - **FIX**(android): align deltaCoordinatePrecision default with Dart (Issue [#137](https://github.com/Ikolvi/Tracelet/issues/137)). ([5edb9910](https://github.com/Ikolvi/Tracelet/commit/5edb99108eedd7e9dbbcb2a311af6729def6ff79))
+ - **DOCS**(android): document Issue 136 fix to prevent regression. ([36b4b9c9](https://github.com/Ikolvi/Tracelet/commit/36b4b9c94f81ee8b852ce2cfcd8d368dd7cabba6))
+ - **DOCS**: add official documentation URL to all package READMEs. ([9eb6951e](https://github.com/Ikolvi/Tracelet/commit/9eb6951e64c13007f3264e2d44f0feb9222500a3))
+ - **DOCS**: integrate nextra website and update pubspec URLs. ([99b7fda8](https://github.com/Ikolvi/Tracelet/commit/99b7fda82e290ca6c8175313eae62a2475360050))
+
+## 3.2.13
+
+- **FIX**(android): `startOnBoot` now resumes tracking after a reboot even when the OS refuses to start the location foreground service from `BOOT_COMPLETED` (Android 14 disallows starting a `location`-type foreground service from boot). Previously the boot start was deferred until the app was next opened, so tracking silently never resumed after a reboot — `BootReceiver` now falls back to background WorkManager/alarm tracking when the foreground-service start is blocked.
+- **FIX**(android): HTTP sync now works headlessly after a reboot. A new process-start `ContentProvider` wires the headless Dart bridge (`TraceletSdk.dartSyncInterceptor` + `TraceletBootstrap.headlessDispatcherFactory`) so background sync can refresh the auth token and build a custom sync body via the registered headless callbacks — previously these were only wired when a UI Flutter engine attached, so after a reboot sync POSTed with a stale token (or the wrong payload) until the app was opened.
+
+## 3.2.12
+
+- **CHORE**: Re-release to align the full federated package set and native SDKs to a single consistent version. The 3.2.11 release published with mismatched versions across some packages (a few resolved to 3.2.10). No functional code changes.
+
+## 3.2.11
+
+- **FIX**(android): Fall back to the headless engine when a custom sync-body round-trip times out, instead of aborting the sync. Fixes location sync stopping after a few minutes while the app is backgrounded (Issue #134).
+
+## 3.2.10
+
+ - **FIX**: ensure geofence action (ENTER/EXIT/DWELL) is correctly parsed from nested payloads on all platforms and update CI to scan dynamic frameworks for symbols.
+
+## 3.2.9
+
+- **FIX**(ios): Remove `TraceletCore+Dummy.swift` / `TraceletSyncFFI+Dummy.swift` — `@_silgen_name` declarations from the old static library model caused "Undefined symbol" linker errors after the static→dynamic xcframework migration.
+- **FIX**(android): Catch `ForegroundServiceStartNotAllowedException` in `LocationService.start()` so calling `ready()` from the background on Android 12+ no longer crashes the host app; the foreground service start is deferred until the app returns to foreground.
+
+
+## 3.2.8
+
+- **FIX**: Persist geofence ENTER/EXIT events in offline queue and auto-sync to server — events were previously dispatched to the app but never stored in the local SQLite database (Issue #128).
+- **FIX**: Structured event envelope (`event_type`, `event_payload`) for geofence events round-trips correctly through `getLocations()` and `insertLocation()`.
+- **FIX**(sync): Stop POSTing malformed error payloads on failed HTTP sync requests; fix iOS custom-body deadlock in `setSyncBodyBuilder` (Issue #125).
+- **FIX**(android): Throw `NOT_READY` error before `ready()` is called to match iOS parity; previously Android silently ignored SDK calls before initialization (Issue #129).
+- **FIX**(ios): Resolve `flutter_rust_bridge has not been initialized` on release builds — `TraceletCore` is now a dynamic framework, preventing dead-code stripping of FRB symbols (Issues #116, #123, #124).
+- **FIX**(android): Resolve `Failed to lookup symbol 'frb_get_rust_content_hash'` — Rust symbols are now loaded directly from `libtracelet_core.so` bypassing `RTLD_LOCAL` isolation (Issues #116, #123).
+- **PERF**(ios): Reduce background motion sensor CPU/battery usage — accelerometer polling is now paused when stationary (Issue #130).
+- **FIX**: Persist historical `is_moving` state per location record so `getLocations()` returns accurate values instead of always returning the current live state (Issue #126).
+
+## 3.2.7
+
+- **FIX**(ios): prevent dead code stripping of flutter_rust_bridge symbols in release builds.
+- **FIX**(android): implement OEM hardening mitigations and introduce `showPowerManager` to handle aggressive battery restrictions on specific OEM devices.
+
+## 3.2.6
+
+- **PERF**: Optimize database timestamp queries for O(log N) fast filtering and resolve precision bugs (Issue #119).
+- **FEAT**: Implement `sslPinningFingerprints` natively across iOS and Android with Rust configs.
+- **FIX**: Include pinned fingerprints in SSL verification error logs and messages.
+- **FIX**: Rate limit Android MotionDetector logcat flooding during stillness (Issue #121).
+- **FIX**: Resolve race conditions in tests for Issue 118.
+- **REFACTOR**: Update integration test to use Config.fromMap for comprehensive Tracelet configuration testing.
+
+## 3.2.5
+- **FIX**: Resolved iOS accelerometer sensitivity mismatch (stationary lock) by normalizing incoming m/s² thresholds to g-force expected by CMMotionManager.
+- **FIX**: Unify motion detection initial state and resume behavior across Android and iOS, preventing incorrect forced states on app launch and correctly resuming saved states.
+- **FIX**: Resolved `flutter_rust_bridge` dynamic library load failures on release builds for users without `use_frameworks!` by preserving global symbols during Xcode stripping.
+
+## 3.2.4
+
+* **FIX**(ios): safely resolve dynamic symbols when `use_frameworks! :linkage => :dynamic` is used.
+
+## 3.2.3
+
+- **FIX**: Force speed motion manager to evaluate initial speed on Android to prevent the state machine from being permanently stuck in `MOVING` when indoors ([#115](https://github.com/Ikolvi/Tracelet/issues/115)).
+- **FIX**: Resolve `flutter_rust_bridge has not been initialized` crash by ensuring the Rust core is instantiated and initialized before accessing methods ([#116](https://github.com/Ikolvi/Tracelet/issues/116)).
+- **CHORE**: Sync release versions across all packages.
+
+## 3.2.2
+
+- **CHORE**: Sync release versions across all federated packages and update Swift Package Manager configuration.
+
+## 3.2.1
+
+- **CHORE**: Align federated package versions and include additional patch updates.
+
+## 3.2.0
+
+- **FEAT**(android): Add reverse geocoding functionality.
+
+## 3.1.14
+
+- **FIX**(android): bump Android SDK and tracelet_android build.gradle versions to 3.1.14
+
+
+## 3.1.10
+
+ - Bump "tracelet_android" to `3.1.10`.
+
+## 3.1.9
+
+- **FIX**(android): conditionally apply kotlin-android plugin to support older flutter SDKs while preventing warnings in modern Flutter environments.
+- **CHORE**(ci): add strict pre-publish flutter build verification step to `release.yml`.
+
+## 3.1.8
+
+- Fix iOS SPM publishing
+
+## 3.1.7
+
+ - **FIX**(android): apply kotlin-android plugin to fix gradle build errors on newer AGP versions.
+ - **FIX**(ios): fix SPM source folder paths in release bundling to ensure SDK compiles properly via CocoaPods.
+ - **FIX**(ios): fix duplicate module import errors by adding conditional import checks for TraceletSDK.
+
+## 3.1.4
+
+- **CHORE**: Sync release versions across workspace.
+
+## 3.0.1
+
+- **FIX**(ios): Add missing `FlutterFramework` dependency to SPM plugin configuration to resolve compilation failures and `PlatformException`s.
+
+## 3.0.0
+
+- **FEAT**: Massive Architecture Rewrite — Core algorithms are now powered by a high-performance **Rust Core** using `flutter_rust_bridge`.
+- **FEAT**: Smart Motion Mode — Introduced `MotionDetectionMode.smart` powered by the Rust battery budget engine.
+- **FEAT**: Migrated all platform event channels to use strongly-typed Pigeon bridges.
+
+## 2.1.0
+
+ - **FIX**: resolve background tracking loops, location stream drops, and permission issues. ([8abc7d41](https://github.com/Ikolvi/Tracelet/commit/8abc7d415b742a1aee7da50e16763babd83f9e53))
+ - **FIX**: refactor string comparisons to enum indexing across all layers. ([b591b246](https://github.com/Ikolvi/Tracelet/commit/b591b246cca9d46a4fda32634e4b01d7c774ed05))
+ - **FIX**: refactor speed motion strings to typed enums across Flutter, Pigeon, Android, and iOS SDKs. ([e974b728](https://github.com/Ikolvi/Tracelet/commit/e974b728142eb7b31b887a3b795cd527da6cbae1))
+ - **FEAT**(android): smart foreground notification visibility. ([fbf46b27](https://github.com/Ikolvi/Tracelet/commit/fbf46b27d401828e1c79fd1853.1.4046aaf3f72))
+ - **FEAT**: Speed-Based Motion Detection ([#83](https://github.com/Ikolvi/Tracelet/issues/83)). ([5421e7a0](https://github.com/Ikolvi/Tracelet/commit/5421e7a0974033ede6ee5234c641d9bb68cd4460))
+
+## 2.0.8
+
+ - **CHORE**: Update `tracelet_platform_interface` constraint to `^2.0.8`.
+ - **CHORE**: Version bump for monorepo consistency and package lockstep alignment.
+
+## 2.0.7
+
+ - **FIX**(interface): correct intToAuthStatus permission index mappings ([[#80](https://github.com/Ikolvi/Tracelet/issues/80)](https://github.com/Ikolvi/Tracelet/issues/80)). ([8cfd7f51](https://github.com/Ikolvi/Tracelet/commit/8cfd7f5150791063bc1286c5c185d01f1d3fc306))
+ - **FIX**(android): resolve SQLCipher migration crashes by explicitly loading the sqlcipher native library and decoupling the classpath availability check ([[#78](https://github.com/Ikolvi/Tracelet/issues/78)](https://github.com/Ikolvi/Tracelet/issues/78)). ([757147ee](https://github.com/Ikolvi/Tracelet/commit/757147eeacae07866aa04989a24ca9937307ff2f))
+ - **FIX**(android): prevent false positive shake events using absolute sensor magnitude, and declare stationary state immediately when timeout is zero or negative ([[#79](https://github.com/Ikolvi/Tracelet/issues/79)](https://github.com/Ikolvi/Tracelet/issues/79)). ([2aac0a17](https://github.com/Ikolvi/Tracelet/commit/2aac0a179c04debf816ed682f581666cd62006e7))
+ - **FIX**(android): removed manual Kotlin Gradle Plugin (KGP) configuration to support Flutter's new Built-in Kotlin feature ([[#81](https://github.com/Ikolvi/Tracelet/issues/81)](https://github.com/Ikolvi/Tracelet/issues/81)).
+ - **CHORE**: Update `tracelet_platform_interface` constraint to `^2.0.7`.
+
+## 2.0.6
+
+- **CHORE**: Update `tracelet_platform_interface` constraint to `^2.0.6`.
+- **CHORE**: Bump native plugin implementation version to `2.0.6`.
+
+## 2.0.5
+
+- **CHORE**: Version bump for monorepo consistency and package lockstep alignment.
+- **CHORE**: Update `tracelet_platform_interface` constraint to `^2.0.5`.
+- **CHORE**: Bump native plugin implementation version to `2.0.5`.
+
+## 2.0.4
+
+- **CHORE**: Version bump for monorepo consistency and native SDK alignment.
+- **CHORE**: Update `tracelet_platform_interface` constraint to `^2.0.4`.
+
+## 2.0.3
+
+- **FIX**: Removed unreliable timestamp drift heuristic from location spoofing detection.
+
+## 2.0.1
+
+- **CHORE**: Version bump for iOS status bar fix consistency.
+- **CHORE**: Update `tracelet_platform_interface` constraint to `^2.0.1`.
+
+## 2.0.0
+
+- **BREAKING**: Adopts an "on-demand" dependency model. Core SDK no longer bundles GMS Location, SQLCipher, or Play Integrity by default, reducing APK size by ~16 MB. Developers must now explicitly add these to their `android/app/build.gradle` if required.
+- **BREAKING**: Migrated to Pigeon for all platform-to-native communication, replacing `MethodChannel` with type-safe generated interfaces.
+- **FEAT**: Full support for AOSP-only environments via standard `LocationManager` fallback when GMS is unavailable.
+- **CHORE**: Bump native `tracelet-sdk` constraint to `2.0.0`.
+
+## 1.9.3
+2: 
+3: - **CHORE**: Bump native `tracelet-sdk` constraint to `1.1.4`.
+4: 
+5: ## 1.9.2
+
+- **FIX**: `Tracelet.locationStream` no longer goes silent when `flutter_overlay_window` (or any `FlutterEngineGroup` plugin) creates a secondary in-process `FlutterEngine`. The primary-instance guard (#51) unconditionally skipped `EventDispatcher` re-binding for all secondary engines, including in-process overlay engines that attach on the main thread. A Looper-based discriminator now selectively re-binds the dispatcher for main-thread overlay engines while preserving the full skip for off-thread headless/Firebase engines (#51 fix intact).
+- **FIX**: `destroyAll()` now guards all background-critical subsystems when `stopOnTerminate: false` (#65). `httpSyncManager.stop()`, `scheduleManager.stop()`, and `stopHeartbeat()` were still called unconditionally on every swipe-to-dismiss, killing HTTP sync and heartbeat even when background tracking should survive. Fixed in native `tracelet-sdk` 1.1.2.
+- **TEST**: Added `secondaryMainThreadEngine_rebindsDispatcherOnly` and `secondaryBackgroundThreadEngine_fullySkipped` to `PluginSecondaryEngineGuardTest` covering both discriminator branches. Existing headless tests updated to stub `isMainThread=false`.
+- **CHORE**: Bump native `tracelet-sdk` constraint to 1.1.2.
+
+## 1.9.1
+
+- **FIX**: `destroyAll()` now respects `stopOnTerminate: false` for continuous (mode 0) and geofence (mode 1) tracking modes (#63). `locationEngine.destroy()` was unconditionally called, racing with `LocationService.onTaskRemoved()` native bootstrap. `PeriodicLocationWorker` static refs (`eventSender`, `httpSyncManager`) are also now preserved when `keepPeriodicAlive` is true.
+- **CHORE**: Bump native `tracelet-sdk` constraint to 1.1.1.
+
+## 1.9.0
+
+- **FIX**: `LocationService` no longer crashes the host app with `RemoteServiceException: Context.startForegroundService() did not then call Service.startForeground()` (#59). Reproducible on real devices when using `periodicUseForegroundService: true`. Root cause: `onStartCommand` only promoted to foreground for `ACTION_START`, but the system can deliver intents for other actions (and null-intent sticky restarts after a system kill) under the same foreground-service contract. Fixed in native `tracelet-sdk` 1.1.0 by always promoting at the top of `onStartCommand`.
+- **FIX**: Picks up the `tracelet_platform_interface` 1.9.0 fix that restores `extras` and `vertices` propagation for `addGeofence` (#58). No native-side changes for this part.
+- **CHORE**: Bump native `tracelet-sdk` constraint to 1.1.0.
+- **TEST**: Added Robolectric `LocationServiceForegroundContractTest` covering all 5 entry paths (ACTION_START, ACTION_STOP, ACTION_UPDATE_NOTIFICATION, ACTION_BUTTON, null-intent sticky restart).
+- **TEST**: Added Robolectric regression test for `EventDispatcher` headless-fallback geofence extras forwarding.
+
+## 1.8.13
+
+- **PERF**: Reduce first-fix latency on stationary → moving transitions. `LocationEngine.changePace(true)` now fires an additional one-shot `getCurrentLocation()` so a fresh GPS fix arrives as soon as the hardware is warm, instead of waiting for `locationUpdateInterval` on the continuous stream. The one-shot is guarded by a `CancellationTokenSource` that is cancelled on `stop()` (#54).
+- **FIX**: After a manual `Tracelet.changePace(false)`, MotionDetector’s accelerometer + significant-motion listeners are now re-engaged so real motion can resume tracking. Previously the SDK could get stuck in a permanent stationary state with no sensors listening.
+- **FIX**: Bump Android native SDK to 1.0.12.
+
+## 1.8.12
+
+- **FIX**: Geofence `extras` are now delivered correctly to `onGeofence` callbacks. Previously, extras were persisted via `Map.toString()` and could not be parsed back into a Map, causing `GeofenceEvent.extras` to always arrive empty (#51 follow-up).
+- **FIX**: Location `extras` are now included in read-back location maps (previously silently dropped in `cursorToLocation`).
+- **FIX**: Bump Android native SDK to 1.0.11.
+
+## 1.8.11
+
+- **FIX**: Guard against secondary FlutterEngine (e.g. Firebase background messaging) overwriting SDK singleton's event sender and callbacks (#51).
+
+## 1.8.10
+
+- **FIX**: Killed-state tracking now works reliably — `stopBootTracking()` deferred from `sdk.initialize()` to `sdk.ready()` so boot-mode native tracking (LocationEngine + HttpSyncManager) survives until the Dart side explicitly takes over (#50).
+- **FIX**: Bump Android SDK to 1.0.10.
+
+## 1.8.9
+
+- **FEAT**: Add `syncInterval` support — timer-based HTTP sync via `ScheduledExecutorService` (#50).
+- **FEAT**: Bump native SDK dependency to exact version `1.0.9`.
+
+## 1.8.8
+
+- **FIX**: HTTP sync payload now uses canonical `is_moving` (snake_case) and ISO 8601 timestamps, matching iOS format (#48).
+- **FIX**: Bump native SDK dependency to exact version `1.0.8`.
+
+## 1.8.7
+
+- **CHORE**: Align federated package versions and include additional patch updates.
+- **FIX**: Bump native SDK dependency to exact version `1.0.7`.
+
+## 1.8.6
+
+- **FIX**: `getCurrentPosition(samples: 1)` now uses `requestLocationUpdates` instead of `FusedLocationProviderClient.getCurrentLocation()` — forces a fresh GPS fix with proper timeout instead of returning stale cached locations (#46).
+- **FIX**: Guard `onAttachedToEngine` callback wiring with `primaryInstance` — prevents headless `FlutterEngine` from overwriting foreground `httpSyncManager` callbacks, which caused `requestFreshHeaders` to timeout (10s) or return `notImplemented`.
+- **PERF**: Remove per-batch `onRequestFreshHeaders` invocation — eliminates MethodChannel round-trip before every sync request. Token refresh handled by `onAuthorizationRequired` on 401.
+- **FIX**: Bump native SDK dependency to exact version `1.0.6`.
+- **FIX**: Privacy zones, audit trail, and encryption APIs now work before `ready()` — guards relaxed from `isReady` to `::manager.isInitialized`.
+
+## 1.8.5
+
+- **FIX**: `getCurrentPosition()` falls back to last known location when `FusedLocationProviderClient.getCurrentLocation()` returns null (e.g. emulator, GPS-off) — fixes `LOCATION_UNAVAILABLE` errors (#46).
+- **FIX**: Add public `clearPendingPermissionCallback()` to `TraceletSdk` — resolves cross-module `internal` visibility error.
+- **FIX**: Bump native SDK dependency to exact version `1.0.5`.
+
+## 1.8.4
+
+- **FIX**: Add `isReady` guards to all Android SDK methods — prevents `UninitializedPropertyAccessException` when called before `ready()` (re-fixes #46).
+- **FIX**: Pin native SDK dependency to exact version `1.0.4` — prevents auto-resolving to incompatible newer releases.
+
+## 1.8.3
+
+- **FIX**: Add `isReady` guards to all Android SDK methods — prevents `UninitializedPropertyAccessException` when called before `ready()` (re-fixes #46).
+- **CHORE**: Bump native SDK dependency `com.ikolvi:tracelet-sdk` 1.0.2 → 1.0.3.
+
+## 1.8.2
+
+- **FIX**: Guard `soundManager` access in `handleMotionStateChange()` and `destroyAll()` — prevents `UninitializedPropertyAccessException` if motion detector fires before full initialization.
+- **FIX**: Use `LocationManagerCompat.isLocationEnabled()` instead of `LocationManager.isLocationEnabled()` — fixes crash on Android API 26/27.
+- **FIX**: Enterprise dependencies (SQLCipher, Play Integrity, security-crypto) now degrade gracefully when absent — runtime `Class.forName` checks prevent `NoClassDefFoundError`.
+- **FIX**: `DeviceAttestor` uses lazy `IntegrityManagerFactory` initialization — prevents crash when Play Integrity is not on the classpath.
+- **REFACTOR**: Refined ProGuard/R8 consumer rules — narrower keep rules, `-dontwarn` for optional deps.
+- **TEST**: Add `destroyAll_doesNotCrash_withoutSoundManager` unit test.
+
+## 1.8.1
+
+- **CHORE**: Version bump for iOS periodic mode location indicator fix.
+
+## 1.8.0
+
+- **FIX**: ConfigManager null-merge — partial `setConfig()` no longer overwrites existing non-null values (e.g. HTTP URL) with null defaults.
+- **FIX**: PeriodicLocationWorker catch block now re-schedules the next exact alarm before returning `Result.retry()`, preventing permanent chain breaks on exceptions.
+- **FIX**: GeofenceBroadcastReceiver bootstraps SDK when app is killed and `geofenceManager` is null, instead of silently dropping events.
+- **FIX**: Align location map format — `isCharging` → `is_charging`, flat coords → nested `coords` map, add `activity` map, `isMock` → `mock`.
+- **FIX**: DB `cursorToLocation` outputs `is_charging` in battery map.
+- **FEAT**: Add `destroySyncedLocations()` — deletes only synced locations from the database.
+- **FEAT**: Auto-purge synced locations after successful HTTP sync in `HttpSyncManager`.
+- **TEST**: Add 28 location map format tests, 5 unit tests for ConfigManager null-merge and `destroySyncedLocations`.
+
+## 1.7.1
+
+- **FIX**: ConfigManager null-merge — partial `setConfig()` no longer overwrites existing non-null values (e.g. HTTP URL) with null defaults.
+- **FIX**: PeriodicLocationWorker catch block now re-schedules the next exact alarm before returning `Result.retry()`, preventing permanent chain breaks on exceptions.
+- **FIX**: GeofenceBroadcastReceiver bootstraps SDK when app is killed and `geofenceManager` is null, instead of silently dropping events.
+- **FEAT**: Add `destroySyncedLocations()` — deletes only synced locations from the database.
+- **FEAT**: Auto-purge synced locations after successful HTTP sync in `HttpSyncManager`.
+- **TEST**: Add 5 unit tests for ConfigManager null-merge protection, `deleteSyncedLocations`, and `destroySyncedLocations` facade.
+
+## 1.7.0
+
+- **FIX**: Wire `headlessFallback` in `eventSenderFactory` — fixes geofence events silently dropped on task removal (#43).
+- **FIX**: Add missing `sendTrip`/`sendBudgetAdjustment` to `NoOpEventSender`.
+- **FEAT**: Rewrite `EventDispatcher` to use Pigeon `TraceletEventApi` FlutterApi.
+- **FEAT**: Add `TraceletHostApiImpl` for type-safe Pigeon HostApi dispatch.
+- **REFACTOR**: Extract native SDK to standalone `sdk/android/` module (Maven Central: `com.ikolvi:tracelet-sdk`).
+- **REFACTOR**: Remove misleading headless wiring dead code in `LocationService.startBootTracking()`.
+- **CHORE**: Enable `returnDefaultValues` for Android unit tests.
+
+## 1.6.3-alpha.1
+
+- **FEAT**: Rewrite `EventDispatcher` to use Pigeon `TraceletEventApi` FlutterApi instead of EventChannels.
+- **FEAT**: Add `TraceletHostApiImpl` for type-safe Pigeon HostApi dispatch.
+- **REFACTOR**: Extract native SDK code to `sdk/android/` module.
+- **CHORE**: Update cross-package dependency constraints to `^1.6.3-alpha.1`.
+
+## 1.6.1
+
+- **FEAT**: Add 401-aware retry — on HTTP 401 Unauthorized, invoke headless headers callback to refresh token, then retry once with updated dynamic headers.
+
+## 1.6.0
+
+- **FEAT**: Add SSL certificate pinning — support for PEM certificates (`CertificatePinner`) and SHA-256 fingerprints (`HandshakeCertificates`) via OkHttp TLS.
+- **FEAT**: Add dynamic HTTP headers with runtime callback support and headless background execution.
+- **FEAT**: Add route context — attach arbitrary metadata to synced locations.
+- **FEAT**: Add custom sync body builder with headless callback support.
+- **TEST**: Add `ConfigManagerSyncFeaturesTest` — 12 Robolectric unit tests for sync features.
+- **CHORE**: Add `okhttp-tls:5.3.2` dependency.
+- **CHORE**: Update `tracelet_platform_interface` dependency constraint to `^1.6.0`.
+
+## 1.5.0
+
+- **FEAT**: Add boot-mode `HttpSyncManager` — locations are auto-synced to the server even when the app is killed or the device reboots.
+- **FEAT**: Periodic-mode (WorkManager/ExactAlarm) now creates a dedicated boot-mode `HttpSyncManager` so periodic locations sync without the Flutter engine.
+- **TEST**: Add Robolectric unit tests for boot-mode HTTP sync lifecycle.
+- **DOCS**: Add "Background / Killed-State Sync" section to HTTP-SYNC.md.
+- **CHORE**: Update `tracelet_platform_interface` dependency constraint to `^1.5.0`.
+
+## 1.4.6
+
+- **FIX**: Rename `PermissionManager` to `TraceletPermissionManager` to avoid class name collision with `permission_handler_apple` (#32).
+- **CHORE**: Bump `kotlin-gradle-plugin` 2.3.10 → 2.3.20.
+- **CHORE**: Bump `androidx.sqlite:sqlite` 2.4.0 → 2.6.2.
+- **CHORE**: Bump `com.google.android.play:integrity` 1.4.0 → 1.6.0.
+- **CHORE**: Bump `org.mockito.kotlin:mockito-kotlin` 5.4.0 → 6.3.0.
+- **CHORE**: Bump `androidx.security:security-crypto` 1.1.0-alpha06 → 1.1.0 (stable).
+- **CHORE**: Update `tracelet_platform_interface` dependency constraint to `^1.4.6`.
+
+## 1.4.5
+
+- **CHORE**: Update `tracelet_platform_interface` dependency constraint to `^1.4.5`.
+
+## 1.4.4
+
+- **FEAT**: Add `reducedAccuracy` field to location map for cross-platform API consistency with iOS 14+.
+- **TEST**: Add Robolectric unit tests for GPS fallback utilities (provider state transitions, location source classification).
+- **CHORE**: Update `tracelet_platform_interface` dependency constraint to `^1.4.4`.
+
+## 1.4.3
+
+- **FEAT**: Automatic GPS-off fallback — when GPS hardware is disabled, the engine auto-downgrades to `PRIORITY_BALANCED_POWER_ACCURACY` for Wi-Fi/cell tower fixes. Restores original priority when GPS is re-enabled.
+- **FEAT**: Add `locationSource` classification to every location fix (`gps`, `wifi`, `cell`, `network`, `unknown`).
+- **FEAT**: Add `gpsFallback` flag to provider state for Dart-side awareness of fallback state.
+- **CHORE**: Update `tracelet_platform_interface` dependency constraint to `^1.4.3`.
+
+## 1.4.2
+
+- **FIX**: Dead reckoning activation now uses `LocationManager.isProviderEnabled(GPS_PROVIDER)` instead of accuracy heuristic — Wi-Fi/cell fixes no longer prevent DR from activating when GPS hardware is disabled.
+- **FIX**: Mock detection heuristic no longer false-flags Wi-Fi/cell locations as mock when GPS is disabled (satellite count 0 is expected without GPS hardware).
+- **FIX**: `activateDeadReckoning()` now retries via timer instead of silently returning when `lastLocation` is null.
+- **CHORE**: Update `tracelet_platform_interface` dependency constraint to `^1.4.2`.
+
+## 1.4.1
+
+- **FEAT**: Dead reckoning — full IMU sensor fusion implementation (`DeadReckoningEngine`). Pedestrian Dead Reckoning with step detection (Weinberg formula) and magnetic heading. Vehicle mode with high-pass-filtered acceleration integration.
+- **FEAT**: Auto-activation on GPS loss after configurable delay, auto-deactivation on GPS recovery or max duration.
+- **CHORE**: Add dead reckoning config getters to `ConfigManager`.
+- **CHORE**: Update `tracelet_platform_interface` dependency constraint to `^1.4.1`.
+
+## 1.4.0
+
+- **FEAT**: Encrypted SQLite — database encryption via SQLCipher with Android Keystore-backed key management (`DatabaseEncryptionManager`).
+- **FEAT**: Device attestation — Play Integrity API integration with nonce generation, token caching, and periodic refresh (`DeviceAttestor`).
+- **FEAT**: Remote config — fetch remote configuration via HTTPS with ETag caching and config-change event streaming.
+- **FEAT**: Dead reckoning — `getDeadReckoningState()` stub for future accelerometer/gyroscope-based position estimation.
+- **FEAT**: Carbon estimator — `getCarbonReport()` returns CO₂ estimates from tracked locations using EU average emission factors.
+- **CHORE**: Add `net.zetetic:sqlcipher-android`, `androidx.sqlite:sqlite`, `androidx.security:security-crypto`, and `com.google.android.play:integrity` dependencies.
+- **CHORE**: Update `tracelet_platform_interface` dependency constraint to `^1.4.0`.
+
+## 1.3.7
+
+- **FIX**: Fix `ClassNotFoundException` crash for `BootReceiver`, `GeofenceBroadcastReceiver`, `PeriodicAlarmReceiver`, and `LocationService` caused by package path mismatch in `AndroidManifest.xml` (fixes #31).
+- **FIX**: Fix foreground notification not appearing due to `LocationService` not being resolved from the manifest.
+- **FIX**: Fix ProGuard/R8 consumer rules referencing wrong package paths — prevents class stripping in release builds.
+- **FIX**: Fix pre-existing test compilation errors caused by missing cross-package imports.
+- **CHORE**: Update cross-package dependency constraints to `^1.3.7`.
+
+## 1.3.6
+
+- **FIX**: `getLocations()` now honors `SQLQuery.start` and `SQLQuery.end` timestamp filtering.
+- **FIX**: `getCount()` now accepts optional `SQLQuery` for time-bounded counting.
+- **CHORE**: Update cross-package dependency constraints to `^1.3.6`.
+
+## 1.3.5
+
+- **CHORE**: Update cross-package dependency constraints to `^1.3.5`.
+
+## 1.3.4
+
+- **CHORE**: Update `tracelet_platform_interface` dependency constraint to `^1.3.3`.
+
+## 1.3.3
+
+- **FIX**: Bundle native core Kotlin source files (`com.tracelet.core.*`) directly inside the plugin package so they are included when published to pub.dev. Previously, the build.gradle referenced sources via a relative monorepo path that was inaccessible to pub.dev consumers.
+
+## 1.3.2
+
+- **PERF**: Replace per-location `JSONObject` allocations with streaming `android.util.JsonWriter` in `HttpSyncManager.buildJsonBody()` (A-L5).
+
+## 1.3.1
+
+- **FIX**: `getHttpExtras()` and `getPersistenceExtras()` now read distinct config keys (`httpExtras`, `persistenceExtras`) with backward-compatible fallback.
+
+## 1.3.0
+
+- **CHORE**: Version bump for federation consistency with `tracelet` 1.3.0.
+
+## 1.2.0
+
+- **CHORE**: Version bump for federation consistency with `tracelet_platform_interface` 1.2.0 (new `NotificationPriority` and `HashAlgorithm` enums).
+
+## 1.1.0
+
+### New Features
+
+- **FEAT**: Add native `DeltaEncoder` (Kotlin) for delta-compressed HTTP sync payloads — mirrors the Dart implementation exactly for platform consistency. Encodes only field deltas between consecutive locations using shortened keys (`la`, `lo`, `t`, `s`, `h`, `a`, `al`, `b`), achieving 60–80% bandwidth reduction. Uses `java.time.Instant` for ISO 8601 timestamp parsing with flexible numeric type coercion.
+- **FEAT**: `ConfigManager` now reads and applies the following new configuration fields from Dart: `batteryBudgetPerHour` (adaptive battery budget target), `enableSparseUpdates`, `sparseDistanceThreshold`, `sparseMaxIdleSeconds` (app-level deduplication), `enableDeadReckoning`, `deadReckoningActivationDelay`, `deadReckoningMaxDuration` (inertial navigation when GPS lost), `enableDeltaCompression`, `deltaCoordinatePrecision` (HTTP delta encoding), and `disableAutoSyncOnCellular` (WiFi-only sync).
+- **FEAT**: `HttpSyncManager` now supports `disableAutoSyncOnCellular` — skips auto-sync when device is on cellular network, syncing only on WiFi. Also conditionally applies `DeltaEncoder.encode()` to multi-location batches before HTTP upload when `enableDeltaCompression` is enabled, reducing upload size by 60–80%.
+
+## 1.0.2
+
+- **FIX**: `destroyAll()` unconditionally removed geofence registrations from Play Services even when `stopOnTerminate: false` was configured with `trackingMode=1` (geofence mode). Geofences now survive app termination and are re-registered on boot/task-removal ([#23](https://github.com/Ikolvi/Tracelet/issues/23)).
+
+## 1.0.1
+
+- **FIX**: HTTP auto-sync never triggered from automatic location tracking — `onLocationInserted()` was only called from the manual `insertLocation` handler, not from `LocationEngine.persistLocationIfAllowed()` ([#21](https://github.com/Ikolvi/Tracelet/issues/21)).
+- **FIX**: `PeriodicLocationWorker` now triggers HTTP auto-sync after each periodic location insert.
+
+## 1.0.0
+
+### 🎉 Stable Release
+
+- **FEAT**: First stable release of `tracelet_android`.
+- **DOCS**: Add Play Store background location declaration guide.
+- **REFACTOR**: Remove third-party company name references.
+- All native Android APIs are finalized and production-ready.
+
+## 0.12.0
+
+### Performance Audit — 29 Android issues resolved
+
+- **PERF**: Add 10-minute wakelock timeout to prevent indefinite CPU wake (A-C1).
+- **PERF**: Cache battery info with 30s TTL — eliminates sticky broadcast IPC per location (A-C2).
+- **PERF**: Replace N+1 audit trail verification with JOIN query (A-C3).
+- **PERF**: Add in-memory privacy zone cache with CRUD invalidation (A-C4).
+- **PERF**: Add in-memory geofence cache with CRUD invalidation (A-C5).
+- **PERF**: Cache `SimpleDateFormat` as static `isoFormatter` (A-H1).
+- **PERF**: Throttle DB pruning to every 100 inserts instead of every insert (A-H2, A-H3).
+- **PERF**: Add `@Volatile` to `isRunning` in `LocationService` (A-H4).
+- **PERF**: Add `@Volatile` to sync flags in `HttpSyncManager` (A-H5).
+- **PERF**: Use `ThreadLocal<MessageDigest>` for thread-safe SHA-256 (A-H6).
+- **PERF**: Use cached location for heartbeat events instead of activating GPS (A-H7).
+- **PERF**: Remove duplicate flat keys from platform channel location maps (A-H8).
+- **PERF**: Add LIMIT 5000 to `getLog()` query (A-H9).
+- **PERF**: Singleton `ConfigManager` with double-checked locking (A-M1).
+- **PERF**: Add `Locale.US` to all `String.format()` in `buildCanonicalString()` (A-M2).
+- **PERF**: Pre-compiled hex lookup table for SHA-256 byte-to-hex conversion (A-M3).
+- **PERF**: Smart config restart — only restart location engine when location-relevant keys change (A-M4).
+- **PERF**: Rely on wakelock auto-release timeout in `BootReceiver` (A-M5).
+- **PERF**: Use `ConcurrentHashMap.newKeySet()` for `activeGeofenceIds` (A-M6).
+- **PERF**: Track insert count to avoid `SELECT COUNT(*)` for auto-sync threshold (A-M7).
+- **PERF**: Add `created_at` index on locations table (DB v5) (A-M8).
+- **PERF**: Apply `deferTime` to `LocationRequest.setMaxUpdateDelayMillis()` (A-M9).
+- **PERF**: Add `@Volatile` to `consecutiveStillSamples` in `MotionDetector` (A-M10).
+- **PERF**: Resolve cursor column indices once before loop in `cursorToLocationList()` (A-L1).
+- **PERF**: Use `equals(ignoreCase = true)` instead of `uppercase()` allocation in logger (A-L2).
+- **PERF**: Remove unnecessary `toMutableMap()` in `watchPosition()` (A-L3).
+- **PERF**: Extract `ParsedSchedule` data class to deduplicate schedule parsing (A-L4).
+- **PERF**: Use `setOf()` instead of `listOf()` for OEM manufacturer detection (A-L6).
+- **REFACTOR**: Remove trivial `isMoreRestrictive()` wrapper, inline `isActionMoreRestrictive()` call.
+- **CHORE**: Bump DB version from 4 to 5 (v4→v5 migration adds `created_at` index).
+
+## 0.11.5
+
+- **FIX**: Persist polygon geofence `vertices` to SQLite — add `vertices TEXT` column, DB migration v3→v4, and JSON serialization/deserialization in `insertGeofence()`/`cursorToGeofence()`.
+- **FIX**: Skip malformed vertex entries instead of coercing invalid coordinates to `0.0`; require ≥ 3 valid vertices for polygon storage.
+- **TEST**: Add Robolectric tests for geofence vertices CRUD (11 tests covering round-trip, validation, edge cases).
+- **TEST**: Add DB migration integration tests — v3→v4 and v1→v4 upgrade paths, existing data preservation, fresh install.
+
+## 0.11.4
+
+- **CHORE**: Version bump for platform consistency.
+
+## 0.11.3
+
+- **FIX**: Add `ACCESS_BACKGROUND_LOCATION` permission checks to all killed-state restart paths — `BootReceiver`, `LocationService.onTaskRemoved()`, `LocationService.startBootTracking()`, `PeriodicAlarmReceiver`, and `PeriodicLocationWorker`. Prevents "While In Use" permission from triggering tracking in killed/boot state.
+- **FEAT**: New `hasBackgroundPermission()` utility on `LocationEngine` for proactive background permission verification.
+
+## 0.11.2
+
+- **CHORE**: Tighten `tracelet_platform_interface` constraint to `^0.11.2`.
+
+## 0.11.1
+
+- **FIX**: Auto-select exact alarms for periodic intervals < 15 min without foreground service.
+- **FIX**: Re-scheduling chain in `PeriodicLocationWorker.doWork()` now uses `interval < 900` auto-detect to match initial scheduling strategy.
+- **FIX**: Doze-safe alarm fallback — changed `set()` to `setAndAllowWhileIdle()` in `scheduleExactAlarm()`.
+- **FIX**: Re-wire `EventDispatcher` in `onAttachedToEngine()` when periodic mode is already active (fixes null dispatcher after process restart).
+- **FIX**: Preserve periodic alarms in `destroyAll()` when `stopOnTerminate=false` and periodic tracking is active.
+- **FEAT**: Add `canScheduleExactAlarms` and `openExactAlarmSettings` method channel handlers.
+- **CHORE**: Bump platform interface to 0.11.1.
+
+## 0.11.0
+
+- **FEAT**: `AuditTrailManager` — SHA-256 hash chain with SQLite persistence and SharedPreferences chain state.
+- **FEAT**: `PrivacyZoneManager` — Haversine distance-based zone evaluation with exclude, degrade, and event-only actions.
+- **FEAT**: Privacy zones database table with CRUD operations (v2→v3 migration).
+- **FEAT**: Audit trail database table with hash chain linkage.
+- **FEAT**: `ConfigManager` getters for audit and privacy zone configuration.
+- **CHORE**: Bump `tracelet_platform_interface` to ^0.11.0.
+
+## 0.10.0
+
+- **FEAT**: Periodic mode — GPS-friendly interval tracking via `startPeriodic()`. Three scheduling strategies: WorkManager (default), foreground service, and exact alarms.
+- **FEAT**: `PeriodicLocationWorker` — WorkManager `CoroutineWorker` for one-shot GPS fixes with automatic SQLite persistence and EventChannel/headless dispatch.
+- **FEAT**: `PeriodicAlarmReceiver` — `BroadcastReceiver` for AlarmManager exact alarm chaining when `periodicUseExactAlarms: true`.
+- **FEAT**: `SCHEDULE_EXACT_ALARM` permission with graceful fallback to inexact alarms on Android 13+.
+- **FIX**: `TraceletAndroidPluginTest` — make `mainHandler` lazy to avoid `RuntimeException` in plain JUnit tests.
+- **CHORE**: Bump `tracelet_platform_interface` to ^0.10.0.
+
+## 0.9.1
+
+- **FIX**: Fire heartbeat events in boot-mode headless tracking. `LocationService.startBootTracking()` now starts a self-rescheduling heartbeat timer so heartbeat events dispatch to `HeadlessTaskService` after device reboot.
+
+## 0.9.0
+
+* **FEAT**: HTTP sync retry engine — configurable retry with exponential backoff for transient 5xx, 429, and timeout failures. Respects `Retry-After` headers. Defers sync on connectivity loss.
+* **FEAT**: Configurable motion sensitivity — `MotionDetector` reads `shakeThreshold`, `stillThreshold`, `stillSampleCount` from `ConfigManager` at runtime instead of hardcoded constants.
+* **FIX**: HTTP 429 (Too Many Requests) now correctly treated as transient (was previously treated as permanent failure).
+* **FIX**: Added `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` permission to AndroidManifest.xml for battery exemption settings.
+* **CHORE**: Bump `tracelet_platform_interface` to ^0.9.0.
+
+## 0.8.3
+
+* **FEAT**: Proximity-based geofence auto-load/unload — only geofences within `geofenceProximityRadius` are registered with the OS, sorted by distance, capped at 100 (Android limit). Enables monitoring thousands of geofences.
+* **FEAT**: `GeofenceManager.updateProximity()` — re-evaluates which geofences to monitor on every location update, dynamically swapping registrations as the device moves.
+* **FEAT**: `geofencesChange` event fires with `on`/`off` arrays when geofences are activated/deactivated from proximity monitoring.
+* **FEAT**: `maxMonitoredGeofences` config respected — caps simultaneously monitored geofences below the platform limit.
+* **CHORE**: Bump `tracelet_platform_interface` to ^0.8.3.
+
+## 0.8.2
+
+* **DOCS**: Improve README visuals with combined Android & iOS demo image.
+
+## 0.8.1
+
+* **DOCS**: Document iOS background hardening changes (no Android code changes in this release).
+
+## 0.8.0
+
+* **FEAT**: `OemCompat` utility — comprehensive OEM compatibility layer with manufacturer detection (Huawei, Xiaomi, OnePlus, Samsung, Oppo, Vivo), aggression ratings (0–5), and OEM-specific settings deep-links.
+* **FEAT**: Huawei PowerGenie wakelock hack — uses `LocationManagerService` wakelock tag to bypass PowerGenie background killing.
+* **FEAT**: Xiaomi autostart detection — runtime check for MIUI autostart management activity availability.
+* **FEAT**: OEM settings deep-links — 8 manufacturer-specific settings screens (autostart, battery saver, app launch, protected apps) validated via `PackageManager.resolveActivity()`.
+* **FEAT**: `getSettingsHealth` method channel handler — returns full device OEM health map.
+* **FEAT**: `openOemSettings` method channel handler — launches OEM settings by label.
+* **PERF**: OEM-safe wakelock lifecycle in `LocationService` — acquire on start, release on stop/destroy/taskRemoved.
+* **PERF**: Boot receiver wakelock — temporary 60-second wakelock during `BOOT_COMPLETED` processing to survive aggressive OEM process killing.
+* **CHORE**: ProGuard/R8 consumer rules (`consumer-rules.pro`) — prevents stripping of services, receivers, Room entities, and Kotlin metadata in release builds.
+* **DOCS**: Update README with OEM compatibility feature and documentation link.
+* **CHORE**: Bump `tracelet_platform_interface` to ^0.8.0.
+
+## 0.7.1
+
+* **DOCS**: Add mock location detection feature to README with platform-specific detection details.
+* **CHORE**: Bump `tracelet_platform_interface` to ^0.7.1.
+
+## 0.7.0
+
+* **FEAT**: Mock location detection — `isLocationMock()` uses `Location.isMock()` (API 31+) and `isFromMockProvider()` (API 18+) to flag spoofed GPS.
+* **FEAT**: Heuristic mock detection (level 2) — satellite count check (< 4 = suspicious) and `SystemClock.elapsedRealtimeNanos` drift detection (> 5s = suspicious).
+* **FEAT**: `enrichLocation()` includes `mock` flag and `mockHeuristics` metadata map (satellites, elapsedRealtimeDriftMs, platformFlagMock).
+* **FEAT**: Native-level mock rejection — when `rejectMockLocations` is enabled, drops mocked locations before sending to Dart and fires `ProviderChangeEvent.mockLocationsDetected`.
+* **FEAT**: `ConfigManager.getMockDetectionLevel()` and `getRejectMockLocations()` getters.
+* **CHORE**: Bump `tracelet_platform_interface` to ^0.7.0.
+
+## 0.6.1
+
+* **REFACTOR**: Remove 6 dead `ConfigManager` constants and methods for filtering migrated to Dart in 0.6.0 (`getDisableElasticity`, `getElasticityMultiplier`, `getFilterPolicy`, `getMaxImpliedSpeed`, `getTrackingAccuracyThreshold`, `getUseKalmanFilter`).
+* **REFACTOR**: Remove dead `EventDispatcher.sendTrip()` and `"trip"` channel registration — trip events now from Dart `TripManager`.
+* **CHORE**: Bump `tracelet_platform_interface` to ^0.6.1.
+
+## 0.6.0
+
+* **REFACTOR**: Remove duplicate location filtering from `LocationEngine.onLocationReceived()` — elasticity, distance filter, accuracy filter, and speed filter now handled by shared Dart `LocationProcessor`.
+* **REFACTOR**: Replace `GeofenceManager.evaluateHighAccuracyProximity()` with no-op stub — proximity evaluation moved to shared Dart `GeofenceEvaluator`.
+* **CHORE**: Bump `tracelet_platform_interface` to ^0.6.0.
+
+## 0.5.5
+
+* **CHORE**: Bump `tracelet_platform_interface` to ^0.5.5.
+
+## 0.5.4
+
+* **FIX**: Heartbeat event now wraps location data in `{"location": ...}` to match `HeartbeatEvent.fromMap()` — fixes heartbeat always returning zero coordinates.
+* **FIX**: Heartbeat falls back to last known location (via `enrichLocation()`) when `getCurrentPosition` returns null.
+
+## 0.5.3
+
+* **CHORE**: Bump `tracelet_platform_interface` to ^0.5.3.
+
+## 0.5.2
+
+* **FEAT**: Accelerometer-only motion detection mode — when `disableMotionActivityUpdates` is `true`, uses hardware accelerometer + `TYPE_SIGNIFICANT_MOTION` sensor for permission-free stationary↔moving detection.
+* **PERF**: Lazily initialize `ActivityRecognitionClient` — no longer created when unused in accelerometer-only mode.
+* **PERF**: Cache `SensorManager` instance via `obtainSensorManager()` instead of re-fetching on each call.
+* **FIX**: Graceful degradation — if `ACTIVITY_RECOGNITION` permission throws `SecurityException`, automatically falls back to accelerometer-only mode.
+* **REFACTOR**: Extract `activityTransition()` helper to reduce boilerplate in transition registration.
+
+## 0.5.1
+
+* **DOCS**: Rewrite README with proper description, setup guide link, and related packages table.
+
+## 0.5.0
+
+* **CHORE**: Bump `tracelet_platform_interface` to ^0.5.0.
+* **CHORE**: Bump version to 0.5.0.
+
+## 0.4.0
+
+* **FEAT**: `getMotionPermissionStatus()` / `requestMotionPermission()` — ACTIVITY_RECOGNITION permission handling.
+* **FIX**: Auto-pace not triggering — start accelerometer monitoring in `MotionDetector.start()` when stationary.
+* **FIX**: Speed always zero in motionchange events — track `lastEffectiveSpeed` in LocationEngine.
+* **FIX**: Kotlin compilation error from literal `\n` in import line.
+* **CHORE**: Bump `tracelet_platform_interface` to ^0.4.0.
+
+## 0.3.0
+
+* **FEAT**: One-shot location via `getCurrentPosition()` with `persist`, `samples`, `maximumAge`, and `extras` parameters.
+* **FEAT**: `getLastKnownLocation()` with 3-tier fallback — in-memory cache → FusedLocationProviderClient → system LocationManager (GPS/Network).
+* **FEAT**: `ForegroundServiceConfig.enabled` — conditionally start/stop foreground service based on config.
+* **FIX**: Replace `requestLocationUpdates` with sequential `getCurrentLocation()` calls in `collectSamples()` to avoid silent throttling on budget devices without foreground service.
+* **BREAKING**: Requires `tracelet_platform_interface: ^0.3.0`.
+
+## 0.2.3
+
+* Fix LICENSE file format for proper SPDX detection on pub.dev.
+
+## 0.2.2
+
+* Fix `ConfigManager.setConfig()` — flatten nested section sub-maps (`geo`, `app`, `http`, etc.) sent by Dart before processing. Fixes foreground service notification config (title, text, channel, priority) and all other sub-config values being silently ignored.
+
+## 0.2.1
+
+* Version bump for coordinated release.
+
+## 0.2.0
+
+* Add SPDX `license: Apache-2.0` identifier for pub.dev scoring.
+
+## 0.1.0
+
+* Initial release.
+* FusedLocationProvider-based location tracking.
+* Foreground service with configurable notification.
+* Activity recognition via Google Play Services.
+* SQLite persistence with Room.
+* HTTP auto-sync with OkHttp.
+* Geofencing with platform GeofencingClient.
+* Headless Dart isolate execution.
+* Boot-completed receiver for start-on-boot.
+* WorkManager-based scheduling.

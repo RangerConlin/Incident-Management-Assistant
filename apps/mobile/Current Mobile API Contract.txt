@@ -1,0 +1,218 @@
+SARApp Mobile API Contract - Current Server Alignment
+
+Source of truth inspected:
+C:\Users\Brendan\Documents\GitHub\Incident-Management-Assistant\data\db\sarapp_db
+
+Server runtime:
+- FastAPI application is created in data\db\sarapp_db\api\app.py (installed as the
+  `sarapp-db` package). `cloud_server\` is a stateless reverse-tunnel router with no
+  MongoDB connection — it forwards mobile HTTP traffic to whichever LAN server
+  registered a connect code; the mirrored `cloud_server\sarapp_db\**` tree is unused
+  legacy scaffolding and must not be treated as the live server.
+- Cloud server (tunnel) listens on port 8765 by default
+- Mobile MVP hardcoded cloud base URL: http://srv1707346.hstgr.cloud:8765
+- Health check: GET /health
+- Server metadata: GET /server-info
+- Mongo URI is configured with SARAPP_MONGO_URI
+
+Current MongoDB structure:
+- sarapp_system: server/app state and incident registry
+- sarapp_master: agency-wide reference data such as personnel, certifications, vehicles, aircraft, equipment, resource types, hazard types, radio channels, templates, and user profile scaffolding
+- sarapp_incident_<incident_id>: per-incident operational data such as incident profile, teams, tasks, check-ins, check-in history, resources, comms logs, ICS forms, GIS, planning, logistics, safety, intel, approvals, and audit logs
+
+Note: organizations and rank structures are NOT Mongo-backed. They are a
+hardcoded hierarchy (data/db/sarapp_db/org_data.py) served read-only by
+GET /api/master/organizations and GET /api/master/ranks below — see those
+entries under "Master/reference endpoints" for the response shape.
+
+Important terminology update:
+- Use "incident", not "mission", for API contracts.
+- Current server does not expose POST /api/mobile/login or JWT/token auth.
+- Current mobile MVP should treat a successful GET /health as server connection.
+- If mobile auth is added later, it should be designed as a new server feature and documented separately.
+
+MVP mobile endpoints:
+- GET /health
+- GET /server-info
+- GET /api/incidents
+- GET /api/incidents/{incident_id}/profile
+- GET /api/incidents/{incident_id}/checkin/roles
+- GET /api/incidents/{incident_id}/checkin/teams
+- GET /api/incidents/{incident_id}/checkin/personnel/search?q={query}
+- PUT /api/incidents/{incident_id}/checkin/{person_id}
+- GET /api/incidents/{incident_id}/checkin/roster
+
+Push notifications (FCM):
+- POST /api/mobile/push-token — legacy notification-token registration.
+  Body: {token, person_id?, person_record?, incident_id?, platform?, device_name?}.
+  Upserts by `token`, so re-registering an already-known token (e.g. a different
+  person logging into a shared/handoff device) re-associates it rather than
+  creating a duplicate row.
+- DELETE /api/mobile/push-token/{token} — best-effort unregister (e.g. on logout).
+  Always returns 200 ({"ok": true, "deleted": bool}), never 404.
+
+Client connections:
+- POST /api/client-connections/register — registers/re-associates a durable
+  device/client connection and returns a `connection_token`.
+  Body: {device_id, platform?, person_record, person_id?, incident_id?,
+  team_id?, team_name?, role?, location_tracking_enabled?, fcm_token?,
+  notification_permission?, device_name?, app_version?}.
+  `connection_token` is the device/session identity used by mobile location.
+  FCM tokens are optional notification delivery metadata on the connection,
+  not the identity mechanism.
+- PATCH /api/client-connections/{device_id}/push-token — attaches/updates
+  notification delivery metadata for an existing connection.
+  Body: {fcm_token?, notification_permission?}.
+- POST /api/client-connections/{device_id}/heartbeat — refreshes `last_seen_at`
+  and optional state such as {location_tracking_enabled}.
+- GET /api/client-connections — lists current known client/device connections
+  for server-manager/diagnostics views.
+
+Team-location tracking (GIS module Phase 1 — manual start/stop, one dot per
+team, no per-person location, no breadcrumb trail; see tracking_plan.md):
+- POST /api/mobile/location — reports a device's current position.
+  Body: {connection_token, lat, lon, team_id, timestamp?}. `team_id` is the
+  mobile app's own signed-in team (int_id) — the device is trusted for
+  whichever team it's signed in as; the server does not check team roster
+  membership. Resolves person_record/incident_id from `client_connections`.
+  Silently ignored (200, {"ok": true, "recorded": false}) if the connection is
+  unknown/revoked, the person never checked in, team_id doesn't match a real
+  team, or (non-leader ping) the team leader is already the tracking source.
+  400 if connection_token or team_id is missing. Otherwise overwrites the
+  team's current_location_* fields and returns {"ok": true, "recorded": true}.
+  Legacy {token, ...} FCM-token bodies are still accepted temporarily as a
+  compatibility fallback, but new clients should not use them.
+- POST /api/mobile/location/stop — stops tracking for this device.
+  Body: {connection_token}. Clears the team's current_location_* fields only
+  if this device is the current source; always returns 200
+  ({"ok": true, "cleared": bool}).
+
+Mobile-owned responder profile:
+- Stored locally on the device using `shared_preferences` (Flutter).
+- Includes personal info, certifications, assigned vehicles, and assigned equipment.
+- During incident check-in, the profile is copied into the check-in request as mobile_profile_snapshot.
+- The same request also sends common roster fields such as display_name, incident_phone, incident_callsign, role_on_team, team_id, vehicles, and equipment.
+- Current target collection: sarapp_incident_<incident_id>.checkins.
+
+Field operations endpoints:
+- GET /api/incidents/{incident_id}/operations/tasks
+- GET /api/incidents/{incident_id}/operations/task-rows
+- GET /api/incidents/{incident_id}/operations/teams
+- GET /api/incidents/{incident_id}/operations/team-assignment-rows
+- PATCH /api/incidents/{incident_id}/operations/teams/{team_id}/status
+- PATCH /api/incidents/{incident_id}/operations/teams/{team_id}/checkin
+- GET /api/incidents/{incident_id}/operations/tasks/{task_id}/team-status-log
+
+ICS 214 team logbook endpoints (entries land on the team's ICS-214 stream, source=mobile; stream is created on first use; {team_id} is the operations team int_id):
+- GET /api/incidents/{incident_id}/mobile/teams/{team_id}/log?since=<iso>
+- POST /api/incidents/{incident_id}/mobile/teams/{team_id}/log  (body: text, actor_user_id, timestamp_utc, critical_flag)
+- DELETE /api/incidents/{incident_id}/mobile/teams/{team_id}/log/{entry_id}  (not used by the app yet)
+
+Command overview endpoints:
+- GET /api/incidents/{incident_id}/header
+- GET /api/incidents/{incident_id}/teams
+- GET /api/incidents/{incident_id}/team-locations
+- GET /api/incidents/{incident_id}/tasks/summary
+- GET /api/incidents/{incident_id}/channels
+- GET /api/incidents/{incident_id}/alerts
+- GET /api/incidents/{incident_id}/logistics/counts
+
+Incident chat endpoints:
+- GET /api/incidents/{incident_id}/chat/channels?user_id={person_id}
+  returns the current user's visible group channels plus any direct-message
+  channels they participate in. The first read seeds the default incident
+  group channels on the server if none exist yet.
+- POST /api/incidents/{incident_id}/chat/channels
+  body: {name, created_by, participant_ids[]}. Creates a new group channel.
+- POST /api/incidents/{incident_id}/chat/dms
+  body: {user_a, user_b}. Returns an existing DM for the pair or creates one.
+- GET /api/incidents/{incident_id}/chat/channels/{channel_id}/messages?limit={n}&before={iso_ts}
+  returns message history for one channel in ascending created_at order.
+- POST /api/incidents/{incident_id}/chat/channels/{channel_id}/messages
+  body: {sender_id, sender_name?, text}. Writes one append-only chat message.
+- GET /api/incidents/{incident_id}/snapshot
+  desktop uses this for full incident bootstrap; mobile chat does not need the
+  snapshot, but it shares the same live update feed below.
+- WebSocket /api/incidents/{incident_id}/ws
+  incident-wide live update stream shared by desktop and mobile. Chat clients
+  should filter for {collection: "messages", op: "created"} and match on the
+  message document's channel_id field.
+
+Notifications endpoints (program-wide notification feed; see the desktop
+repo's `data/db/sarapp_db/api/routers/notifications.py` /
+`notifications/models/notification.py` for the authoritative severity
+(`informational`/`routine`/`priority`/`emergency`) and category
+(`operations`/`communications`/`safety`/`logistics`/`planning`/
+`administrative`/`system`) vocabulary both clients share):
+- POST /api/incidents/{incident_id}/notifications/{notification_id}/acknowledge
+  body: {acknowledged_by}. Used by the emergency-alert dialog's Acknowledge
+  action for a notification flagged requires_acknowledgement.
+- POST /api/incidents/{incident_id}/notifications/{notification_id}/dismiss
+  body: {dismissed_by}. Used by the in-app banner/dialog's Dismiss action.
+- Mobile does not yet call GET /api/incidents/{incident_id}/notifications
+  directly — the in-app Notification Center (NotificationStore) is
+  populated from captured FCM pushes only, not this REST feed. The FCM
+  `data` payload is expected to carry notification_id, incident_id,
+  severity, category, source_type, source_id, and requires_acknowledgement
+  so the banner/dialog can render and act on it without an extra fetch.
+- Android notification channels: mobile pre-registers four channels, ids
+  `sarapp_informational`/`sarapp_routine`/`sarapp_priority`/
+  `sarapp_emergency` (see `lib/models/notification_channel.dart`), each
+  with the user's chosen sound (Settings > Alert Sounds). The backend
+  does not set `android.notification.channel_id` on its FCM messages yet
+  — once it does (one of these four ids, matched to the notification's
+  severity), a background/terminated-app push will automatically pick up
+  that channel's importance/sound with no mobile-side change needed. Until
+  then, every push displays on Android's own default channel regardless
+  of severity.
+
+ICS 206 medical plan endpoints:
+- GET /api/incidents/{incident_id}/medical/ics206/aid-stations?op={op}
+- GET /api/incidents/{incident_id}/medical/ics206/ambulance-services?op={op}
+- GET /api/incidents/{incident_id}/medical/ics206/hospitals?op={op}
+- GET /api/incidents/{incident_id}/medical/ics206/air-ambulance?op={op}
+- GET /api/incidents/{incident_id}/medical/ics206/comms?op={op}
+- GET /api/incidents/{incident_id}/medical/ics206/procedures?op={op}
+- GET /api/incidents/{incident_id}/medical/ics206/signatures?op={op}
+- ICS-206 endpoints accept an optional &version={n}. Without it they serve the latest approved version for the OP (or the latest draft if none is approved yet).
+- The mobile app treats the highest value from GET /api/incidents/{incident_id}/op-periods
+  as the best-effort current operational period. If op-period discovery fails, it
+  requests the ICS 206 sections without an op filter.
+
+Incident resources endpoints:
+- GET /api/incidents/{incident_id}/resources
+- GET /api/incidents/{incident_id}/resources/checked-ids?resource_type=personnel
+- POST /api/incidents/{incident_id}/resources/{resource_type}/{resource_id}
+- DELETE /api/incidents/{incident_id}/resources/{resource_type}/{resource_id}
+
+Master/reference endpoints useful to mobile:
+- GET /api/master/personnel
+- GET /api/master/vehicles
+- GET /api/master/equipment
+- GET /api/master/aircraft
+- GET /api/master/certifications
+- GET /api/master/organizations — flattened hardcoded org hierarchy (not
+  Mongo-backed, see org_data.py/org_catalog.py). Each row: {key, name,
+  short_name, location, parent_key, rank_structure_key,
+  effective_rank_structure_key, category_key, effective_category_key}. Used
+  by the profile screen's organization picker (see OrganizationsSync); the
+  category fields aren't consumed by the mobile UI yet.
+- GET /api/master/categories — every available organization category
+  (e.g. "Law Enforcement", "Volunteer Organization"), independent of the
+  tree. Each row: {key, name, description}. Not yet consumed by the app.
+- GET /api/master/ranks?structure_key={key} — ranks for one rank structure,
+  or every structure if structure_key is omitted. Each row:
+  {rank_structure_key, rank_structure_name, code, name, sort_order}.
+- GET /api/resource-types
+- GET /api/hazard-types
+- GET /api/lookup/task-types
+- GET /api/comms/master-channels
+- GET /api/forms
+
+Planned but not currently implemented as mobile-specific endpoints:
+- POST /api/mobile/login
+- POST /api/mobile/checkin
+- POST /api/mobile/sync
+- GET /api/mobile/permissions
+
+Those planned endpoints should not be used by the mobile app until matching server routers exist.

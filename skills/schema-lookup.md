@@ -95,7 +95,7 @@ db['incidents'].update_one(
 ## Schema Changes
 
 When modifying schemas:
-1. See `Design Documents/Instructions/mongodb_schema_decisions.md`
+1. See `docs/archive/design-documents/Instructions/mongodb_schema_decisions.md`
 2. Document the change
 3. Update migration if needed
 4. Test with `/run-tests`

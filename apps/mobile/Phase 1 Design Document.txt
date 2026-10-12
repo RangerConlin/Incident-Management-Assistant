@@ -1,0 +1,200 @@
+CS Command Assistant: Mobile App MVP Plan
+
+📱 Platform Priority
+Android is the primary target, Web is secondary. iOS is deprioritized indefinitely —
+building/signing an iOS app requires a macOS + Xcode environment, which is not
+currently available. Revisit iOS only if a Mac or cloud-Mac CI path becomes available.
+
+📅 Initial MVP Release Scope
+
+The initial mobile app release will focus on the following critical capabilities:
+
+1. Server Connection & Incident Selection Flow
+
+Users connect to a SARApp FastAPI server
+
+The current server does not expose a mobile JWT/login endpoint
+
+After connection, users select the incident they are joining
+
+If the user is not already checked in on that incident:
+
+They are redirected to the check-in module
+
+User must enter check-in details and select their role:
+
+Command Staff or Field User
+
+If Field User, they must also select their assigned team
+
+Once submitted, they are routed to the appropriate app interface based on role
+
+Messaging is available on both sides; Status Updates are exclusive to Field Users
+
+2. Status Updates
+
+Two-part structure:
+
+Advance Status: Button that progresses user to the next predefined status for their team/tasking (flow logic to be defined later)
+
+Special Status Messages: Manual submission of key status types like "Assistance Needed", "Discovery", etc.
+
+All updates are timestamped and may include location data
+
+3. Admin Check-In/Check-Out Tool
+
+Command staff module for managing personnel check-in/out
+
+Used by Finance/Admin personnel at staging areas or base camps
+
+Supports checking in/out teams or groups of responders
+
+Allows manual entry of role, team, and current status
+
+Intended for Admin Assistants to support field personnel
+
+📝 Integration with Backend Modules
+
+Feature
+
+Backend Module
+
+Endpoint Needed
+
+Mongo Scope / Collection
+
+Server Connection
+
+Core FastAPI App
+
+GET /health, GET /server-info
+
+Server runtime metadata
+
+Incident Selection
+
+Incident Overview
+
+GET /api/incidents
+
+sarapp_system.incidents
+
+Role & Team Selection
+
+Check-In / Operations
+
+GET /api/incidents/{incident_id}/checkin/roles, GET /api/incidents/{incident_id}/checkin/teams
+
+sarapp_incident_<id>.checkins, sarapp_incident_<id>.teams, sarapp_master.personnel
+
+Field Check-In
+
+Personnel / ICS 211
+
+PUT /api/incidents/{incident_id}/checkin/{person_id}
+
+sarapp_incident_<id>.checkins
+
+Advance Status
+
+Operations
+
+PATCH /api/incidents/{incident_id}/operations/teams/{team_id}/status
+
+sarapp_incident_<id>.teams, sarapp_incident_<id>.tasks
+
+Team Check-In Ping
+
+Operations
+
+PATCH /api/incidents/{incident_id}/operations/teams/{team_id}/checkin
+
+sarapp_incident_<id>.teams
+
+
+
+📊 Architecture Overview
+
+[Mobile App]
+   ├── Server connection screen → [GET /health]
+   ├── Incident selection screen → [GET /api/incidents]
+   ├── If not checked in on incident:
+   │   └─ Check-In module (personnel ID + role + team) → [PUT /api/incidents/{incident_id}/checkin/{person_id}]
+   ├── Home screen (role-specific)
+   │   ├─ Field: Status Update, Messaging
+   │   └─ Command: Messaging, Admin Check-In Tool
+
+[Backend (FastAPI)]
+   ├── Health/server-info routes
+   ├── Existing module routers:
+   │   ├─ /api/incidents
+   │   ├─ /api/incidents/{incident_id}/checkin
+   │   ├─ /api/incidents/{incident_id}/operations
+   │   ├─ /api/incidents/{incident_id}/resources
+   │   ├─ /api/comms
+   │   ├─ /api/forms
+   │   └─ /api/master/*
+   └── Connects to:
+       ├─ sarapp_system database
+       ├─ sarapp_master database
+       └─ sarapp_incident_<incident_id> databases
+
+---
+
+### ⏳ MVP Timeline (~2 Weeks)
+
+| Day(s) | Task                                                                 |
+|--------|----------------------------------------------------------------------|
+| 1      | Flutter project scaffold (already in place)                         |
+| 2–3    | Create server connection flow using /health                         |
+| 4      | Add incident selection screen                                        |
+| 5      | Add role & team selection screen                                    |
+| 6–7    | Build Field Check-In module (triggered after incident join if not signed in) |
+| 8–9    | Build Status Update screen (message input + optional GPS)           |
+
+| 12–13  | Final testing, bug fixes                                            |
+| 14     | Package for TestFlight / Internal Android test                      |
+
+---
+
+### 📱 Mobile UI Overview
+
+**Server Connection Screen**
+- Server URL / label
+- Connect button
+- Uses GET /health to verify the SARApp server
+
+**Incident Selection Screen**
+- Dropdown or list of active incidents
+- Select incident to join
+- Proceed to check-in if not already signed in
+
+**Field Check-In Module (upon incident join if not signed in)**
+- Full name (autofilled or entered)
+- Role selection: Command Staff or Field User
+- If Field User: team selection
+- Optional notes
+- Submit button
+
+**Role-Based Home Screens**
+- If Field User:
+  - Advance Status Button
+    - Press to move to next status (based on backend flow logic)
+    - Button label updates dynamically based on current task/team
+  - Special Status Message Screen
+    - Predefined message types: Assistance Needed, Discovery, Hazard, etc.
+    - Optional note and GPS toggle
+    - Submit button
+- If Command Staff:
+  - Admin Check-In/Check-Out Module
+    - View personnel assigned to incident
+    - Manually check in/out users
+    - Set role, team, and current status
+    - For use by Admin/Finance at staging or base camp
+
+**Navigation UI**
+- Bottom tab or drawer navigation to access screens based on user role
+- Field: [✔️ Advance Status], [📤 Special Status], [📄 Assigned Tasks]
+- Command: [📋 Admin Check-In], [📄 Incident Overview] (to be expanded in future)
+
+---

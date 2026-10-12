@@ -71,7 +71,7 @@ class DashboardPanel(QWidget):
 All UI follows:
 - **Palette** — Use `get_palette()` from `utils.styles`
 - **Spacing** — Consistent margins (8px default)
-- **Tables** — See `Design Documents/Instructions/tabledesign.md`
+- **Tables** — See `docs/archive/design-documents/Instructions/tabledesign.md`
 - **Dialogs** — Modal, centered, proper buttons
 - **Accessibility** — Clear labels, keyboard navigation
 

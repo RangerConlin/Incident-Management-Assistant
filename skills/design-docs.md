@@ -66,7 +66,7 @@ Index and quick navigation for all Design Documents.
 
 ## Document Location
 
-All in `Design Documents/Instructions/`
+All in `docs/archive/design-documents/Instructions/`
 
 Quick access:
 ```
@@ -84,6 +84,6 @@ cat Design\ Documents/Instructions/tabledesign.md
 ## Keeping Docs Fresh
 
 When architecture or patterns change:
-1. Update the relevant `Design Documents/Instructions/` file
+1. Update the relevant `docs/archive/design-documents/Instructions/` file
 2. Update `agents.md` if it's a hard rule
 3. Agents will see the changes immediately

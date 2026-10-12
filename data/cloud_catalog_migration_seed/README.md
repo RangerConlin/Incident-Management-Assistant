@@ -1,7 +1,7 @@
 # Cloud catalog migration seed
 
 Real data exported from this installation's local catalog (`sarapp_master`)
-on 2026-10-07, via `scripts/export_master_catalog_seed_csvs.py`. Use these
+on 2026-10-07, via `tools/scripts/export_master_catalog_seed_csvs.py`. Use these
 to seed the central catalog (`sarapp_central_master`, inside `cloud_router`)
 once it's created — this is this installation's actual roster/equipment/etc.,
 not generic defaults.
@@ -15,13 +15,13 @@ overwrites the other.
 Regenerate at any time with:
 
 ```
-python scripts/export_master_catalog_seed_csvs.py
+python tools/scripts/export_master_catalog_seed_csvs.py
 ```
 
 ## Curated files (match an existing import/export column format)
 
 These eight already round-trip through either the dashboard's own CSV
-import (`cloud_router/master_db/webgui.py`) or the same column convention
+import (`services/cloud_router/master_db/webgui.py`) or the same column convention
 `data/master_catalog_seed/`'s templates use:
 
 - `personnel.csv`, `equipment.csv` — exact columns the dashboard's
@@ -67,7 +67,7 @@ hand.
   logs; a fresh central catalog shouldn't inherit another server's audit
   trail.
 - `personnel_certifications` — legacy, empty on a cut-over install (see
-  `Design Documents/legacycode.md`).
+  `docs/archive/design-documents/legacycode.md`).
 - Collections that were empty on this server at export time: `hazard_types`,
   `canned_comm_entries`, `ems_agencies`, `safety_analysis_templates`,
   `organization_rank_structure_overrides`.

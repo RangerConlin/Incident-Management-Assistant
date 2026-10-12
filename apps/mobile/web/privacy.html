@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="index,follow">
+  <meta
+    name="description"
+    content="Privacy Policy for Arc-Horizon, the mobile field operations companion for incident response."
+  >
+  <title>Arc-Horizon Privacy Policy</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --background: #f6f8fb;
+      --surface: #ffffff;
+      --text: #18202a;
+      --muted: #526070;
+      --border: #d8e0ea;
+      --accent: #397a9a;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --background: #0d1822;
+        --surface: #17324d;
+        --text: #edf2f7;
+        --muted: #a9b4c0;
+        --border: #2d3844;
+        --accent: #65b4d8;
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--background);
+      color: var(--text);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.6;
+    }
+
+    main {
+      width: min(860px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 48px 0;
+    }
+
+    article {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: clamp(24px, 5vw, 48px);
+      box-shadow: 0 14px 40px rgba(15, 23, 42, 0.08);
+    }
+
+    h1,
+    h2 {
+      line-height: 1.2;
+      margin: 0;
+    }
+
+    h1 {
+      font-size: clamp(2rem, 6vw, 3rem);
+      margin-bottom: 8px;
+    }
+
+    h2 {
+      border-top: 1px solid var(--border);
+      font-size: 1.25rem;
+      margin-top: 32px;
+      padding-top: 24px;
+    }
+
+    p,
+    ul {
+      margin: 16px 0 0;
+    }
+
+    ul {
+      padding-left: 1.35rem;
+    }
+
+    li + li {
+      margin-top: 8px;
+    }
+
+    a {
+      color: var(--accent);
+    }
+
+    .lede,
+    .updated {
+      color: var(--muted);
+    }
+
+    .updated {
+      font-weight: 600;
+      margin-top: 0;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <article>
+      <p class="updated">Last updated: October 3, 2026</p>
+      <h1>Arc-Horizon Privacy Policy</h1>
+      <p class="lede">
+        Arc-Horizon is a mobile field operations companion for SARApp.
+        This policy explains what information the app handles and how it is used during incident
+        response operations.
+      </p>
+
+      <h2>Information We Collect</h2>
+      <p>The app may collect or process the following information when you use it:</p>
+      <ul>
+        <li>Responder identity and check-in details, such as name, operator/person ID, role, team assignment, vehicle details, and equipment details entered during check-in.</li>
+        <li>Incident and team information provided by the connected SARApp server, including incident name, team name, task assignments, operational messages, alerts, communications plans, medical plans, and log entries.</li>
+        <li>Device connection information, including a generated device identifier, a connection token, app platform, notification permission status, and device name or app version when available.</li>
+        <li>Push notification tokens when notification permission is granted.</li>
+        <li>Location information when location tracking is manually enabled in the app.</li>
+      </ul>
+
+      <h2>Location Data</h2>
+      <p>
+        Location tracking is used to support field operations and command visibility. Tracking is
+        manual and is controlled from within the app. When enabled, the app may send the device's
+        latitude, longitude, timestamp, and signed-in team identifier to the connected SARApp server.
+        The current mobile design reports team-level position for operational awareness, not a
+        public consumer location history.
+      </p>
+      <p>
+        Location tracking can continue in the background while enabled, subject to device settings
+        and permissions. You can stop tracking from the app or revoke location permission in your
+        device settings.
+      </p>
+
+      <h2>How We Use Information</h2>
+      <p>Information is used to:</p>
+      <ul>
+        <li>Connect the mobile app to the correct incident response server.</li>
+        <li>Check responders into incidents and associate them with operational teams.</li>
+        <li>Display tasks, alerts, communications, medical plans, logs, and reference information.</li>
+        <li>Send operational push notifications when permission is granted.</li>
+        <li>Provide command staff with current team status and location when tracking is enabled.</li>
+        <li>Maintain session continuity on the device so users do not need to reconnect every time the app opens.</li>
+      </ul>
+
+      <h2>Local Storage</h2>
+      <p>
+        The app stores session and preference information on the device, including the selected
+        incident, team, session details, generated device ID, connection token, notification prompt
+        status, and tracking preference. This information is used to restore the user's session and
+        app settings.
+      </p>
+
+      <h2>Sharing and Disclosure</h2>
+      <p>
+        Operational information is sent to the SARApp server selected by the user's organization or
+        incident command structure. It may be visible to authorized incident personnel and command
+        staff. Push notification delivery may use Firebase Cloud Messaging or the device platform's
+        notification services.
+      </p>
+      <p>
+        We do not sell personal information. We do not use app data for third-party advertising.
+      </p>
+
+      <h2>Retention</h2>
+      <p>
+        Incident records, check-ins, messages, logs, and location updates are retained according to
+        the policies of the organization operating the connected SARApp server. Local session data
+        remains on the device until the user logs out, clears app data, uninstalls the app, or the
+        operating system removes it.
+      </p>
+
+      <h2>Security</h2>
+      <p>
+        The app is designed for operational use by authorized responders. Access to incident data
+        depends on the connected SARApp server configuration, network path, and organizational
+        controls. Users should only connect to trusted servers and should protect their device with
+        appropriate device-level security.
+      </p>
+
+      <h2>Children's Privacy</h2>
+      <p>
+        Arc-Horizon is intended for emergency management, incident response, and field operations
+        use. It is not directed to children.
+      </p>
+
+      <h2>Your Choices</h2>
+      <ul>
+        <li>You can deny or revoke notification permission in device settings.</li>
+        <li>You can deny or revoke location permission in device settings.</li>
+        <li>You can stop app-controlled location tracking from within the app.</li>
+        <li>You can clear local app data by logging out, clearing app storage, or uninstalling the app.</li>
+      </ul>
+
+      <h2>Changes to This Policy</h2>
+      <p>
+        We may update this policy as the app, server behavior, or operational requirements change.
+        The "Last updated" date above shows when this policy was most recently revised.
+      </p>
+
+      <h2>Contact</h2>
+      <p>
+        For privacy questions, contact the organization that provided access to Arc-Horizon or
+        replace this sentence with your support email before publishing.
+      </p>
+    </article>
+  </main>
+</body>
+</html>

@@ -4,7 +4,7 @@ This document describes how to build and test the standalone Windows executable 
 
 ## What gets built
 
-The dedicated PyInstaller spec at `packaging/SARAppServerConsole.spec` builds a windowed executable named `SARAppServerConsole.exe`.
+The dedicated PyInstaller spec at `infra/desktop/SARAppServerConsole.spec` builds a windowed executable named `SARAppServerConsole.exe`.
 
 Expected output:
 
@@ -38,7 +38,7 @@ The script will:
 1. Check that the Server Console spec file exists.
 2. Check that PyInstaller is installed.
 3. Remove previous `build\SARAppServerConsole` and `dist\SARAppServerConsole` artifacts.
-4. Run PyInstaller with `packaging\SARAppServerConsole.spec`.
+4. Run PyInstaller with `infra\\desktop\\SARAppServerConsole.spec`.
 5. Confirm that `dist\SARAppServerConsole\SARAppServerConsole.exe` exists.
 
 For non-interactive automation, set `SARAPP_NO_PAUSE=1` before running the script so it exits without pausing:

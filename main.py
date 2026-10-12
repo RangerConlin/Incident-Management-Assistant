@@ -5,7 +5,15 @@ import re
 import sys
 import logging
 from functools import lru_cache
+from pathlib import Path
 from typing import Optional, Callable
+
+# Desktop packages (core, utils, bridge, ui, etc.) now live under
+# apps/desktop/sarapp_desktop while this entry point stays at the repo root
+# during the staged migration; expose them on sys.path by their bare names.
+_SARAPP_DESKTOP_DIR = Path(__file__).resolve().parent / "apps" / "desktop" / "sarapp_desktop"
+if str(_SARAPP_DESKTOP_DIR) not in sys.path:
+    sys.path.insert(0, str(_SARAPP_DESKTOP_DIR))
 
 from PySide6.QtWidgets import (
     QApplication,

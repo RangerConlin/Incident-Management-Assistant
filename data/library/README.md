@@ -25,7 +25,7 @@ Incident Management Assistant ("SARApp") is a desktop-first toolkit for emergenc
 | `data/` | SQLite master/incident databases, templates, catalog exports and sample content. |
 | `settings/` | Persisted settings and docking perspectives (`ads_perspectives.ini`). |
 | `tests/` | Pytest suite for repositories, APIs, state helpers and accessibility checks. |
-| `scripts/` | Utility scripts for inspecting/seedings databases and debugging audits. |
+| `tools/scripts/` | Utility scripts for inspecting/seedings databases and debugging audits. |
 | `bridge/`, `models/`, `ui/`, `ui_bootstrap/`, `panels/` | Shared Qt bridges, table/query models, widget registries, settings pages and legacy/shared panels. |
 
 ## Getting started
@@ -55,15 +55,15 @@ Use `QT_QPA_PLATFORM=offscreen` when running Qt smoke tests in CI. On Linux desk
 
 ### Running FastAPI modules
 
-Several modules expose FastAPI routers backed by the same data layer. Routers are intended to be included by an app or test harness, including `modules.forms.api`, `modules.finance.api`, `modules.logistics.api`, `modules.operations.taskings.api`, `modules.planning.api`, `modules.plannedtoolkit.api`, `modules.initialresponse.api`, `modules.ics214.api`, `modules.safety.api`, `modules.safety.orm.api`, and shared catalog routers under `data/db/sarapp_db/api`.
+Several modules expose FastAPI routers backed by the same data layer. Routers are intended to be included by an app or test harness, including `modules.forms.api`, `modules.finance.api`, `modules.logistics.api`, `modules.operations.taskings.api`, `modules.planning.api`, `modules.plannedtoolkit.api`, `modules.initialresponse.api`, `modules.ics214.api`, `modules.safety.api`, `modules.safety.orm.api`, and shared catalog routers under `server/sarapp_db/sarapp_db/api`.
 
 ## Working with data
 
 - **Master vs incident scope.** `utils.context.master_db()` returns the persistent staff/equipment catalog, while `utils.context.require_incident_db()` opens the active incident database (set via `AppState.set_active_incident`).
 - **Active incident state.** `utils.state.AppState` is the UI/session source of truth. `AppState.set_active_incident()` synchronizes `utils.incident_context` and emits `app_signals.incidentChanged` for panels that need to refresh.
-- **Seeding objective templates.** `data/db/seed_objective_templates.py` seeds canonical SAR incident objective templates into `sarapp_master`, and `scripts/inspect_db.py` prints a summary of an incident database schema.
+- **Seeding objective templates.** `server/sarapp_db/seed_loaders/seed_objective_templates.py` seeds canonical SAR incident objective templates into `sarapp_master`, and `tools/scripts/inspect_db.py` prints a summary of an incident database schema.
 - **Forms and templates.** Legacy templates live under `data/templates`, while profile-scoped templates live under `profiles/<id>/templates`. Use `modules/forms.FormRegistry` and `FormSession` for profile-aware export pipelines.
-- **Encoding hygiene.** Text files should remain UTF-8 without BOM and LF line endings. Run `python scripts/encoding_audit.py --summary` when touching imported docs, templates or generated text.
+- **Encoding hygiene.** Text files should remain UTF-8 without BOM and LF line endings. Run `python tools/scripts/encoding_audit.py --summary` when touching imported docs, templates or generated text.
 
 ## Developer workflow
 
@@ -86,7 +86,7 @@ Targeted tests include check-in workflows, resource requests, catalog repositori
 ## Additional resources
 
 - **Module READMEs.** Many feature areas include their own README (e.g., `modules/logistics/checkin/README.md`) that describe domain-specific workflows and APIs.
-- **Design documents.** The `Design Documents/` directory contains the original scoping decks, wireframes and data dictionaries that informed the module layout.
+- **Design documents.** The `docs/archive/design-documents/` directory contains the original scoping decks, wireframes and data dictionaries that informed the module layout.
 - **Notifications UI.** Notification services expose toast history, rules management and scheduler controls for the widget-based desktop app.
 
 Contributions are welcome—please open an issue describing proposed changes so the project maintainers can align implementation details with the broader incident management roadmap.

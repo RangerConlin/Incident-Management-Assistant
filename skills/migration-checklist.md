@@ -21,7 +21,7 @@ Guide for migrating SQLite code to MongoDB patterns.
 - ✅ See `/schema-lookup` for existing collections
 - ✅ Map SQLite tables to MongoDB documents
 - ✅ Define ObjectId, indexes, validation
-- ✅ Document in `Design Documents/Instructions/mongodb_schema_decisions.md`
+- ✅ Document in `docs/archive/design-documents/Instructions/mongodb_schema_decisions.md`
 
 ### 3. Create Repository
 ```bash
@@ -121,6 +121,6 @@ Status: In Progress
 
 ## Documentation
 
-- `Design Documents/Instructions/mongodb_schema_decisions.md`
-- `Design Documents/Instructions/mongo_cutover_status.md`
-- `Design Documents/Instructions/database_architecture.md`
+- `docs/archive/design-documents/Instructions/mongodb_schema_decisions.md`
+- `docs/archive/design-documents/Instructions/mongo_cutover_status.md`
+- `docs/archive/design-documents/Instructions/database_architecture.md`

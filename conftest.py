@@ -12,6 +12,12 @@ ROOT = Path(__file__).resolve().parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+# Desktop packages (core, utils, bridge, ui, etc.) now live under
+# apps/desktop/sarapp_desktop; expose them on sys.path by their bare names.
+_SARAPP_DESKTOP_DIR = ROOT / "apps" / "desktop" / "sarapp_desktop"
+if str(_SARAPP_DESKTOP_DIR) not in sys.path:
+    sys.path.insert(0, str(_SARAPP_DESKTOP_DIR))
+
 _INCIDENT_DB_PREFIX = "sarapp_incident_"
 _MONGO_URI_ENV = "SARAPP_MONGO_URI"
 _DEFAULT_MONGO_URI = "mongodb://localhost:27017"
