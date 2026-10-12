@@ -19,15 +19,25 @@ a deliberately separate direct-access deployment.
 
 ## First Install
 
-Use a full repo checkout on the VPS. This service builds from the repo root
-because it vendors the shared `server/sarapp_db` package, and the VPS can host
-the router, server, and web client as separate Compose projects from the same
-checkout:
+Use a sparse repo checkout on the VPS, but include every path the router,
+server, and web client Docker builds copy. The server and router build from the
+repo root because they vendor the shared `server/sarapp_db` package; the web
+client builds from `apps/web`.
 
 ```bash
 cd /opt
-git clone https://github.com/RangerConlin/Incident-Management-Assistant.git sarapp
+git clone --filter=blob:none --sparse https://github.com/RangerConlin/Incident-Management-Assistant.git sarapp
 cd /opt/sarapp
+git sparse-checkout set \
+  .dockerignore \
+  services \
+  server/sarapp_db/sarapp_db \
+  apps/desktop/sarapp_desktop/modules/personnel/catalog_io.py \
+  apps/desktop/sarapp_desktop/modules/personnel/models/cert_catalog.py \
+  apps/desktop/sarapp_desktop/modules/logistics/equipment_catalog_io.py \
+  apps/desktop/sarapp_desktop/modules/admin/resource_types/models/resource_type_models.py \
+  apps/desktop/sarapp_desktop/modules/admin/hazard_types/models/hazard_type_models.py \
+  apps/web
 cd services/cloud_server
 cp .env.example .env
 nano .env

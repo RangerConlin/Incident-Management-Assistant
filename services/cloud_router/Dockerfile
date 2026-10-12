@@ -16,20 +16,14 @@ COPY server/sarapp_db/sarapp_db /app/sarapp_db
 # mapping with the desktop Edit-menu panel (modules/personnel/catalog_io.py,
 # modules/logistics/equipment_catalog_io.py — see services/cloud_router/master_db/
 # webgui.py) rather than duplicating it, so this image needs those specific
-# modules/ files even though the rest of modules/ (which depends on Qt) is
-# not included here. cert_catalog.py is catalog_io.py's own dependency
-# (the hardcoded certification catalog it reads).
-COPY modules/__init__.py /app/modules/__init__.py
-COPY modules/personnel/__init__.py /app/modules/personnel/__init__.py
-COPY modules/personnel/catalog_io.py /app/modules/personnel/catalog_io.py
-COPY modules/personnel/models/cert_catalog.py /app/modules/personnel/models/cert_catalog.py
-COPY modules/logistics/__init__.py /app/modules/logistics/__init__.py
-COPY modules/logistics/equipment_catalog_io.py /app/modules/logistics/equipment_catalog_io.py
-COPY modules/admin/__init__.py /app/modules/admin/__init__.py
-COPY modules/admin/resource_types/models/__init__.py /app/modules/admin/resource_types/models/__init__.py
-COPY modules/admin/resource_types/models/resource_type_models.py /app/modules/admin/resource_types/models/resource_type_models.py
-COPY modules/admin/hazard_types/models/__init__.py /app/modules/admin/hazard_types/models/__init__.py
-COPY modules/admin/hazard_types/models/hazard_type_models.py /app/modules/admin/hazard_types/models/hazard_type_models.py
+# modules/ files even though the rest of the desktop modules (which depend on
+# Qt) are not included here. Copy them into /app/modules so imports like
+# `modules.personnel.catalog_io` work in the router image.
+COPY apps/desktop/sarapp_desktop/modules/personnel/catalog_io.py /app/modules/personnel/catalog_io.py
+COPY apps/desktop/sarapp_desktop/modules/personnel/models/cert_catalog.py /app/modules/personnel/models/cert_catalog.py
+COPY apps/desktop/sarapp_desktop/modules/logistics/equipment_catalog_io.py /app/modules/logistics/equipment_catalog_io.py
+COPY apps/desktop/sarapp_desktop/modules/admin/resource_types/models/resource_type_models.py /app/modules/admin/resource_types/models/resource_type_models.py
+COPY apps/desktop/sarapp_desktop/modules/admin/hazard_types/models/hazard_type_models.py /app/modules/admin/hazard_types/models/hazard_type_models.py
 
 ENV PYTHONPATH=/app
 
