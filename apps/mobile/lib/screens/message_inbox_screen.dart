@@ -520,7 +520,7 @@ class _ChatMessageCard extends StatelessWidget {
                 Text(
                   formatTimeOnly(message.createdAt.toLocal()),
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: foregroundColor.withOpacity(0.75),
+                    color: foregroundColor.withValues(alpha: 0.75),
                   ),
                 ),
               ],

@@ -180,6 +180,45 @@ def test_pull_and_apply_downloads_central_only_changes(sync_env):
     assert checkpoint.get_last_pulled_at(_system_db(), "personnel") == "2026-01-01T00:00:00"
 
 
+def test_pull_and_apply_downloads_central_resource_types(sync_env):
+    _central_db()["resource_types"].insert_one(
+        {
+            "_id": "central-resource-type-1",
+            "resource_type_id": "1",
+            "name": "Ground Team",
+            "resource_name": "Ground Team",
+            "category": "Team",
+            "source": "AHJ Custom",
+            "is_active": True,
+            "updated_at": "2026-01-05T00:00:00",
+        }
+    )
+    _central_db()["resource_capabilities"].insert_one(
+        {
+            "_id": "central-resource-capability-1",
+            "capability_id": "1",
+            "name": "Search",
+            "category": "Operations",
+            "is_active": True,
+            "updated_at": "2026-01-05T00:00:00",
+        }
+    )
+
+    assert pull_and_apply("resource_types", local_master_db=_local_db()) is True
+    assert pull_and_apply("resource_capabilities", local_master_db=_local_db()) is True
+
+    resource_type = _local_db()["resource_types"].find_one({"_id": "central-resource-type-1"})
+    capability = _local_db()["resource_capabilities"].find_one({"_id": "central-resource-capability-1"})
+    assert resource_type is not None
+    assert resource_type["resource_type_id"] == "1"
+    assert resource_type["name"] == "Ground Team"
+    assert capability is not None
+    assert capability["capability_id"] == "1"
+    assert capability["name"] == "Search"
+    assert checkpoint.get_last_pulled_at(_system_db(), "resource_types") == "2026-01-05T00:00:00"
+    assert checkpoint.get_last_pulled_at(_system_db(), "resource_capabilities") == "2026-01-05T00:00:00"
+
+
 def test_local_write_relays_for_a_slug_keyed_collection(sync_env):
     """meeting_templates has no dual key — it's keyed by a user-chosen slug
     with upsert semantics, not an auto-incrementing id (see

@@ -189,7 +189,7 @@ void main() {
         createdAt: DateTime.parse('2026-07-18T12:03:00Z'),
       ),
     );
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     expect(find.text('Resource request approved.'), findsOneWidget);
   });

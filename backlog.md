@@ -244,8 +244,6 @@ Cost Summary
     - Cloud router (`services/cloud_router/`) forwards request/response and WebSocket bodies over the reverse tunnel as base64-in-JSON, capped at 10MB each direction (`SARAPP_ROUTER_MAX_BODY_BYTES`). Fine for typical form/photo sizes; revisit with a streaming transport if large file uploads/downloads through the router prove too slow. See `docs/archive/design-documents/Instructions/cloud_router_architecture.md`.
     - Mobile photo upload isn't implemented yet (Report Hazard's "Attach Photo" is a placeholder button, no `image_picker` dependency). When it's built, submit one photo per request rather than batching several into one multipart body, to stay clear of the 10MB tunnel cap above.
     - Central master database (`services/cloud_router/master_db/`, embedded `sarapp_central_master` Mongo — see `docs/archive/design-documents/Instructions/cloud_router_architecture.md`):
-      - Cloud server dashboard (`services/cloud_server/dashboard.py`) needs a central-catalog sync status surface using
-        `GET /api/sync-trigger/status`.
       - Decide whether the desktop app's built-in offline server (`server/server_manager.py`) should participate
         in central-catalog sync like `services/lan_server/server_manager.py`; if not, update the stale docstring that says
         it is functionally identical to the standalone LAN server.

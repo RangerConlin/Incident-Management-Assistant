@@ -21,6 +21,7 @@ SYNCABLE_MASTER_COLLECTIONS = (
     "hazard_types", "gar_templates", "canned_comm_entries", "hospitals",
     "objective_templates", "strategy_templates", "radio_channels",
     "safety_analysis_templates", "meeting_templates",
+    "resource_types", "resource_capabilities",
 )
 
 # Collections with a server-local sequential id plus a central agency-wide

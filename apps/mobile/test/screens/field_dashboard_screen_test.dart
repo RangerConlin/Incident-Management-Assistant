@@ -122,7 +122,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('T-15'), findsWidgets);
-    expect(find.text('Grid Search'), findsOneWidget);
+    expect(find.text('Grid Search Charlie-7'), findsOneWidget);
     expect(find.text('HIGH'), findsOneWidget); // priority 3 -> High, rendered uppercase in the chip
     expect(find.text('Charlie-7 Grid / Access via Forest Road 212'), findsOneWidget);
   });

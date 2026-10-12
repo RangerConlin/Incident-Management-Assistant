@@ -3356,7 +3356,7 @@ def create_master_gui_router() -> APIRouter:
         form = dict((await request.form()).items())
         _parse_rank_rows(record_id, form)
         root_path = request.scope.get("root_path") or ""
-        return RedirectResponse(f"{root_path}/gui/rank-structures/{record_id}", status_code=303)
+        return RedirectResponse(f"{root_path}/gui/rank-structures", status_code=303)
 
     @router.post("/gui/qualification-types/{record_id}/certifications")
     async def update_qualification_certifications(request: Request, record_id: int) -> Response:
@@ -3383,7 +3383,7 @@ def create_master_gui_router() -> APIRouter:
                     update_certification_type(cert["id"], {"tags": sorted(cert_tags | match_tags)})
                 elif not should_satisfy and currently_satisfied:
                     update_certification_type(cert["id"], {"tags": sorted(cert_tags - match_tags)})
-        return RedirectResponse(f"{root_path}/gui/qualification-types/{record_id}", status_code=303)
+        return RedirectResponse(f"{root_path}/gui/qualification-types", status_code=303)
 
     @router.post("/gui/{collection_key}/{record_id}/inline/{field_name}", response_model=None)
     async def inline_update_field(
@@ -3505,7 +3505,7 @@ def create_master_gui_router() -> APIRouter:
         body = _parse_form_body(spec, form)
         spec.update_fn(_record_route_arg(spec, record_id), body)
         root_path = request.scope.get("root_path") or ""
-        return RedirectResponse(f"{root_path}/gui/{collection_key}/{record_id}", status_code=303)
+        return RedirectResponse(f"{root_path}/gui/{collection_key}", status_code=303)
 
     @router.post("/gui/{collection_key}/{record_id}/delete")
     def delete_record(request: Request, collection_key: str, record_id: str) -> Response:

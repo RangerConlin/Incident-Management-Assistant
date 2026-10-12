@@ -20,7 +20,7 @@ python tools/scripts/export_master_catalog_seed_csvs.py
 
 ## Curated files (match an existing import/export column format)
 
-These eight already round-trip through either the dashboard's own CSV
+These ten already round-trip through either the dashboard's own CSV
 import (`services/cloud_router/master_db/webgui.py`) or the same column convention
 `data/master_catalog_seed/`'s templates use:
 
@@ -32,6 +32,12 @@ import (`services/cloud_router/master_db/webgui.py`) or the same column conventi
 - `organization_types.csv`, `rank_structures.csv`, `ranks.csv`,
   `organizations.csv` — same human-readable headers as the generic seed
   templates, but this installation's real rows.
+- `radio_channels.csv` — dashboard import column names, translated from
+  the Mongo storage names used by the communications router.
+- `canned_comm_entries.csv` — columns match the central Canned Comm
+  Entries import form; values were recovered from the legacy
+  `data/master.db` table because the Mongo collection was empty at the
+  original export time.
 
 ## Generic raw-dump files (no established format yet)
 
@@ -46,9 +52,8 @@ field) are dropped; a fresh central catalog mints its own.
 `agency_directory.csv`, `certification_tags.csv`, `certification_types.csv`,
 `form_families.csv`, `form_templates.csv`, `form_template_versions.csv`,
 `gar_templates.csv`, `hospitals.csv`, `meeting_templates.csv`,
-`nearby_facility_exclusions.csv`, `radio_channels.csv`,
-`resource_capabilities.csv`, `resource_types.csv`, `task_types.csv`,
-`team_types.csv`.
+`nearby_facility_exclusions.csv`, `resource_capabilities.csv`,
+`resource_types.csv`, `task_types.csv`, `team_types.csv`.
 
 **One caveat worth reading before importing `hospital_directory.csv`:**
 per its own collection comment in `collection_names.py`, this is "cached
@@ -69,5 +74,5 @@ hand.
 - `personnel_certifications` — legacy, empty on a cut-over install (see
   `docs/archive/design-documents/legacycode.md`).
 - Collections that were empty on this server at export time: `hazard_types`,
-  `canned_comm_entries`, `ems_agencies`, `safety_analysis_templates`,
+  `ems_agencies`, `safety_analysis_templates`,
   `organization_rank_structure_overrides`.

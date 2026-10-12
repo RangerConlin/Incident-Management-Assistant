@@ -217,6 +217,7 @@ def test_create_and_edit_personnel_record(monkeypatch) -> None:
             },
         )
         assert updated.status_code == 303
+        assert updated.headers["location"] == "/central-master/gui/personnel"
 
         edit_page_after = client.get(f"/central-master/gui/personnel/{record_id}")
         assert "GUI Test Person Updated" in edit_page_after.text
@@ -798,6 +799,7 @@ def test_vehicle_catalog_create_edit_delete(monkeypatch) -> None:
             },
         )
         assert updated.status_code == 303
+        assert updated.headers["location"] == "/central-master/gui/vehicles"
 
         updated_doc = next(d for d in list_vehicles(search="GUI Test Vehicle 1", status_filter="", type_filter=""))
         assert updated_doc["license_plate"] == "PLATE-2"
@@ -877,6 +879,7 @@ def test_organization_type_create_edit_delete(monkeypatch) -> None:
             data={"name": "GUI Test Org Type Updated", "description": "Updated", "sort_order": "43"},
         )
         assert updated.status_code == 303
+        assert updated.headers["location"] == "/central-master/gui/organization-types"
 
         updated_doc = next(d for d in list_org_types(search="GUI Test Org Type Updated"))
         assert updated_doc["sort_order"] == 43
@@ -1010,6 +1013,7 @@ def test_rank_structure_edit_page_manages_nested_ranks(monkeypatch) -> None:
             },
         )
         assert saved.status_code == 303
+        assert saved.headers["location"] == "/central-master/gui/rank-structures"
 
         ranks = list_ranks(structure_id=structure_id, search="GUI Test Captain")
         assert len(ranks) == 1
@@ -1031,6 +1035,7 @@ def test_rank_structure_edit_page_manages_nested_ranks(monkeypatch) -> None:
             },
         )
         assert deleted.status_code == 303
+        assert deleted.headers["location"] == "/central-master/gui/rank-structures"
         assert list_ranks(structure_id=structure_id, search="GUI Test Captain") == []
     finally:
         _clear_organization_catalog()

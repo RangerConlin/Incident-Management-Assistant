@@ -155,6 +155,29 @@ def _firebase_status(settings: CloudSettings) -> dict[str, str]:
     return {"status": "not configured", "path": path}
 
 
+def _sync_status() -> dict[str, Any]:
+    from sarapp_db.sync.status import get_sync_status
+
+    return get_sync_status()
+
+
+def _sync_status_summary(status: dict[str, Any]) -> str:
+    if not status.get("enabled"):
+        return "Disabled"
+    pending = int(status.get("pending_count") or 0)
+    return "Enabled — up to date" if pending == 0 else f"Enabled — {pending} pending"
+
+
+def _sync_status_rows(status: dict[str, Any]) -> str:
+    last_pulled = status.get("last_pulled") if isinstance(status.get("last_pulled"), dict) else {}
+    if not last_pulled:
+        return "<tr><td colspan=\"2\" class=\"muted\">No catalog checkpoints recorded.</td></tr>"
+    return "".join(
+        f"<tr><td>{escape(str(collection))}</td><td>{escape(str(timestamp or 'never'))}</td></tr>"
+        for collection, timestamp in sorted(last_pulled.items())
+    )
+
+
 def create_dashboard_router(settings: CloudSettings, runtime: ServerRuntime) -> APIRouter:
     router = APIRouter()
 
@@ -209,6 +232,7 @@ def create_dashboard_router(settings: CloudSettings, runtime: ServerRuntime) -> 
         traffic = runtime.requests.latest(20)
         updates = update_state()
         firebase = _firebase_status(settings)
+        sync = _sync_status()
         update_status = "running" if updates["running"] else "idle"
         update_body = (
             f"""<form method="post" action="{request.scope.get("root_path") or ""}/dashboard/update">
@@ -222,6 +246,7 @@ def create_dashboard_router(settings: CloudSettings, runtime: ServerRuntime) -> 
 <div class="grid">
   <section class="card"><h2>Status</h2>
     <p><strong>{escape(info["server_name"])}</strong></p>
+    <p>Version: <strong>{escape(str(info.get("version") or ""))}</strong></p>
     <p>Connect code: <strong>{escape(settings.connect_code)}</strong></p>
     <p>MongoDB: <strong>{"online" if ping() else "offline"}</strong></p>
     <p class="muted">Started {escape(info["started_at"])}</p>
@@ -239,6 +264,11 @@ def create_dashboard_router(settings: CloudSettings, runtime: ServerRuntime) -> 
     <p>Status: <strong>{escape(firebase["status"])}</strong></p>
     <p class="muted">{escape(firebase["path"])}</p>
     <p><a href="{request.scope.get("root_path") or ""}/dashboard/settings">Manage settings</a></p>
+  </section>
+  <section class="card"><h2>Central Catalog Sync</h2>
+    <p>Status: <strong>{escape(_sync_status_summary(sync))}</strong></p>
+    <p class="muted">Central: {escape(str(sync.get("central_master_url") or "not configured"))}</p>
+    <table><tr><th>Catalog</th><th>Last pulled</th></tr>{_sync_status_rows(sync)}</table>
   </section>
 </div>
 <section class="card" style="margin-top:16px;"><h2>Update Log</h2>
@@ -387,6 +417,7 @@ def create_dashboard_router(settings: CloudSettings, runtime: ServerRuntime) -> 
             "active_connections": len(_active_connections()),
             "recent_requests": runtime.requests.latest(20),
             "update": update_state(),
+            "central_catalog_sync": _sync_status(),
         }
 
     return router
