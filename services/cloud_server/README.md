@@ -28,9 +28,11 @@ client builds from `apps/web`.
 cd /opt
 git clone --filter=blob:none --sparse https://github.com/RangerConlin/Incident-Management-Assistant.git sarapp
 cd /opt/sarapp
-git sparse-checkout set \
+git sparse-checkout set --no-cone \
   .dockerignore \
-  services \
+  services/__init__.py \
+  services/cloud_router \
+  services/cloud_server \
   server/sarapp_db/sarapp_db \
   apps/desktop/sarapp_desktop/modules/personnel/catalog_io.py \
   apps/desktop/sarapp_desktop/modules/personnel/models/cert_catalog.py \

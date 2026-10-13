@@ -7,7 +7,8 @@ ENV PYTHONPATH=/app
 WORKDIR /app
 
 COPY services/cloud_server/requirements.txt /app/requirements.txt
-COPY services /app/services
+COPY services/__init__.py /app/services/__init__.py
+COPY services/cloud_server /app/services/cloud_server
 COPY server/sarapp_db/sarapp_db /app/sarapp_db
 
 RUN apt-get update \
