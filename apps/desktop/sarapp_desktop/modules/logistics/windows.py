@@ -148,11 +148,11 @@ def get_facilities_manager_panel(incident_id: object | None = None) -> QWidget:
 
 
 def get_personnel_panel(incident_id: object | None = None) -> QWidget:
-    """Return placeholder QWidget for Personnel Manager."""
-    return _make_panel(
-        "Personnel Manager",
-        f"Manage personnel — incident: {incident_id}",
-    )
+    """Return the Logistics incident personnel manager."""
+
+    from modules.logistics.panels.personnel_manager_panel import LogisticsPersonnelManagerPanel
+
+    return LogisticsPersonnelManagerPanel(incident_id)
 
 
 def get_vehicles_panel(incident_id: object | None = None) -> QWidget:

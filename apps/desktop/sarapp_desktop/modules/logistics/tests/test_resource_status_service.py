@@ -100,9 +100,14 @@ def test_create_and_update_resource_logs_audit(tmp_path: Path, monkeypatch, reso
     assert created.destination_facility_id == "fac-1"
     assert updated.status == "Enroute"
     assert updated.checkin_facility_id == "fac-2"
-    # Per-field audit entries are replaced by status_log embedded in the resource_status document.
-    # list_audit_entries() now returns [] — status history is available via the /resource-status/{id} response.
-    assert service.list_audit_entries(created.id) == []
+    entries = service.list_audit_entries(created.id)
+    assert [entry["new_value"] for entry in entries] == ["Pending", "Enroute"]
+    assert entries[-1]["actor_name"] == "pytest"
+
+    stored = service.get_resource(created.id)
+    assert stored is not None
+    assert stored.destination_facility_id == "fac-1"
+    assert stored.checkin_facility_id == "fac-2"
 
 
 @pytest.mark.skip(

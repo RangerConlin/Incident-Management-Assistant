@@ -8,7 +8,6 @@ This package implements the Logistics 4-1 Resource Request workflow for the SARA
 - API-backed service layer (`api/service.py`) implementing CRUD operations, validations, audit logging, versioning, and fulfilment management.
 - PDF generation helpers (`api/printers.py`) that export ICS-213 RR and summary sheets with optional training watermarks and QR codes.
 - QtWidgets panels and widgets for list/detail views, approvals, fulfilment tracking, and audit history.
-- Demo seed script (`data/seed_demo.py`) that populates the master supplier list and creates a training incident with example requests.
 
 ## Getting Started
 
@@ -25,11 +24,7 @@ This package implements the Logistics 4-1 Resource Request workflow for the SARA
 
    service = get_service()
    ```
-3. Populate demo data for exploration:
-   ```bash
-   python -m modules.logistics.resource_requests.data.seed_demo
-   ```
-4. Launch the desktop application.  The Logistics → Resource Requests menu will display the new list/detail panels.
+3. Launch the desktop application.  The Logistics → Resource Requests menu will display the list/detail panels.
 
 ## Tests
 

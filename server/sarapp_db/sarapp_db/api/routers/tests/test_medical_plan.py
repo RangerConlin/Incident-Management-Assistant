@@ -51,11 +51,16 @@ def _bridge(person=MED_LEAD):
 
 
 def test_ics206_sections_are_stored_in_medical_plan():
+    from utils.api_client import api_client
+
     db = get_incident_db(INCIDENT_ID)
     _clear(db)
     incident_context.set_active_incident(INCIDENT_ID)
     AppState._active_incident_number = INCIDENT_ID
     AppState.set_active_op_period(1)
+
+    app = create_app()
+    api_client.configure_test_transport(app)
 
     bridge = _bridge()
     ambulance_id = bridge.add_record(
@@ -97,7 +102,6 @@ def test_ics206_sections_are_stored_in_medical_plan():
     for name in OLD_COLLECTIONS:
         assert db[name].count_documents({}) == 0
 
-    app = create_app()
     with TestClient(app) as client:
         ambulances = client.get(f"/api/incidents/{INCIDENT_ID}/medical/ics206/ambulance-services", params={"op": 1})
         procedures = client.get(f"/api/incidents/{INCIDENT_ID}/medical/ics206/procedures", params={"op": 1})
@@ -142,12 +146,15 @@ def _approve_through_workflow(bridge, monkeypatch, app):
 
 
 def test_ics206_versions_approval_workflow_and_lock(monkeypatch):
+    from utils.api_client import api_client
+
     db = get_incident_db(INCIDENT_ID)
     _clear(db)
     incident_context.set_active_incident(INCIDENT_ID)
     AppState._active_incident_number = INCIDENT_ID
     AppState.set_active_op_period(1)
     app = create_app()
+    api_client.configure_test_transport(app)
 
     bridge = _bridge()
     bridge.add_record("hospitals", {"name": "General Hospital"})

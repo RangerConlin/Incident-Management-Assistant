@@ -137,13 +137,10 @@ Add entries below this line.
 - Removal Condition: no standalone UI entry point uses `pdf_filler_widget.py`, and any useful discovery behavior is either removed or rewritten to use `FormSetRegistry`.
 - Verification: `rg -n "pdf_filler_widget|mapping_discovery|modules/forms_creator/mappings|\\.mapping\\.json" modules tests` shows no production callers outside intentional import/scanning tools.
 
-### Legacy SQLAlchemy resource-request models
-- Status: `legacy-compat-candidate`
-- Location: `modules/logistics/models/resource_request.py` (`LogisticsResourceRequest`, `LogisticsRequestApproval`, `LogisticsRequestAssignment`, `LogisticsResourceItem`)
-- Purpose: pre-Mongo SQLAlchemy models for logistics resource requests, superseded by `modules/logistics/resource_requests/` (Mongo-backed, via `server/sarapp_db/sarapp_db/api/routers/logistics_resource_requests.py`).
-- Legacy Source: `server/sarapp_db/sarapp_db/migrations/migrate_logistics_resource_requests_to_resource_requests.py` confirms the cutover already happened.
-- Removal Condition: confirm no code outside `modules/logistics/models/` imports these classes, then delete the file (and its `models/__init__.py` export) outright.
-- Verification: `rg -n "LogisticsResourceRequest|LogisticsRequestApproval|LogisticsRequestAssignment|LogisticsResourceItem" modules data` shows no callers outside `modules/logistics/models/` itself (checked 2026-09-13 — none found).
+### Legacy SQLAlchemy logistics models
+- Status: ~~`legacy-compat-candidate`~~ **DELETED 2026-10-13**
+- Removed the unused `modules/logistics/models/` SQLAlchemy package (`resource_request.py`, `vehicles.py`, `aircraft.py`, `schemas.py`, and package exports), plus the SQLite-era Resource Request demo seeder and migration under `modules/logistics/resource_requests/data/`. Runtime Logistics now uses API-backed services and shared `sarapp_db` Mongo routers.
+- Verification: `rg -n "modules\.logistics\.models|LogisticsResourceRequest|VehicleCheckTransaction|AircraftCheckTransaction|ResourceRequestCreate|seed_demo" apps/desktop/sarapp_desktop server data` showed no runtime callers before deletion; remaining `seed_demo` references were documentation and legacy inventory notes.
 
 ### Outdated forms guidance
 - Status: `legacy-compat-candidate`

@@ -19,13 +19,22 @@ class ResourceStatusRepository:
         return str(iid)
 
     def get_resource(self, resource_status_id: str) -> Optional[ResourceItem]:
+        row = self.get_resource_row(resource_status_id)
+        return ResourceItem.from_row(row) if row else None
+
+    def get_resource_row(self, resource_status_id: str) -> Optional[dict[str, Any]]:
         from utils.api_client import api_client, APIError
         iid = self._incident_id()
         try:
-            row = api_client.get(f"/api/incidents/{iid}/resource-status/{resource_status_id}")
-            return ResourceItem.from_row(row) if row else None
+            return api_client.get(f"/api/incidents/{iid}/resource-status/{resource_status_id}") or None
         except (APIError, Exception):
             return None
+
+    def list_resources(self) -> list[ResourceItem]:
+        from utils.api_client import api_client
+        iid = self._incident_id()
+        rows = api_client.get(f"/api/incidents/{iid}/resource-status") or []
+        return [ResourceItem.from_row(row) for row in rows]
 
     def ensure_schema(self, conn=None) -> None:
         pass

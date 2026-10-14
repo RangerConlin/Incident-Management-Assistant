@@ -64,6 +64,7 @@ class MasterCollections:
     # Facilities
     HOSPITALS = "hospitals"
     EMS_AGENCIES = "ems_agencies"
+    EMS_AGENCY_AUDIT_LOG = "ems_agency_audit_log"
     # Facilities hidden from the ICS-206 nearby-facility search (closed, not public, etc.)
     NEARBY_FACILITY_EXCLUSIONS = "nearby_facility_exclusions"
     # Cached CMS emergency-department hospitals with coordinates (ICS-206 "Find Nearby")

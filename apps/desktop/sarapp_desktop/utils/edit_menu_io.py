@@ -167,7 +167,7 @@ class CommsResourcesIO(_ApiIO):
 
 
 # ---------------------------------------------------------------------------
-# EMS Agencies — MongoDB direct via EMSAgencyRepository
+# EMS Agencies — /api/master/ems-agencies via EMSAgencyRepository
 # ---------------------------------------------------------------------------
 
 class EmsAgenciesIO(CatalogIO):

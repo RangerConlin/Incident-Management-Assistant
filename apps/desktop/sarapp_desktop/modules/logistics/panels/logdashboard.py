@@ -268,6 +268,8 @@ class _Badge(QFrame):
             self.setProperty("state", "ok")
         elif st.startswith("low"):
             self.setProperty("state", "low")
+        elif st in {"no data", "unknown", "n/a"}:
+            self.setProperty("state", "neutral")
         else:
             self.setProperty("state", "crit")
         self.style().unpolish(self)
@@ -661,6 +663,7 @@ class LogisticsDashboardWidget(QWidget):
             QFrame[badge="true"][state="ok"] QLabel#badge_dot {{ color: {tones['ok']}; }}
             QFrame[badge="true"][state="low"] QLabel#badge_dot {{ color: {tones['low']}; }}
             QFrame[badge="true"][state="crit"] QLabel#badge_dot {{ color: {tones['crit']}; }}
+            QFrame[badge="true"][state="neutral"] QLabel#badge_dot {{ color: {tones['neutral']}; }}
             QLabel#badge_text {{ font-size: 11.5px; }}
             """
         )

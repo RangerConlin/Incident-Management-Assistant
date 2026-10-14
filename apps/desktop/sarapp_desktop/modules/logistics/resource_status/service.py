@@ -17,23 +17,36 @@ class ResourceStatusService:
         self.repository = repository or ResourceStatusRepository()
 
     def list_resources(self) -> list[ResourceItem]:
-        """Return current rows from the resource_status desk (no direct API call)."""
-        from modules.statusboards.resource_status_desk import get_resource_status_desk
+        """Return current resource_status rows through the API-backed repository."""
         self._ensure_active_incident_state()
-        items = []
-        for row in get_resource_status_desk().resource_rows():
-            try:
-                items.append(ResourceItem.from_row(row))
-            except Exception:
-                pass
-        return items
+        return self.repository.list_resources()
 
     def get_resource(self, resource_status_id: str) -> Optional[ResourceItem]:
         return self.repository.get_resource(resource_status_id)
 
     def list_audit_entries(self, resource_status_id: str, limit: int = 50) -> list[dict[str, Any]]:
-        # Status history is embedded in resource_status.status_log on the server.
-        return []
+        row = self.repository.get_resource_row(resource_status_id)
+        if not row:
+            return []
+        entries = row.get("status_log") or []
+        if not isinstance(entries, list):
+            return []
+        history: list[dict[str, Any]] = []
+        for index, entry in enumerate(entries[-limit:]):
+            if not isinstance(entry, dict):
+                continue
+            history.append(
+                {
+                    "id": f"{resource_status_id}:{index}",
+                    "resource_status_id": resource_status_id,
+                    "field_name": "status",
+                    "old_value": None,
+                    "new_value": self._text(entry.get("status")),
+                    "actor_name": self._text(entry.get("changed_by")),
+                    "changed_at": self._text(entry.get("timestamp")) or "",
+                }
+            )
+        return history
 
     def create_resource(self, payload: dict[str, Any], actor_name: Optional[str] = None) -> ResourceItem:
         from utils.api_client import api_client

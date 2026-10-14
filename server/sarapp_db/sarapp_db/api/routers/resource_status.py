@@ -122,7 +122,8 @@ def upsert_resource_status(
         updates: dict[str, Any] = {"updated_at": now}
         for field in (
             "resource_id", "resource_name", "resource_type", "eta_utc", "assigned_to",
-            "assignment_reference", "location", "notes",
+            "assignment_reference", "location", "destination_facility_id",
+            "checkin_facility_id", "notes",
         ):
             if field in body:
                 updates[field] = body[field]
@@ -155,6 +156,8 @@ def upsert_resource_status(
         "assigned_to": body.get("assigned_to"),
         "assignment_reference": body.get("assignment_reference"),
         "location": body.get("location"),
+        "destination_facility_id": body.get("destination_facility_id"),
+        "checkin_facility_id": body.get("checkin_facility_id"),
         "notes": body.get("notes"),
         "checked_in_time": body.get("checked_in_time"),
         "created_at": now,
@@ -182,7 +185,8 @@ def patch_resource_status(
     updates: dict[str, Any] = {"updated_at": _utcnow()}
     for field in (
         "resource_id", "resource_name", "resource_type", "eta_utc", "assigned_to",
-        "assignment_reference", "location", "notes", "checked_in_time",
+        "assignment_reference", "location", "destination_facility_id",
+        "checkin_facility_id", "notes", "checked_in_time",
     ):
         if field in body:
             updates[field] = body[field]

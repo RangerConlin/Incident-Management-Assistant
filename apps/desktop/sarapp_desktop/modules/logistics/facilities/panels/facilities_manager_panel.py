@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 
 from utils.app_signals import app_signals
 from utils.state import AppState
+from utils.styles import get_palette, subscribe_theme
 
 from ..models import FACILITY_STATUSES, FACILITY_TYPES, FacilityRecord
 from ..service import FacilitiesService
@@ -34,10 +35,17 @@ class FacilitiesManagerPanel(QWidget):
 
     def __init__(self, incident_id: object | None = None, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
-        del incident_id
+        self._incident_id_override = str(incident_id or "")
         self._current_id = ""
-        self._service = FacilitiesService()
+        self._service = FacilitiesService(self._incident_id_override or None)
+        self._last_status_text = ""
+        self._last_status_error = False
+        self._search_timer = QTimer(self)
+        self._search_timer.setInterval(200)
+        self._search_timer.setSingleShot(True)
+        self._search_timer.timeout.connect(self.reload)
         self._build_ui()
+        subscribe_theme(self, lambda *_: self._set_status(self._last_status_text, error=self._last_status_error))
         try:
             app_signals.incidentChanged.connect(lambda *_: self.reload())
         except Exception:
@@ -63,6 +71,7 @@ class FacilitiesManagerPanel(QWidget):
         self._filter_status = QComboBox()
         self._filter_status.addItem("all")
         self._filter_status.addItems(FACILITY_STATUSES)
+        self._primary_only = QCheckBox("Primary only")
         self._search = QLineEdit()
         self._search.setPlaceholderText("Search facilities, tags, sections, notes...")
         btn_refresh = QPushButton("Refresh")
@@ -79,11 +88,13 @@ class FacilitiesManagerPanel(QWidget):
         btn_reverse.clicked.connect(self._reverse_geocode)
         self._filter_type.currentTextChanged.connect(lambda *_: self.reload())
         self._filter_status.currentTextChanged.connect(lambda *_: self.reload())
-        self._search.textChanged.connect(lambda *_: self.reload())
+        self._primary_only.toggled.connect(lambda *_: self.reload())
+        self._search.textChanged.connect(lambda *_: self._search_timer.start())
         toolbar.addWidget(QLabel("Type"))
         toolbar.addWidget(self._filter_type)
         toolbar.addWidget(QLabel("Status"))
         toolbar.addWidget(self._filter_status)
+        toolbar.addWidget(self._primary_only)
         toolbar.addWidget(self._search, 1)
         toolbar.addStretch(1)
         toolbar.addWidget(btn_refresh)
@@ -150,11 +161,15 @@ class FacilitiesManagerPanel(QWidget):
         root.addWidget(splitter)
 
     def _incident_id(self) -> str:
-        return str(AppState.get_active_incident() or "")
+        return self._incident_id_override or str(AppState.get_active_incident() or "")
 
     def _set_status(self, text: str, *, error: bool = False) -> None:
+        self._last_status_text = text
+        self._last_status_error = error
         self._status.setText(text)
-        self._status.setStyleSheet(f"color: {'#b00020' if error else '#375a2b'};")
+        pal = get_palette()
+        color = pal.get("danger" if error else "success", pal.get("error" if error else "fg")).name()
+        self._status.setStyleSheet(f"color: {color};")
 
     def _new_record(self) -> None:
         self._current_id = ""
@@ -253,6 +268,8 @@ class FacilitiesManagerPanel(QWidget):
             status=None if status == "all" else status,
             text_search=self._search.text(),
         )
+        if self._primary_only.isChecked():
+            facilities = [facility for facility in facilities if facility.is_primary]
         self._populate_list(facilities)
         if facilities:
             self._list.setCurrentRow(0)

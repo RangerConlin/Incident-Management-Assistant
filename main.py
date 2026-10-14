@@ -855,6 +855,7 @@ class MainWindow(QMainWindow):
         m_log.addSeparator()
         self._add_action(m_log, "Resource Check In", None, "logistics.211")
         self._add_action(m_log, "Quick Check In", None, "logistics.quick_checkin")
+        self._add_action(m_log, "Personnel Manager", None, "logistics.personnel")
         self._add_action(m_log, "Resource Status Board", None, "logistics.resource_status")
         self._add_action(m_log, "Resource Requests (ICS-213RR)", None, "logistics.213rr")
         self._add_action(m_log, "Facilities Manager", None, "logistics.facilities")
@@ -1174,6 +1175,7 @@ class MainWindow(QMainWindow):
             "logistics.dashboard": self.open_logistics_dashboard,
             "logistics.211": self.open_logistics_211,
             "logistics.quick_checkin": self.open_logistics_quick_checkin,
+            "logistics.personnel": self.open_logistics_personnel,
             "logistics.resource_status": self.open_logistics_resource_status,
             "logistics.requests": self.open_logistics_requests,
             "logistics.213rr": self.open_logistics_213rr,
@@ -2261,16 +2263,18 @@ class MainWindow(QMainWindow):
             except Exception:
                 pass
 
-            # Fill with safe defaults until Logistics data wiring exists
             try:
-                w.update_kpis({
-                    "open_requests": 0,
-                    "approvals_pending": 0,
-                    "low_stock_alerts": 0,
-                    "checkins_today": 0,
-                    "vehicles_ready": "0/0",
-                    "facilities_ok": "0/0",
-                })
+                if not active_id:
+                    return
+                from modules.logistics.dashboard_service import build_dashboard_payload
+
+                payload = build_dashboard_payload(str(active_id))
+                w.update_kpis(payload.get("kpis", {}))
+                w.update_alerts(payload.get("alerts", []))
+                w.update_actions(payload.get("actions", []))
+                w.update_resource_snapshot(payload.get("resource_snapshot", {}))
+                w.update_supply_comms(payload.get("supply_comms", {}))
+                w.update_demob_queue(payload.get("demob_queue", []))
             except Exception:
                 pass
 
@@ -2292,6 +2296,12 @@ class MainWindow(QMainWindow):
         incident_id = AppState.get_active_incident()
         panel = logistics.get_quick_checkin_panel(incident_id)
         self._open_panel(panel, title="Quick Check In")
+
+    def open_logistics_personnel(self) -> None:
+        from modules import logistics
+        incident_id = AppState.get_active_incident()
+        panel = logistics.get_personnel_panel(incident_id)
+        self._open_panel(panel, title="Personnel Manager")
 
     def open_logistics_requests(self) -> None:
         from modules import logistics
