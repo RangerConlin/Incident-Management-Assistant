@@ -3342,7 +3342,7 @@ def create_master_gui_router() -> APIRouter:
         back = _back_link(f"{root_path}/gui/{collection_key}", f"Back to {spec.title}")
         body = f'{back}<section class="card"><h1>{escape(spec.title)} {record_id}</h1>{form}<div class="form-actions">{delete_button}</div></section>'
         if spec.key == "rank-structures":
-            body += _rank_structure_ranks_html(record_id, root_path)
+            body += _rank_structure_ranks_html(int(record_id), root_path)
         elif spec.key == "qualification-types":
             body += _qualification_certifications_html(doc, record_id, root_path)
         return _page(f"Edit {spec.title}", body, request)
