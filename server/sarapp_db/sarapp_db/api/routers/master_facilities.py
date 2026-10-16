@@ -5,7 +5,9 @@ facilities tracked by `facilities.py` (`IncidentCollections.FACILITIES`).
 Field shape mirrors the incident-scoped `FacilityPayload` in `facilities.py`,
 minus the incident linkage and plus `parent_organization_id` so a facility
 can be scoped to an organization in the master catalog, the same way
-`organizations.py` scopes ranks/rank-structures.
+`organizations.py` scopes ranks/rank-structures. Facility type is a managed
+lookup catalog (`facility_types`), not a free-text field, mirroring how
+`organizations.py` manages `organization_types`.
 """
 
 from __future__ import annotations
@@ -28,8 +30,17 @@ class MasterFacilitiesRepository(BaseRepository):
     soft_deletes = False
 
 
+class FacilityTypesRepository(BaseRepository):
+    collection_name = MasterCollections.FACILITY_TYPES
+    soft_deletes = False
+
+
 def _facilities_repo() -> MasterFacilitiesRepository:
     return MasterFacilitiesRepository(get_master_db())
+
+
+def _facility_types_repo() -> FacilityTypesRepository:
+    return FacilityTypesRepository(get_master_db())
 
 
 def _require_central(repo: BaseRepository) -> None:
@@ -42,14 +53,6 @@ def _next_int_id(repo: BaseRepository) -> int:
     return (docs[0].get("int_id", 0) if docs else 0) + 1
 
 
-_FACILITY_FIELDS = (
-    "name", "facility_type", "status", "parent_organization_id",
-    "address", "latitude", "longitude", "geocoded_address", "icao_code",
-    "manager_personnel_id", "manager_name", "contact_name", "contact_phone",
-    "notes", "function_tags", "served_sections", "is_primary", "metadata",
-)
-
-
 def _serialize(doc: dict[str, Any] | None) -> dict[str, Any] | None:
     if doc is None:
         return None
@@ -57,6 +60,82 @@ def _serialize(doc: dict[str, Any] | None) -> dict[str, Any] | None:
     payload.pop("_id", None)
     payload["id"] = payload.get("int_id")
     return payload
+
+
+# ---------------------------------------------------------------------------
+# Facility types — managed lookup catalog (airport/airstrip, hospital,
+# fairground, EOC, staging area, squadron building, etc.), same pattern as
+# organizations.py's organization_types.
+# ---------------------------------------------------------------------------
+
+@router.get("/facility-types")
+def list_facility_types(search: str = "") -> list[dict[str, Any]]:
+    repo = _facility_types_repo()
+    query = {} if not search else {
+        "$or": [
+            {"name": {"$regex": search, "$options": "i"}},
+            {"description": {"$regex": search, "$options": "i"}},
+        ]
+    }
+    return [_serialize(doc) for doc in repo.find_many(query, sort=[("name", 1)])]
+
+
+@router.post("/facility-types", status_code=201)
+def create_facility_type(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    repo = _facility_types_repo()
+    _require_central(repo)
+    doc = repo.insert_one({
+        "int_id": _next_int_id(repo),
+        "name": body.get("name", ""),
+        "description": body.get("description"),
+        "is_active": body.get("is_active", 1),
+        "sort_order": body.get("sort_order", 0),
+    })
+    return _serialize(doc) or {}
+
+
+@router.get("/facility-types/{type_id}")
+def get_facility_type(type_id: int) -> dict[str, Any]:
+    doc = _facility_types_repo().find_one({"int_id": type_id})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Facility type not found")
+    return _serialize(doc) or {}
+
+
+@router.patch("/facility-types/{type_id}")
+def update_facility_type(type_id: int, body: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    repo = _facility_types_repo()
+    _require_central(repo)
+    updates = {field: body[field] for field in ("name", "description", "is_active", "sort_order") if field in body}
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    doc = repo.find_one({"int_id": type_id})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Facility type not found")
+    repo.update_one(doc["_id"], updates)
+    return _serialize(repo.find_by_id(doc["_id"])) or {}
+
+
+@router.delete("/facility-types/{type_id}", status_code=204)
+def delete_facility_type(type_id: int) -> None:
+    repo = _facility_types_repo()
+    _require_central(repo)
+    doc = repo.find_one({"int_id": type_id})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Facility type not found")
+    repo.delete_one(doc["_id"])
+
+
+# ---------------------------------------------------------------------------
+# Facilities
+# ---------------------------------------------------------------------------
+
+_FACILITY_FIELDS = (
+    "name", "facility_type_id", "status", "parent_organization_id",
+    "address", "latitude", "longitude", "geocoded_address", "icao_code",
+    "manager_personnel_id", "manager_name", "contact_name", "contact_phone",
+    "notes", "function_tags", "served_sections", "is_primary", "metadata",
+)
 
 
 def _enrich_facility(doc: dict[str, Any]) -> dict[str, Any]:
@@ -69,6 +148,13 @@ def _enrich_facility(doc: dict[str, Any]) -> dict[str, Any]:
         payload["parent_organization_name"] = parent.get("name") if parent else None
     else:
         payload["parent_organization_name"] = None
+
+    type_id = payload.get("facility_type_id")
+    if type_id is not None:
+        facility_type = _facility_types_repo().find_one({"int_id": type_id})
+        payload["facility_type_name"] = facility_type.get("name") if facility_type else None
+    else:
+        payload["facility_type_name"] = None
     return payload
 
 
@@ -92,8 +178,6 @@ def create_master_facility(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
     for field in _FACILITY_FIELDS:
         if field in body:
             doc[field] = body.get(field)
-    if doc.get("facility_type") is None:
-        doc["facility_type"] = "other"
     if doc.get("status") is None:
         doc["status"] = "active"
     if doc.get("is_primary") is None:
