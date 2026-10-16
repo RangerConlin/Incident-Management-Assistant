@@ -52,6 +52,8 @@ _COLUMNS = [
     ("code",          "Code",        True),
     ("trauma_level",  "Trauma",      True),
     ("helipad",       "Helipad",     True),
+    ("burn_center",   "Burn",        True),
+    ("radio_channel", "Radio",       True),
     ("phone_er",      "ER Phone",    True),
     ("phone",         "Phone",       True),
     ("contact_name",  "Contact",     True),
@@ -168,6 +170,8 @@ class _HospitalEditDialog(QDialog):
         self.e_peds = QCheckBox("Pediatric capability")
         self.e_active = QCheckBox("Active")
         self.e_active.setChecked(True)
+        self.e_radio_channel = QLineEdit()
+        self.e_radio_channel.setPlaceholderText("Channel name or frequency, e.g. Hospital Net 1 / 155.340 MHz")
         self.e_notes = QLineEdit()
 
         form.addRow("Name *", self.e_name)
@@ -184,6 +188,7 @@ class _HospitalEditDialog(QDialog):
         form.addRow("", self.e_burn)
         form.addRow("", self.e_peds)
         form.addRow("", self.e_active)
+        form.addRow("Radio Channel/Freq", self.e_radio_channel)
         form.addRow("Notes", self.e_notes)
         layout.addLayout(form)
 
@@ -212,6 +217,7 @@ class _HospitalEditDialog(QDialog):
         self.e_burn.setChecked(bool(r.get("burn_center")))
         self.e_peds.setChecked(bool(r.get("pediatric_capability")))
         self.e_active.setChecked(bool(r.get("is_active", True)))
+        self.e_radio_channel.setText(str(r.get("radio_channel") or ""))
         self.e_notes.setText(str(r.get("notes") or ""))
 
     def _on_accept(self) -> None:
@@ -236,6 +242,7 @@ class _HospitalEditDialog(QDialog):
             "burn_center": self.e_burn.isChecked(),
             "pediatric_capability": self.e_peds.isChecked(),
             "is_active": self.e_active.isChecked(),
+            "radio_channel": self.e_radio_channel.text().strip() or None,
             "notes": self.e_notes.text().strip() or None,
         }
 
