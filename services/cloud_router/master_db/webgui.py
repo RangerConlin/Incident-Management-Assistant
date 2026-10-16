@@ -3497,8 +3497,10 @@ def create_master_gui_router() -> APIRouter:
         display_value = display_doc.get(field_name, "")
         if collection_key == "personnel" and field_name == "home_unit":
             display_value = _format_home_unit(display_value, _org_short_name_by_name())
-        if field_name == "organization":
+        elif field_name == "organization":
             display_value = _format_organization(display_value, _org_short_name_by_name())
+        elif spec.list_cell_fn is not None:
+            display_value = spec.list_cell_fn(display_doc, field_name)
 
         return JSONResponse({"display": _stringify(display_value), "raw": _stringify(value)})
 
