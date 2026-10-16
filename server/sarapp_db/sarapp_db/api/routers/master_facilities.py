@@ -68,6 +68,17 @@ def _serialize(doc: dict[str, Any] | None) -> dict[str, Any] | None:
 # organizations.py's organization_types.
 # ---------------------------------------------------------------------------
 
+# A facility type's `field_schema` is a list of custom field definitions
+# an admin manages through the Facility Types catalog, e.g.:
+#   [{"key": "runway_length_ft", "label": "Runway Length (ft)", "input_type": "number", "value_type": "int"},
+#    {"key": "has_control_tower", "label": "Control Tower", "input_type": "checkbox", "value_type": "bool"}]
+# Facilities of that type store matching values in their own `attributes`
+# dict, keyed by `key`. Neither side is validated against the other today —
+# the schema documents/drives the admin UI's generated form; nothing here
+# enforces that a facility's attributes match its type's current schema.
+_FACILITY_TYPE_FIELDS = ("name", "description", "is_active", "sort_order", "field_schema")
+
+
 @router.get("/facility-types")
 def list_facility_types(search: str = "") -> list[dict[str, Any]]:
     repo = _facility_types_repo()
@@ -90,6 +101,7 @@ def create_facility_type(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
         "description": body.get("description"),
         "is_active": body.get("is_active", 1),
         "sort_order": body.get("sort_order", 0),
+        "field_schema": body.get("field_schema") or [],
     })
     return _serialize(doc) or {}
 
@@ -106,7 +118,7 @@ def get_facility_type(type_id: int) -> dict[str, Any]:
 def update_facility_type(type_id: int, body: dict[str, Any] = Body(...)) -> dict[str, Any]:
     repo = _facility_types_repo()
     _require_central(repo)
-    updates = {field: body[field] for field in ("name", "description", "is_active", "sort_order") if field in body}
+    updates = {field: body[field] for field in _FACILITY_TYPE_FIELDS if field in body}
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
     doc = repo.find_one({"int_id": type_id})

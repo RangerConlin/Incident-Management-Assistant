@@ -276,12 +276,19 @@ Cost Summary
         rather than a free-text type field), `status`, `parent_organization_id` (FK into `organizations`), address/lat/lon,
         geocoded address, contact/manager fields, and notes — field shape mirrored from the per-incident `FacilityPayload`.
         Registered as the `facilities` `CollectionSpec` in `services/cloud_router/master_db/webgui.py` (CSV/XLSX export
-        includes both its own `int_id` and the resolved `facility_type_name`/`parent_organization_name`). Still open: a
-        desktop Edit-menu panel for this catalog (no desktop UI reads/writes it yet — only the central-catalog web GUI
-        does), and whether addresses entered here/on organizations get geocoded automatically (needs a geocoding service
-        decision — Nominatim/OSM vs. a paid provider vs. manual lat/lon entry only, which is all that exists today) or
-        stay manual-only for now; see the Aviation Facilities reference-layer backlog item under `[GIS]` for a related,
-        separate read-only external dataset that could feed or coexist with this catalog.
+        includes both its own `int_id` and the resolved `facility_type_name`/`parent_organization_name`). Each facility
+        type carries an admin-defined `field_schema` (JSON list of `{key, label, input_type, value_type}` definitions)
+        and facilities store matching values in their own `attributes` dict — edited as raw JSON text in the web GUI for
+        now (`_facility_type_form_row`/`_facility_form_row`/`*_payload` in `webgui.py`), seeded with five starter types
+        (Airport/Airstrip, Shelter, Staging Area, EOC, Fuel Point — explicitly not Hospitals, which keep their own
+        `MasterCollections.HOSPITALS` catalog) via `server/sarapp_db/sarapp_db/migrations/seed_facility_types.py`.
+        Still open: a dynamic form that renders real inputs from a facility's type's `field_schema` instead of a raw
+        JSON textarea (worth building once this is used enough to justify it), a desktop Edit-menu panel for this
+        catalog (no desktop UI reads/writes it yet — only the central-catalog web GUI does), and whether addresses
+        entered here/on organizations get geocoded automatically (needs a geocoding service decision — Nominatim/OSM
+        vs. a paid provider vs. manual lat/lon entry only, which is all that exists today) or stay manual-only for now;
+        see the Aviation Facilities reference-layer backlog item under `[GIS]` for a related, separate read-only
+        external dataset that could feed or coexist with this catalog.
       - ICS-Mobile-App light theme: the mobile app is currently always-dark by design
         (`lib/theme/app_theme.dart`'s `AppTheme` — "a deliberate, always-dark look for a single-purpose field ops
         tool", not following the device's light/dark setting). A light palette doesn't exist yet. If a light mode
