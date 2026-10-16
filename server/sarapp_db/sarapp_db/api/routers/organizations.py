@@ -138,6 +138,22 @@ def _enrich_rank_structure(doc: dict[str, Any]) -> dict[str, Any]:
     return payload
 
 
+def _enrich_rank_structures_bulk(docs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Same enrichment as `_enrich_rank_structure`, but loads the org-types
+    lookup table once instead of one find_one() per row."""
+    types_by_id = {
+        t["int_id"]: t for t in _org_types_repo().find_many({}) if t.get("int_id") is not None
+    }
+    results: list[dict[str, Any]] = []
+    for doc in docs:
+        payload = _serialize(doc) or {}
+        org_type_id = payload.get("organization_type_id")
+        org_type = types_by_id.get(org_type_id) if org_type_id is not None else None
+        payload["organization_type_name"] = org_type.get("name") if org_type else None
+        results.append(payload)
+    return results
+
+
 def _effective_rank_structure_id_from_map(
     orgs_by_id: dict[int, dict[str, Any]], doc: dict[str, Any]
 ) -> int | None:
@@ -312,7 +328,7 @@ def list_rank_structures(search: str = "") -> list[dict[str, Any]]:
             {"description": {"$regex": search, "$options": "i"}},
         ]
     }
-    return [_enrich_rank_structure(doc) for doc in repo.find_many(query, sort=[("name", 1)])]
+    return _enrich_rank_structures_bulk(repo.find_many(query, sort=[("name", 1)]))
 
 
 @router.post("/rank-structures", status_code=201)
