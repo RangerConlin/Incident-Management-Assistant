@@ -753,6 +753,26 @@ def _organization_fields() -> list[FieldSpec]:
     ]
 
 
+def _facility_fields() -> list[FieldSpec]:
+    return [
+        FieldSpec("name", "Name"),
+        FieldSpec("facility_type", "Facility Type"),
+        FieldSpec("status", "Status"),
+        FieldSpec("parent_organization_id", "Parent Organization ID", input_type="select_fk", value_type="int"),
+        FieldSpec("address", "Address", input_type="textarea"),
+        FieldSpec("latitude", "Latitude", value_type="float"),
+        FieldSpec("longitude", "Longitude", value_type="float"),
+        FieldSpec("geocoded_address", "Geocoded Address"),
+        FieldSpec("icao_code", "ICAO Code"),
+        FieldSpec("manager_personnel_id", "Manager Personnel ID"),
+        FieldSpec("manager_name", "Manager Name"),
+        FieldSpec("contact_name", "Contact Name"),
+        FieldSpec("contact_phone", "Contact Phone"),
+        FieldSpec("is_primary", "Primary", input_type="checkbox", value_type="bool"),
+        FieldSpec("notes", "Notes", input_type="textarea"),
+    ]
+
+
 def _rank_fields() -> list[FieldSpec]:
     return [
         FieldSpec("rank_structure_id", "Rank Structure ID", input_type="select_fk", value_type="int"),
@@ -856,6 +876,7 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
     from sarapp_db.api.routers import resource_types as resource_types_router
     from sarapp_db.api.routers import hazard_types as hazard_types_router
     from sarapp_db.api.routers import hospitals as hospitals_router
+    from sarapp_db.api.routers import master_facilities as master_facilities_router
     from sarapp_db.api.routers import objective_templates as objective_templates_router
     from sarapp_db.api.routers import strategy_templates as strategy_templates_router
     from sarapp_db.api.routers import communications as communications_router
@@ -1169,6 +1190,29 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
             list_fields=["name", "code", "city", "state", "phone", "contact_name"],
         ),
         CollectionSpec(
+            key="facilities",
+            title="Facilities",
+            record_field="int_id",
+            fields=_facility_fields(),
+            list_fn=lambda: master_facilities_router.list_master_facilities(search=""),
+            get_fn=master_facilities_router.get_master_facility,
+            create_fn=master_facilities_router.create_master_facility,
+            update_fn=master_facilities_router.update_master_facility,
+            delete_fn=master_facilities_router.delete_master_facility,
+            export_fields=[
+                "int_id", "name", "facility_type", "status",
+                "parent_organization_id", "parent_organization_name",
+                "address", "latitude", "longitude", "geocoded_address", "icao_code",
+                "manager_personnel_id", "manager_name", "contact_name", "contact_phone",
+                "is_primary", "notes",
+            ],
+            export_field_labels={
+                "int_id": "ID",
+                "parent_organization_name": "Parent Organization Name",
+            },
+            list_fields=["name", "facility_type", "status", "parent_organization_id", "address"],
+        ),
+        CollectionSpec(
             key="hazard-types",
             title="Hazard Types",
             record_field="id_master",
@@ -1323,6 +1367,8 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
             create_fn=organizations_router.create_org_type,
             update_fn=organizations_router.update_org_type,
             delete_fn=organizations_router.delete_org_type,
+            export_fields=["int_id", "name", "description", "sort_order", "is_active"],
+            export_field_labels={"int_id": "ID"},
         ),
         CollectionSpec(
             key="rank-structures",
@@ -1335,10 +1381,11 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
             update_fn=organizations_router.update_rank_structure,
             delete_fn=organizations_router.delete_rank_structure,
             export_fields=[
-                "name", "description", "organization_type_id", "organization_type_name",
+                "int_id", "name", "description", "organization_type_id", "organization_type_name",
                 "is_template", "is_system_template", "sort_order", "is_active",
             ],
             export_field_labels={
+                "int_id": "ID",
                 "organization_type_name": "Organization Type Name",
             },
             import_payload_fn=_rank_structure_import_payload,
@@ -1355,13 +1402,14 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
             update_fn=organizations_router.update_organization,
             delete_fn=organizations_router.delete_organization,
             export_fields=[
-                "name", "short_name", "parent_organization_id", "parent_organization_name",
+                "int_id", "name", "short_name", "parent_organization_id", "parent_organization_name",
                 "organization_type_id", "organization_type_name",
                 "default_rank_structure_id", "default_rank_structure_name",
                 "callsign_prefix", "external_id", "address", "latitude", "longitude",
                 "notes", "sort_order", "is_active",
             ],
             export_field_labels={
+                "int_id": "ID",
                 "parent_organization_name": "Parent Organization Name",
                 "organization_type_name": "Organization Type Name",
                 "default_rank_structure_name": "Default Rank Structure Name",
@@ -1385,10 +1433,10 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
             update_fn=organizations_router.update_rank,
             delete_fn=organizations_router.delete_rank,
             export_fields=[
-                "rank_structure_id", "rank_structure_name", "rank_code",
+                "int_id", "rank_structure_id", "rank_structure_name", "rank_code",
                 "rank_name", "short_display", "sort_order", "is_active",
             ],
-            export_field_labels={"rank_structure_name": "Rank Structure Name"},
+            export_field_labels={"int_id": "ID", "rank_structure_name": "Rank Structure Name"},
             import_payload_fn=_rank_import_payload,
             list_cell_fn=_rank_list_cell,
         ),
@@ -2686,6 +2734,18 @@ def _form_html(spec: CollectionSpec, doc: dict[str, Any], *, action: str, submit
         combo_options["parent_organization_id"] = sorted(orgs, key=lambda t: t[1].lower())
         combo_options["organization_type_id"] = sorted(org_types, key=lambda t: t[1].lower())
         combo_options["default_rank_structure_id"] = sorted(rank_structures, key=lambda t: t[1].lower())
+    if spec.key == "facilities":
+        from sarapp_db.api.routers import organizations as organizations_router
+
+        orgs = [
+            (
+                str(o.get("int_id")),
+                f"{o.get('short_name')} - {o.get('name')}" if o.get("short_name") else str(o.get("name")),
+            )
+            for o in organizations_router.list_organizations(search="")
+            if o.get("name")
+        ]
+        combo_options["parent_organization_id"] = sorted(orgs, key=lambda t: t[1].lower())
 
     rows = []
     for field in spec.fields:

@@ -171,6 +171,9 @@ def create_app(server_info_fn=None, request_log_fn=None, mode: str = "full") -> 
     from sarapp_db.api.routers import organizations
     app.include_router(organizations.router, prefix="/api/master", tags=["personnel"])
 
+    from sarapp_db.api.routers import master_facilities
+    app.include_router(master_facilities.router, prefix="/api/master", tags=["logistics"])
+
     from sarapp_db.api.routers import reference_library
     app.include_router(reference_library.router, prefix="/api/master/reference-library", tags=["reference-library"])
 

@@ -62,6 +62,7 @@ class MasterCollections:
     GAR_TEMPLATES = "gar_templates"
 
     # Facilities
+    FACILITIES = "facilities"
     HOSPITALS = "hospitals"
     EMS_AGENCIES = "ems_agencies"
     EMS_AGENCY_AUDIT_LOG = "ems_agency_audit_log"
