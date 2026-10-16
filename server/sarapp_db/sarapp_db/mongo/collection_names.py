@@ -63,6 +63,7 @@ class MasterCollections:
 
     # Facilities
     FACILITIES = "facilities"
+    FACILITY_TYPES = "facility_types"
     HOSPITALS = "hospitals"
     EMS_AGENCIES = "ems_agencies"
     EMS_AGENCY_AUDIT_LOG = "ems_agency_audit_log"

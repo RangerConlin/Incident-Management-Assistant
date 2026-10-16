@@ -666,6 +666,14 @@ def _rank_list_cell(doc: dict[str, Any], field_name: str) -> Any:
     return doc.get(field_name)
 
 
+def _facility_list_cell(doc: dict[str, Any], field_name: str) -> Any:
+    if field_name == "facility_type_id":
+        return doc.get("facility_type_name") or doc.get(field_name)
+    if field_name == "parent_organization_id":
+        return doc.get("parent_organization_name") or doc.get(field_name)
+    return doc.get(field_name)
+
+
 def _objective_template_title_by_id() -> dict[int, str]:
     from sarapp_db.api.routers import objective_templates as objective_templates_router
 
@@ -756,7 +764,7 @@ def _organization_fields() -> list[FieldSpec]:
 def _facility_fields() -> list[FieldSpec]:
     return [
         FieldSpec("name", "Name"),
-        FieldSpec("facility_type", "Facility Type"),
+        FieldSpec("facility_type_id", "Facility Type ID", input_type="select_fk", value_type="int"),
         FieldSpec("status", "Status"),
         FieldSpec("parent_organization_id", "Parent Organization ID", input_type="select_fk", value_type="int"),
         FieldSpec("address", "Address", input_type="textarea"),
@@ -769,8 +777,72 @@ def _facility_fields() -> list[FieldSpec]:
         FieldSpec("contact_name", "Contact Name"),
         FieldSpec("contact_phone", "Contact Phone"),
         FieldSpec("is_primary", "Primary", input_type="checkbox", value_type="bool"),
+        FieldSpec(
+            "attributes", "Attributes (JSON)", input_type="textarea",
+        ),
         FieldSpec("notes", "Notes", input_type="textarea"),
     ]
+
+
+def _facility_type_fields() -> list[FieldSpec]:
+    return [
+        FieldSpec("name", "Name"),
+        FieldSpec("description", "Description", input_type="textarea"),
+        FieldSpec(
+            "field_schema", "Field Schema (JSON)", input_type="textarea",
+        ),
+        FieldSpec("sort_order", "Sort Order", value_type="int"),
+        FieldSpec("is_active", "Active", input_type="checkbox", value_type="int"),
+    ]
+
+
+def _json_textarea_row(doc: dict[str, Any], field_name: str, empty: Any) -> dict[str, Any]:
+    """Render a list/dict field as pretty-printed JSON text for the edit
+    textarea — the generic field renderer otherwise shows str(value), which
+    is Python repr, not valid (re-postable) JSON."""
+    row = dict(doc)
+    row[field_name] = json.dumps(row.get(field_name) if row.get(field_name) is not None else empty, indent=2)
+    return row
+
+
+def _facility_type_form_row(doc: dict[str, Any]) -> dict[str, Any]:
+    return _json_textarea_row(doc, "field_schema", [])
+
+
+def _facility_type_form_payload(row: dict[str, str]) -> dict[str, Any]:
+    payload = _coerce_fields_payload(_facility_type_fields(), row)
+    raw = (row.get("field_schema") or "").strip()
+    if not raw:
+        payload["field_schema"] = []
+    else:
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise HTTPException(status_code=422, detail=f"Field Schema must be valid JSON: {exc}") from exc
+        if not isinstance(parsed, list):
+            raise HTTPException(status_code=422, detail="Field Schema must be a JSON list of field definitions")
+        payload["field_schema"] = parsed
+    return payload
+
+
+def _facility_form_row(doc: dict[str, Any]) -> dict[str, Any]:
+    return _json_textarea_row(doc, "attributes", {})
+
+
+def _facility_form_payload(row: dict[str, str]) -> dict[str, Any]:
+    payload = _coerce_fields_payload(_facility_fields(), row)
+    raw = (row.get("attributes") or "").strip()
+    if not raw:
+        payload["attributes"] = {}
+    else:
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise HTTPException(status_code=422, detail=f"Attributes must be valid JSON: {exc}") from exc
+        if not isinstance(parsed, dict):
+            raise HTTPException(status_code=422, detail="Attributes must be a JSON object")
+        payload["attributes"] = parsed
+    return payload
 
 
 def _rank_fields() -> list[FieldSpec]:
@@ -1206,18 +1278,42 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
             create_fn=master_facilities_router.create_master_facility,
             update_fn=master_facilities_router.update_master_facility,
             delete_fn=master_facilities_router.delete_master_facility,
+            form_row_fn=_facility_form_row,
+            form_payload_fn=_facility_form_payload,
+            export_row_fn=_facility_form_row,
+            import_payload_fn=_facility_form_payload,
             export_fields=[
-                "int_id", "name", "facility_type", "status",
+                "int_id", "name", "facility_type_id", "facility_type_name", "status",
                 "parent_organization_id", "parent_organization_name",
                 "address", "latitude", "longitude", "geocoded_address", "icao_code",
                 "manager_personnel_id", "manager_name", "contact_name", "contact_phone",
-                "is_primary", "notes",
+                "is_primary", "attributes", "notes",
             ],
             export_field_labels={
                 "int_id": "ID",
+                "facility_type_name": "Facility Type Name",
                 "parent_organization_name": "Parent Organization Name",
             },
-            list_fields=["name", "facility_type", "status", "parent_organization_id", "address"],
+            list_fields=["name", "facility_type_id", "status", "parent_organization_id", "address"],
+            list_cell_fn=_facility_list_cell,
+        ),
+        CollectionSpec(
+            key="facility-types",
+            title="Facility Types",
+            record_field="int_id",
+            fields=_facility_type_fields(),
+            list_fn=lambda: master_facilities_router.list_facility_types(search=""),
+            get_fn=master_facilities_router.get_facility_type,
+            create_fn=master_facilities_router.create_facility_type,
+            update_fn=master_facilities_router.update_facility_type,
+            delete_fn=master_facilities_router.delete_facility_type,
+            form_row_fn=_facility_type_form_row,
+            form_payload_fn=_facility_type_form_payload,
+            export_row_fn=_facility_type_form_row,
+            import_payload_fn=_facility_type_form_payload,
+            export_fields=["int_id", "name", "description", "field_schema", "sort_order", "is_active"],
+            export_field_labels={"int_id": "ID"},
+            list_fields=["name", "description", "sort_order", "is_active"],
         ),
         CollectionSpec(
             key="hazard-types",
@@ -2745,6 +2841,7 @@ def _form_html(spec: CollectionSpec, doc: dict[str, Any], *, action: str, submit
         combo_options["organization_type_id"] = sorted(org_types, key=lambda t: t[1].lower())
         combo_options["default_rank_structure_id"] = sorted(rank_structures, key=lambda t: t[1].lower())
     if spec.key == "facilities":
+        from sarapp_db.api.routers import master_facilities as master_facilities_router
         from sarapp_db.api.routers import organizations as organizations_router
 
         orgs = [
@@ -2755,7 +2852,13 @@ def _form_html(spec: CollectionSpec, doc: dict[str, Any], *, action: str, submit
             for o in organizations_router.list_organizations(search="")
             if o.get("name")
         ]
+        facility_types = [
+            (str(t.get("int_id")), str(t.get("name")))
+            for t in master_facilities_router.list_facility_types(search="")
+            if t.get("name")
+        ]
         combo_options["parent_organization_id"] = sorted(orgs, key=lambda t: t[1].lower())
+        combo_options["facility_type_id"] = sorted(facility_types, key=lambda t: t[1].lower())
 
     rows = []
     for field in spec.fields:
