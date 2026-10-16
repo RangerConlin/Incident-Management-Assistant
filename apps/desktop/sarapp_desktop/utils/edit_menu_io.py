@@ -251,7 +251,7 @@ class HospitalsIO(_ApiIO):
     csv_fields = [
         "name", "address", "contact_name", "phone_er", "phone_switchboard",
         "travel_time_min", "helipad", "trauma_level", "burn_center",
-        "pediatric_capability", "notes", "lat", "lon",
+        "pediatric_capability", "radio_channel", "notes", "lat", "lon",
     ]
 
 

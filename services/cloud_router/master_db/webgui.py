@@ -998,10 +998,17 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
         FieldSpec("city", "City"),
         FieldSpec("state", "State", input_type="select"),
         FieldSpec("zip", "ZIP"),
+        FieldSpec("phone_er", "ER Phone"),
         FieldSpec("phone", "Phone"),
         FieldSpec("contact_name", "Contact Name"),
+        FieldSpec("trauma_level", "Trauma Level", input_type="select"),
+        FieldSpec("helipad", "Helipad", input_type="checkbox", value_type="bool"),
+        FieldSpec("burn_center", "Burn Center", input_type="checkbox", value_type="bool"),
+        FieldSpec("pediatric_capability", "Pediatric Capability", input_type="checkbox", value_type="bool"),
+        FieldSpec("radio_channel", "Radio Channel/Freq"),
         FieldSpec("latitude", "Latitude", value_type="float"),
         FieldSpec("longitude", "Longitude", value_type="float"),
+        FieldSpec("is_active", "Active", input_type="checkbox", value_type="bool"),
         FieldSpec("notes", "Notes", input_type="textarea"),
     ]
     objective_template_fields = [
@@ -1187,7 +1194,7 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
             create_fn=hospitals_router.create_hospital,
             update_fn=hospitals_router.update_hospital,
             delete_fn=hospitals_router.delete_hospital,
-            list_fields=["name", "code", "city", "state", "phone", "contact_name"],
+            list_fields=["name", "code", "city", "state", "trauma_level", "helipad", "phone", "contact_name"],
         ),
         CollectionSpec(
             key="facilities",
@@ -2674,6 +2681,9 @@ def _form_html(spec: CollectionSpec, doc: dict[str, Any], *, action: str, submit
         combo_options["source"] = [(value, value) for value in RESOURCE_SOURCES]
     if spec.key == "hospitals":
         combo_options["state"] = [(value, value) for value in _STATE_CODES]
+        combo_options["trauma_level"] = [
+            (value, value) for value in ["", "I", "II", "III", "IV", "V", "Pediatric"]
+        ]
     if spec.key == "hazard-types":
         from modules.admin.hazard_types.models.hazard_type_models import HAZARD_CATEGORIES
 
