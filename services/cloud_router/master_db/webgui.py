@@ -3055,7 +3055,7 @@ def create_master_gui_router() -> APIRouter:
         )
         items = "".join(
             f'<a class="collection-tile" href="{root_path}/gui/{escape(spec.key)}">{escape(spec.title)}'
-            f'<span>{len(spec.fields)} editable fields</span></a>'
+            f'<span>{len(spec.list_fn())} entries</span></a>'
             for spec in visible_specs
         )
         body = f"""<section class="card"><div class="card-head"><div><h1>Master Catalog Collections</h1>
