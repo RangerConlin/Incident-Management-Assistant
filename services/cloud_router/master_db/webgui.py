@@ -3021,6 +3021,16 @@ def create_master_gui_router() -> APIRouter:
                 if field_name == "home_unit":
                     return _format_home_unit(row_doc.get("home_unit"), _short_by_name)
                 return row_doc.get(field_name)
+        elif collection_key == "organizations":
+            short_by_org_name = _org_short_name_by_name()
+
+            def list_cell_fn(row_doc: dict[str, Any], field_name: str, _short_by_name=short_by_org_name) -> Any:
+                if field_name == "parent_organization_id":
+                    parent_name = row_doc.get("parent_organization_name")
+                    if parent_name:
+                        return _format_organization(parent_name, _short_by_name)
+                    return row_doc.get(field_name)
+                return _organization_list_cell(row_doc, field_name)
         elif collection_key in {"equipment", "vehicles", "aircraft"}:
             short_by_org_name = _org_short_name_by_name()
             organization_options = _organization_combo_options()

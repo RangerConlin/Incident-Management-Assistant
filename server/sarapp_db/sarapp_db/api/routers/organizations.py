@@ -138,6 +138,73 @@ def _enrich_rank_structure(doc: dict[str, Any]) -> dict[str, Any]:
     return payload
 
 
+def _effective_rank_structure_id_from_map(
+    orgs_by_id: dict[int, dict[str, Any]], doc: dict[str, Any]
+) -> int | None:
+    seen: set[int] = set()
+    current: dict[str, Any] | None = doc
+    while current is not None:
+        explicit = current.get("default_rank_structure_id")
+        if explicit is None:
+            explicit = current.get("rank_structure_id")
+        if explicit is not None:
+            return explicit
+        parent_id = current.get("parent_organization_id")
+        if parent_id is None:
+            parent_id = current.get("parent_id")
+        if parent_id is None or parent_id in seen:
+            return None
+        seen.add(parent_id)
+        current = orgs_by_id.get(parent_id)
+    return None
+
+
+def _enrich_organizations_bulk(docs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Enrich a list of organization docs with the same derived fields as
+    `_enrich_organization`, but loading the organizations/rank-structures/
+    org-types lookup tables once up front instead of issuing several Mongo
+    round-trips per row — list_organizations() was taking 20-30s against a
+    ~200-row central catalog from exactly that N+1 pattern."""
+    all_orgs = _organizations_repo().find_many({})
+    orgs_by_id = {o["int_id"]: o for o in all_orgs if o.get("int_id") is not None}
+    structures_by_id = {
+        s["int_id"]: s for s in _rank_structures_repo().find_many({}) if s.get("int_id") is not None
+    }
+    types_by_id = {
+        t["int_id"]: t for t in _org_types_repo().find_many({}) if t.get("int_id") is not None
+    }
+
+    results: list[dict[str, Any]] = []
+    for doc in docs:
+        payload = _serialize(doc) or {}
+        effective_id = _effective_rank_structure_id_from_map(orgs_by_id, doc)
+        payload["effective_rank_structure_id"] = effective_id
+        payload["rank_structure_inherited"] = (
+            effective_id is not None
+            and payload.get("default_rank_structure_id") is None
+            and payload.get("rank_structure_id") is None
+        )
+        structure = structures_by_id.get(effective_id) if effective_id is not None else None
+        payload["effective_rank_structure_name"] = structure.get("name") if structure else None
+
+        default_structure_id = payload.get("default_rank_structure_id")
+        default_structure = (
+            structures_by_id.get(default_structure_id) if default_structure_id is not None else None
+        )
+        payload["default_rank_structure_name"] = default_structure.get("name") if default_structure else None
+
+        parent_id = payload.get("parent_organization_id")
+        parent = orgs_by_id.get(parent_id) if parent_id is not None else None
+        payload["parent_organization_name"] = parent.get("name") if parent else None
+
+        org_type_id = payload.get("organization_type_id")
+        org_type = types_by_id.get(org_type_id) if org_type_id is not None else None
+        payload["organization_type_name"] = org_type.get("name") if org_type else None
+
+        results.append(payload)
+    return results
+
+
 def _enrich_organization(doc: dict[str, Any]) -> dict[str, Any]:
     org_repo = _organizations_repo()
     payload = _serialize(doc) or {}
@@ -375,7 +442,7 @@ def list_organizations(search: str = "") -> list[dict[str, Any]]:
             {"call_sign": {"$regex": search, "$options": "i"}},
         ]
     }
-    return [_enrich_organization(doc) for doc in repo.find_many(query, sort=[("name", 1)])]
+    return _enrich_organizations_bulk(repo.find_many(query, sort=[("name", 1)]))
 
 
 @router.post("/organizations", status_code=201)
