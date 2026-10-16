@@ -1369,6 +1369,10 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
             import_payload_fn=_organization_import_payload,
             list_cell_fn=_organization_list_cell,
             list_fields=["name", "short_name", "parent_organization_id", "organization_type_id", "is_active"],
+            inline_edit_fields=[
+                "name", "short_name", "parent_organization_id", "organization_type_id",
+                "default_rank_structure_id", "callsign_prefix", "is_active",
+            ],
         ),
         CollectionSpec(
             key="ranks",
@@ -3012,6 +3016,9 @@ def create_master_gui_router() -> APIRouter:
         organization_options: list[tuple[str, str]] = []
         vehicle_type_options: list[tuple[str, str]] = []
         vehicle_status_options: list[tuple[str, str]] = []
+        org_parent_options: list[tuple[str, str]] = []
+        org_type_options_for_orgs: list[tuple[str, str]] = []
+        org_rank_structure_options: list[tuple[str, str]] = []
         if collection_key == "personnel":
             short_by_org_name = _org_short_name_by_name()
             personnel_org_rank_options = _personnel_org_rank_options()
@@ -3023,6 +3030,34 @@ def create_master_gui_router() -> APIRouter:
                 return row_doc.get(field_name)
         elif collection_key == "organizations":
             short_by_org_name = _org_short_name_by_name()
+            all_orgs = organizations_router.list_organizations(search="")
+            org_parent_options = sorted(
+                (
+                    (
+                        str(o.get("int_id")),
+                        f"{o.get('short_name')} - {o.get('name')}" if o.get("short_name") else str(o.get("name")),
+                    )
+                    for o in all_orgs
+                    if o.get("name")
+                ),
+                key=lambda t: t[1].lower(),
+            )
+            org_type_options_for_orgs = sorted(
+                (
+                    (str(t.get("int_id")), str(t.get("name")))
+                    for t in organizations_router.list_org_types(search="")
+                    if t.get("name")
+                ),
+                key=lambda t: t[1].lower(),
+            )
+            org_rank_structure_options = sorted(
+                (
+                    (str(r.get("int_id")), str(r.get("name")))
+                    for r in organizations_router.list_rank_structures(search="")
+                    if r.get("name")
+                ),
+                key=lambda t: t[1].lower(),
+            )
 
             def list_cell_fn(row_doc: dict[str, Any], field_name: str, _short_by_name=short_by_org_name) -> Any:
                 if field_name == "parent_organization_id":
@@ -3031,6 +3066,17 @@ def create_master_gui_router() -> APIRouter:
                         return _format_organization(parent_name, _short_by_name)
                     return row_doc.get(field_name)
                 return _organization_list_cell(row_doc, field_name)
+        elif collection_key == "strategy-templates":
+            title_by_id = _objective_template_title_by_id()
+
+            def list_cell_fn(row_doc: dict[str, Any], field_name: str, _title_by_id=title_by_id) -> Any:
+                if field_name == "objective_template_id":
+                    objective_id = row_doc.get("objective_template_id")
+                    try:
+                        return _title_by_id.get(int(objective_id), objective_id)
+                    except (TypeError, ValueError):
+                        return objective_id
+                return row_doc.get(field_name)
         elif collection_key in {"equipment", "vehicles", "aircraft"}:
             short_by_org_name = _org_short_name_by_name()
             organization_options = _organization_combo_options()
@@ -3120,6 +3166,22 @@ def create_master_gui_router() -> APIRouter:
                         if raw_value and raw_value not in rank_options:
                             rank_options = [str(raw_value), *rank_options]
                         options = [{"id": str(value), "label": str(value)} for value in rank_options]
+                    elif collection_key == "organizations" and f.name == "parent_organization_id":
+                        options = [
+                            {"id": opt_id, "label": label}
+                            for opt_id, label in org_parent_options
+                            if opt_id != str(record_id)
+                        ]
+                        if raw_value and str(raw_value) not in {option["id"] for option in options}:
+                            options.insert(0, {"id": str(raw_value), "label": str(raw_value)})
+                    elif collection_key == "organizations" and f.name == "organization_type_id":
+                        options = [{"id": opt_id, "label": label} for opt_id, label in org_type_options_for_orgs]
+                        if raw_value and str(raw_value) not in {option["id"] for option in options}:
+                            options.insert(0, {"id": str(raw_value), "label": str(raw_value)})
+                    elif collection_key == "organizations" and f.name == "default_rank_structure_id":
+                        options = [{"id": opt_id, "label": label} for opt_id, label in org_rank_structure_options]
+                        if raw_value and str(raw_value) not in {option["id"] for option in options}:
+                            options.insert(0, {"id": str(raw_value), "label": str(raw_value)})
                     cells.append(
                         f'<td data-inline-td><span class="inline-cell" data-field="{escape(f.name)}" '
                         f'data-record="{record_id}" data-raw-value="{escape(_stringify(raw_value))}" '
