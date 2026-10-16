@@ -3029,6 +3029,8 @@ def create_master_gui_router() -> APIRouter:
                     return _format_home_unit(row_doc.get("home_unit"), _short_by_name)
                 return row_doc.get(field_name)
         elif collection_key == "organizations":
+            from sarapp_db.api.routers import organizations as organizations_router
+
             short_by_org_name = _org_short_name_by_name()
             all_orgs = organizations_router.list_organizations(search="")
             org_parent_options = sorted(
