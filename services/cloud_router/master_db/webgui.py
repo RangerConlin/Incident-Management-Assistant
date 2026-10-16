@@ -3124,6 +3124,12 @@ def create_master_gui_router() -> APIRouter:
                 bulk_options = [{"id": str(opt_id), "label": str(label)} for opt_id, label in vehicle_type_options]
             elif collection_key == "vehicles" and f.name == "status_id":
                 bulk_options = [{"id": str(opt_id), "label": str(label)} for opt_id, label in vehicle_status_options]
+            elif collection_key == "organizations" and f.name == "parent_organization_id":
+                bulk_options = [{"id": opt_id, "label": label} for opt_id, label in org_parent_options]
+            elif collection_key == "organizations" and f.name == "organization_type_id":
+                bulk_options = [{"id": opt_id, "label": label} for opt_id, label in org_type_options_for_orgs]
+            elif collection_key == "organizations" and f.name == "default_rank_structure_id":
+                bulk_options = [{"id": opt_id, "label": label} for opt_id, label in org_rank_structure_options]
             bulk_field_meta[f.name] = {"type": bulk_editor_type, "options": bulk_options}
         rows = []
         for doc in docs:
@@ -3497,8 +3503,10 @@ def create_master_gui_router() -> APIRouter:
         display_value = display_doc.get(field_name, "")
         if collection_key == "personnel" and field_name == "home_unit":
             display_value = _format_home_unit(display_value, _org_short_name_by_name())
-        if field_name == "organization":
+        elif field_name == "organization":
             display_value = _format_organization(display_value, _org_short_name_by_name())
+        elif spec.list_cell_fn is not None:
+            display_value = spec.list_cell_fn(display_doc, field_name)
 
         return JSONResponse({"display": _stringify(display_value), "raw": _stringify(value)})
 
