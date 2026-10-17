@@ -2910,7 +2910,8 @@ def _rank_structure_ranks_html(structure_id: int, root_path: str) -> str:
         )
     return f"""<section class="card">
   <div class="card-head"><div><h1>Ranks In This Structure</h1>
-  <p class="card-subtitle">Edit the rank rows for this template here. Blank rows are ignored.</p></div></div>
+  <p class="card-subtitle">Edit the rank rows for this template here. Blank rows are ignored.</p></div>
+  <a class="button-link secondary" href="{root_path}/gui/ranks/export?format=csv">Export All Ranks (CSV)</a></div>
   <form method="post" action="{root_path}/gui/rank-structures/{structure_id}/ranks">
     <input type="hidden" name="row_count" value="{len(editable_rows)}">
     <div class="table-wrap">
@@ -3153,7 +3154,7 @@ def create_master_gui_router() -> APIRouter:
             return _redirect_login(request)
         root_path = request.scope.get("root_path") or ""
         visible_specs = sorted(
-            (spec for spec in specs.values() if spec.key != "ranks"),
+            specs.values(),
             key=lambda spec: spec.title.lower(),
         )
         items = "".join(
