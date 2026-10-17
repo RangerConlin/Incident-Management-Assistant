@@ -1952,6 +1952,10 @@ def _page(title: str, body: str, request: Request) -> HTMLResponse:
       try {{ fieldMeta = JSON.parse(metaScript.textContent); }} catch (err) {{ fieldMeta = {{}}; }}
     }}
 
+    function visibleBoxes() {{
+      return Array.from(table.querySelectorAll("tr[data-row]:not(.hidden) [data-row-checkbox]"));
+    }}
+
     function checkedBoxes() {{
       return Array.from(table.querySelectorAll("[data-row-checkbox]:checked"));
     }}
@@ -1968,9 +1972,14 @@ def _page(title: str, body: str, request: Request) -> HTMLResponse:
       if (countEl) countEl.textContent = `${{checked.length}} selected`;
       toolbar.hidden = checked.length === 0;
       if (selectAll) {{
-        const all = table.querySelectorAll("[data-row-checkbox]");
-        selectAll.checked = all.length > 0 && checked.length === all.length;
-        selectAll.indeterminate = checked.length > 0 && checked.length < all.length;
+        // Rows hidden by the search filter above the table stay in the DOM,
+        // so "select all" must only reflect/affect the rows still visible —
+        // otherwise checking it after filtering silently selects (and can
+        // bulk-delete) every record in the collection, not just the matches.
+        const visible = visibleBoxes();
+        const visibleChecked = visible.filter((cb) => cb.checked).length;
+        selectAll.checked = visible.length > 0 && visibleChecked === visible.length;
+        selectAll.indeterminate = visibleChecked > 0 && visibleChecked < visible.length;
       }}
       if (deleteBtn) deleteBtn.disabled = checked.length === 0;
       updateApplyState();
@@ -1981,7 +1990,7 @@ def _page(title: str, body: str, request: Request) -> HTMLResponse:
     }});
     if (selectAll) {{
       selectAll.addEventListener("change", () => {{
-        table.querySelectorAll("[data-row-checkbox]").forEach((cb) => {{ cb.checked = selectAll.checked; }});
+        visibleBoxes().forEach((cb) => {{ cb.checked = selectAll.checked; }});
         refresh();
       }});
     }}
