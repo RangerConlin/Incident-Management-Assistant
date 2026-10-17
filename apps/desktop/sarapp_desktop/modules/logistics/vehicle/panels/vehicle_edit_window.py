@@ -43,6 +43,15 @@ DEFAULT_TYPE_CHOICES: list[str] = [
     "Passenger Vehicle",
     "Utility",
     "Support",
+    "Ambulance",
+    "Engine/Pumper",
+    "Brush Truck",
+    "Water Tender",
+    "Command Vehicle",
+    "ATV/UTV",
+    "Snowmobile",
+    "Boat",
+    "Trailer",
     "Other",
 ]
 

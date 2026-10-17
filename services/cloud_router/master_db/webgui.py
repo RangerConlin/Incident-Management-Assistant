@@ -825,6 +825,15 @@ def _facility_type_fields() -> list[FieldSpec]:
     ]
 
 
+def _vehicle_type_fields() -> list[FieldSpec]:
+    return [
+        FieldSpec("name", "Name"),
+        FieldSpec("description", "Description", input_type="textarea"),
+        FieldSpec("sort_order", "Sort Order", value_type="int"),
+        FieldSpec("is_active", "Active", input_type="checkbox", value_type="int"),
+    ]
+
+
 def _json_textarea_row(doc: dict[str, Any], field_name: str, empty: Any) -> dict[str, Any]:
     """Render a list/dict field as pretty-printed JSON text for the edit
     textarea — the generic field renderer otherwise shows str(value), which
@@ -1269,6 +1278,18 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
             delete_fn=vehicles_router.delete_vehicle,
             list_fields=["vehicle_id", "license_plate", "type_id", "status_id", "organization"],
             inline_edit_fields=["type_id", "status_id", "organization"],
+        ),
+        CollectionSpec(
+            key="vehicle-types",
+            title="Vehicle Types",
+            record_field="int_id",
+            fields=_vehicle_type_fields(),
+            list_fn=lambda: vehicles_router.list_vehicle_type_catalog(search=""),
+            get_fn=vehicles_router.get_vehicle_type,
+            create_fn=vehicles_router.create_vehicle_type,
+            update_fn=vehicles_router.update_vehicle_type,
+            delete_fn=vehicles_router.delete_vehicle_type,
+            list_fields=["name", "description", "sort_order", "is_active"],
         ),
         CollectionSpec(
             key="aircraft",

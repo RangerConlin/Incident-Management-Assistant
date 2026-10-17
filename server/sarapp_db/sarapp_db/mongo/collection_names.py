@@ -49,6 +49,7 @@ class MasterCollections:
     # Resources
     EQUIPMENT = "equipment"
     VEHICLES = "vehicles"
+    VEHICLE_TYPES = "vehicle_types"
     AIRCRAFT = "aircraft"
 
     # Radio/comms — channels and comms resources are one collection
