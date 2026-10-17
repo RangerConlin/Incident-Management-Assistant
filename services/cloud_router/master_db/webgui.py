@@ -1519,7 +1519,10 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
             },
             import_payload_fn=_organization_import_payload,
             list_cell_fn=_organization_list_cell,
-            list_fields=["name", "short_name", "parent_organization_id", "organization_type_id", "is_active"],
+            list_fields=[
+                "name", "short_name", "parent_organization_id", "organization_type_id",
+                "default_rank_structure_id", "is_active",
+            ],
             inline_edit_fields=[
                 "name", "short_name", "parent_organization_id", "organization_type_id",
                 "default_rank_structure_id", "callsign_prefix", "is_active",
