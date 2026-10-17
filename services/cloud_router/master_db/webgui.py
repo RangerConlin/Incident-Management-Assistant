@@ -1519,7 +1519,10 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
             },
             import_payload_fn=_organization_import_payload,
             list_cell_fn=_organization_list_cell,
-            list_fields=["name", "short_name", "parent_organization_id", "organization_type_id", "is_active"],
+            list_fields=[
+                "name", "short_name", "parent_organization_id", "organization_type_id",
+                "default_rank_structure_id", "is_active",
+            ],
             inline_edit_fields=[
                 "name", "short_name", "parent_organization_id", "organization_type_id",
                 "default_rank_structure_id", "callsign_prefix", "is_active",
@@ -2910,7 +2913,8 @@ def _rank_structure_ranks_html(structure_id: int, root_path: str) -> str:
         )
     return f"""<section class="card">
   <div class="card-head"><div><h1>Ranks In This Structure</h1>
-  <p class="card-subtitle">Edit the rank rows for this template here. Blank rows are ignored.</p></div></div>
+  <p class="card-subtitle">Edit the rank rows for this template here. Blank rows are ignored.</p></div>
+  <a class="button-link secondary" href="{root_path}/gui/ranks/export?format=csv">Export All Ranks (CSV)</a></div>
   <form method="post" action="{root_path}/gui/rank-structures/{structure_id}/ranks">
     <input type="hidden" name="row_count" value="{len(editable_rows)}">
     <div class="table-wrap">
@@ -3153,7 +3157,7 @@ def create_master_gui_router() -> APIRouter:
             return _redirect_login(request)
         root_path = request.scope.get("root_path") or ""
         visible_specs = sorted(
-            (spec for spec in specs.values() if spec.key != "ranks"),
+            specs.values(),
             key=lambda spec: spec.title.lower(),
         )
         items = "".join(
