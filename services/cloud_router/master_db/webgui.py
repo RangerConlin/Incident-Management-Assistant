@@ -125,6 +125,35 @@ def _bulk_editable_fields(spec: CollectionSpec) -> list[FieldSpec]:
     return [f for f in spec.fields if f.name in inline_fields and f.name not in _BULK_EDIT_EXCLUDED_FIELDS]
 
 
+# input_types the generic single-cell inline editor can always render
+# (a plain text box or checkbox) without a per-field, per-collection
+# options source. "select"/"select_fk"/"combo" need one of the
+# hand-wired option lists built in list_collection() (e.g. organization,
+# rank, vehicle type/status) and "list"/"password" need their own
+# dedicated UI, so only a field already in `inline_edit_fields` gets
+# those editor types — see _effective_inline_fields below.
+_SIMPLE_INLINE_TYPES = {"text", "number", "checkbox", "textarea"}
+
+
+def _effective_inline_fields(spec: CollectionSpec) -> set[str]:
+    """The full set of fields this collection's grid may edit in place.
+
+    `inline_edit_fields` stays the hand-curated list for fields that need
+    a per-row options source (foreign keys, selects). On top of that,
+    every plain text/number/checkbox/textarea field is always safe to
+    edit the same way, so the column-visibility picker can show any such
+    field and have it be just as editable as the ones already on the
+    grid by default — "visible" and "inline-editable" stay in lockstep
+    instead of needing each collection's curated list hand-extended.
+    """
+    fields = set(spec.inline_edit_fields or [])
+    fields.update(
+        f.name for f in spec.fields
+        if f.input_type in _SIMPLE_INLINE_TYPES and f.name not in {spec.record_field, "sort_order"}
+    )
+    return fields
+
+
 def _record_route_arg(spec: CollectionSpec, record_id: str) -> Any:
     if spec.record_id_type == "str":
         return record_id
@@ -1753,6 +1782,13 @@ def _page(title: str, body: str, request: Request) -> HTMLResponse:
     .record-cell {{ white-space:nowrap; cursor:default; }}
     .row-edit-link {{ min-height:28px; padding:4px 10px; }}
     .select-col {{ width:36px; max-width:36px; }}
+    .col-hidden {{ display:none; }}
+    .columns-picker {{ position:relative; }}
+    .columns-menu {{ position:absolute; top:calc(100% + 4px); right:0; z-index:5; min-width:220px; max-height:320px; overflow-y:auto; padding:10px; border:1px solid var(--line); border-radius:8px; background:var(--panel-2); box-shadow:0 8px 24px rgba(0,0,0,.25); }}
+    .columns-menu[hidden] {{ display:none; }}
+    .columns-menu label {{ display:flex; align-items:center; gap:8px; padding:4px 2px; font-size:.88rem; white-space:nowrap; }}
+    .columns-menu .columns-menu-actions {{ margin-top:8px; padding-top:8px; border-top:1px solid var(--line-soft); display:flex; justify-content:flex-end; }}
+    .columns-menu .columns-menu-actions button {{ min-height:28px; padding:4px 10px; font-size:.82rem; }}
     .bulk-toolbar {{ display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin:-4px 0 12px; padding:10px 12px; border:1px solid var(--line); border-radius:8px; background:var(--panel-2); }}
     .bulk-toolbar[hidden] {{ display:none; }}
     .bulk-count {{ color:var(--muted); font-size:.85rem; white-space:nowrap; }}
@@ -1895,6 +1931,78 @@ def _page(title: str, body: str, request: Request) -> HTMLResponse:
       }});
       if (empty) empty.classList.toggle("hidden", visible !== 0);
     }});
+  }});
+
+  // Per-table column visibility — defaults to whatever the server marked
+  // visible (the collection's existing list_fields), overridden per
+  // browser via localStorage so each catalog remembers its own picked
+  // columns without touching the shared default for everyone else.
+  document.querySelectorAll("[data-columns-picker]").forEach((picker) => {{
+    const tableId = picker.dataset.columnsPicker;
+    const table = document.getElementById(tableId);
+    const menu = picker.querySelector("[data-columns-menu]");
+    const toggleBtn = picker.querySelector("[data-columns-toggle]");
+    const resetBtn = picker.querySelector("[data-columns-reset]");
+    const checkboxes = Array.from(picker.querySelectorAll("[data-col-toggle]"));
+    if (!table || !menu || checkboxes.length === 0) return;
+    const storageKey = `sarapp-columns:${{tableId}}`;
+    const defaultVisible = new Set(checkboxes.filter((cb) => cb.checked).map((cb) => cb.value));
+
+    function applyVisibility(visible) {{
+      table.querySelectorAll("[data-col]").forEach((cell) => {{
+        cell.classList.toggle("col-hidden", !visible.has(cell.dataset.col));
+      }});
+      checkboxes.forEach((cb) => {{ cb.checked = visible.has(cb.value); }});
+    }}
+
+    function loadStoredVisible() {{
+      try {{
+        const raw = window.localStorage.getItem(storageKey);
+        if (!raw) return null;
+        const names = JSON.parse(raw);
+        if (!Array.isArray(names)) return null;
+        return new Set(names);
+      }} catch (err) {{
+        return null;
+      }}
+    }}
+
+    function saveVisible(visible) {{
+      try {{
+        window.localStorage.setItem(storageKey, JSON.stringify(Array.from(visible)));
+      }} catch (err) {{
+        // Private browsing / storage disabled — picker still works for
+        // this page view, it just won't be remembered next visit.
+      }}
+    }}
+
+    const stored = loadStoredVisible();
+    if (stored) applyVisibility(stored);
+
+    if (toggleBtn) {{
+      toggleBtn.addEventListener("click", (event) => {{
+        event.stopPropagation();
+        menu.hidden = !menu.hidden;
+      }});
+    }}
+    document.addEventListener("click", (event) => {{
+      if (!menu.hidden && !picker.contains(event.target)) menu.hidden = true;
+    }});
+
+    checkboxes.forEach((cb) => {{
+      cb.addEventListener("change", () => {{
+        const visible = new Set(checkboxes.filter((box) => box.checked).map((box) => box.value));
+        applyVisibility(visible);
+        saveVisible(visible);
+      }});
+    }});
+
+    if (resetBtn) {{
+      resetBtn.addEventListener("click", () => {{
+        applyVisibility(defaultVisible);
+        try {{ window.localStorage.removeItem(storageKey); }} catch (err) {{ /* ignore */ }}
+      }});
+    }}
   }});
 
   document.querySelectorAll("th.sortable").forEach((header) => {{
@@ -3194,9 +3302,22 @@ def create_master_gui_router() -> APIRouter:
         docs = spec.list_fn()
         table_id = f"grid-{collection_key}"
         field_by_name = {f.name: f for f in spec.fields}
-        shown_names = spec.list_fields or [f.name for f in spec.fields]
-        shown_fields = [field_by_name[name] for name in shown_names if name in field_by_name and name != "sort_order"]
-        header_cells = "".join(f'<th class="sortable">{escape(f.label)}</th>' for f in shown_fields)
+        default_shown_names = {
+            name for name in (spec.list_fields or [f.name for f in spec.fields]) if name in field_by_name
+        }
+        # Every non-internal field is rendered as a column (and, where the
+        # field type supports it, an inline-editable one) so the column
+        # picker below can reveal any of them client-side without a page
+        # reload; `default_shown_names` is only used to decide which
+        # columns start visible/checked, matching this collection's
+        # existing `list_fields` default exactly when the picker has no
+        # stored preference for this browser yet.
+        shown_fields = [f for f in spec.fields if f.name != "sort_order"]
+        header_cells = "".join(
+            f'<th class="sortable{"" if f.name in default_shown_names else " col-hidden"}" '
+            f'data-col="{escape(f.name)}">{escape(f.label)}</th>'
+            for f in shown_fields
+        )
         list_cell_fn = spec.list_cell_fn
         personnel_org_rank_options: dict[str, Any] | None = None
         organization_options: list[tuple[str, str]] = []
@@ -3287,7 +3408,7 @@ def create_master_gui_router() -> APIRouter:
                     return _format_organization(row_doc.get("organization"), _short_by_name)
                 return row_doc.get(field_name)
 
-        inline_fields = set(spec.inline_edit_fields or [])
+        inline_fields = _effective_inline_fields(spec)
         bulk_fields = _bulk_editable_fields(spec)
         show_select_col = bool(bulk_fields) or spec.delete_fn is not None
         bulk_field_meta: dict[str, dict[str, Any]] = {}
@@ -3376,14 +3497,17 @@ def create_master_gui_router() -> APIRouter:
                         options = [{"id": opt_id, "label": label} for opt_id, label in org_rank_structure_options]
                         if raw_value and str(raw_value) not in {option["id"] for option in options}:
                             options.insert(0, {"id": str(raw_value), "label": str(raw_value)})
+                    col_class = "" if f.name in default_shown_names else " col-hidden"
                     cells.append(
-                        f'<td data-inline-td><span class="inline-cell" data-field="{escape(f.name)}" '
+                        f'<td data-inline-td data-col="{escape(f.name)}" class="{col_class.strip()}">'
+                        f'<span class="inline-cell" data-field="{escape(f.name)}" '
                         f'data-record="{record_id}" data-raw-value="{escape(_stringify(raw_value))}" '
                         f'data-editor="{editor_type}" data-options="{_json_attr(options)}">'
                         f"{_cell_html(display_value)}</span></td>"
                     )
                 else:
-                    cells.append(f"<td>{_cell_html(display_value)}</td>")
+                    col_class = "" if f.name in default_shown_names else " col-hidden"
+                    cells.append(f'<td data-col="{escape(f.name)}" class="{col_class.strip()}">{_cell_html(display_value)}</td>')
             cells_html = "".join(cells)
             row_href = f"{root_path}/gui/{collection_key}/{record_id}"
             row_attr = "" if inline_fields else f' data-row-href="{row_href}"'
@@ -3440,6 +3564,19 @@ def create_master_gui_router() -> APIRouter:
     <button type="button" class="secondary" data-bulk-clear>Clear selection</button>
   </div>"""
 
+        columns_checkboxes_html = "".join(
+            f'<label><input type="checkbox" data-col-toggle value="{escape(f.name)}"'
+            f'{" checked" if f.name in default_shown_names else ""}> {escape(f.label)}</label>'
+            for f in shown_fields
+        )
+        columns_picker_html = f"""<div class="columns-picker" data-columns-picker="{table_id}">
+      <button type="button" class="secondary" data-columns-toggle>Columns</button>
+      <div class="columns-menu" data-columns-menu hidden>
+        {columns_checkboxes_html}
+        <div class="columns-menu-actions"><button type="button" class="secondary" data-columns-reset>Reset to defaults</button></div>
+      </div>
+    </div>"""
+
         body = f"""{_back_link(f"{root_path}/gui", "Back to Collections")}<section class="card"><div class="card-head"><div><h1>{escape(spec.title)}</h1>
   <p class="card-subtitle">{len(docs)} record{"s" if len(docs) != 1 else ""}</p></div></div>
   <div class="grid-toolbar">
@@ -3450,6 +3587,7 @@ def create_master_gui_router() -> APIRouter:
       <a class="button-link secondary" href="{root_path}/gui/{collection_key}/import">Import</a>
       {f'''<a class="button-link secondary" href="{root_path}/gui/ranks/import">Import Ranks</a>''' if collection_key == "rank-structures" else ""}
       {f'''<form class="inline" method="post" action="{root_path}/gui/{collection_key}/delete-all" data-confirm-title="Delete all {escape(spec.title)}?" data-confirm="This will permanently delete every record currently in {escape(spec.title)}. This cannot be undone." data-confirm-action="Delete all"><button type="submit" class="danger">Delete All</button></form>''' if spec.delete_fn is not None else ""}
+      {columns_picker_html}
     </div>
     <input class="grid-search" type="text" data-grid-search="{table_id}" placeholder="Search this table">
   </div>
@@ -3660,7 +3798,7 @@ def create_master_gui_router() -> APIRouter:
         except HTTPException:
             return JSONResponse({"error": "login required"}, status_code=401)
         spec = specs.get(collection_key)
-        if spec is None or field_name not in (spec.inline_edit_fields or []):
+        if spec is None or field_name not in _effective_inline_fields(spec):
             return JSONResponse({"error": "field is not inline-editable"}, status_code=404)
         field = next((f for f in spec.fields if f.name == field_name), None)
         if field is None:
