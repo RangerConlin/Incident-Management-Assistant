@@ -23,17 +23,38 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(message)s")
 log = logging.getLogger(__name__)
 
 _VEHICLE_TYPES = [
-    {"name": "Passenger Vehicle", "description": "Sedan, SUV, or other light passenger vehicle."},
-    {"name": "Utility", "description": "Pickup, van, or other light utility vehicle."},
-    {"name": "Support", "description": "General support vehicle not covered by a more specific type."},
-    {"name": "Ambulance", "description": "Ground ambulance/medical transport unit."},
+    # EMS
+    {"name": "Ambulance", "description": "ALS/BLS ground ambulance transport unit."},
+    {"name": "Mobile ICU", "description": "Critical-care/intensive-care ground transport unit."},
+    {"name": "EMS Supervisor Unit", "description": "Non-transport EMS supervisor or quick-response vehicle."},
+    # Fire
     {"name": "Engine/Pumper", "description": "Fire engine/pumper apparatus."},
+    {"name": "Ladder/Aerial", "description": "Aerial ladder or platform fire apparatus."},
     {"name": "Brush Truck", "description": "Wildland/brush firefighting apparatus."},
     {"name": "Water Tender", "description": "Water tender/tanker apparatus."},
-    {"name": "Command Vehicle", "description": "Mobile command post/incident command vehicle."},
+    {"name": "Hazmat Unit", "description": "Hazardous materials response apparatus."},
+    {"name": "Air/Light Unit", "description": "Breathing-air refill and scene lighting support unit."},
+    # Rescue
+    {"name": "Heavy Rescue", "description": "Heavy/technical rescue squad apparatus."},
+    {"name": "Rope Rescue Unit", "description": "Rope/high-angle rescue team vehicle."},
+    {"name": "Swift Water Rescue Boat", "description": "Swift-water/flood rescue watercraft."},
+    # SAR
+    {"name": "SAR Response Vehicle", "description": "General ground search-and-rescue response vehicle."},
     {"name": "ATV/UTV", "description": "All-terrain or utility task vehicle."},
     {"name": "Snowmobile", "description": "Snowmobile."},
     {"name": "Boat", "description": "Watercraft, including trailered boats."},
+    {"name": "K9 Unit", "description": "Search-and-rescue or law-enforcement canine unit."},
+    # Law Enforcement
+    {"name": "Patrol Vehicle", "description": "Law enforcement patrol car/SUV."},
+    {"name": "Tactical/SWAT Vehicle", "description": "Armored tactical response vehicle."},
+    {"name": "Motorcycle Unit", "description": "Law enforcement motorcycle."},
+    {"name": "Prisoner Transport Van", "description": "Secure prisoner/detainee transport van."},
+    # Command / general support
+    {"name": "Command Vehicle", "description": "Mobile command post/incident command vehicle."},
+    {"name": "Bus/Transport", "description": "Personnel transport bus or van."},
+    {"name": "Passenger Vehicle", "description": "Sedan, SUV, or other light passenger vehicle."},
+    {"name": "Utility", "description": "Pickup, van, or other light utility vehicle."},
+    {"name": "Support", "description": "General support vehicle not covered by a more specific type."},
     {"name": "Trailer", "description": "Equipment, utility, or cargo trailer."},
     {"name": "Other", "description": "Any vehicle not covered by another type."},
 ]
