@@ -148,6 +148,13 @@ _TASK_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "
 _OBJECTIVE_STATUS_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "OBJECTIVE_STATUS")
 _OBJECTIVE_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "OBJECTIVE_STATUS")
 
+_SEGMENT_PLANNING_STATUS_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "SEGMENT_PLANNING_STATUS")
+_SEGMENT_PLANNING_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "SEGMENT_PLANNING_STATUS")
+_SEGMENT_SEARCH_STATUS_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "SEGMENT_SEARCH_STATUS")
+_SEGMENT_SEARCH_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "SEGMENT_SEARCH_STATUS")
+_SEGMENT_REVIEW_STATUS_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "SEGMENT_REVIEW_STATUS")
+_SEGMENT_REVIEW_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "SEGMENT_REVIEW_STATUS")
+
 _OBJECTIVE_PRIORITY_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "OBJECTIVE_PRIORITY")
 _OBJECTIVE_PRIORITY_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "OBJECTIVE_PRIORITY")
 
@@ -306,6 +313,18 @@ def objective_status_colors() -> Dict[str, Dict[str, QBrush]]:
 
 def objective_priority_colors() -> Dict[str, Dict[str, QBrush]]:
     return _OBJECTIVE_PRIORITY_LIGHT if THEME_NAME == "light" else _OBJECTIVE_PRIORITY_DARK
+
+
+def segment_planning_status_colors() -> Dict[str, Dict[str, QBrush]]:
+    return _SEGMENT_PLANNING_STATUS_LIGHT if THEME_NAME == "light" else _SEGMENT_PLANNING_STATUS_DARK
+
+
+def segment_search_status_colors() -> Dict[str, Dict[str, QBrush]]:
+    return _SEGMENT_SEARCH_STATUS_LIGHT if THEME_NAME == "light" else _SEGMENT_SEARCH_STATUS_DARK
+
+
+def segment_review_status_colors() -> Dict[str, Dict[str, QBrush]]:
+    return _SEGMENT_REVIEW_STATUS_LIGHT if THEME_NAME == "light" else _SEGMENT_REVIEW_STATUS_DARK
 
 
 def operational_period_status_colors() -> Dict[str, Dict[str, QBrush]]:
@@ -557,6 +576,9 @@ __all__ = [
     "map_symbol_colors",
     "task_status_colors",
     "objective_status_colors",
+    "segment_planning_status_colors",
+    "segment_search_status_colors",
+    "segment_review_status_colors",
     "objective_priority_colors",
     "operational_period_status_colors",
     "meeting_status_colors",

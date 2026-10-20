@@ -280,6 +280,12 @@ def create_app(server_info_fn=None, request_log_fn=None, mode: str = "full") -> 
         from sarapp_db.api.routers import work_assignments
         app.include_router(work_assignments.router, prefix="/api", tags=["planning"])
 
+        from sarapp_db.api.routers import search_segments
+        app.include_router(search_segments.router, prefix="/api", tags=["sar-toolkit"])
+
+        from sarapp_db.api.routers import search_task_details
+        app.include_router(search_task_details.router, prefix="/api", tags=["sar-toolkit"])
+
         from sarapp_db.api.routers import gis
         app.include_router(gis.router, prefix="/api", tags=["gis"])
 
