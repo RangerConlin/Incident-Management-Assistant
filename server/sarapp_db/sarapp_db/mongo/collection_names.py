@@ -49,6 +49,7 @@ class MasterCollections:
     # Resources
     EQUIPMENT = "equipment"
     VEHICLES = "vehicles"
+    VEHICLE_TYPES = "vehicle_types"
     AIRCRAFT = "aircraft"
 
     # Radio/comms — channels and comms resources are one collection
@@ -62,6 +63,8 @@ class MasterCollections:
     GAR_TEMPLATES = "gar_templates"
 
     # Facilities
+    FACILITIES = "facilities"
+    FACILITY_TYPES = "facility_types"
     HOSPITALS = "hospitals"
     EMS_AGENCIES = "ems_agencies"
     EMS_AGENCY_AUDIT_LOG = "ems_agency_audit_log"

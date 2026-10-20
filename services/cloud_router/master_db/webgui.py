@@ -125,6 +125,35 @@ def _bulk_editable_fields(spec: CollectionSpec) -> list[FieldSpec]:
     return [f for f in spec.fields if f.name in inline_fields and f.name not in _BULK_EDIT_EXCLUDED_FIELDS]
 
 
+# input_types the generic single-cell inline editor can always render
+# (a plain text box or checkbox) without a per-field, per-collection
+# options source. "select"/"select_fk"/"combo" need one of the
+# hand-wired option lists built in list_collection() (e.g. organization,
+# rank, vehicle type/status) and "list"/"password" need their own
+# dedicated UI, so only a field already in `inline_edit_fields` gets
+# those editor types — see _effective_inline_fields below.
+_SIMPLE_INLINE_TYPES = {"text", "number", "checkbox", "textarea"}
+
+
+def _effective_inline_fields(spec: CollectionSpec) -> set[str]:
+    """The full set of fields this collection's grid may edit in place.
+
+    `inline_edit_fields` stays the hand-curated list for fields that need
+    a per-row options source (foreign keys, selects). On top of that,
+    every plain text/number/checkbox/textarea field is always safe to
+    edit the same way, so the column-visibility picker can show any such
+    field and have it be just as editable as the ones already on the
+    grid by default — "visible" and "inline-editable" stay in lockstep
+    instead of needing each collection's curated list hand-extended.
+    """
+    fields = set(spec.inline_edit_fields or [])
+    fields.update(
+        f.name for f in spec.fields
+        if f.input_type in _SIMPLE_INLINE_TYPES and f.name not in {spec.record_field, "sort_order"}
+    )
+    return fields
+
+
 def _record_route_arg(spec: CollectionSpec, record_id: str) -> Any:
     if spec.record_id_type == "str":
         return record_id
@@ -666,6 +695,14 @@ def _rank_list_cell(doc: dict[str, Any], field_name: str) -> Any:
     return doc.get(field_name)
 
 
+def _facility_list_cell(doc: dict[str, Any], field_name: str) -> Any:
+    if field_name == "facility_type_id":
+        return doc.get("facility_type_name") or doc.get(field_name)
+    if field_name == "parent_organization_id":
+        return doc.get("parent_organization_name") or doc.get(field_name)
+    return doc.get(field_name)
+
+
 def _objective_template_title_by_id() -> dict[int, str]:
     from sarapp_db.api.routers import objective_templates as objective_templates_router
 
@@ -751,6 +788,99 @@ def _organization_fields() -> list[FieldSpec]:
         FieldSpec("sort_order", "Sort Order", value_type="int"),
         FieldSpec("is_active", "Active", input_type="checkbox", value_type="int"),
     ]
+
+
+def _facility_fields() -> list[FieldSpec]:
+    return [
+        FieldSpec("name", "Name"),
+        FieldSpec("facility_type_id", "Facility Type ID", input_type="select_fk", value_type="int"),
+        FieldSpec("status", "Status"),
+        FieldSpec("parent_organization_id", "Parent Organization ID", input_type="select_fk", value_type="int"),
+        FieldSpec("address", "Address", input_type="textarea"),
+        FieldSpec("latitude", "Latitude", value_type="float"),
+        FieldSpec("longitude", "Longitude", value_type="float"),
+        FieldSpec("geocoded_address", "Geocoded Address"),
+        FieldSpec("icao_code", "ICAO Code"),
+        FieldSpec("manager_personnel_id", "Manager Personnel ID"),
+        FieldSpec("manager_name", "Manager Name"),
+        FieldSpec("contact_name", "Contact Name"),
+        FieldSpec("contact_phone", "Contact Phone"),
+        FieldSpec("is_primary", "Primary", input_type="checkbox", value_type="bool"),
+        FieldSpec(
+            "attributes", "Attributes (JSON)", input_type="textarea",
+        ),
+        FieldSpec("notes", "Notes", input_type="textarea"),
+    ]
+
+
+def _facility_type_fields() -> list[FieldSpec]:
+    return [
+        FieldSpec("name", "Name"),
+        FieldSpec("description", "Description", input_type="textarea"),
+        FieldSpec(
+            "field_schema", "Field Schema (JSON)", input_type="textarea",
+        ),
+        FieldSpec("sort_order", "Sort Order", value_type="int"),
+        FieldSpec("is_active", "Active", input_type="checkbox", value_type="int"),
+    ]
+
+
+def _vehicle_type_fields() -> list[FieldSpec]:
+    return [
+        FieldSpec("name", "Name"),
+        FieldSpec("description", "Description", input_type="textarea"),
+        FieldSpec("sort_order", "Sort Order", value_type="int"),
+        FieldSpec("is_active", "Active", input_type="checkbox", value_type="int"),
+    ]
+
+
+def _json_textarea_row(doc: dict[str, Any], field_name: str, empty: Any) -> dict[str, Any]:
+    """Render a list/dict field as pretty-printed JSON text for the edit
+    textarea — the generic field renderer otherwise shows str(value), which
+    is Python repr, not valid (re-postable) JSON."""
+    row = dict(doc)
+    row[field_name] = json.dumps(row.get(field_name) if row.get(field_name) is not None else empty, indent=2)
+    return row
+
+
+def _facility_type_form_row(doc: dict[str, Any]) -> dict[str, Any]:
+    return _json_textarea_row(doc, "field_schema", [])
+
+
+def _facility_type_form_payload(row: dict[str, str]) -> dict[str, Any]:
+    payload = _coerce_fields_payload(_facility_type_fields(), row)
+    raw = (row.get("field_schema") or "").strip()
+    if not raw:
+        payload["field_schema"] = []
+    else:
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise HTTPException(status_code=422, detail=f"Field Schema must be valid JSON: {exc}") from exc
+        if not isinstance(parsed, list):
+            raise HTTPException(status_code=422, detail="Field Schema must be a JSON list of field definitions")
+        payload["field_schema"] = parsed
+    return payload
+
+
+def _facility_form_row(doc: dict[str, Any]) -> dict[str, Any]:
+    return _json_textarea_row(doc, "attributes", {})
+
+
+def _facility_form_payload(row: dict[str, str]) -> dict[str, Any]:
+    payload = _coerce_fields_payload(_facility_fields(), row)
+    raw = (row.get("attributes") or "").strip()
+    if not raw:
+        payload["attributes"] = {}
+    else:
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise HTTPException(status_code=422, detail=f"Attributes must be valid JSON: {exc}") from exc
+        if not isinstance(parsed, dict):
+            raise HTTPException(status_code=422, detail="Attributes must be a JSON object")
+        payload["attributes"] = parsed
+    return payload
 
 
 def _rank_fields() -> list[FieldSpec]:
@@ -856,6 +986,7 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
     from sarapp_db.api.routers import resource_types as resource_types_router
     from sarapp_db.api.routers import hazard_types as hazard_types_router
     from sarapp_db.api.routers import hospitals as hospitals_router
+    from sarapp_db.api.routers import master_facilities as master_facilities_router
     from sarapp_db.api.routers import objective_templates as objective_templates_router
     from sarapp_db.api.routers import strategy_templates as strategy_templates_router
     from sarapp_db.api.routers import communications as communications_router
@@ -977,10 +1108,17 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
         FieldSpec("city", "City"),
         FieldSpec("state", "State", input_type="select"),
         FieldSpec("zip", "ZIP"),
+        FieldSpec("phone_er", "ER Phone"),
         FieldSpec("phone", "Phone"),
         FieldSpec("contact_name", "Contact Name"),
+        FieldSpec("trauma_level", "Trauma Level", input_type="select"),
+        FieldSpec("helipad", "Helipad", input_type="checkbox", value_type="bool"),
+        FieldSpec("burn_center", "Burn Center", input_type="checkbox", value_type="bool"),
+        FieldSpec("pediatric_capability", "Pediatric Capability", input_type="checkbox", value_type="bool"),
+        FieldSpec("radio_channel", "Radio Channel/Freq"),
         FieldSpec("latitude", "Latitude", value_type="float"),
         FieldSpec("longitude", "Longitude", value_type="float"),
+        FieldSpec("is_active", "Active", input_type="checkbox", value_type="bool"),
         FieldSpec("notes", "Notes", input_type="textarea"),
     ]
     objective_template_fields = [
@@ -1142,6 +1280,18 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
             inline_edit_fields=["type_id", "status_id", "organization"],
         ),
         CollectionSpec(
+            key="vehicle-types",
+            title="Vehicle Types",
+            record_field="int_id",
+            fields=_vehicle_type_fields(),
+            list_fn=lambda: vehicles_router.list_vehicle_type_catalog(search=""),
+            get_fn=vehicles_router.get_vehicle_type,
+            create_fn=vehicles_router.create_vehicle_type,
+            update_fn=vehicles_router.update_vehicle_type,
+            delete_fn=vehicles_router.delete_vehicle_type,
+            list_fields=["name", "description", "sort_order", "is_active"],
+        ),
+        CollectionSpec(
             key="aircraft",
             title="Aircraft",
             record_field="aircraft_record_master",
@@ -1166,7 +1316,54 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
             create_fn=hospitals_router.create_hospital,
             update_fn=hospitals_router.update_hospital,
             delete_fn=hospitals_router.delete_hospital,
-            list_fields=["name", "code", "city", "state", "phone", "contact_name"],
+            list_fields=["name", "code", "city", "state", "trauma_level", "helipad", "phone", "contact_name"],
+        ),
+        CollectionSpec(
+            key="facilities",
+            title="Facilities",
+            record_field="int_id",
+            fields=_facility_fields(),
+            list_fn=lambda: master_facilities_router.list_master_facilities(search=""),
+            get_fn=master_facilities_router.get_master_facility,
+            create_fn=master_facilities_router.create_master_facility,
+            update_fn=master_facilities_router.update_master_facility,
+            delete_fn=master_facilities_router.delete_master_facility,
+            form_row_fn=_facility_form_row,
+            form_payload_fn=_facility_form_payload,
+            export_row_fn=_facility_form_row,
+            import_payload_fn=_facility_form_payload,
+            export_fields=[
+                "int_id", "name", "facility_type_id", "facility_type_name", "status",
+                "parent_organization_id", "parent_organization_name",
+                "address", "latitude", "longitude", "geocoded_address", "icao_code",
+                "manager_personnel_id", "manager_name", "contact_name", "contact_phone",
+                "is_primary", "attributes", "notes",
+            ],
+            export_field_labels={
+                "int_id": "ID",
+                "facility_type_name": "Facility Type Name",
+                "parent_organization_name": "Parent Organization Name",
+            },
+            list_fields=["name", "facility_type_id", "status", "parent_organization_id", "address"],
+            list_cell_fn=_facility_list_cell,
+        ),
+        CollectionSpec(
+            key="facility-types",
+            title="Facility Types",
+            record_field="int_id",
+            fields=_facility_type_fields(),
+            list_fn=lambda: master_facilities_router.list_facility_types(search=""),
+            get_fn=master_facilities_router.get_facility_type,
+            create_fn=master_facilities_router.create_facility_type,
+            update_fn=master_facilities_router.update_facility_type,
+            delete_fn=master_facilities_router.delete_facility_type,
+            form_row_fn=_facility_type_form_row,
+            form_payload_fn=_facility_type_form_payload,
+            export_row_fn=_facility_type_form_row,
+            import_payload_fn=_facility_type_form_payload,
+            export_fields=["int_id", "name", "description", "field_schema", "sort_order", "is_active"],
+            export_field_labels={"int_id": "ID"},
+            list_fields=["name", "description", "sort_order", "is_active"],
         ),
         CollectionSpec(
             key="hazard-types",
@@ -1323,6 +1520,8 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
             create_fn=organizations_router.create_org_type,
             update_fn=organizations_router.update_org_type,
             delete_fn=organizations_router.delete_org_type,
+            export_fields=["int_id", "name", "description", "sort_order", "is_active"],
+            export_field_labels={"int_id": "ID"},
         ),
         CollectionSpec(
             key="rank-structures",
@@ -1335,10 +1534,11 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
             update_fn=organizations_router.update_rank_structure,
             delete_fn=organizations_router.delete_rank_structure,
             export_fields=[
-                "name", "description", "organization_type_id", "organization_type_name",
+                "int_id", "name", "description", "organization_type_id", "organization_type_name",
                 "is_template", "is_system_template", "sort_order", "is_active",
             ],
             export_field_labels={
+                "int_id": "ID",
                 "organization_type_name": "Organization Type Name",
             },
             import_payload_fn=_rank_structure_import_payload,
@@ -1355,20 +1555,28 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
             update_fn=organizations_router.update_organization,
             delete_fn=organizations_router.delete_organization,
             export_fields=[
-                "name", "short_name", "parent_organization_id", "parent_organization_name",
+                "int_id", "name", "short_name", "parent_organization_id", "parent_organization_name",
                 "organization_type_id", "organization_type_name",
                 "default_rank_structure_id", "default_rank_structure_name",
                 "callsign_prefix", "external_id", "address", "latitude", "longitude",
                 "notes", "sort_order", "is_active",
             ],
             export_field_labels={
+                "int_id": "ID",
                 "parent_organization_name": "Parent Organization Name",
                 "organization_type_name": "Organization Type Name",
                 "default_rank_structure_name": "Default Rank Structure Name",
             },
             import_payload_fn=_organization_import_payload,
             list_cell_fn=_organization_list_cell,
-            list_fields=["name", "short_name", "parent_organization_id", "organization_type_id", "is_active"],
+            list_fields=[
+                "name", "short_name", "parent_organization_id", "organization_type_id",
+                "default_rank_structure_id", "is_active",
+            ],
+            inline_edit_fields=[
+                "name", "short_name", "parent_organization_id", "organization_type_id",
+                "default_rank_structure_id", "callsign_prefix", "is_active",
+            ],
         ),
         CollectionSpec(
             key="ranks",
@@ -1381,10 +1589,10 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
             update_fn=organizations_router.update_rank,
             delete_fn=organizations_router.delete_rank,
             export_fields=[
-                "rank_structure_id", "rank_structure_name", "rank_code",
+                "int_id", "rank_structure_id", "rank_structure_name", "rank_code",
                 "rank_name", "short_display", "sort_order", "is_active",
             ],
-            export_field_labels={"rank_structure_name": "Rank Structure Name"},
+            export_field_labels={"int_id": "ID", "rank_structure_name": "Rank Structure Name"},
             import_payload_fn=_rank_import_payload,
             list_cell_fn=_rank_list_cell,
         ),
@@ -1595,6 +1803,13 @@ def _page(title: str, body: str, request: Request) -> HTMLResponse:
     .record-cell {{ white-space:nowrap; cursor:default; }}
     .row-edit-link {{ min-height:28px; padding:4px 10px; }}
     .select-col {{ width:36px; max-width:36px; }}
+    .col-hidden {{ display:none; }}
+    .columns-picker {{ position:relative; }}
+    .columns-menu {{ position:absolute; top:calc(100% + 4px); right:0; z-index:5; min-width:220px; max-height:320px; overflow-y:auto; padding:10px; border:1px solid var(--line); border-radius:8px; background:var(--panel-2); box-shadow:0 8px 24px rgba(0,0,0,.25); }}
+    .columns-menu[hidden] {{ display:none; }}
+    .columns-menu label {{ display:flex; align-items:center; gap:8px; padding:4px 2px; font-size:.88rem; white-space:nowrap; }}
+    .columns-menu .columns-menu-actions {{ margin-top:8px; padding-top:8px; border-top:1px solid var(--line-soft); display:flex; justify-content:flex-end; }}
+    .columns-menu .columns-menu-actions button {{ min-height:28px; padding:4px 10px; font-size:.82rem; }}
     .bulk-toolbar {{ display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin:-4px 0 12px; padding:10px 12px; border:1px solid var(--line); border-radius:8px; background:var(--panel-2); }}
     .bulk-toolbar[hidden] {{ display:none; }}
     .bulk-count {{ color:var(--muted); font-size:.85rem; white-space:nowrap; }}
@@ -1739,6 +1954,78 @@ def _page(title: str, body: str, request: Request) -> HTMLResponse:
     }});
   }});
 
+  // Per-table column visibility — defaults to whatever the server marked
+  // visible (the collection's existing list_fields), overridden per
+  // browser via localStorage so each catalog remembers its own picked
+  // columns without touching the shared default for everyone else.
+  document.querySelectorAll("[data-columns-picker]").forEach((picker) => {{
+    const tableId = picker.dataset.columnsPicker;
+    const table = document.getElementById(tableId);
+    const menu = picker.querySelector("[data-columns-menu]");
+    const toggleBtn = picker.querySelector("[data-columns-toggle]");
+    const resetBtn = picker.querySelector("[data-columns-reset]");
+    const checkboxes = Array.from(picker.querySelectorAll("[data-col-toggle]"));
+    if (!table || !menu || checkboxes.length === 0) return;
+    const storageKey = `sarapp-columns:${{tableId}}`;
+    const defaultVisible = new Set(checkboxes.filter((cb) => cb.checked).map((cb) => cb.value));
+
+    function applyVisibility(visible) {{
+      table.querySelectorAll("[data-col]").forEach((cell) => {{
+        cell.classList.toggle("col-hidden", !visible.has(cell.dataset.col));
+      }});
+      checkboxes.forEach((cb) => {{ cb.checked = visible.has(cb.value); }});
+    }}
+
+    function loadStoredVisible() {{
+      try {{
+        const raw = window.localStorage.getItem(storageKey);
+        if (!raw) return null;
+        const names = JSON.parse(raw);
+        if (!Array.isArray(names)) return null;
+        return new Set(names);
+      }} catch (err) {{
+        return null;
+      }}
+    }}
+
+    function saveVisible(visible) {{
+      try {{
+        window.localStorage.setItem(storageKey, JSON.stringify(Array.from(visible)));
+      }} catch (err) {{
+        // Private browsing / storage disabled — picker still works for
+        // this page view, it just won't be remembered next visit.
+      }}
+    }}
+
+    const stored = loadStoredVisible();
+    if (stored) applyVisibility(stored);
+
+    if (toggleBtn) {{
+      toggleBtn.addEventListener("click", (event) => {{
+        event.stopPropagation();
+        menu.hidden = !menu.hidden;
+      }});
+    }}
+    document.addEventListener("click", (event) => {{
+      if (!menu.hidden && !picker.contains(event.target)) menu.hidden = true;
+    }});
+
+    checkboxes.forEach((cb) => {{
+      cb.addEventListener("change", () => {{
+        const visible = new Set(checkboxes.filter((box) => box.checked).map((box) => box.value));
+        applyVisibility(visible);
+        saveVisible(visible);
+      }});
+    }});
+
+    if (resetBtn) {{
+      resetBtn.addEventListener("click", () => {{
+        applyVisibility(defaultVisible);
+        try {{ window.localStorage.removeItem(storageKey); }} catch (err) {{ /* ignore */ }}
+      }});
+    }}
+  }});
+
   document.querySelectorAll("th.sortable").forEach((header) => {{
     header.addEventListener("click", () => {{
       const table = header.closest("table");
@@ -1794,6 +2081,10 @@ def _page(title: str, body: str, request: Request) -> HTMLResponse:
       try {{ fieldMeta = JSON.parse(metaScript.textContent); }} catch (err) {{ fieldMeta = {{}}; }}
     }}
 
+    function visibleBoxes() {{
+      return Array.from(table.querySelectorAll("tr[data-row]:not(.hidden) [data-row-checkbox]"));
+    }}
+
     function checkedBoxes() {{
       return Array.from(table.querySelectorAll("[data-row-checkbox]:checked"));
     }}
@@ -1810,9 +2101,14 @@ def _page(title: str, body: str, request: Request) -> HTMLResponse:
       if (countEl) countEl.textContent = `${{checked.length}} selected`;
       toolbar.hidden = checked.length === 0;
       if (selectAll) {{
-        const all = table.querySelectorAll("[data-row-checkbox]");
-        selectAll.checked = all.length > 0 && checked.length === all.length;
-        selectAll.indeterminate = checked.length > 0 && checked.length < all.length;
+        // Rows hidden by the search filter above the table stay in the DOM,
+        // so "select all" must only reflect/affect the rows still visible —
+        // otherwise checking it after filtering silently selects (and can
+        // bulk-delete) every record in the collection, not just the matches.
+        const visible = visibleBoxes();
+        const visibleChecked = visible.filter((cb) => cb.checked).length;
+        selectAll.checked = visible.length > 0 && visibleChecked === visible.length;
+        selectAll.indeterminate = visibleChecked > 0 && visibleChecked < visible.length;
       }}
       if (deleteBtn) deleteBtn.disabled = checked.length === 0;
       updateApplyState();
@@ -1823,7 +2119,7 @@ def _page(title: str, body: str, request: Request) -> HTMLResponse:
     }});
     if (selectAll) {{
       selectAll.addEventListener("change", () => {{
-        table.querySelectorAll("[data-row-checkbox]").forEach((cb) => {{ cb.checked = selectAll.checked; }});
+        visibleBoxes().forEach((cb) => {{ cb.checked = selectAll.checked; }});
         refresh();
       }});
     }}
@@ -2622,6 +2918,9 @@ def _form_html(spec: CollectionSpec, doc: dict[str, Any], *, action: str, submit
         combo_options["source"] = [(value, value) for value in RESOURCE_SOURCES]
     if spec.key == "hospitals":
         combo_options["state"] = [(value, value) for value in _STATE_CODES]
+        combo_options["trauma_level"] = [
+            (value, value) for value in ["", "I", "II", "III", "IV", "V", "Pediatric"]
+        ]
     if spec.key == "hazard-types":
         from modules.admin.hazard_types.models.hazard_type_models import HAZARD_CATEGORIES
 
@@ -2682,6 +2981,25 @@ def _form_html(spec: CollectionSpec, doc: dict[str, Any], *, action: str, submit
         combo_options["parent_organization_id"] = sorted(orgs, key=lambda t: t[1].lower())
         combo_options["organization_type_id"] = sorted(org_types, key=lambda t: t[1].lower())
         combo_options["default_rank_structure_id"] = sorted(rank_structures, key=lambda t: t[1].lower())
+    if spec.key == "facilities":
+        from sarapp_db.api.routers import master_facilities as master_facilities_router
+        from sarapp_db.api.routers import organizations as organizations_router
+
+        orgs = [
+            (
+                str(o.get("int_id")),
+                f"{o.get('short_name')} - {o.get('name')}" if o.get("short_name") else str(o.get("name")),
+            )
+            for o in organizations_router.list_organizations(search="")
+            if o.get("name")
+        ]
+        facility_types = [
+            (str(t.get("int_id")), str(t.get("name")))
+            for t in master_facilities_router.list_facility_types(search="")
+            if t.get("name")
+        ]
+        combo_options["parent_organization_id"] = sorted(orgs, key=lambda t: t[1].lower())
+        combo_options["facility_type_id"] = sorted(facility_types, key=lambda t: t[1].lower())
 
     rows = []
     for field in spec.fields:
@@ -2733,7 +3051,8 @@ def _rank_structure_ranks_html(structure_id: int, root_path: str) -> str:
         )
     return f"""<section class="card">
   <div class="card-head"><div><h1>Ranks In This Structure</h1>
-  <p class="card-subtitle">Edit the rank rows for this template here. Blank rows are ignored.</p></div></div>
+  <p class="card-subtitle">Edit the rank rows for this template here. Blank rows are ignored.</p></div>
+  <a class="button-link secondary" href="{root_path}/gui/ranks/export?format=csv">Export All Ranks (CSV)</a></div>
   <form method="post" action="{root_path}/gui/rank-structures/{structure_id}/ranks">
     <input type="hidden" name="row_count" value="{len(editable_rows)}">
     <div class="table-wrap">
@@ -2976,12 +3295,12 @@ def create_master_gui_router() -> APIRouter:
             return _redirect_login(request)
         root_path = request.scope.get("root_path") or ""
         visible_specs = sorted(
-            (spec for spec in specs.values() if spec.key != "ranks"),
+            specs.values(),
             key=lambda spec: spec.title.lower(),
         )
         items = "".join(
             f'<a class="collection-tile" href="{root_path}/gui/{escape(spec.key)}">{escape(spec.title)}'
-            f'<span>{len(spec.fields)} editable fields</span></a>'
+            f'<span>{len(spec.list_fn())} entries</span></a>'
             for spec in visible_specs
         )
         body = f"""<section class="card"><div class="card-head"><div><h1>Master Catalog Collections</h1>
@@ -3004,14 +3323,30 @@ def create_master_gui_router() -> APIRouter:
         docs = spec.list_fn()
         table_id = f"grid-{collection_key}"
         field_by_name = {f.name: f for f in spec.fields}
-        shown_names = spec.list_fields or [f.name for f in spec.fields]
-        shown_fields = [field_by_name[name] for name in shown_names if name in field_by_name and name != "sort_order"]
-        header_cells = "".join(f'<th class="sortable">{escape(f.label)}</th>' for f in shown_fields)
+        default_shown_names = {
+            name for name in (spec.list_fields or [f.name for f in spec.fields]) if name in field_by_name
+        }
+        # Every non-internal field is rendered as a column (and, where the
+        # field type supports it, an inline-editable one) so the column
+        # picker below can reveal any of them client-side without a page
+        # reload; `default_shown_names` is only used to decide which
+        # columns start visible/checked, matching this collection's
+        # existing `list_fields` default exactly when the picker has no
+        # stored preference for this browser yet.
+        shown_fields = [f for f in spec.fields if f.name != "sort_order"]
+        header_cells = "".join(
+            f'<th class="sortable{"" if f.name in default_shown_names else " col-hidden"}" '
+            f'data-col="{escape(f.name)}">{escape(f.label)}</th>'
+            for f in shown_fields
+        )
         list_cell_fn = spec.list_cell_fn
         personnel_org_rank_options: dict[str, Any] | None = None
         organization_options: list[tuple[str, str]] = []
         vehicle_type_options: list[tuple[str, str]] = []
         vehicle_status_options: list[tuple[str, str]] = []
+        org_parent_options: list[tuple[str, str]] = []
+        org_type_options_for_orgs: list[tuple[str, str]] = []
+        org_rank_structure_options: list[tuple[str, str]] = []
         if collection_key == "personnel":
             short_by_org_name = _org_short_name_by_name()
             personnel_org_rank_options = _personnel_org_rank_options()
@@ -3020,6 +3355,57 @@ def create_master_gui_router() -> APIRouter:
             def list_cell_fn(row_doc: dict[str, Any], field_name: str, _short_by_name=short_by_org_name) -> Any:
                 if field_name == "home_unit":
                     return _format_home_unit(row_doc.get("home_unit"), _short_by_name)
+                return row_doc.get(field_name)
+        elif collection_key == "organizations":
+            from sarapp_db.api.routers import organizations as organizations_router
+
+            short_by_org_name = _org_short_name_by_name()
+            all_orgs = organizations_router.list_organizations(search="")
+            org_parent_options = sorted(
+                (
+                    (
+                        str(o.get("int_id")),
+                        f"{o.get('short_name')} - {o.get('name')}" if o.get("short_name") else str(o.get("name")),
+                    )
+                    for o in all_orgs
+                    if o.get("name")
+                ),
+                key=lambda t: t[1].lower(),
+            )
+            org_type_options_for_orgs = sorted(
+                (
+                    (str(t.get("int_id")), str(t.get("name")))
+                    for t in organizations_router.list_org_types(search="")
+                    if t.get("name")
+                ),
+                key=lambda t: t[1].lower(),
+            )
+            org_rank_structure_options = sorted(
+                (
+                    (str(r.get("int_id")), str(r.get("name")))
+                    for r in organizations_router.list_rank_structures(search="")
+                    if r.get("name")
+                ),
+                key=lambda t: t[1].lower(),
+            )
+
+            def list_cell_fn(row_doc: dict[str, Any], field_name: str, _short_by_name=short_by_org_name) -> Any:
+                if field_name == "parent_organization_id":
+                    parent_name = row_doc.get("parent_organization_name")
+                    if parent_name:
+                        return _format_organization(parent_name, _short_by_name)
+                    return row_doc.get(field_name)
+                return _organization_list_cell(row_doc, field_name)
+        elif collection_key == "strategy-templates":
+            title_by_id = _objective_template_title_by_id()
+
+            def list_cell_fn(row_doc: dict[str, Any], field_name: str, _title_by_id=title_by_id) -> Any:
+                if field_name == "objective_template_id":
+                    objective_id = row_doc.get("objective_template_id")
+                    try:
+                        return _title_by_id.get(int(objective_id), objective_id)
+                    except (TypeError, ValueError):
+                        return objective_id
                 return row_doc.get(field_name)
         elif collection_key in {"equipment", "vehicles", "aircraft"}:
             short_by_org_name = _org_short_name_by_name()
@@ -3043,7 +3429,7 @@ def create_master_gui_router() -> APIRouter:
                     return _format_organization(row_doc.get("organization"), _short_by_name)
                 return row_doc.get(field_name)
 
-        inline_fields = set(spec.inline_edit_fields or [])
+        inline_fields = _effective_inline_fields(spec)
         bulk_fields = _bulk_editable_fields(spec)
         show_select_col = bool(bulk_fields) or spec.delete_fn is not None
         bulk_field_meta: dict[str, dict[str, Any]] = {}
@@ -3066,6 +3452,12 @@ def create_master_gui_router() -> APIRouter:
                 bulk_options = [{"id": str(opt_id), "label": str(label)} for opt_id, label in vehicle_type_options]
             elif collection_key == "vehicles" and f.name == "status_id":
                 bulk_options = [{"id": str(opt_id), "label": str(label)} for opt_id, label in vehicle_status_options]
+            elif collection_key == "organizations" and f.name == "parent_organization_id":
+                bulk_options = [{"id": opt_id, "label": label} for opt_id, label in org_parent_options]
+            elif collection_key == "organizations" and f.name == "organization_type_id":
+                bulk_options = [{"id": opt_id, "label": label} for opt_id, label in org_type_options_for_orgs]
+            elif collection_key == "organizations" and f.name == "default_rank_structure_id":
+                bulk_options = [{"id": opt_id, "label": label} for opt_id, label in org_rank_structure_options]
             bulk_field_meta[f.name] = {"type": bulk_editor_type, "options": bulk_options}
         rows = []
         for doc in docs:
@@ -3110,14 +3502,33 @@ def create_master_gui_router() -> APIRouter:
                         if raw_value and raw_value not in rank_options:
                             rank_options = [str(raw_value), *rank_options]
                         options = [{"id": str(value), "label": str(value)} for value in rank_options]
+                    elif collection_key == "organizations" and f.name == "parent_organization_id":
+                        options = [
+                            {"id": opt_id, "label": label}
+                            for opt_id, label in org_parent_options
+                            if opt_id != str(record_id)
+                        ]
+                        if raw_value and str(raw_value) not in {option["id"] for option in options}:
+                            options.insert(0, {"id": str(raw_value), "label": str(raw_value)})
+                    elif collection_key == "organizations" and f.name == "organization_type_id":
+                        options = [{"id": opt_id, "label": label} for opt_id, label in org_type_options_for_orgs]
+                        if raw_value and str(raw_value) not in {option["id"] for option in options}:
+                            options.insert(0, {"id": str(raw_value), "label": str(raw_value)})
+                    elif collection_key == "organizations" and f.name == "default_rank_structure_id":
+                        options = [{"id": opt_id, "label": label} for opt_id, label in org_rank_structure_options]
+                        if raw_value and str(raw_value) not in {option["id"] for option in options}:
+                            options.insert(0, {"id": str(raw_value), "label": str(raw_value)})
+                    col_class = "" if f.name in default_shown_names else " col-hidden"
                     cells.append(
-                        f'<td data-inline-td><span class="inline-cell" data-field="{escape(f.name)}" '
+                        f'<td data-inline-td data-col="{escape(f.name)}" class="{col_class.strip()}">'
+                        f'<span class="inline-cell" data-field="{escape(f.name)}" '
                         f'data-record="{record_id}" data-raw-value="{escape(_stringify(raw_value))}" '
                         f'data-editor="{editor_type}" data-options="{_json_attr(options)}">'
                         f"{_cell_html(display_value)}</span></td>"
                     )
                 else:
-                    cells.append(f"<td>{_cell_html(display_value)}</td>")
+                    col_class = "" if f.name in default_shown_names else " col-hidden"
+                    cells.append(f'<td data-col="{escape(f.name)}" class="{col_class.strip()}">{_cell_html(display_value)}</td>')
             cells_html = "".join(cells)
             row_href = f"{root_path}/gui/{collection_key}/{record_id}"
             row_attr = "" if inline_fields else f' data-row-href="{row_href}"'
@@ -3174,6 +3585,19 @@ def create_master_gui_router() -> APIRouter:
     <button type="button" class="secondary" data-bulk-clear>Clear selection</button>
   </div>"""
 
+        columns_checkboxes_html = "".join(
+            f'<label><input type="checkbox" data-col-toggle value="{escape(f.name)}"'
+            f'{" checked" if f.name in default_shown_names else ""}> {escape(f.label)}</label>'
+            for f in shown_fields
+        )
+        columns_picker_html = f"""<div class="columns-picker" data-columns-picker="{table_id}">
+      <button type="button" class="secondary" data-columns-toggle>Columns</button>
+      <div class="columns-menu" data-columns-menu hidden>
+        {columns_checkboxes_html}
+        <div class="columns-menu-actions"><button type="button" class="secondary" data-columns-reset>Reset to defaults</button></div>
+      </div>
+    </div>"""
+
         body = f"""{_back_link(f"{root_path}/gui", "Back to Collections")}<section class="card"><div class="card-head"><div><h1>{escape(spec.title)}</h1>
   <p class="card-subtitle">{len(docs)} record{"s" if len(docs) != 1 else ""}</p></div></div>
   <div class="grid-toolbar">
@@ -3184,6 +3608,7 @@ def create_master_gui_router() -> APIRouter:
       <a class="button-link secondary" href="{root_path}/gui/{collection_key}/import">Import</a>
       {f'''<a class="button-link secondary" href="{root_path}/gui/ranks/import">Import Ranks</a>''' if collection_key == "rank-structures" else ""}
       {f'''<form class="inline" method="post" action="{root_path}/gui/{collection_key}/delete-all" data-confirm-title="Delete all {escape(spec.title)}?" data-confirm="This will permanently delete every record currently in {escape(spec.title)}. This cannot be undone." data-confirm-action="Delete all"><button type="submit" class="danger">Delete All</button></form>''' if spec.delete_fn is not None else ""}
+      {columns_picker_html}
     </div>
     <input class="grid-search" type="text" data-grid-search="{table_id}" placeholder="Search this table">
   </div>
@@ -3342,7 +3767,7 @@ def create_master_gui_router() -> APIRouter:
         back = _back_link(f"{root_path}/gui/{collection_key}", f"Back to {spec.title}")
         body = f'{back}<section class="card"><h1>{escape(spec.title)} {record_id}</h1>{form}<div class="form-actions">{delete_button}</div></section>'
         if spec.key == "rank-structures":
-            body += _rank_structure_ranks_html(record_id, root_path)
+            body += _rank_structure_ranks_html(int(record_id), root_path)
         elif spec.key == "qualification-types":
             body += _qualification_certifications_html(doc, record_id, root_path)
         return _page(f"Edit {spec.title}", body, request)
@@ -3394,7 +3819,7 @@ def create_master_gui_router() -> APIRouter:
         except HTTPException:
             return JSONResponse({"error": "login required"}, status_code=401)
         spec = specs.get(collection_key)
-        if spec is None or field_name not in (spec.inline_edit_fields or []):
+        if spec is None or field_name not in _effective_inline_fields(spec):
             return JSONResponse({"error": "field is not inline-editable"}, status_code=404)
         field = next((f for f in spec.fields if f.name == field_name), None)
         if field is None:
@@ -3423,8 +3848,10 @@ def create_master_gui_router() -> APIRouter:
         display_value = display_doc.get(field_name, "")
         if collection_key == "personnel" and field_name == "home_unit":
             display_value = _format_home_unit(display_value, _org_short_name_by_name())
-        if field_name == "organization":
+        elif field_name == "organization":
             display_value = _format_organization(display_value, _org_short_name_by_name())
+        elif spec.list_cell_fn is not None:
+            display_value = spec.list_cell_fn(display_doc, field_name)
 
         return JSONResponse({"display": _stringify(display_value), "raw": _stringify(value)})
 
