@@ -42,7 +42,7 @@ export default function SitrepDetailPage() {
   return (
     <div className="detail-page">
       <FormExportControls formIds={["ics_209"]} sourceId={sitrepId} />
-      <button className="secondary" style={{ width: "auto", marginBottom: 12 }} onClick={() => navigate("/planning/sitreps")}>
+      <button className="secondary" style={{ width: "auto", marginBottom: 12 }} onClick={() => navigate("/command/sitreps")}>
         ← Situation Reports
       </button>
       <h2>SITREP #{sitrep.sitrep_number}</h2>

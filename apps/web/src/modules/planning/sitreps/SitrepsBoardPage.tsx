@@ -37,7 +37,7 @@ export default function SitrepsBoardPage() {
           style={{ width: "auto", padding: "4px 10px", fontSize: "0.78rem" }}
           onClick={(e) => {
             e.stopPropagation();
-            duplicateSitrep.mutate(s.id, { onSuccess: (created) => navigate(`/planning/sitreps/${created.id}`) });
+            duplicateSitrep.mutate(s.id, { onSuccess: (created) => navigate(`/command/sitreps/${created.id}`) });
           }}
         >
           New Update From This
@@ -59,7 +59,7 @@ export default function SitrepsBoardPage() {
           onClick={() =>
             createSitrep.mutate(
               { prepared_by: user?.display_name },
-              { onSuccess: (created) => navigate(`/planning/sitreps/${created.id}`) }
+              { onSuccess: (created) => navigate(`/command/sitreps/${created.id}`) }
             )
           }
         >
@@ -93,7 +93,7 @@ export default function SitrepsBoardPage() {
           columns={columns}
           rows={rows}
           rowKey={(s) => s.id}
-          onRowActivate={(s) => navigate(`/planning/sitreps/${s.id}`)}
+          onRowActivate={(s) => navigate(`/command/sitreps/${s.id}`)}
           emptyMessage="No situation reports yet. Click New SITREP to create the first one."
         />
       )}

@@ -3304,10 +3304,26 @@ def create_master_gui_router() -> APIRouter:
             for spec in visible_specs
         )
         body = f"""<section class="card"><div class="card-head"><div><h1>Master Catalog Collections</h1>
-  <p class="card-subtitle">Central source for agency master catalogs, templates, and console access.</p></div></div>
+  <p class="card-subtitle">Central source for agency master catalogs, templates, and console access.</p></div>
+  <a class="button-link" href="{root_path}/gui/export-all">Export All (.zip)</a></div>
   <div class="collection-grid">{items}</div>
 </section>"""
         return _page("Collections", body, request)
+
+    @router.get("/gui/export-all", response_model=None)
+    def export_all(request: Request) -> Response:
+        try:
+            _require_session(settings, request)
+        except HTTPException:
+            return _redirect_login(request)
+        from sarapp_db.export_import.master_exporter import build_master_export
+
+        filename, data = build_master_export()
+        return Response(
+            content=data,
+            media_type="application/zip",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
 
     @router.get("/gui/{collection_key}", response_class=HTMLResponse, response_model=None)
     def list_collection(request: Request, collection_key: str) -> Response:

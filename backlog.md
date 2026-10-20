@@ -50,9 +50,6 @@ Meeting Planner
 
 Individual Meeting Detail Windows
 
-Situation Report
-  - Move to under the command menu
-  
 **************************************************************************************************************
 [Operations]
 Operations Dashboard

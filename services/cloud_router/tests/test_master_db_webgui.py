@@ -5,6 +5,7 @@ how this is actually served, through Traefik TLS) — over plain http,
 httpx's cookie jar would drop it between requests in the same test client.
 """
 
+import json
 import os
 import pathlib
 
@@ -1075,6 +1076,45 @@ def test_master_catalog_seed_csvs_are_uploadable(monkeypatch) -> None:
         assert any(r["rank_code"] == "C/COL" for r in senior_ranks)
     finally:
         _clear_seed_catalog_rows()
+
+
+def test_export_all_downloads_zip_of_master_catalogs(monkeypatch) -> None:
+    client = _client(monkeypatch)
+    _login(client)
+    _clear_equipment()
+    try:
+        client.post(
+            "/central-master/gui/equipment/new",
+            data={"name": "GUI Test Export-All Radio", "type": "Radio"},
+        )
+
+        index = client.get("/central-master/gui")
+        assert index.status_code == 200
+        assert 'href="/central-master/gui/export-all"' in index.text
+        assert "Export All" in index.text
+
+        response = client.get("/central-master/gui/export-all")
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "application/zip"
+        assert "attachment" in response.headers["content-disposition"]
+
+        import io
+        import zipfile
+
+        archive = zipfile.ZipFile(io.BytesIO(response.content))
+        names = archive.namelist()
+        assert "manifest.json" in names
+        assert "collections/equipment.json" in names
+        assert "collections/users.json" not in names
+
+        manifest = json.loads(archive.read("manifest.json"))
+        assert manifest["format"] == "sarapp-master-export"
+        assert "equipment" in manifest["collections"]
+
+        equipment_json = archive.read("collections/equipment.json").decode("utf-8")
+        assert "GUI Test Export-All Radio" in equipment_json
+    finally:
+        _clear_equipment()
 
 
 def test_console_user_can_be_created_and_used_for_login(monkeypatch) -> None:

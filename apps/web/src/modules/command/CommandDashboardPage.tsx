@@ -65,7 +65,7 @@ export default function CommandDashboardPage() {
       <button className="secondary" disabled={queries.some(q => q.isFetching)} onClick={() => { void Promise.all(queries.map(q => q.refetch())); }}>Refresh</button>
     </div></header>
     <nav className="command-actions" aria-label="Command workspaces">
-      <Link to="/planning/objectives">Manage objectives</Link><Link to="/planning/sitreps">Situation reports</Link>
+      <Link to="/planning/objectives">Manage objectives</Link><Link to="/command/sitreps">Situation reports</Link>
       <Link to="/planning/operational-periods">Operational periods</Link><Link to="/ops/teams">Team board</Link><Link to="/ops/tasks">Task board</Link>
     </nav>
     <KpiStrip tiles={[
@@ -86,7 +86,7 @@ export default function CommandDashboardPage() {
       </Panel>
       <Panel title="Latest situation reports" loading={sitreps.isPending} error={sitreps.isError}>
         {reports.length === 0 ? <p>No situation reports recorded.</p> : reports.map(r => <article key={r.id} className="command-record">
-          <Link to={`/planning/sitreps/${r.id}`}>SITREP {r.sitrep_number}</Link> <StatusPill domain="sitrep" statusKey={r.status} />
+          <Link to={`/command/sitreps/${r.id}`}>SITREP {r.sitrep_number}</Link> <StatusPill domain="sitrep" statusKey={r.status} />
           <p>{r.summary || "No summary recorded."}</p><small>Updated {formatCommandTime(r.updated_at)}</small>
         </article>)}
       </Panel>

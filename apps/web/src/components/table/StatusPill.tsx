@@ -40,7 +40,7 @@ type Domain =
   | "approval-step";
 
 interface StatusPillProps {
-  domain: Domain;
+  domain?: Domain;
   statusKey: string;
   label?: string;
 }
@@ -67,7 +67,9 @@ const RESOLVERS: Record<Domain, (key: string) => { bg: string; fg: string }> = {
 };
 
 export default function StatusPill({ domain, statusKey, label }: StatusPillProps) {
-  const { bg, fg } = RESOLVERS[domain](statusKey);
+  const colors = domain ? RESOLVERS[domain](statusKey) : null;
+  const bg = colors?.bg ?? "var(--surface-raised)";
+  const fg = colors?.fg ?? "var(--text-primary)";
   return (
     <span
       style={{

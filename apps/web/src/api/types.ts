@@ -573,6 +573,12 @@ export interface Facility extends LogisticsRecord {
   notes: string; function_tags: string[]; served_sections: string[]; is_primary: boolean;
   metadata: Record<string, unknown>; created_at: string; updated_at: string;
 }
+export interface IncidentProfile { id:string; name:string; number:string; type:string; status:string; description:string; start_time:string|null; end_time:string|null; icp_location:string; icp_facility_id:string|null; latitude:number|null; longitude:number|null; is_training:boolean; }
+export interface OrgAssignment { id:string; assignment_id:string; position_id:number; person_record:number; person_name:string; assignment_type:string; start_time:string|null; end_time:string|null; }
+export interface OrgPosition { id:number; position_id:number; title:string; classification:string; parent_position_id:number|null; sort_order:number; primary:OrgAssignment[]; deputies:OrgAssignment[]; staff_assistants:OrgAssignment[]; }
+export interface OrgTemplate { id:number; template_id:number; name:string; description:string|null; payload:Record<string,unknown>[]; }
+export interface IapForm { form_id:string; title:string; op_number:number; revision:number; status:string; last_updated:string|null; fields:Record<string,unknown>; attachments:string[]; display_order:number; }
+export interface IapPackage { incident_id:string; op_number:number; op_start:string; op_end:string; created_at:string; status:string; notes:string; version_tag:string|null; published_pdf_path:string|null; forms:IapForm[]; }
 
 // GET /api/comms/master-channels — radio channel library (shared across incidents).
 export interface MasterChannel {

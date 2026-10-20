@@ -14,3 +14,12 @@
 .command-version { padding: 8px 24px; font-size: .75rem; opacity: .65; }
 @media (max-width: 1000px) { .command-grid { grid-template-columns: 1fr; } }
 @media (max-width: 600px) { .command-heading { flex-direction: column; } }
+.command-page { display: grid; gap: 1rem; }
+.command-heading, .command-actions, .command-row { display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex-wrap: wrap; }
+.command-panel { border: 1px solid currentColor; border-radius: .5rem; padding: 1rem; }
+.command-form { display: grid; grid-template-columns: repeat(auto-fit,minmax(230px,1fr)); gap: 1rem; }
+.command-form label { display: grid; gap: .35rem; }
+.command-wide { grid-column: 1 / -1; }
+.command-check { display: flex !important; align-items: center; }
+.command-row { border-top: 1px solid currentColor; padding: .75rem 0; }
+.link-button { border: 0; padding: 0; background: transparent; color: inherit; text-decoration: underline; cursor: pointer; }

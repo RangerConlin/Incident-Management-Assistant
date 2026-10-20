@@ -1,0 +1,13 @@
+.workspace-page { padding: 20px; max-width: 1500px; margin: 0 auto; }
+.workspace-links, .workspace-filters, .workspace-actions { display: flex; flex-wrap: wrap; gap: 16px; align-items: end; margin: 18px 0; }
+.workspace-links a { padding: 8px 0; }
+.workspace-links a[aria-current="page"] { font-weight: bold; text-decoration-thickness: 3px; }
+.workspace-filters label { display: flex; flex-direction: column; gap: 6px; }
+.workspace-filters input { max-width: 240px; }
+.workspace-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 16px; max-width: 1000px; margin: 20px 0; }
+.workspace-form .field { min-width: 0; }
+.workspace-form input[type="checkbox"] { align-self: start; }
+.workspace-form button { grid-column: 1 / -1; width: auto; justify-self: start; }
+.workspace-actions button { width: auto; margin: 0; }
+.workspace-record > div { display: grid; grid-template-columns: minmax(120px, 1fr) 3fr; gap: 20px; margin-bottom: 12px; }
+.workspace-record dd { margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; }

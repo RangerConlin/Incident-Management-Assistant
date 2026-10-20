@@ -22,7 +22,13 @@ export const MODULE_REGISTRY: ModuleSection[] = [
   {
     section: "Command",
     icon: "CM",
-    modules: [{ key: "command-dashboard", label: "Command Dashboard", path: "/command", status: "live" }],
+    modules: [
+      { key: "command-dashboard", label: "Command Dashboard", path: "/command", status: "live" },
+      { key: "incident-overview", label: "Incident Overview", path: "/command/overview", status: "live" },
+      { key: "incident-organization", label: "Incident Organization", path: "/command/organization", status: "live" },
+      { key: "situation-reports", label: "Situation Reports", path: "/command/sitreps", status: "live" },
+      { key: "iap-builder", label: "IAP Builder", path: "/command/iap", status: "live" },
+    ],
   },
   {
     section: "Planning",
@@ -32,10 +38,9 @@ export const MODULE_REGISTRY: ModuleSection[] = [
       { key: "strategic-objectives", label: "Strategic Objectives", path: "/planning/objectives", status: "live" },
       { key: "operational-periods", label: "Operational Periods", path: "/planning/operational-periods", status: "live" },
       { key: "meetings", label: "Meetings", path: "/planning/meetings", status: "live" },
-      { key: "situation-reports", label: "Situation Reports", path: "/planning/sitreps", status: "live" },
       { key: "work-assignments", label: "Work Assignments", path: "/planning/work-assignments", status: "live" },
-      { key: "approvals", label: "Approvals", path: "/planning/approvals", status: "planned" },
-      { key: "demobilization", label: "Demobilization", path: "/planning/demobilization", status: "planned" },
+      { key: "approvals", label: "Approvals", path: "/planning/approvals", status: "live" },
+      { key: "demobilization", label: "Demobilization", path: "/planning/demobilization", status: "live" },
     ],
   },
   {
@@ -69,15 +74,15 @@ export const MODULE_REGISTRY: ModuleSection[] = [
     section: "Medical & Safety",
     icon: "MS",
     modules: [
-      { key: "medical", label: "Medical", path: "/medical", status: "planned" },
-      { key: "safety", label: "Safety / CAP ORM", path: "/safety", status: "planned" },
-      { key: "weather", label: "Weather", path: "/weather", status: "planned" },
+      { key: "medical", label: "Medical", path: "/medical", status: "live" },
+      { key: "safety", label: "Safety / CAP ORM", path: "/safety", status: "live" },
+      { key: "weather", label: "Weather", path: "/weather", status: "live" },
     ],
   },
   {
     section: "Intel",
     icon: "IN",
-    modules: [{ key: "intel", label: "Intel", path: "/intel", status: "planned" }],
+    modules: [{ key: "intel", label: "Intel", path: "/intel", status: "live" }],
   },
   {
     section: "Liaison",
@@ -88,14 +93,14 @@ export const MODULE_REGISTRY: ModuleSection[] = [
     section: "Personnel & Role Management",
     icon: "PR",
     modules: [
-      { key: "personnel", label: "Personnel", path: "/personnel", status: "planned" },
-      { key: "certifications", label: "Certifications", path: "/personnel/certifications", status: "planned" },
+      { key: "personnel", label: "Personnel", path: "/personnel", status: "live" },
+      { key: "certifications", label: "Certifications", path: "/personnel/certifications", status: "live" },
     ],
   },
   {
     section: "Reference Library",
     icon: "RL",
-    modules: [{ key: "reference-library", label: "Reference Library", path: "/reference-library", status: "planned" }],
+    modules: [{ key: "reference-library", label: "Reference Library", path: "/reference-library", status: "live" }],
   },
   {
     section: "ICS Forms & Documentation",
@@ -105,7 +110,7 @@ export const MODULE_REGISTRY: ModuleSection[] = [
   {
     section: "Finance/Admin",
     icon: "FA",
-    modules: [{ key: "finance", label: "Finance/Admin", path: "/finance", status: "planned" }],
+    modules: [{ key: "finance", label: "Finance/Admin", path: "/finance", status: "live" }],
   },
   {
     section: "Public Information",
@@ -115,24 +120,24 @@ export const MODULE_REGISTRY: ModuleSection[] = [
   {
     section: "GIS",
     icon: "GS",
-    modules: [{ key: "gis", label: "GIS", path: "/gis", status: "planned" }],
+    modules: [{ key: "gis", label: "GIS", path: "/gis", status: "live" }],
   },
   {
     section: "Toolkits",
     icon: "TK",
     modules: [
-      { key: "sar-toolkit", label: "SAR Toolkit", path: "/toolkits/sar", status: "planned" },
-      { key: "disaster-toolkit", label: "Disaster Response Toolkit", path: "/toolkits/disaster", status: "planned" },
-      { key: "planned-event-toolkit", label: "Planned Event Toolkit", path: "/toolkits/planned-event", status: "planned" },
-      { key: "initial-response-toolkit", label: "Initial Response Toolkit", path: "/toolkits/initial-response", status: "planned" },
+      { key: "sar-toolkit", label: "SAR Toolkit", path: "/toolkits/sar", status: "live" },
+      { key: "disaster-toolkit", label: "Disaster Response Toolkit", path: "/toolkits/disaster", status: "live" },
+      { key: "planned-event-toolkit", label: "Planned Event Toolkit", path: "/toolkits/planned-event", status: "live" },
+      { key: "initial-response-toolkit", label: "Initial Response Toolkit", path: "/toolkits/initial-response", status: "live" },
     ],
   },
   {
     section: "Admin",
     icon: "AD",
     modules: [
-      { key: "admin-catalogs", label: "Admin Catalogs", path: "/admin/catalogs", status: "planned" },
-      { key: "ui-customization", label: "UI Customization", path: "/admin/ui-customization", status: "planned" },
+      { key: "admin-catalogs", label: "Admin Catalogs", path: "/admin/catalogs", status: "live" },
+      { key: "ui-customization", label: "UI Customization", path: "/admin/ui-customization", status: "live" },
     ],
   },
 ];
@@ -144,9 +149,7 @@ export function findSectionForPath(pathname: string): ModuleSection | undefined 
 }
 
 export function findLiveModule(pathname: string): ModuleEntry | undefined {
-  for (const section of MODULE_REGISTRY) {
-    const match = section.modules.find((m) => pathname.startsWith(m.path));
-    if (match) return match;
-  }
-  return undefined;
+  return MODULE_REGISTRY.flatMap(section => section.modules)
+    .filter(module => module.status === "live" && (pathname === module.path || pathname.startsWith(`${module.path}/`)))
+    .sort((a, b) => b.path.length - a.path.length)[0];
 }

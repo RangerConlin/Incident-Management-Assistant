@@ -24,6 +24,10 @@ import WorkAssignmentsBoardPage from "./modules/planning/workAssignments/WorkAss
 import WorkAssignmentDetailPage from "./modules/planning/workAssignments/WorkAssignmentDetailPage";
 
 import CommandDashboardPage from "./modules/command/CommandDashboardPage";
+import IncidentOverviewPage from "./modules/command/IncidentOverviewPage";
+import IncidentOrganizationPage from "./modules/command/IncidentOrganizationPage";
+import IapPackagesPage from "./modules/command/IapPackagesPage";
+import IapPackageDetailPage from "./modules/command/IapPackageDetailPage";
 
 import ResourceStatusBoardPage from "./modules/logistics/resourceStatus/ResourceStatusBoardPage";
 import ResourceDetailPage from "./modules/logistics/resourceStatus/ResourceDetailPage";
@@ -52,6 +56,11 @@ import CommsPlanPage from "./modules/communications/plan/CommsPlanPage";
 import CommsLogPage from "./modules/communications/log/CommsLogPage";
 
 import FormExportsPage from "./modules/forms/FormExportsPage";
+import ApprovalsPage from "./modules/workspaces/ApprovalsPage";
+import CertificationsPage from "./modules/workspaces/CertificationsPage";
+import WeatherPage from "./modules/workspaces/WeatherPage";
+import DemobilizationPage from "./modules/workspaces/DemobilizationPage";
+import CustomizationPage from "./modules/workspaces/CustomizationPage";
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const { isAuthenticated } = useSession();
@@ -109,6 +118,11 @@ export default function App() {
       >
         <Route index element={<IndexContent />} />
         <Route path="forms" element={<RequireIncident><FormExportsPage /></RequireIncident>} />
+        <Route path="planning/approvals" element={<RequireIncident><ApprovalsPage /></RequireIncident>} />
+        <Route path="planning/demobilization" element={<RequireIncident><DemobilizationPage /></RequireIncident>} />
+        <Route path="personnel/certifications" element={<RequireIncident><CertificationsPage /></RequireIncident>} />
+        <Route path="weather" element={<RequireIncident><WeatherPage /></RequireIncident>} />
+        <Route path="admin/ui-customization" element={<CustomizationPage />} />
         <Route path="logistics" element={<RequireIncident><LogisticsDashboardPage /></RequireIncident>} />
         <Route path="logistics/resource-requests" element={<RequireIncident><ResourceRequestsBoardPage /></RequireIncident>} />
         <Route path="logistics/resource-requests/:requestId" element={<RequireIncident><ResourceRequestDetailPage /></RequireIncident>} />
@@ -128,6 +142,12 @@ export default function App() {
           <Route path=":section/:recordId" element={<RecordDetailPage />} />
         </Route>
         <Route path="command" element={<RequireIncident><CommandDashboardPage /></RequireIncident>} />
+        <Route path="command/overview" element={<RequireIncident><IncidentOverviewPage /></RequireIncident>} />
+        <Route path="command/organization" element={<RequireIncident><IncidentOrganizationPage /></RequireIncident>} />
+        <Route path="command/iap" element={<RequireIncident><IapPackagesPage /></RequireIncident>} />
+        <Route path="command/iap/:opNumber" element={<RequireIncident><IapPackageDetailPage /></RequireIncident>} />
+        <Route path="command/sitreps" element={<RequireIncident><SitrepsBoardPage /></RequireIncident>} />
+        <Route path="command/sitreps/:sitrepId" element={<RequireIncident><SitrepDetailPage /></RequireIncident>} />
         <Route path="comms/plan" element={<RequireIncident><CommsPlanPage /></RequireIncident>} />
         <Route path="comms/log" element={<RequireIncident><CommsLogPage /></RequireIncident>} />
         <Route

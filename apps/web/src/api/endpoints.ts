@@ -1,4 +1,21 @@
 import { api } from "./client";
+import type { Dataset, RecordData } from "../modules/workspaces/config";
+const datasetUrl=(d:Dataset,id:string)=>d.master?d.endpoint:`/api/incidents/${encodeURIComponent(id)}/${d.endpoint}`;
+const recordUrl=(d:Dataset,id:string,rid:string)=>`${datasetUrl(d,id).split("?")[0]}/${encodeURIComponent(rid)}`;
+
+export const listWorkspaceRecords = (d:Dataset,id:string)=>api.get<RecordData[]>(datasetUrl(d,id));
+export const saveWorkspaceRecord = (d:Dataset,id:string,rid:string|null,body:RecordData)=>{if(rid===null){if(!d.create)throw new Error("Creation is unavailable for this collection.");return api.post<RecordData>(datasetUrl(d,id).split("?")[0],body);}if(!d.update)throw new Error("Editing is unavailable for this collection.");return api[d.update]<RecordData>(recordUrl(d,id,rid),body);};
+export const deleteWorkspaceRecord = (d:Dataset,id:string,rid:string)=>{if(!d.remove)throw new Error("Removal is unavailable for this collection.");return api.delete<void>(recordUrl(d,id,rid));};
+export const pendingApprovals=(id:string,p:number)=>api.get<RecordData[]>(`/api/incidents/${encodeURIComponent(id)}/approvals/pending/${p}`);
+export const listCertificationTypes=()=>api.get<RecordData[]>("/api/master/certification-types");
+export const listPersonCertifications=(p:string)=>api.get<RecordData[]>(`/api/master/certifications/personnel/${encodeURIComponent(p)}`);
+export const assignPersonCertification=(p:string,c:string,l:number)=>api.post<RecordData>(`/api/master/certifications/personnel/${encodeURIComponent(p)}/${encodeURIComponent(c)}`,{level:l});
+export const removePersonCertification=(p:string,c:string)=>api.delete<void>(`/api/master/certifications/personnel/${encodeURIComponent(p)}/${encodeURIComponent(c)}`);
+export const getWeatherConfig=(id:string)=>api.get<RecordData>(`/api/incidents/${encodeURIComponent(id)}/weather/config`);
+export const addWeatherLocation=(id:string,b:RecordData)=>api.post<RecordData>(`/api/incidents/${encodeURIComponent(id)}/weather/locations`,b);
+export const removeWeatherLocation=(id:string,l:string)=>api.delete<RecordData>(`/api/incidents/${encodeURIComponent(id)}/weather/locations/${encodeURIComponent(l)}`);
+export const setWeatherDefault=(id:string,l:string)=>api.patch<RecordData>(`/api/incidents/${encodeURIComponent(id)}/weather/locations/${encodeURIComponent(l)}/default`,{});
+export const weatherHistory=(id:string,l:string)=>api.get<{samples:RecordData[]}>(`/api/incidents/${encodeURIComponent(id)}/weather/history?location_id=${encodeURIComponent(l)}`);
 import type {
   ChannelsPlanValidation,
   CheckinRosterRow,
@@ -52,6 +69,7 @@ import type {
   WorkAssignmentResourceAssignment,
   WorkAssignmentResourceRequirement,
   WorkAssignmentTaskLink,
+  IncidentProfile, OrgAssignment, OrgPosition, OrgTemplate, IapPackage,
 } from "./types";
 
 export function lookupPerson(personId: string) {
@@ -59,6 +77,24 @@ export function lookupPerson(personId: string) {
     `/api/auth/lookup?person_id=${encodeURIComponent(personId)}`
   );
 }
+
+const commandBase=(id:string)=>`/api/incidents/${encodeURIComponent(id)}`;
+export const getIncidentProfile=(id:string)=>api.get<IncidentProfile>(`${commandBase(id)}/profile`);
+export const updateIncidentProfile=(id:string,b:Record<string,unknown>)=>api.patch<IncidentProfile>(`${commandBase(id)}/profile`,b);
+export const listOrgPositions=(id:string)=>api.get<OrgPosition[]>(`${commandBase(id)}/org/positions`);
+export const saveOrgPosition=(id:string,b:Record<string,unknown>)=>api.post<{position_id:number}>(`${commandBase(id)}/org/positions`,b);
+export const deleteOrgPosition=(id:string,p:number)=>api.delete<{ok:boolean}>(`${commandBase(id)}/org/positions/${p}`);
+export const listOrgAssignments=(id:string)=>api.get<OrgAssignment[]>(`${commandBase(id)}/org/assignments`);
+export const addOrgAssignment=(id:string,b:Record<string,unknown>)=>api.post<{assignment_id:string}>(`${commandBase(id)}/org/assignments`,b);
+export const endOrgAssignment=(id:string,a:string)=>api.patch<{ok:boolean}>(`${commandBase(id)}/org/assignments/${encodeURIComponent(a)}/end`,{});
+export const listOrgTemplates=(id:string)=>api.get<OrgTemplate[]>(`${commandBase(id)}/org/templates`);
+export const applyOrgTemplate=(id:string,payload:Record<string,unknown>[])=>api.post<number[]>(`${commandBase(id)}/org/templates/apply`,{payload});
+export const listIapPackages=(id:string)=>api.get<IapPackage[]>(`${commandBase(id)}/iap/packages`);
+export const getIapPackage=(id:string,op:number)=>api.get<IapPackage>(`${commandBase(id)}/iap/packages/${op}`);
+export const saveIapPackage=(id:string,op:number,b:Record<string,unknown>)=>api.put<IapPackage>(`${commandBase(id)}/iap/packages/${op}`,b);
+export const saveIapForm=(id:string,op:number,f:string,b:Record<string,unknown>)=>api.put<IapPackage>(`${commandBase(id)}/iap/packages/${op}/forms/${encodeURIComponent(f)}`,b);
+export const deleteIapForm=(id:string,op:number,f:string)=>api.delete<void>(`${commandBase(id)}/iap/packages/${op}/forms/${encodeURIComponent(f)}`);
+export const orderIapForms=(id:string,op:number,order:string[])=>api.put<IapPackage>(`${commandBase(id)}/iap/packages/${op}/forms-order`,{order});
 
 export function registerPerson(personId: string, firstName: string, lastName: string) {
   return api.post<{ status: string; person: PersonnelSummary }>("/api/auth/register", {
