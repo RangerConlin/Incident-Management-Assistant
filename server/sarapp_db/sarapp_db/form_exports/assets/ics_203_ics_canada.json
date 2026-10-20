@@ -1,0 +1,393 @@
+{
+  "description": "ICS 203 â€” Organization Assignment List â€” ICS Canada 2023",
+  "fields": [
+    {
+      "pdf_field": "1 INCIDENT NAME",
+      "source": "incident.name"
+    },
+    {
+      "pdf_field": "2 DATE",
+      "source": {
+        "key": "prepared_by.date_time",
+        "transform": "date_short"
+      }
+    },
+    {
+      "pdf_field": "3 TIME",
+      "source": {
+        "key": "prepared_by.date_time",
+        "transform": "time_short"
+      }
+    },
+    {
+      "pdf_field": "Text17.0.0",
+      "source": "op_period.start_date"
+    },
+    {
+      "pdf_field": "Text17.0.1",
+      "source": "op_period.end_date"
+    },
+    {
+      "pdf_field": "Text17.1",
+      "source": "op_period.end_time"
+    },
+    {
+      "pdf_field": "Text17.2",
+      "source": "op_period.start_time"
+    },
+    {
+      "pdf_field": "PREPARED BY (Resources Only)",
+      "source": "prepared_by.name"
+    },
+    {
+      "pdf_field": "5. INCIDENT COMMAND AND STAFF Inident Cmndr/Unified Cmndrs A",
+      "source": "organization.incident_commander.name"
+    },
+    {
+      "pdf_field": "5. INCIDENT COMMAND AND STAFF Deputy",
+      "source": "organization.deputy_incident_commander.name"
+    },
+    {
+      "pdf_field": "5. INCIDENT COMMAND AND STAFF Safety Officer",
+      "source": "organization.safety_officer.name"
+    },
+    {
+      "pdf_field": "5. INCIDENT COMMAND AND STAFF Information Officer",
+      "source": "organization.public_information_officer.name"
+    },
+    {
+      "pdf_field": "5. INCIDENT COMMAND AND STAFF Liaison Officer",
+      "source": "organization.liaison_officer.name"
+    },
+    {
+      "pdf_field": "9. OPERATIONS SECTION Chief",
+      "source": "organization.operations_section_chief.name"
+    },
+    {
+      "pdf_field": "9. OPERATIONS SECTION Deputy",
+      "source": "organization.deputy_operations_section_chief.name"
+    },
+    {
+      "pdf_field": "7. PLANNING SECTION Chief",
+      "source": "organization.planning_section_chief.name"
+    },
+    {
+      "pdf_field": "7. PLANNING SECTION Deputy",
+      "source": "organization.deputy_planning_section_chief.name"
+    },
+    {
+      "pdf_field": "7. PLANNING SECTION Resources Unit",
+      "source": "organization.resources_unit_leader.name"
+    },
+    {
+      "pdf_field": "7. PLANNING SECTION Situation Unit",
+      "source": "organization.situation_unit_leader.name"
+    },
+    {
+      "pdf_field": "7. PLANNING SECTION Documentation Unit",
+      "source": "organization.documentation_unit_leader.name"
+    },
+    {
+      "pdf_field": "7. PLANNING SECTION Demobilization Unit",
+      "source": "organization.demobilization_unit_leader.name"
+    },
+    {
+      "pdf_field": "8. LOGISTICS SECTION Chief",
+      "source": "organization.logistics_section_chief.name"
+    },
+    {
+      "pdf_field": "8. LOGISTICS SECTION Deputy",
+      "source": "organization.deputy_logistics_section_chief.name"
+    },
+    {
+      "pdf_field": "10 FINANCIALADMINISTRATION SECTION Chief",
+      "source": "organization.finance_admin_section_chief.name"
+    },
+    {
+      "pdf_field": "10 FINANCIALADMINISTRATION SECTION Deputy",
+      "source": "organization.deputy_finance_admin_section_chief.name"
+    },
+    {
+      "pdf_field": "10 FINANCIALADMINISTRATION SECTION Time Unit",
+      "source": "organization.time_unit_leader.name"
+    },
+    {
+      "pdf_field": "10 FINANCIALADMINISTRATION SECTION Procurement Unit",
+      "source": "organization.procurement_unit_leader.name"
+    },
+    {
+      "pdf_field": "10 FINANCIALADMINISTRATION SECTION Compensation/Claims",
+      "source": "organization.compensation_claims_unit_leader.name"
+    },
+    {
+      "pdf_field": "10 FINANCIALADMINISTRATION SECTION Cost Unit",
+      "source": "organization.cost_unit_leader.name"
+    },
+    {
+      "pdf_field": "a. SUPPORT BRANCH Director",
+      "source": "organization.support_branch_director.name"
+    },
+    {
+      "pdf_field": "a. SUPPORT BRANCH Supply Unit",
+      "source": "organization.supply_unit_leader.name"
+    },
+    {
+      "pdf_field": "a. SUPPORT BRANCH Facilities Unit",
+      "source": "organization.facilities_unit_leader.name"
+    },
+    {
+      "pdf_field": "a. SUPPORT BRANCH Ground Support Unit",
+      "source": "organization.ground_support_unit_leader.name"
+    },
+    {
+      "pdf_field": "b. SERVICE BRANCH Director",
+      "source": "organization.service_branch_director.name"
+    },
+    {
+      "pdf_field": "b. SERVICE BRANCH Communications Unit",
+      "source": "organization.communications_unit_leader.name"
+    },
+    {
+      "pdf_field": "b. SERVICE BRANCH Medical Unit",
+      "source": "organization.medical_unit_leader.name"
+    },
+    {
+      "pdf_field": "b. SERVICE BRANCH Food Unit",
+      "source": "organization.food_unit_leader.name"
+    },
+    {
+      "pdf_field": "d. AIR OPERATIONS BRANCH Air Operations Br. Dir",
+      "source": "organization.air_operations_branch_director.name"
+    },
+    {
+      "pdf_field": "d. AIR OPERATIONS BRANCH Air Tactical Group Sup Row1",
+      "source": "organization.air_tactical_group_supervisor.name"
+    },
+    {
+      "pdf_field": "d. AIR OPERATIONS BRANCH Air Tactical Group Sup Row2",
+      "source": "organization.air_support_group_supervisor.name"
+    },
+    {
+      "pdf_field": "d. AIR OPERATIONS BRANCH Position1",
+      "source": ""
+    },
+    {
+      "pdf_field": "d. AIR OPERATIONS BRANCH Position2",
+      "source": ""
+    },
+    {
+      "pdf_field": "d. AIR OPERATIONS BRANCH Row1",
+      "source": ""
+    },
+    {
+      "pdf_field": "d. AIR OPERATIONS BRANCH Row2",
+      "source": ""
+    },
+    {
+      "pdf_field": "a.branch_id1",
+      "source": "org_branches.0.name"
+    },
+    {
+      "pdf_field": "a.branch_director1",
+      "source": "org_branches.0.director_name"
+    },
+    {
+      "pdf_field": "a.branch_deputy1",
+      "source": "org_branches.0.deputy_name"
+    },
+    {
+      "pdf_field": "a.div_1_name1",
+      "source": "org_branches.0.divisions.0.name"
+    },
+    {
+      "pdf_field": "a.div_1_supervisor1",
+      "source": "org_branches.0.divisions.0.supervisor_name"
+    },
+    {
+      "pdf_field": "a.div_2_name1",
+      "source": "org_branches.0.divisions.1.name"
+    },
+    {
+      "pdf_field": "a.div_2_supervisor1",
+      "source": "org_branches.0.divisions.1.supervisor_name"
+    },
+    {
+      "pdf_field": "a.div_3_name1",
+      "source": "org_branches.0.divisions.2.name"
+    },
+    {
+      "pdf_field": "a.div_3_supervisor1",
+      "source": "org_branches.0.divisions.2.supervisor_name"
+    },
+    {
+      "pdf_field": "a.div_4_name1",
+      "source": "org_branches.0.divisions.3.name"
+    },
+    {
+      "pdf_field": "a.div_4_supervisor1",
+      "source": "org_branches.0.divisions.3.supervisor_name"
+    },
+    {
+      "pdf_field": "a.div_5_name1",
+      "source": "org_branches.0.divisions.4.name"
+    },
+    {
+      "pdf_field": "a.div_5_supervisor1",
+      "source": "org_branches.0.divisions.4.supervisor_name"
+    },
+    {
+      "pdf_field": "b.branch_id1",
+      "source": "org_branches.1.name"
+    },
+    {
+      "pdf_field": "b.branch_director1",
+      "source": "org_branches.1.director_name"
+    },
+    {
+      "pdf_field": "b.branch_deputy1",
+      "source": "org_branches.1.deputy_name"
+    },
+    {
+      "pdf_field": "b.div_1_name1",
+      "source": "org_branches.1.divisions.0.name"
+    },
+    {
+      "pdf_field": "b.div_1_supervisor2",
+      "source": "org_branches.1.divisions.0.supervisor_name"
+    },
+    {
+      "pdf_field": "b.div_2_name1",
+      "source": "org_branches.1.divisions.1.name"
+    },
+    {
+      "pdf_field": "b.div_2_supervisor2",
+      "source": "org_branches.1.divisions.1.supervisor_name"
+    },
+    {
+      "pdf_field": "b.div_3_name1",
+      "source": "org_branches.1.divisions.2.name"
+    },
+    {
+      "pdf_field": "b.div_3_supervisor2",
+      "source": "org_branches.1.divisions.2.supervisor_name"
+    },
+    {
+      "pdf_field": "b.div_4_name1",
+      "source": "org_branches.1.divisions.3.name"
+    },
+    {
+      "pdf_field": "b.div_4_supervisor2",
+      "source": "org_branches.1.divisions.3.supervisor_name"
+    },
+    {
+      "pdf_field": "b.div_5_name1",
+      "source": "org_branches.1.divisions.4.name"
+    },
+    {
+      "pdf_field": "b.div_5_supervisor2",
+      "source": "org_branches.1.divisions.4.supervisor_name"
+    },
+    {
+      "pdf_field": "c.branch_id1",
+      "source": "org_branches.2.name"
+    },
+    {
+      "pdf_field": "c.branch_director1",
+      "source": "org_branches.2.director_name"
+    },
+    {
+      "pdf_field": "c.branch_deputy1",
+      "source": "org_branches.2.deputy_name"
+    },
+    {
+      "pdf_field": "c.div_1_name1",
+      "source": "org_branches.2.divisions.0.name"
+    },
+    {
+      "pdf_field": "c.div_1_supervisor2",
+      "source": "org_branches.2.divisions.0.supervisor_name"
+    },
+    {
+      "pdf_field": "c.div_2_name1",
+      "source": "org_branches.2.divisions.1.name"
+    },
+    {
+      "pdf_field": "c.div_2_supervisor2",
+      "source": "org_branches.2.divisions.1.supervisor_name"
+    },
+    {
+      "pdf_field": "c.div_3_name1",
+      "source": "org_branches.2.divisions.2.name"
+    },
+    {
+      "pdf_field": "c.div_3_supervisor2",
+      "source": "org_branches.2.divisions.2.supervisor_name"
+    },
+    {
+      "pdf_field": "c.div_4_name1",
+      "source": "org_branches.2.divisions.3.name"
+    },
+    {
+      "pdf_field": "c.div_4_supervisor2",
+      "source": "org_branches.2.divisions.3.supervisor_name"
+    },
+    {
+      "pdf_field": "c.div_5_name1",
+      "source": "org_branches.2.divisions.4.name"
+    },
+    {
+      "pdf_field": "c.div_5_supervisor2",
+      "source": "org_branches.2.divisions.4.supervisor_name"
+    },
+    {
+      "pdf_field": "5.uc_name1",
+      "source": {
+        "key": "uc_commanders.1.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "5.uc_name2",
+      "source": {
+        "key": "uc_commanders.2.name",
+        "default": ""
+      }
+    }
+  ],
+  "row_groups": [
+    {
+      "ref": "planning_tech_specialist_names",
+      "data_key": "planning_tech_specialists",
+      "overflow_mode": "truncate",
+      "rows_per_page": [
+        4
+      ],
+      "col_patterns": {
+        "name": "7.tech_name{n}"
+      }
+    },
+    {
+      "ref": "planning_tech_specialist_specialties",
+      "data_key": "planning_tech_specialists",
+      "overflow_mode": "truncate",
+      "rows_per_page": [
+        3
+      ],
+      "col_patterns": {
+        "specialty": "7.tech_specialty{n}"
+      }
+    },
+    {
+      "ref": "org_agency_reps",
+      "data_key": "org_agency_reps",
+      "overflow_mode": "truncate",
+      "rows_per_page": [
+        7
+      ],
+      "col_patterns": {
+        "agency": "rep_agency{n}",
+        "name": "rep_name{n}"
+      }
+    }
+  ]
+}

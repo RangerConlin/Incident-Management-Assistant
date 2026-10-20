@@ -21,7 +21,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO_ROOT))
+sys.path.insert(0, str(REPO_ROOT / "apps" / "desktop" / "sarapp_desktop"))
 
 from styles.profiles import dark as dark_profile  # noqa: E402
 from styles.profiles import light as light_profile  # noqa: E402
@@ -38,6 +38,16 @@ STATUS_DICTS = [
     ("OPERATIONAL_PERIOD_STATUS", "op-period"),
     ("MEETING_STATUS", "meeting"),
     ("SITREP_STATUS", "sitrep"),
+    ("PIO_STATUS", "pio"),
+    ("LIAISON_AGENCY_STATUS", "liaison-agency"),
+    ("LIAISON_REQUEST_STATUS", "liaison-request"),
+    ("LIAISON_PRIORITY", "liaison-priority"),
+    ("LIAISON_REPORT_STATE", "liaison-report"),
+    ("LOGISTICS_REQUEST_STATUS", "logistics-request"),
+    ("LOGISTICS_REQUEST_PRIORITY", "logistics-priority"),
+    ("FACILITY_STATUS", "facility"),
+    ("APPROVAL_STATUS", "approval"),
+    ("APPROVAL_STEP_STATUS", "approval-step"),
 ]
 
 # Hand-kept values with no Python dict equivalent (UI chrome, not a status

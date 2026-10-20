@@ -1,7 +1,6 @@
 """Planned Event Toolkit router (MongoDB-backed)."""
 from __future__ import annotations
 
-import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
@@ -11,8 +10,63 @@ from pydantic import BaseModel, Field
 from sarapp_db.mongo.collection_names import IncidentCollections
 from sarapp_db.mongo.database_manager import get_incident_db
 from sarapp_db.mongo.int_id import next_int_id
+from sarapp_db.mongo.repository import BaseRepository
 
 router = APIRouter()
+
+
+class PlannedCampaignsRepository(BaseRepository):
+    collection_name = IncidentCollections.PLANNED_CAMPAIGNS
+
+
+class PlannedEventSchedulesRepository(BaseRepository):
+    collection_name = IncidentCollections.PLANNED_EVENT_SCHEDULES
+
+
+class PlannedVendorsRepository(BaseRepository):
+    collection_name = IncidentCollections.PLANNED_VENDORS
+
+
+class PlannedPermitsRepository(BaseRepository):
+    collection_name = IncidentCollections.PLANNED_PERMITS
+
+
+class PlannedTasksRepository(BaseRepository):
+    collection_name = IncidentCollections.PLANNED_TASKS
+
+
+class PlannedQuickAssignmentsRepository(BaseRepository):
+    collection_name = IncidentCollections.PLANNED_QUICK_ASSIGNMENTS
+
+
+class PlannedHealthInspectionsRepository(BaseRepository):
+    collection_name = IncidentCollections.PLANNED_HEALTH_INSPECTIONS
+
+
+class PlannedScheduleTriggersRepository(BaseRepository):
+    collection_name = IncidentCollections.PLANNED_SCHEDULE_TRIGGERS
+
+
+class PlannedNotificationsRepository(BaseRepository):
+    collection_name = IncidentCollections.PLANNED_NOTIFICATIONS
+
+
+class OperationsTasksRepository(BaseRepository):
+    collection_name = IncidentCollections.OPERATIONS_TASKS
+
+
+_REPOSITORIES: dict[str, type[BaseRepository]] = {
+    IncidentCollections.PLANNED_CAMPAIGNS: PlannedCampaignsRepository,
+    IncidentCollections.PLANNED_EVENT_SCHEDULES: PlannedEventSchedulesRepository,
+    IncidentCollections.PLANNED_VENDORS: PlannedVendorsRepository,
+    IncidentCollections.PLANNED_PERMITS: PlannedPermitsRepository,
+    IncidentCollections.PLANNED_TASKS: PlannedTasksRepository,
+    IncidentCollections.PLANNED_QUICK_ASSIGNMENTS: PlannedQuickAssignmentsRepository,
+    IncidentCollections.PLANNED_HEALTH_INSPECTIONS: PlannedHealthInspectionsRepository,
+    IncidentCollections.PLANNED_SCHEDULE_TRIGGERS: PlannedScheduleTriggersRepository,
+    IncidentCollections.PLANNED_NOTIFICATIONS: PlannedNotificationsRepository,
+    IncidentCollections.OPERATIONS_TASKS: OperationsTasksRepository,
+}
 
 _TOOLS = {
     "promotions": {
@@ -71,8 +125,22 @@ def _utcnow() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-def _new_id() -> str:
-    return str(uuid.uuid4())
+def _repo(incident_id: str, collection_name: str) -> BaseRepository:
+    return _REPOSITORIES[collection_name](get_incident_db(incident_id))
+
+
+def _repo_for_config(incident_id: str, config: dict[str, Any]) -> BaseRepository:
+    return _repo(incident_id, config["collection"])
+
+
+def _find_by_compound_id(
+    repo: BaseRepository,
+    incident_id: str,
+    config: dict[str, Any],
+    record_id: int,
+) -> dict[str, Any] | None:
+    compound_id = f"{incident_id}-{config['prefix']}-{record_id}"
+    return repo.find_one({config["id_field"]: compound_id, "incident_id": incident_id})
 
 
 def _tool_config(tool: str) -> dict[str, Any]:
@@ -82,10 +150,10 @@ def _tool_config(tool: str) -> dict[str, Any]:
     return config
 
 
-def _next_compound_id(col, incident_id: str, config: dict[str, Any]) -> str:
+def _next_compound_id(repo: BaseRepository, incident_id: str, config: dict[str, Any]) -> str:
     marker = f"{incident_id}-{config['prefix']}-"
     max_id = 0
-    for doc in col.find({"incident_id": incident_id}, {config["id_field"]: 1}):
+    for doc in repo.find_many({"incident_id": incident_id}, include_deleted=True):
         raw = doc.get(config["id_field"], "")
         if isinstance(raw, str) and raw.startswith(marker):
             try:
@@ -328,7 +396,7 @@ def _map_notification(doc: Dict[str, Any]) -> Dict[str, Any]:
 @router.get("/incidents/{incident_id}/planned/{tool}")
 def list_records(incident_id: str, tool: str, status: Optional[str] = None, search: Optional[str] = None):
     config = _tool_config(tool)
-    col = get_incident_db(incident_id)[config["collection"]]
+    repo = _repo_for_config(incident_id, config)
     query: Dict[str, Any] = {"incident_id": incident_id, "deleted": {"$ne": True}}
     if status:
         query["status"] = status
@@ -338,18 +406,17 @@ def list_records(incident_id: str, tool: str, status: Optional[str] = None, sear
             {"summary": {"$regex": search, "$options": "i"}},
             {"location": {"$regex": search, "$options": "i"}},
         ]
-    docs = list(col.find(query, {"_id": 0}).sort(config["sort"], 1))
+    docs = repo.find_many(query, sort=[(config["sort"], 1)])
     return [_map_doc(doc, config) for doc in docs]
 
 
 @router.post("/incidents/{incident_id}/planned/{tool}", status_code=201)
 def create_record(incident_id: str, tool: str, body: PlannedRecordCreate):
     config = _tool_config(tool)
-    col = get_incident_db(incident_id)[config["collection"]]
-    record_id = _next_compound_id(col, incident_id, config)
+    repo = _repo_for_config(incident_id, config)
+    record_id = _next_compound_id(repo, incident_id, config)
     now = _utcnow()
     doc: Dict[str, Any] = {
-        "_id": _new_id(),
         config["id_field"]: record_id,
         "incident_id": incident_id,
         "tool": tool,
@@ -387,27 +454,25 @@ def create_record(incident_id: str, tool: str, body: PlannedRecordCreate):
         "updated_at": now,
         "deleted": False,
     }
-    col.insert_one(doc)
-    saved = col.find_one({config["id_field"]: record_id}, {"_id": 0})
+    saved = repo.insert_one(doc)
     return _map_doc(saved, config)
 
 
 @router.get("/incidents/{incident_id}/planned/promotions/schedule")
 def list_schedule(incident_id: str):
     config = _tool_config("promotions/schedule")
-    col = get_incident_db(incident_id)[config["collection"]]
-    docs = list(col.find({"incident_id": incident_id, "deleted": {"$ne": True}}, {"_id": 0}).sort(config["sort"], 1))
+    repo = _repo_for_config(incident_id, config)
+    docs = repo.find_many({"incident_id": incident_id}, sort=[(config["sort"], 1)])
     return [_map_doc(doc, config) for doc in docs]
 
 
 @router.post("/incidents/{incident_id}/planned/promotions/schedule", status_code=201)
 def create_schedule(incident_id: str, body: ScheduleItemCreate):
     config = _tool_config("promotions/schedule")
-    col = get_incident_db(incident_id)[config["collection"]]
-    record_id = _next_compound_id(col, incident_id, config)
+    repo = _repo_for_config(incident_id, config)
+    record_id = _next_compound_id(repo, incident_id, config)
     now = _utcnow()
     doc: Dict[str, Any] = {
-        "_id": _new_id(),
         config["id_field"]: record_id,
         "incident_id": incident_id,
         "tool": "promotions/schedule",
@@ -425,47 +490,37 @@ def create_schedule(incident_id: str, body: ScheduleItemCreate):
         "updated_at": now,
         "deleted": False,
     }
-    col.insert_one(doc)
-    saved = col.find_one({config["id_field"]: record_id}, {"_id": 0})
+    saved = repo.insert_one(doc)
     return _map_doc(saved, config)
 
 
 @router.patch("/incidents/{incident_id}/planned/promotions/schedule/{record_id}")
 def update_schedule(incident_id: str, record_id: int, patch: Dict[str, Any] = Body(...)):
     config = _tool_config("promotions/schedule")
-    col = get_incident_db(incident_id)[config["collection"]]
-    compound_id = f"{incident_id}-{config['prefix']}-{record_id}"
+    repo = _repo_for_config(incident_id, config)
     allowed = {"name", "kind", "starts_at", "ends_at", "notes", "location", "zone", "owner", "status", "tags"}
     updates = {key: value for key, value in patch.items() if key in allowed}
-    updates["updated_at"] = _utcnow()
-    doc = col.find_one_and_update(
-        {config["id_field"]: compound_id, "incident_id": incident_id, "deleted": {"$ne": True}},
-        {"$set": updates},
-        return_document=True,
-    )
-    if not doc:
+    existing = _find_by_compound_id(repo, incident_id, config, record_id)
+    if not existing:
         raise HTTPException(status_code=404, detail="Schedule item not found")
+    repo.update_one(existing["_id"], updates)
+    doc = repo.find_by_id(existing["_id"])
     return _map_doc(doc, config)
 
 
 @router.delete("/incidents/{incident_id}/planned/promotions/schedule/{record_id}", status_code=204)
 def delete_schedule(incident_id: str, record_id: int):
     config = _tool_config("promotions/schedule")
-    col = get_incident_db(incident_id)[config["collection"]]
-    compound_id = f"{incident_id}-{config['prefix']}-{record_id}"
-    result = col.update_one(
-        {config["id_field"]: compound_id, "incident_id": incident_id},
-        {"$set": {"deleted": True, "updated_at": _utcnow()}},
-    )
-    if result.matched_count == 0:
+    repo = _repo_for_config(incident_id, config)
+    existing = _find_by_compound_id(repo, incident_id, config, record_id)
+    if not existing or not repo.soft_delete(existing["_id"]):
         raise HTTPException(status_code=404, detail="Schedule item not found")
 
 
 @router.patch("/incidents/{incident_id}/planned/{tool}/{record_id}")
 def update_record(incident_id: str, tool: str, record_id: int, patch: Dict[str, Any] = Body(...)):
     config = _tool_config(tool)
-    col = get_incident_db(incident_id)[config["collection"]]
-    compound_id = f"{incident_id}-{config['prefix']}-{record_id}"
+    repo = _repo_for_config(incident_id, config)
     allowed = {
         "title",
         "summary",
@@ -494,56 +549,44 @@ def update_record(incident_id: str, tool: str, record_id: int, patch: Dict[str, 
         "source_tool",
         "metadata",
     }
-    existing = col.find_one(
-        {config["id_field"]: compound_id, "incident_id": incident_id, "deleted": {"$ne": True}},
-        {"_id": 0, "promoted_read_only": 1},
-    )
+    existing = _find_by_compound_id(repo, incident_id, config, record_id)
     if existing and existing.get("promoted_read_only"):
         raise HTTPException(status_code=409, detail="Promoted Quick Assignment is read-only")
     updates = {key: value for key, value in patch.items() if key in allowed}
-    updates["updated_at"] = _utcnow()
-    doc = col.find_one_and_update(
-        {config["id_field"]: compound_id, "incident_id": incident_id, "deleted": {"$ne": True}},
-        {"$set": updates},
-        return_document=True,
-    )
-    if not doc:
+    if not existing:
         raise HTTPException(status_code=404, detail="Planned toolkit record not found")
+    repo.update_one(existing["_id"], updates)
+    doc = repo.find_by_id(existing["_id"])
     return _map_doc(doc, config)
 
 
 @router.delete("/incidents/{incident_id}/planned/{tool}/{record_id}", status_code=204)
 def delete_record(incident_id: str, tool: str, record_id: int):
     config = _tool_config(tool)
-    col = get_incident_db(incident_id)[config["collection"]]
-    compound_id = f"{incident_id}-{config['prefix']}-{record_id}"
-    result = col.update_one(
-        {config["id_field"]: compound_id, "incident_id": incident_id},
-        {"$set": {"deleted": True, "updated_at": _utcnow()}},
-    )
-    if result.matched_count == 0:
+    repo = _repo_for_config(incident_id, config)
+    existing = _find_by_compound_id(repo, incident_id, config, record_id)
+    if not existing or not repo.soft_delete(existing["_id"]):
         raise HTTPException(status_code=404, detail="Planned toolkit record not found")
 
 
 @router.get("/incidents/{incident_id}/planned-meta/schedule-triggers")
 def list_schedule_triggers(incident_id: str, schedule_item_id: Optional[str] = None):
     config = _schedule_trigger_config()
-    col = get_incident_db(incident_id)[config["collection"]]
+    repo = _repo_for_config(incident_id, config)
     query: Dict[str, Any] = {"incident_id": incident_id, "deleted": {"$ne": True}}
     if schedule_item_id:
         query["schedule_item_id"] = schedule_item_id
-    docs = list(col.find(query, {"_id": 0}).sort(config["sort"], 1))
+    docs = repo.find_many(query, sort=[(config["sort"], 1)])
     return [_map_schedule_trigger(doc) for doc in docs]
 
 
 @router.post("/incidents/{incident_id}/planned-meta/schedule-triggers", status_code=201)
 def create_schedule_trigger(incident_id: str, body: ScheduleTriggerCreate):
     config = _schedule_trigger_config()
-    col = get_incident_db(incident_id)[config["collection"]]
-    record_id = _next_compound_id(col, incident_id, config)
+    repo = _repo_for_config(incident_id, config)
+    record_id = _next_compound_id(repo, incident_id, config)
     now = _utcnow()
     doc: Dict[str, Any] = {
-        "_id": _new_id(),
         config["id_field"]: record_id,
         "incident_id": incident_id,
         "schedule_item_id": body.schedule_item_id or "",
@@ -575,16 +618,14 @@ def create_schedule_trigger(incident_id: str, body: ScheduleTriggerCreate):
         "updated_at": now,
         "deleted": False,
     }
-    col.insert_one(doc)
-    saved = col.find_one({config["id_field"]: record_id}, {"_id": 0})
+    saved = repo.insert_one(doc)
     return _map_schedule_trigger(saved)
 
 
 @router.patch("/incidents/{incident_id}/planned-meta/schedule-triggers/{record_id}")
 def update_schedule_trigger(incident_id: str, record_id: int, patch: Dict[str, Any] = Body(...)):
     config = _schedule_trigger_config()
-    col = get_incident_db(incident_id)[config["collection"]]
-    compound_id = f"{incident_id}-{config['prefix']}-{record_id}"
+    repo = _repo_for_config(incident_id, config)
     allowed = {
         "schedule_item_id",
         "trigger_type",
@@ -613,46 +654,38 @@ def update_schedule_trigger(incident_id: str, record_id: int, patch: Dict[str, A
         "missed_occurrence_behavior",
     }
     updates = {key: value for key, value in patch.items() if key in allowed}
-    updates["updated_at"] = _utcnow()
-    doc = col.find_one_and_update(
-        {config["id_field"]: compound_id, "incident_id": incident_id, "deleted": {"$ne": True}},
-        {"$set": updates},
-        return_document=True,
-    )
-    if not doc:
+    existing = _find_by_compound_id(repo, incident_id, config, record_id)
+    if not existing:
         raise HTTPException(status_code=404, detail="Schedule trigger not found")
+    repo.update_one(existing["_id"], updates)
+    doc = repo.find_by_id(existing["_id"])
     return _map_schedule_trigger(doc)
 
 
 @router.delete("/incidents/{incident_id}/planned-meta/schedule-triggers/{record_id}", status_code=204)
 def delete_schedule_trigger(incident_id: str, record_id: int):
     config = _schedule_trigger_config()
-    col = get_incident_db(incident_id)[config["collection"]]
-    compound_id = f"{incident_id}-{config['prefix']}-{record_id}"
-    result = col.update_one(
-        {config["id_field"]: compound_id, "incident_id": incident_id},
-        {"$set": {"deleted": True, "updated_at": _utcnow()}},
-    )
-    if result.matched_count == 0:
+    repo = _repo_for_config(incident_id, config)
+    existing = _find_by_compound_id(repo, incident_id, config, record_id)
+    if not existing or not repo.soft_delete(existing["_id"]):
         raise HTTPException(status_code=404, detail="Schedule trigger not found")
 
 
 @router.get("/incidents/{incident_id}/planned-meta/notifications")
 def list_notifications(incident_id: str):
     config = _notification_config()
-    col = get_incident_db(incident_id)[config["collection"]]
-    docs = list(col.find({"incident_id": incident_id, "deleted": {"$ne": True}}, {"_id": 0}).sort(config["sort"], 1))
+    repo = _repo_for_config(incident_id, config)
+    docs = repo.find_many({"incident_id": incident_id}, sort=[(config["sort"], 1)])
     return [_map_notification(doc) for doc in docs]
 
 
 @router.post("/incidents/{incident_id}/planned-meta/notifications", status_code=201)
 def create_notification(incident_id: str, body: NotificationCreate):
     config = _notification_config()
-    col = get_incident_db(incident_id)[config["collection"]]
-    record_id = _next_compound_id(col, incident_id, config)
+    repo = _repo_for_config(incident_id, config)
+    record_id = _next_compound_id(repo, incident_id, config)
     now = _utcnow()
     doc: Dict[str, Any] = {
-        "_id": _new_id(),
         config["id_field"]: record_id,
         "incident_id": incident_id,
         "title": body.title,
@@ -675,49 +708,41 @@ def create_notification(incident_id: str, body: NotificationCreate):
         "updated_at": now,
         "deleted": False,
     }
-    col.insert_one(doc)
-    saved = col.find_one({config["id_field"]: record_id}, {"_id": 0})
+    saved = repo.insert_one(doc)
     return _map_notification(saved)
 
 
 @router.post("/incidents/{incident_id}/planned-meta/notifications/{record_id}/acknowledge")
 def acknowledge_notification(incident_id: str, record_id: int, body: AcknowledgeRequest):
     config = _notification_config()
-    col = get_incident_db(incident_id)[config["collection"]]
-    compound_id = f"{incident_id}-{config['prefix']}-{record_id}"
+    repo = _repo_for_config(incident_id, config)
     now = _utcnow()
-    doc = col.find_one_and_update(
-        {config["id_field"]: compound_id, "incident_id": incident_id, "deleted": {"$ne": True}},
-        {"$set": {"acknowledged_at": now, "acknowledged_by": body.acknowledged_by, "updated_at": now}},
-        return_document=True,
-    )
-    if not doc:
+    existing = _find_by_compound_id(repo, incident_id, config, record_id)
+    if not existing:
         raise HTTPException(status_code=404, detail="Notification not found")
+    repo.update_one(existing["_id"], {"acknowledged_at": now, "acknowledged_by": body.acknowledged_by})
+    doc = repo.find_by_id(existing["_id"])
     return _map_notification(doc)
 
 
 @router.post("/incidents/{incident_id}/planned-meta/notifications/{record_id}/dismiss")
 def dismiss_notification(incident_id: str, record_id: int):
     config = _notification_config()
-    col = get_incident_db(incident_id)[config["collection"]]
-    compound_id = f"{incident_id}-{config['prefix']}-{record_id}"
+    repo = _repo_for_config(incident_id, config)
     now = _utcnow()
-    doc = col.find_one_and_update(
-        {config["id_field"]: compound_id, "incident_id": incident_id, "deleted": {"$ne": True}},
-        {"$set": {"dismissed_at": now, "updated_at": now}},
-        return_document=True,
-    )
-    if not doc:
+    existing = _find_by_compound_id(repo, incident_id, config, record_id)
+    if not existing:
         raise HTTPException(status_code=404, detail="Notification not found")
+    repo.update_one(existing["_id"], {"dismissed_at": now})
+    doc = repo.find_by_id(existing["_id"])
     return _map_notification(doc)
 
 
 @router.post("/incidents/{incident_id}/planned/quick-assignments/{record_id}/promote")
 def promote_quick_assignment(incident_id: str, record_id: int, body: PromotionRequest):
     config = _tool_config("quick-assignments")
-    col = get_incident_db(incident_id)[config["collection"]]
-    compound_id = f"{incident_id}-{config['prefix']}-{record_id}"
-    doc = col.find_one({config["id_field"]: compound_id, "incident_id": incident_id, "deleted": {"$ne": True}})
+    repo = _repo_for_config(incident_id, config)
+    doc = _find_by_compound_id(repo, incident_id, config, record_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Quick Assignment not found")
     if doc.get("linked_tasking_id"):
@@ -727,12 +752,11 @@ def promote_quick_assignment(incident_id: str, record_id: int, body: PromotionRe
         "id_field": "task_id",
         "prefix": "TASK",
     }
-    tasks_col = get_incident_db(incident_id)[IncidentCollections.OPERATIONS_TASKS]
-    task_id = _next_compound_id(tasks_col, incident_id, task_config)
-    task_int_id = next_int_id(tasks_col)
+    tasks_repo = _repo(incident_id, IncidentCollections.OPERATIONS_TASKS)
+    task_id = _next_compound_id(tasks_repo, incident_id, task_config)
+    task_int_id = next_int_id(tasks_repo._col)
     now = _utcnow()
     task_doc: Dict[str, Any] = {
-        "_id": _new_id(),
         "int_id": task_int_id,
         "task_id": task_id,
         "incident_id": incident_id,
@@ -749,7 +773,7 @@ def promote_quick_assignment(incident_id: str, record_id: int, body: PromotionRe
         "updated_at": now,
         "deleted": False,
     }
-    tasks_col.insert_one(task_doc)
+    tasks_repo.insert_one(task_doc)
     updates = {
         "linked_tasking_id": str(task_int_id),
         "promoted_at": now,
@@ -758,9 +782,6 @@ def promote_quick_assignment(incident_id: str, record_id: int, body: PromotionRe
         "lifecycle_state": "Promoted",
         "updated_at": now,
     }
-    saved = col.find_one_and_update(
-        {config["id_field"]: compound_id, "incident_id": incident_id},
-        {"$set": updates},
-        return_document=True,
-    )
+    repo.update_one(doc["_id"], updates)
+    saved = repo.find_by_id(doc["_id"])
     return _map_doc(saved, config)

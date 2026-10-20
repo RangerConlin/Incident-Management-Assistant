@@ -11,12 +11,15 @@ availability definition evolves without touching the UI or repository.
 """
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from modules.planning.tactics_resources.models.work_assignment_models import (
     ResourceGapSummary,
     WorkAssignmentResourceRequirement,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class ResourceGapService:
@@ -88,7 +91,7 @@ class ResourceGapService:
             result["vehicle"] = full.get("vehicle", [])
             result["equipment"] = full.get("equipment", [])
         except Exception:
-            pass
+            logger.exception("ResourceGapService.get_matching_available_resources failed")
         return result
 
     def calculate_gap_for_requirement(
@@ -132,6 +135,7 @@ class ResourceGapService:
             repo = WorkAssignmentRepository(self._db_path)
             requirements = repo.list_resource_requirements(work_assignment_id)
         except Exception:
+            logger.exception("ResourceGapService.calculate_gap_for_assignment failed")
             return ResourceGapSummary(work_assignment_id=work_assignment_id)
 
         total_required = 0

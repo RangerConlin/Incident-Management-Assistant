@@ -22,7 +22,7 @@ export const MODULE_REGISTRY: ModuleSection[] = [
   {
     section: "Command",
     icon: "CM",
-    modules: [{ key: "command-dashboard", label: "Command Dashboard", path: "/command", status: "planned" }],
+    modules: [{ key: "command-dashboard", label: "Command Dashboard", path: "/command", status: "live" }],
   },
   {
     section: "Planning",
@@ -44,22 +44,26 @@ export const MODULE_REGISTRY: ModuleSection[] = [
     modules: [
       { key: "team-status-board", label: "Team Status Board", path: "/ops/teams", status: "live" },
       { key: "task-status-board", label: "Task Status Board", path: "/ops/tasks", status: "live" },
-      { key: "taskings", label: "Taskings", path: "/ops/taskings", status: "planned" },
     ],
   },
   {
     section: "Logistics",
     icon: "LG",
     modules: [
-      { key: "logistics-dashboard", label: "Logistics", path: "/logistics", status: "planned" },
-      { key: "resource-requests", label: "Resource Requests", path: "/logistics/resource-requests", status: "planned" },
-      { key: "checkin", label: "Check-In", path: "/logistics/checkin", status: "planned" },
+      { key: "logistics-dashboard", label: "Logistics", path: "/logistics", status: "live" },
+      { key: "resource-status-board", label: "Resource Status Board", path: "/logistics/resources", status: "live" },
+      { key: "resource-requests", label: "Resource Requests", path: "/logistics/resource-requests", status: "live" },
+      { key: "checkin", label: "Check-In", path: "/logistics/checkin", status: "live" },
+      { key: "facilities", label: "Facilities", path: "/logistics/facilities", status: "live" },
     ],
   },
   {
     section: "Communications",
     icon: "CO",
-    modules: [{ key: "communications", label: "Communications", path: "/comms", status: "planned" }],
+    modules: [
+      { key: "comms-plan", label: "Communications Plan", path: "/comms/plan", status: "live" },
+      { key: "comms-log", label: "Traffic Log", path: "/comms/log", status: "live" },
+    ],
   },
   {
     section: "Medical & Safety",
@@ -78,7 +82,7 @@ export const MODULE_REGISTRY: ModuleSection[] = [
   {
     section: "Liaison",
     icon: "LI",
-    modules: [{ key: "liaison", label: "Liaison", path: "/liaison", status: "planned" }],
+    modules: [{ key: "liaison", label: "Liaison", path: "/liaison", status: "live" }],
   },
   {
     section: "Personnel & Role Management",
@@ -96,7 +100,7 @@ export const MODULE_REGISTRY: ModuleSection[] = [
   {
     section: "ICS Forms & Documentation",
     icon: "FM",
-    modules: [{ key: "forms", label: "Forms", path: "/forms", status: "planned" }],
+    modules: [{ key: "forms", label: "Forms", path: "/forms", status: "live" }],
   },
   {
     section: "Finance/Admin",
@@ -106,7 +110,7 @@ export const MODULE_REGISTRY: ModuleSection[] = [
   {
     section: "Public Information",
     icon: "PI",
-    modules: [{ key: "pio", label: "Public Information", path: "/pio", status: "planned" }],
+    modules: [{ key: "pio", label: "Public Information", path: "/pio", status: "live" }],
   },
   {
     section: "GIS",

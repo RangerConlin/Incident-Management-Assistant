@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
-SARAPP_VERSION = "0.1-connectivity"
+SARAPP_VERSION = "0.0.2"
 DEFAULT_DISCOVERY_PORT = 45454
 DEFAULT_SERVER_PORT = 8765
 DEFAULT_DISCOVERY_INTERVAL_SECONDS = 2.0

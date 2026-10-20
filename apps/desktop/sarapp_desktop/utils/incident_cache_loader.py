@@ -11,6 +11,7 @@ from typing import Optional
 from utils.api_client import api_client, APIError
 from utils.incident_cache import incident_cache
 from utils.incident_ws_client import IncidentWebSocketClient
+from utils.presence import presence
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,7 @@ def activate_incident(incident_id: Optional[str]) -> None:
     if _ws_client is not None:
         _ws_client.stop()
         _ws_client = None
+    presence.stop()
 
     if incident_id is None:
         incident_cache.clear()
@@ -88,6 +90,7 @@ def activate_incident(incident_id: Optional[str]) -> None:
 
     _ws_client = IncidentWebSocketClient(api_client.base_url, incident_id)
     _ws_client.start()
+    presence.start(incident_id)
 
 
 def shutdown() -> None:
@@ -97,4 +100,5 @@ def shutdown() -> None:
     if _ws_client is not None:
         _ws_client.stop()
         _ws_client = None
+    presence.stop()
     incident_cache.clear()

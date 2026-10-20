@@ -1,0 +1,20 @@
+.liaison-workspace { max-width: 1600px; margin: 0 auto; }
+.liaison-eyebrow { font-size: .75rem; letter-spacing: .15em; opacity: .7; }
+.liaison-workspace a { color: inherit; text-underline-offset: 3px; }
+.liaison-nav, .liaison-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 22px; margin: 18px 0; }
+.liaison-nav .active { font-weight: 700; text-decoration-thickness: 3px; }
+.liaison-toolbar h3 { margin: 0 auto 0 0; }
+.liaison-workspace button { width: auto; }
+.liaison-workspace button + button { margin-top: 0; }
+.liaison-grid, .liaison-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.liaison-panel { border: 1px solid currentColor; border-radius: 10px; padding: 20px; min-width: 0; margin-bottom: 20px; }
+.liaison-panel h3 { margin-top: 0; }
+.liaison-form .field { min-width: 0; margin-bottom: 0; }
+.liaison-form input, .liaison-form select, .liaison-form textarea { min-width: 0; box-sizing: border-box; }
+.liaison-form textarea { min-height: 150px; resize: vertical; }
+.liaison-wide { grid-column: 1 / -1; }
+.liaison-record-text { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.6; }
+.liaison-link-list { display: flex; flex-wrap: wrap; gap: 12px; padding: 0; list-style: none; }
+.liaison-link-list li { border: 1px solid currentColor; border-radius: 6px; padding: 8px; }
+.liaison-form input[type="checkbox"] { align-self: flex-start; }
+@media (max-width: 800px) { .liaison-grid, .liaison-form { grid-template-columns: 1fr; } }

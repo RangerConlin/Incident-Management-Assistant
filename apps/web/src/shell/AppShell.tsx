@@ -1,3 +1,4 @@
+import { version } from "../../package.json";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
@@ -80,6 +81,7 @@ function ModuleTabs({ section }: { section: ModuleSection | undefined }) {
           <NavLink
             key={mod.key}
             to={mod.path}
+            end={section.modules.some(other => other.path !== mod.path && other.path.startsWith(`${mod.path}/`))}
             className={({ isActive }) => "app-module-tab" + (isActive ? " active" : "")}
           >
             {mod.label}
@@ -141,6 +143,7 @@ export default function AppShell() {
         <main className="app-content">
           <Outlet />
         </main>
+        <footer className="command-version">Web client v{version}</footer>
       </div>
     </div>
   );

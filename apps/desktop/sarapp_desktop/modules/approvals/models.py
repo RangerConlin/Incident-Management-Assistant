@@ -1,40 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Callable, Literal, Optional
+from typing import Literal, Optional
 
-
-# ---------------------------------------------------------------------------
-# Spec layer — defined in code, never stored in the database
-# ---------------------------------------------------------------------------
+# Step/spec definitions (who can sign, escalation, ordering) are canonical
+# server-side (server/sarapp_db/sarapp_db/api/routers/approvals.py); desktop
+# only models the instance/record shapes that API returns.
 
 StepKind = Literal["sequential", "parallel", "ack"]
 Action = Literal["approved", "rejected", "acknowledged"]
-
-
-@dataclass(frozen=True)
-class ApprovalStep:
-    """One node in an approval spec."""
-
-    step_id: str
-    label: str
-    role: str
-    kind: StepKind = "sequential"
-    # Which assignment_types are allowed to sign. Empty list means any type.
-    acceptable_types: tuple[str, ...] = ()
-    # Steps with the same order value activate together (parallel group).
-    order: int = 0
-
-
-@dataclass(frozen=True)
-class ApprovalSpec:
-    """Full approval definition for one entity type."""
-
-    entity_type: str
-    steps: tuple[ApprovalStep, ...]
-    # Optional callable(incident_id, entity_id) -> bool checked before
-    # the first step can be activated. Used for composite gates like the IAP.
-    precondition: Optional[Callable[[str, str], bool]] = field(default=None, compare=False, hash=False)
 
 
 # ---------------------------------------------------------------------------

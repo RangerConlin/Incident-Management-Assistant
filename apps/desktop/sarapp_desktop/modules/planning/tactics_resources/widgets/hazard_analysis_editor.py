@@ -68,7 +68,7 @@ def _spe_band(assessment) -> str:
 
 
 _LINK_KIND_LABELS = {
-    "work_assignment": "strategy",
+    "work_assignment": "assignment",
     "task": "task",
 }
 

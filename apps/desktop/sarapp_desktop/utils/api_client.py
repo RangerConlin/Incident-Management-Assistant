@@ -157,6 +157,21 @@ class _APIClient:
             raise APIError(str(detail), status_code=resp.status_code)
         return resp.content
 
+    def post_pdf(self, path: str, *, json: Any) -> bytes:
+        """Download a rendered PDF using the active connection, including tunnel paths."""
+        try:
+            response = self._request_with_retry(
+                "POST", self._build_url(path), json=json, params=None, timeout=120.0
+            )
+        except httpx.TransportError as exc:
+            raise APIError(f"Server unreachable: {exc}") from exc
+        if response.status_code >= 400:
+            self._handle_response(response)
+        if (response.headers.get("content-type", "").split(";")[0].strip().lower()
+                != "application/pdf" or not response.content.startswith(b"%PDF-")):
+            raise APIError("The server did not return a valid PDF download")
+        return response.content
+
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------

@@ -149,3 +149,35 @@ reverted (see `backlog.md`'s `apps/web` entry and
 section for why: the LAN tunnel is currently broken, so enforcing auth on
 tunnel-arrived traffic would effectively require it on all real desktop/
 mobile traffic today, with no way for those clients to send a token).
+
+## Validation
+
+Run `npm test` for the browser client's focused Node tests, and `npm run build`
+for TypeScript checking and the production bundle. PAO tests cover draft/update
+metadata handling, release lifecycle actions, URL-filter model behavior, timestamp
+conversion, and safe rendering of release/template text. They do not replace a
+live-server browser acceptance pass.
+
+Public Information is available under `#/pio`. Publication records lifecycle
+status; external delivery is performed separately and recorded in the distribution
+log. Server write-layer and concurrent-edit gaps are tracked in `backlog.md`.
+
+## Downloadable ICS forms
+
+The Forms workspace and export controls on Objectives, Work Assignments, SITREPs,
+Meetings, Check-In and Resource Requests download PDFs from the shared API. Supported
+forms are ICS 202, 204, 209, 211, 213RR, 215, 215A and 230. ICS 209/215 use the existing
+ICS Canada templates; other entries use the FEMA template set, as labeled in the picker.
+ICS 230's source template includes its standard preprinted common-meeting guide.
+
+Downloads contain saved source data, with repeated rows paginated and continuation text
+preserved. The PDFs remain editable; signatures are not manufactured. Incident-wide
+ICS 202 includes active objectives and ICS 230 includes meetings marked for its schedule;
+board search filters are not export filters. Check-In exports currently checked-in resources.
+
+The server needs its updated Python dependencies and bundled export assets. Cloud packaging
+copies these inside the shared `sarapp_db` package; no desktop installation is required.
+Verify asset copies with `python tools/scripts/sync_server_form_templates.py --check`.
+Backend regression tests: `PYTHONPATH=server/sarapp_db python -m pytest
+server/sarapp_db/sarapp_db/api/routers/tests/test_form_exports.py -q` (set `PYTHONPATH`
+with your shell's environment syntax). They do not require a running MongoDB server.

@@ -1,3 +1,4 @@
+import FormExportControls from "../../forms/FormExportControls";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import StatusPill from "../../../components/table/StatusPill";
@@ -40,6 +41,7 @@ export default function ObjectiveDetailPage() {
 
   return (
     <div className="detail-page">
+      <FormExportControls formIds={["ics_202"]} sourceId={objectiveId} />
       <button
         className="secondary"
         style={{ width: "auto", marginBottom: 12 }}

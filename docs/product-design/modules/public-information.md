@@ -97,3 +97,18 @@ Field users may indirectly contribute facts through tasks, logs, messages, intel
 - Talking-points manager tied to approved-to-say / do-not-release status.
 - Media inquiry tracker with due dates and assigned responder.
 - Joint-agency review workflow.
+
+## Web Experience
+
+The browser client provides a PAO overview and route-based release board/editor under
+`/pio`, plus media inquiries, talking points, misinformation tracking with timelines,
+letterhead/templates, and distribution logs. Search, status filters and sort choices
+are stored in the URL. Boards use the shared resizable table and selected-row outline.
+Release previews render text safely with template header/contact/footer merge fields;
+logo paths remain references and are not rendered as browser assets.
+
+Editable drafts follow the desktop lifecycle through review, approval, publication,
+correction and archive. Published releases create separate update drafts. Approval and
+lifecycle history are read from the shared API. Publication records status only;
+external delivery is manual and documented in the distribution log. Existing API
+write-layer and server-side lifecycle enforcement gaps are tracked in `backlog.md`.

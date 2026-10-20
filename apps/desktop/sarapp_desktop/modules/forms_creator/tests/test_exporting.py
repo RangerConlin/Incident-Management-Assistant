@@ -214,6 +214,13 @@ def test_ics203_variant_row_group_bindings_are_wired():
         row_groups = {row["ref"]: row for row in mapping["row_groups"]}
 
         for ref, required_columns in expected.items():
+            if form_set_id == "ics_canada" and ref == "uc_commanders":
+                # The dedicated IC row already uses index 0. The next two
+                # physical rows must use indices 1/2, not repeat index 0.
+                sources = {field["pdf_field"]: field["source"] for field in mapping["fields"]}
+                assert sources["5.uc_name1"]["key"] == "uc_commanders.1.name"
+                assert sources["5.uc_name2"]["key"] == "uc_commanders.2.name"
+                continue
             columns = set(row_groups[ref]["col_patterns"])
             assert required_columns <= columns
             assert row_groups[ref]["rows_per_page"][0] > 1

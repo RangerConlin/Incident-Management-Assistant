@@ -1,5 +1,5 @@
 {
-  "description": "ICS 203 — Organization Assignment List — ICS Canada 2023",
+  "description": "ICS 203 â€” Organization Assignment List â€” ICS Canada 2023",
   "fields": [
     {
       "pdf_field": "1 INCIDENT NAME",
@@ -25,15 +25,15 @@
     },
     {
       "pdf_field": "Text17.0.1",
-      "source": "op_period.start_time"
-    },
-    {
-      "pdf_field": "Text17.1",
       "source": "op_period.end_date"
     },
     {
-      "pdf_field": "Text17.2",
+      "pdf_field": "Text17.1",
       "source": "op_period.end_time"
+    },
+    {
+      "pdf_field": "Text17.2",
+      "source": "op_period.start_time"
     },
     {
       "pdf_field": "PREPARED BY (Resources Only)",
@@ -338,20 +338,23 @@
     {
       "pdf_field": "c.div_5_supervisor2",
       "source": "org_branches.2.divisions.4.supervisor_name"
+    },
+    {
+      "pdf_field": "5.uc_name1",
+      "source": {
+        "key": "uc_commanders.1.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "5.uc_name2",
+      "source": {
+        "key": "uc_commanders.2.name",
+        "default": ""
+      }
     }
   ],
   "row_groups": [
-    {
-      "ref": "uc_commanders",
-      "data_key": "uc_commanders",
-      "overflow_mode": "truncate",
-      "rows_per_page": [
-        2
-      ],
-      "col_patterns": {
-        "name": "5.uc_name{n}"
-      }
-    },
     {
       "ref": "planning_tech_specialist_names",
       "data_key": "planning_tech_specialists",

@@ -62,7 +62,7 @@ def create_app(server_info_fn=None, request_log_fn=None, mode: str = "full") -> 
     include_incident_routers = mode == "full"
     app = FastAPI(
         title="SARApp API",
-        version="0.1.0",
+        version="0.1.2",
         docs_url="/docs",
         redoc_url=None,
     )
@@ -72,6 +72,7 @@ def create_app(server_info_fn=None, request_log_fn=None, mode: str = "full") -> 
         allow_origins=["*"],
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=["Content-Disposition"],
     )
 
     if request_log_fn is not None:
@@ -222,6 +223,9 @@ def create_app(server_info_fn=None, request_log_fn=None, mode: str = "full") -> 
         app.include_router(incident_transfer.router, prefix="/api", tags=["incident-transfer"])
 
         app.include_router(communications.incident_router, prefix="/api", tags=["communications"])
+
+        from sarapp_db.api.routers import form_exports
+        app.include_router(form_exports.router, prefix="/api", tags=["form-exports"])
 
         from sarapp_db.api.routers import public_information
         app.include_router(public_information.router, prefix="/api", tags=["public-information"])

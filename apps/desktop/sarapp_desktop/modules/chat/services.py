@@ -82,6 +82,32 @@ def send_message(
     )
 
 
+def mark_channel_read(incident_id: str, channel_id: str, *, user_id: str) -> dict[str, Any]:
+    return _client().post(
+        f"/api/incidents/{incident_id}/chat/channels/{channel_id}/read",
+        json={"user_id": user_id},
+    )
+
+
+def get_unread_count(incident_id: str, *, user_id: str) -> int:
+    response = _client().get(
+        f"/api/incidents/{incident_id}/chat/unread-count", params={"user_id": user_id}
+    )
+    return int(response.get("count", 0))
+
+
+def send_presence_heartbeat(incident_id: str, *, user_id: str, status: str = "online") -> dict[str, Any]:
+    return _client().post(
+        f"/api/incidents/{incident_id}/presence/heartbeat",
+        json={"user_id": user_id, "status": status},
+    )
+
+
+def list_presence(incident_id: str) -> list[dict[str, Any]]:
+    response = _client().get(f"/api/incidents/{incident_id}/presence")
+    return response.get("items", [])
+
+
 def resolve_display_name(person_record: str) -> str:
     """Best-effort lookup of a person's display name from the master roster.
 

@@ -268,3 +268,7 @@ class IncidentCollections:
     # Chat — incident-scoped messenger shared by desktop, mobile, and web
     CHAT_CHANNELS = "chat_channels"
     MESSAGES = "messages"
+    CHAT_READ_STATE = "chat_read_state"
+
+    # Presence — per-incident online/away/unavailable roster for chat
+    PRESENCE = "presence"

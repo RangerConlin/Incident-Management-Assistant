@@ -1,6 +1,31 @@
 import { api } from "./client";
 import type {
+  ChannelsPlanValidation,
+  CheckinRosterRow,
+  CommsContact,
+  CommsLogEntry,
+  CommunicationsPlan,
+  ApprovalInstance,
   Incident,
+  FormExportDefinition,
+  FormExportRequest,
+  IncidentChannel,
+  MasterChannel,
+  ResourceRequest,
+  ResourceRequestDetail,
+  RequestItem,
+  Facility,
+  LiaisonRecord,
+  LiaisonRequest,
+  LiaisonAgencyDetail,
+  MasterAircraft,
+  MasterEquipment,
+  MasterPersonnelSummary,
+  MasterVehicle,
+  PioMessage,
+  PioApproval,
+  PioRecord,
+  PioTimelineEvent,
   LoginResponse,
   Meeting,
   MeetingAttendee,
@@ -12,6 +37,7 @@ import type {
   ObjectiveTaskLink,
   OperationalPeriod,
   PersonnelSummary,
+  ResourceStatusRow,
   Sitrep,
   SitrepDistribution,
   SitrepEvent,
@@ -19,6 +45,7 @@ import type {
   TaskDetail,
   TaskRow,
   TaskTeam,
+  TaskWorkAssignmentLink,
   TeamAssignmentRow,
   TeamDetail,
   WorkAssignment,
@@ -547,3 +574,183 @@ export function linkWorkAssignmentTask(incidentId: string, waId: number, body: R
 export function unlinkWorkAssignmentTask(incidentId: string, waId: number, linkId: number) {
   return api.delete<void>(`/api/incidents/${incidentId}/planning/work-assignments/${waId}/task-links/${linkId}`);
 }
+
+export function listWorkAssignmentsForTask(incidentId: string, taskId: number) {
+  return api.get<TaskWorkAssignmentLink[]>(`/api/incidents/${incidentId}/planning/tasks/${taskId}/work-assignments`);
+}
+
+// Public Information / PAO
+const pioBase = (incidentId: string) => `/api/incidents/${encodeURIComponent(incidentId)}/public-information`;
+export const listPioMessages = (id: string) => api.get<PioMessage[]>(`${pioBase(id)}/messages`);
+export const getPioMessage = (id: string, messageId: number) => api.get<PioMessage>(`${pioBase(id)}/messages/${messageId}`);
+export const savePioMessage = (id: string, body: Record<string, unknown>) => api.post<PioMessage>(`${pioBase(id)}/messages`, body);
+export const setPioMessageStatus = (id: string, messageId: number, status: string, user: string, comment: string) =>
+  api.post<PioMessage>(`${pioBase(id)}/messages/${messageId}/status`, { status, user, comment });
+export const listPioApprovals = (id: string, messageId: number) => api.get<PioApproval[]>(`${pioBase(id)}/messages/${messageId}/approvals`);
+export const listPioTemplates = (id: string) => api.get<PioRecord[]>(`${pioBase(id)}/templates`);
+export const savePioTemplate = (id: string, body: Record<string, unknown>) => api.post<PioRecord>(`${pioBase(id)}/templates`, body);
+export const listPioRecords = (id: string, table: string) => api.get<PioRecord[]>(`${pioBase(id)}/records/${encodeURIComponent(table)}`);
+export const savePioRecord = (id: string, table: string, body: Record<string, unknown>) => api.post<PioRecord>(`${pioBase(id)}/records/${encodeURIComponent(table)}`, body);
+export const getPioSummary = (id: string) => api.get<Record<string, number | string>>(`${pioBase(id)}/summary`);
+export const createPioResponse = (id: string, mediaId: number, user: string) => api.post<PioMessage>(`${pioBase(id)}/media/${mediaId}/response-draft`, { user });
+export const listPioTimeline = (id: string, itemId: number) => api.get<PioTimelineEvent[]>(`${pioBase(id)}/misinformation/${itemId}/timeline`);
+export const addPioTimeline = (id: string, itemId: number, event_text: string, user: string) => api.post<PioTimelineEvent>(`${pioBase(id)}/misinformation/${itemId}/timeline`, { event_text, user });
+
+// Logistics: Resource Status Board — checked-in personnel/vehicles/aircraft/equipment.
+export function listResourceStatus(incidentId: string, resourceType = "") {
+  const q = resourceType ? `?resource_type=${encodeURIComponent(resourceType)}` : "";
+  return api.get<ResourceStatusRow[]>(`/api/incidents/${incidentId}/resources${q}`);
+}
+
+export function getResourceStatus(incidentId: string, resourceType: string, recordId: string | number) {
+  return api.get<ResourceStatusRow>(`/api/incidents/${incidentId}/resources/${resourceType}/${recordId}`);
+}
+
+export function checkInResource(
+  incidentId: string,
+  resourceType: string,
+  recordId: string | number,
+  overrides: Record<string, unknown> = {}
+) {
+  return api.post<ResourceStatusRow>(`/api/incidents/${incidentId}/resources/${resourceType}/${recordId}`, overrides);
+}
+
+export function checkOutResource(incidentId: string, resourceType: string, recordId: string | number) {
+  return api.delete<void>(`/api/incidents/${incidentId}/resources/${resourceType}/${recordId}`);
+}
+
+export function searchMasterVehicles(search = "") {
+  return api.get<MasterVehicle[]>(`/api/master/vehicles?search=${encodeURIComponent(search)}`);
+}
+
+export function searchMasterAircraft(search = "") {
+  return api.get<MasterAircraft[]>(`/api/master/aircraft?search=${encodeURIComponent(search)}`);
+}
+
+export function searchMasterEquipment(search = "") {
+  return api.get<MasterEquipment[]>(`/api/master/equipment?search=${encodeURIComponent(search)}`);
+}
+
+// Logistics: Check-In — personnel roster + search, backed by the same
+// resource_status collection as the board above (entity_type="personnel").
+export function fetchCheckinRoster(incidentId: string, params: Record<string, string | boolean> = {}) {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== "" && v !== undefined && v !== null) qs.set(k, String(v));
+  }
+  const q = qs.toString();
+  return api.get<CheckinRosterRow[]>(`/api/incidents/${incidentId}/checkin/roster${q ? `?${q}` : ""}`);
+}
+
+export function searchCheckinPersonnel(incidentId: string, q = "") {
+  return api.get<MasterPersonnelSummary[]>(`/api/incidents/${incidentId}/checkin/personnel/search?q=${encodeURIComponent(q)}`);
+}
+
+export function saveCheckin(incidentId: string, personRecord: number, body: Record<string, unknown>) {
+  return api.put<Record<string, unknown>>(`/api/incidents/${incidentId}/checkin/${personRecord}`, body);
+}
+
+export function setCheckinStatus(incidentId: string, personRecord: number, status: string) {
+  return api.patch<Record<string, unknown>>(`/api/incidents/${incidentId}/checkin/${personRecord}/status`, { status });
+}
+
+export function patchCheckin(incidentId: string, personRecord: number, body: Record<string, unknown>) {
+  return api.patch<Record<string, unknown>>(`/api/incidents/${incidentId}/checkin/${personRecord}`, body);
+}
+
+// Liaison coordination uses the shared API; only supported write paths are exposed.
+export type LiaisonSection = "agencies" | "requests" | "reporting-digests" | "interactions";
+const liaisonBase = (id: string) => `/api/incidents/${encodeURIComponent(id)}/liaison`;
+export const listLiaisonRecords = (id: string, section: LiaisonSection) => api.get<LiaisonRecord[]>(`${liaisonBase(id)}/${section}`);
+export const createLiaisonRecord = (id: string, section: LiaisonSection, body: Record<string, unknown>) => api.post<LiaisonRecord>(`${liaisonBase(id)}/${section}`, body);
+export const updateLiaisonRecord = (id: string, section: Exclude<LiaisonSection, "interactions">, recordId: number, body: Record<string, unknown>) => api.patch<LiaisonRecord>(`${liaisonBase(id)}/${section}/${recordId}`, body);
+export const deleteLiaisonRecord = (id: string, section: "requests" | "reporting-digests", recordId: number) => api.delete<void>(`${liaisonBase(id)}/${section}/${recordId}`);
+export const getLiaisonAgencyDetail = (id: string, agencyId: number) => api.get<LiaisonAgencyDetail>(`${liaisonBase(id)}/agencies/${agencyId}/detail`);
+export const createLiaisonContact = (id: string, agencyId: number, body: Record<string, unknown>) => api.post<LiaisonRecord>(`${liaisonBase(id)}/agencies/${agencyId}/contacts`, body);
+export const addLiaisonNarrative = (id: string, requestId: number, body: { text: string; category: string; author: string }) => api.post<LiaisonRequest>(`${liaisonBase(id)}/requests/${requestId}/narrative`, body);
+export const listLiaisonResourceLinks = (id: string) => api.get<{ id: string; title: string; request_number?: string }[]>(`/api/incidents/${encodeURIComponent(id)}/logistics/resource-requests`);
+
+// Logistics requests and facilities use the existing shared server workflow.
+const requestBase = (id: string) => `/api/incidents/${encodeURIComponent(id)}/logistics/resource-requests`;
+export const listResourceRequests = (id: string) => api.get<ResourceRequest[]>(requestBase(id));
+export const getResourceRequest = (id: string, requestId: string) => api.get<ResourceRequestDetail>(`${requestBase(id)}/${encodeURIComponent(requestId)}`);
+export const createResourceRequest = (id: string, body: Record<string, unknown>) => api.post<ResourceRequestDetail>(requestBase(id), body);
+export const updateResourceRequest = (id: string, requestId: string, body: Record<string, unknown>) => api.patch<ResourceRequestDetail>(`${requestBase(id)}/${encodeURIComponent(requestId)}`, body);
+export const resourceRequestApproval = (id: string, requestId: string, action: string, actor_id: string, note: string) => api.post<{ id: string }>(`${requestBase(id)}/${encodeURIComponent(requestId)}/approvals`, { action, actor_id, note });
+export const resourceRequestStatus = (id: string, requestId: string, status: string, actor_id: string, note: string) => api.post<ResourceRequestDetail>(`${requestBase(id)}/${encodeURIComponent(requestId)}/status`, { status, actor_id, note });
+export const replaceResourceRequestItems = (id: string, requestId: string, items: RequestItem[]) => api.put<{ ids: string[] }>(`${requestBase(id)}/${encodeURIComponent(requestId)}/items`, items);
+export const assignResourceRequestFulfillment = (id: string, requestId: string, body: Record<string, unknown>) => api.post<{ id: string }>(`${requestBase(id)}/${encodeURIComponent(requestId)}/fulfillments`, body);
+export const updateResourceRequestFulfillment = (id: string, requestId: string, fulfillmentId: string, body: Record<string, unknown>) => api.patch<{ ok: boolean }>(`${requestBase(id)}/${encodeURIComponent(requestId)}/fulfillments/${encodeURIComponent(fulfillmentId)}`, body);
+const facilityBase = (id: string) => `/api/incidents/${encodeURIComponent(id)}/facilities`;
+export const listFacilities = (id: string) => api.get<Facility[]>(facilityBase(id));
+export const getFacility = (id: string, facilityId: string) => api.get<Facility>(`${facilityBase(id)}/${encodeURIComponent(facilityId)}`);
+export const createFacility = (id: string, body: Record<string, unknown>) => api.post<Facility>(facilityBase(id), body);
+export const updateFacility = (id: string, facilityId: string, body: Record<string, unknown>) => api.put<Facility>(`${facilityBase(id)}/${encodeURIComponent(facilityId)}`, body);
+export const deleteFacility = (id: string, facilityId: string) => api.delete<{ ok: boolean }>(`${facilityBase(id)}/${encodeURIComponent(facilityId)}`);
+
+// Communications: master radio channel library, shared across incidents.
+export const listMasterChannels = (search = "") =>
+  api.get<MasterChannel[]>(`/api/comms/master-channels${search ? `?search=${encodeURIComponent(search)}` : ""}`);
+export const createMasterChannel = (body: Record<string, unknown>) => api.post<MasterChannel>("/api/comms/master-channels", body);
+export const updateMasterChannel = (channelId: number, body: Record<string, unknown>) =>
+  api.patch<MasterChannel>(`/api/comms/master-channels/${channelId}`, body);
+export const deleteMasterChannel = (channelId: number) => api.delete<{ deleted: boolean }>(`/api/comms/master-channels/${channelId}`);
+
+// Communications: ICS-205 incident channel plan.
+const channelsPlanBase = (id: string) => `/api/incidents/${encodeURIComponent(id)}/channels-plan`;
+export const listChannelsPlan = (id: string) => api.get<IncidentChannel[]>(channelsPlanBase(id));
+export const addChannelFromMaster = (id: string, masterId: number, defaults: Record<string, unknown> = {}) =>
+  api.post<IncidentChannel>(channelsPlanBase(id), { master_id: masterId, defaults });
+export const updateChannelPlanRow = (id: string, rowId: number, patch: Record<string, unknown>) =>
+  api.put<IncidentChannel>(`${channelsPlanBase(id)}/${rowId}`, patch);
+export const deleteChannelPlanRow = (id: string, rowId: number) => api.delete<void>(`${channelsPlanBase(id)}/${rowId}`);
+export const reorderChannelPlanRow = (id: string, rowId: number, direction: "up" | "down") =>
+  api.patch<IncidentChannel>(`${channelsPlanBase(id)}/${rowId}/reorder`, { direction });
+export const validateChannelsPlan = (id: string) => api.get<ChannelsPlanValidation>(`${channelsPlanBase(id)}/validate`);
+
+export const getCommunicationsPlan = (id: string, opPeriodId?: string | null) =>
+  api.get<CommunicationsPlan>(
+    `/api/incidents/${encodeURIComponent(id)}/communications-plan${opPeriodId ? `?op_period_id=${encodeURIComponent(opPeriodId)}` : ""}`
+  );
+export const saveCommunicationsPlan = (id: string, body: Record<string, unknown>) =>
+  api.put<CommunicationsPlan>(`/api/incidents/${encodeURIComponent(id)}/communications-plan`, body);
+
+// Approvals: shared workflow API (start/sign/get) — same endpoints desktop drives.
+const approvalsBase = (id: string) => `/api/incidents/${encodeURIComponent(id)}/approvals`;
+export const getApprovalInstance = (id: string, entityType: string, entityId: string) =>
+  api.get<ApprovalInstance>(`${approvalsBase(id)}/instances/${entityType}/${encodeURIComponent(entityId)}`);
+export const startApproval = (id: string, entityType: string, entityId: string) =>
+  api.post<ApprovalInstance>(`${approvalsBase(id)}/${entityType}/${encodeURIComponent(entityId)}/start`);
+export const signApprovalStep = (
+  id: string,
+  entityType: string,
+  entityId: string,
+  body: { step_id: string; actor_id: number; action: "approved" | "rejected" | "acknowledged"; notes?: string }
+) => api.post<ApprovalInstance>(`${approvalsBase(id)}/${entityType}/${encodeURIComponent(entityId)}/sign`, body);
+export const assignApprovalStep = (
+  id: string,
+  entityType: string,
+  entityId: string,
+  body: { step_id: string; actor_id: number }
+) => api.post<ApprovalInstance>(`${approvalsBase(id)}/${entityType}/${encodeURIComponent(entityId)}/assign-step`, body);
+export const searchPersonnel = (search: string) =>
+  api.get<MasterPersonnelSummary[]>(`/api/master/personnel?search=${encodeURIComponent(search)}&limit=25`);
+
+// Communications: traffic log.
+const commsLogBase = (id: string) => `/api/incidents/${encodeURIComponent(id)}/comms-log`;
+export function listCommsLog(incidentId: string, params: Record<string, string | boolean | number> = {}) {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== "" && v !== undefined && v !== null) qs.set(k, String(v));
+  }
+  const q = qs.toString();
+  return api.get<CommsLogEntry[]>(`${commsLogBase(incidentId)}${q ? `?${q}` : ""}`);
+}
+export const addCommsLogEntry = (id: string, body: Record<string, unknown>) => api.post<CommsLogEntry>(commsLogBase(id), body);
+export const updateCommsLogEntry = (id: string, entryId: number, patch: Record<string, unknown>) =>
+  api.patch<CommsLogEntry>(`${commsLogBase(id)}/${entryId}`, patch);
+export const deleteCommsLogEntry = (id: string, entryId: number) => api.delete<void>(`${commsLogBase(id)}/${entryId}`);
+export const listCommsContacts = (id: string) => api.get<CommsContact[]>(`${commsLogBase(id)}/contacts`);
+
+export const listFormExports = (incidentId: string) => api.get<FormExportDefinition[]>(`/api/incidents/${encodeURIComponent(incidentId)}/form-exports`);
+export const downloadFormExport = (incidentId: string, body: FormExportRequest) => api.download(`/api/incidents/${encodeURIComponent(incidentId)}/form-exports`, body);

@@ -1,6 +1,7 @@
 """About page for the settings window."""
 
 from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
+from utils.version import DESKTOP_VERSION
 
 
 class AboutPage(QWidget):
@@ -12,7 +13,7 @@ class AboutPage(QWidget):
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(12)
 
-        title = QLabel("Incident Management Assistant\nVersion Alpha 0.0.1")
+        title = QLabel(f"Incident Management Assistant\nVersion {DESKTOP_VERSION}")
         title.setStyleSheet("font-size: 16px; font-weight: 600;")
         title.setWordWrap(True)
         layout.addWidget(title)

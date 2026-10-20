@@ -29,6 +29,15 @@ SITREP Window
     for the same reason (no data source) and should be revisited alongside Section Health/Safety
     once those data models exist.
 
+- Incident Organization (ICS-203) positions, 2026-10-20: standard command/general-staff titles
+  that the approval engine's escalation table matches by exact string (Safety Officer, Incident
+  Commander, Communications Unit Leader, Medical Unit Leader, the other section chiefs/unit
+  leaders in `server/sarapp_db/sarapp_db/api/routers/approvals.py`'s `_ESCALATION`/`_SPECS`)
+  should be hardcoded, non-editable position titles rather than freeform text, so a rename or
+  typo can't silently break role-based approval resolution. Custom org-chart nodes (branches,
+  divisions, groups, units) stay freeform as today — this only applies to the fixed set of
+  command/general-staff roles the approval engine looks up by name.
+
 **************************************************************************************************************
 [Planning]
 Planning Dashboard
@@ -151,11 +160,28 @@ Medical Plan ICS 206
 
 **************************************************************************************************************
 [Liaison]
+  - Web/API gaps: contacts and interactions support creation but no edit/delete endpoints;
+    restrictions, agreements and follow-up records have no write endpoints. Add shared
+    repository-backed CRUD before enabling those controls in the web client. Unified Liaison
+    activity logging remains unmodeled; interaction logging is available separately.
+  - liaison.py still runs _ensure_int_ids during reads and writes missing identifiers directly
+    through raw collections. Replace with a one-time canonical-ID migration, then remove
+    runtime repair writes. The older agency-requests/resource-offers/feedback collections still
+    coexist with the newer liaison_requests workflow and need a deliberate migration plan.
   - Remaining gap: Agency Detail dialog's Contacts / Restrictions / Agreements tabs are
     read-only (backend supports Contacts CRUD; Restrictions/Agreements have no create UI at
     all) — add "add" dialogs for these if the LNO workflow needs them tracked.
 **************************************************************************************************************
 [PIO]
+- Shared API hardening: public_information.py still writes messages, revisions, templates,
+  generic records, and media response links directly to raw Mongo collections. Move these
+  writes to BaseRepository subclasses; add server-enforced lifecycle transitions and edit
+  constraints (the web UI follows desktop transitions but the API currently accepts arbitrary
+  statuses/edits). Preserve approvals and publication metadata on saves at the API boundary.
+  Generic misinformation saves also default timeline to an empty array; preserve existing
+  events server-side when a record update omits them. The web client currently retains the
+  loaded timeline, but concurrent edit protection still needs API support. Summary updates
+  currently rely on polling for cross-collection changes.
 PIO Dashboard
 
 Messages/Releases
@@ -307,3 +333,24 @@ Cost Summary
 **************************************************************************************************************
 [Logs]
   - Logs need to be able to write to multiple streams at once.  Would like to be able to generate a log for each individual person, but i dont think writing a separate stream is a good idea.  perhaps something that generates from a lookup of everything that person has done?
+
+
+[Web Logistics follow-up]
+- Shared request API hardening: enforce terminal/edit locks on item and fulfillment endpoints,
+  not just header PATCH; item replacement currently does not advance version or append an
+  audit entry, and fulfillment updates lack actor audit attribution. Preserve the existing
+  approval/status transition checks. The browser disables terminal edits but cannot enforce
+  these constraints for other API callers.
+- Browser Logistics: standalone vehicle/aircraft/equipment catalog administration and facility
+  geocoding are pending; resource check-in/status workflows and coordinate entry are available.
+
+
+[Forms — server export migration]
+- ICS 203 production exports now use the shared server for FEMA/ICS Canada/USCG.
+  Migrate the remaining desktop form exports incrementally through their existing
+  domain wrappers/export service; verify mappings and publisher variants before
+  removing each local renderer. Preserve Mapper Window's local authoring preview.
+- Validate ICS 203 against a real incident with staffed organization positions;
+  current eligible local incidents have no saved positions. Populated roles and
+  continuation pages have fixture coverage. See form_builder_inventory.md for
+  unresolved template fields and the binding audit.

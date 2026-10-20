@@ -1,6 +1,7 @@
 """WorkAssignmentRepository — proxies through SARApp API (MongoDB backend)."""
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
@@ -16,6 +17,8 @@ from modules.planning.tactics_resources.models.work_assignment_models import (
     WorkAssignmentResourceRequirement,
     WorkAssignmentTaskLink,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _now() -> str:
@@ -39,7 +42,7 @@ def _client():
     return api_client
 
 
-def _wa_from_dict(d: dict) -> WorkAssignment:
+def wa_from_dict(d: dict) -> WorkAssignment:
     return WorkAssignment(
         id=d.get("id"),
         assignment_number=str(d.get("assignment_number") or ""),
@@ -248,15 +251,17 @@ class WorkAssignmentRepository:
         if filters.get("search"):
             params["search"] = filters["search"]
         try:
-            return [_wa_from_dict(d) for d in _client().get(_base(), params=params)]
+            return [wa_from_dict(d) for d in _client().get(_base(), params=params)]
         except Exception:
+            logger.exception("WorkAssignmentRepository.list_work_assignments failed")
             return []
 
     def get_work_assignment(self, work_assignment_id: int) -> WorkAssignment | None:
         try:
             d = _client().get(f"{_base()}/{work_assignment_id}")
-            return _wa_from_dict(d)
+            return wa_from_dict(d)
         except Exception:
+            logger.exception("WorkAssignmentRepository.get_work_assignment failed")
             return None
 
     def create_work_assignment(self, data: dict[str, Any]) -> int:
@@ -268,24 +273,28 @@ class WorkAssignmentRepository:
             _client().patch(f"{_base()}/{work_assignment_id}", json=data)
             return True
         except Exception:
+            logger.exception("WorkAssignmentRepository.update_work_assignment failed")
             return False
 
     def archive_work_assignment(self, work_assignment_id: int) -> None:
         try:
             _client().patch(f"{_base()}/{work_assignment_id}/archive", json={})
         except Exception:
+            logger.exception("WorkAssignmentRepository.archive_work_assignment failed")
             pass
 
     def restore_work_assignment(self, work_assignment_id: int) -> None:
         try:
             _client().patch(f"{_base()}/{work_assignment_id}/restore", json={})
         except Exception:
+            logger.exception("WorkAssignmentRepository.restore_work_assignment failed")
             pass
 
     def delete_work_assignment(self, work_assignment_id: int) -> None:
         try:
             _client().delete(f"{_base()}/{work_assignment_id}")
         except Exception:
+            logger.exception("WorkAssignmentRepository.delete_work_assignment failed")
             pass
 
     def clone_work_assignment(self, work_assignment_id: int) -> int | None:
@@ -293,6 +302,7 @@ class WorkAssignmentRepository:
             d = _client().post(f"{_base()}/{work_assignment_id}/clone", json={})
             return int(d.get("id") or 0)
         except Exception:
+            logger.exception("WorkAssignmentRepository.clone_work_assignment failed")
             return None
 
     # ------------------------------------------------------------------
@@ -304,6 +314,7 @@ class WorkAssignmentRepository:
             data = _client().get(f"{_base()}/{work_assignment_id}/resources")
             return [_req_from_dict(d) for d in data]
         except Exception:
+            logger.exception("WorkAssignmentRepository.list_resource_requirements failed")
             return []
 
     def add_resource_requirement(self, work_assignment_id: int, data: dict[str, Any]) -> int:
@@ -319,6 +330,7 @@ class WorkAssignmentRepository:
             _client().patch(f"{_base()}/{work_assignment_id}/resources/{requirement_id}", json=data)
             return True
         except Exception:
+            logger.exception("WorkAssignmentRepository.update_resource_requirement_for_wa failed")
             return False
 
     def remove_resource_requirement(self, requirement_id: int) -> None:
@@ -328,6 +340,7 @@ class WorkAssignmentRepository:
         try:
             _client().delete(f"{_base()}/{work_assignment_id}/resources/{requirement_id}")
         except Exception:
+            logger.exception("WorkAssignmentRepository.remove_resource_requirement_for_wa failed")
             pass
 
     def recalculate_resource_gap(self, requirement_id: int) -> None:
@@ -369,6 +382,7 @@ class WorkAssignmentRepository:
         try:
             d = _client().post(f"/api/incidents/{_iid()}/logistics/resource-requests", json=body)
         except Exception:
+            logger.exception("WorkAssignmentRepository.create_logistics_request_from_requirement failed")
             return None
         request_id = d.get("id") if d else None
         if request_id:
@@ -390,6 +404,7 @@ class WorkAssignmentRepository:
         try:
             data = _client().get(f"{_base()}/{work_assignment_id}/resources")
         except Exception:
+            logger.exception("WorkAssignmentRepository.list_assigned_resources_for_wa failed")
             return []
         for d in data:
             if d.get("id") == requirement_id:
@@ -414,6 +429,7 @@ class WorkAssignmentRepository:
         try:
             _client().delete(f"{_base()}/{work_assignment_id}/resources/{requirement_id}/assignments/{assignment_id}")
         except Exception:
+            logger.exception("WorkAssignmentRepository.remove_actual_resource_for_wa failed")
             pass
 
     def update_actual_resource_status(self, assignment_id: int, status: str) -> None:
@@ -428,6 +444,7 @@ class WorkAssignmentRepository:
                 json={"status": status},
             )
         except Exception:
+            logger.exception("WorkAssignmentRepository.update_actual_resource_status_for_wa failed")
             pass
 
     # ------------------------------------------------------------------
@@ -442,6 +459,7 @@ class WorkAssignmentRepository:
             )
             return [_hazard_from_dict(d) for d in data]
         except Exception:
+            logger.exception("WorkAssignmentRepository.list_hazards failed")
             return []
 
     def add_hazard(self, work_assignment_id: int, data: dict[str, Any]) -> int:
@@ -458,6 +476,7 @@ class WorkAssignmentRepository:
             _client().patch(f"/api/incidents/{_iid()}/safety/hazards/{hazard_id}", json=body)
             return True
         except Exception:
+            logger.exception("WorkAssignmentRepository.update_hazard_for_wa failed")
             return False
 
     def remove_hazard(self, hazard_id: int) -> None:
@@ -477,6 +496,7 @@ class WorkAssignmentRepository:
             }
             _client().patch(f"/api/incidents/{_iid()}/safety/hazards/{hazard_id}", json=links)
         except Exception:
+            logger.exception("WorkAssignmentRepository.remove_hazard_for_wa failed")
             pass
 
     def mark_hazard_resolved(self, hazard_id: int, resolved: bool = True) -> None:
@@ -494,6 +514,7 @@ class WorkAssignmentRepository:
         try:
             return [_comms_from_dict(d) for d in _client().get(f"{_base()}/{work_assignment_id}/comms")]
         except Exception:
+            logger.exception("WorkAssignmentRepository.list_comms failed")
             return []
 
     def add_comms_channel(self, work_assignment_id: int, data: dict[str, Any]) -> int:
@@ -508,6 +529,7 @@ class WorkAssignmentRepository:
             _client().patch(f"{_base()}/{work_assignment_id}/comms/{comms_id}", json=data)
             return True
         except Exception:
+            logger.exception("WorkAssignmentRepository.update_comms_channel_for_wa failed")
             return False
 
     def remove_comms_channel(self, comms_id: int) -> None:
@@ -517,6 +539,7 @@ class WorkAssignmentRepository:
         try:
             _client().delete(f"{_base()}/{work_assignment_id}/comms/{comms_id}")
         except Exception:
+            logger.exception("WorkAssignmentRepository.remove_comms_channel_for_wa failed")
             pass
 
     # ------------------------------------------------------------------
@@ -527,6 +550,7 @@ class WorkAssignmentRepository:
         try:
             return [_link_from_dict(d) for d in _client().get(f"{_base()}/{work_assignment_id}/task-links")]
         except Exception:
+            logger.exception("WorkAssignmentRepository.list_linked_tasks failed")
             return []
 
     def link_existing_task(self, work_assignment_id: int, task_id: int, link_type: str = "Linked Existing", notes: str = "") -> int | None:
@@ -540,6 +564,7 @@ class WorkAssignmentRepository:
                 return None
             return int(d.get("id") or 0)
         except Exception:
+            logger.exception("WorkAssignmentRepository.link_existing_task failed")
             return None
 
     def unlink_task(self, link_id: int) -> None:
@@ -549,6 +574,7 @@ class WorkAssignmentRepository:
         try:
             _client().delete(f"{_base()}/{work_assignment_id}/task-links/{link_id}")
         except Exception:
+            logger.exception("WorkAssignmentRepository.unlink_task_for_wa failed")
             pass
 
     # ------------------------------------------------------------------
@@ -559,6 +585,7 @@ class WorkAssignmentRepository:
         try:
             return _client().get(f"{_base()}/{work_assignment_id}/agency-requests") or []
         except Exception:
+            logger.exception("WorkAssignmentRepository.list_linked_agency_requests failed")
             return []
 
     def link_agency_request(self, work_assignment_id: int, agency_request_id: int) -> int | None:
@@ -570,12 +597,14 @@ class WorkAssignmentRepository:
                 return None
             return int(d.get("id") or 0)
         except Exception:
+            logger.exception("WorkAssignmentRepository.link_agency_request failed")
             return None
 
     def unlink_agency_request(self, work_assignment_id: int, link_id: int) -> None:
         try:
             _client().delete(f"{_base()}/{work_assignment_id}/agency-requests/{link_id}")
         except Exception:
+            logger.exception("WorkAssignmentRepository.unlink_agency_request failed")
             pass
 
     def list_strategies_for_task(self, task_id: int) -> list[dict]:
@@ -583,6 +612,7 @@ class WorkAssignmentRepository:
             iid = _iid()
             return _client().get(f"/api/incidents/{iid}/planning/tasks/{task_id}/work-assignments")
         except Exception:
+            logger.exception("WorkAssignmentRepository.list_strategies_for_task failed")
             return []
 
     def create_task_from_work_assignment(self, work_assignment_id: int, task_payload: dict[str, Any] | None = None) -> int | None:
@@ -611,6 +641,7 @@ class WorkAssignmentRepository:
                 location_facility_id=wa.location_facility_id or None,
             )
         except Exception:
+            logger.exception("WorkAssignmentRepository.create_task_from_work_assignment failed")
             return None
         if new_task_id:
             self.link_existing_task(work_assignment_id, new_task_id, link_type="Generated")
@@ -624,6 +655,7 @@ class WorkAssignmentRepository:
         try:
             return [_log_from_dict(d) for d in _client().get(f"{_base()}/{work_assignment_id}/log")]
         except Exception:
+            logger.exception("WorkAssignmentRepository.list_log_entries failed")
             return []
 
     def add_log_entry(self, work_assignment_id: int, entry_text: str, entry_type: str = "Note", critical: bool = False) -> int:
@@ -642,6 +674,7 @@ class WorkAssignmentRepository:
             _client().patch(f"{_base()}/{work_assignment_id}/log/{log_id}", json=data)
             return True
         except Exception:
+            logger.exception("WorkAssignmentRepository.update_log_entry_for_wa failed")
             return False
 
     def remove_log_entry(self, log_id: int) -> None:
@@ -651,6 +684,7 @@ class WorkAssignmentRepository:
         try:
             _client().delete(f"{_base()}/{work_assignment_id}/log/{log_id}")
         except Exception:
+            logger.exception("WorkAssignmentRepository.remove_log_entry_for_wa failed")
             pass
 
     # ------------------------------------------------------------------
@@ -661,6 +695,7 @@ class WorkAssignmentRepository:
         try:
             return [_output_from_dict(d) for d in _client().get(f"{_base()}/{work_assignment_id}/outputs")]
         except Exception:
+            logger.exception("WorkAssignmentRepository.list_outputs failed")
             return []
 
     def update_output_status(
@@ -692,4 +727,5 @@ class WorkAssignmentRepository:
             iid = _iid()
             return _client().get(f"/api/incidents/{iid}/planning/work-assignment-status-rows")
         except Exception:
+            logger.exception("WorkAssignmentRepository.list_work_assignment_status_rows failed")
             return []

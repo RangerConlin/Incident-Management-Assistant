@@ -1,15 +1,9 @@
 from __future__ import annotations
 
-from PySide6 import QtCore, QtGui, QtWidgets
+from PySide6 import QtCore, QtWidgets
 
 from modules.approvals.models import ApprovalInstance, ApprovalStatus, StepStatus
-
-_STATUS_COLORS: dict[StepStatus, str] = {
-    "waiting": "#888888",
-    "active": "#E6A817",
-    "completed": "#3D9970",
-    "skipped": "#AAAAAA",
-}
+from utils.styles import approval_status_colors, approval_step_status_colors, subscribe_theme
 
 _OVERALL_LABELS: dict[ApprovalStatus, str] = {
     "not_started": "Not Started",
@@ -23,6 +17,7 @@ class ApprovalTimeline(QtWidgets.QWidget):
     """Per-document approval chain widget — shows steps, status, and sign button."""
 
     sign_requested = QtCore.Signal(str)  # emits step_id
+    assign_requested = QtCore.Signal(str, str)  # emits step_id, step label
 
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
@@ -30,6 +25,7 @@ class ApprovalTimeline(QtWidgets.QWidget):
         self._current_person_record: int | None = None
         self._current_assignment_type: str | None = None
         self._setup_ui()
+        subscribe_theme(self, lambda *_: self._refresh())
 
     def _setup_ui(self) -> None:
         layout = QtWidgets.QVBoxLayout(self)
@@ -69,13 +65,18 @@ class ApprovalTimeline(QtWidgets.QWidget):
 
         overall = _OVERALL_LABELS.get(self._state.status, self._state.status)
         self._status_label.setText(f"Approval status: {overall}")
+        overall_colors = approval_status_colors().get(self._state.status)
+        if overall_colors:
+            self._status_label.setStyleSheet(f"color: {overall_colors['bg'].color().name()};")
 
+        step_colors = approval_step_status_colors()
         for step in self._state.steps:
             row = QtWidgets.QHBoxLayout()
 
             indicator = QtWidgets.QLabel("●")
-            color = _STATUS_COLORS.get(step.status, "#888888")
-            indicator.setStyleSheet(f"color: {color};")
+            colors = step_colors.get(step.status)
+            if colors:
+                indicator.setStyleSheet(f"color: {colors['bg'].color().name()};")
             row.addWidget(indicator)
 
             desc = step.label
@@ -84,18 +85,21 @@ class ApprovalTimeline(QtWidgets.QWidget):
             label = QtWidgets.QLabel(desc)
             row.addWidget(label, 1)
 
-            can_sign = (
-                step.status == "active"
-                and self._current_person_record is not None
-                and self._state is not None
-            )
-            if can_sign:
-                from modules.approvals.service import ApprovalService
-                # Inline check without hitting the server for UI responsiveness
-                if step.kind == "ack":
-                    can_sign = True
-                elif step.resolved_actor_id:
-                    can_sign = step.resolved_actor_id == self._current_person_record
+            needs_assignment = step.status == "active" and step.kind != "ack" and step.resolved_actor_id is None
+            if needs_assignment:
+                btn = QtWidgets.QPushButton("Assign…")
+                btn.setFixedWidth(70)
+                btn.setToolTip("Nobody is resolved for this step — pick who should sign it.")
+                step_id, step_label = step.step_id, step.label
+                btn.clicked.connect(
+                    lambda _checked, sid=step_id, lbl=step_label: self.assign_requested.emit(sid, lbl)
+                )
+                row.addWidget(btn)
+
+            # Best-effort UI hint only — the sign endpoint is the real authority.
+            can_sign = step.status == "active" and self._current_person_record is not None
+            if can_sign and step.kind != "ack":
+                can_sign = step.resolved_actor_id == self._current_person_record
 
             if can_sign:
                 btn = QtWidgets.QPushButton("Sign")

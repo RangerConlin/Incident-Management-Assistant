@@ -1,5 +1,18 @@
 # Prompt: Finish a form builder
 
+## Server migration update (2026-10-19)
+
+ICS 203 now keeps this front door but dispatches rendering to the shared server.
+`Ics203FormBuilder` prepares the incident, explicit operational-period ID, output
+path, publisher set, and prepared-by metadata. `ExportService` downloads the PDF
+through `utils.api_client`, without invoking the local generator or legacy bridge.
+The organization panel calls the thin domain wrapper `generate_ics203` in
+`modules/command/incident_organization/export_service.py`; it offers FEMA, ICS Canada,
+and USCG and performs the download in a background worker. The selected period
+labels the current saved organization rather than reconstructing historical staffing.
+The mapper's template-authoring preview still calls local `engine.generate()`.
+See `form_builder_inventory.md` for the field audit and remaining ambiguities.
+
 Paste this whole file's content (or tell Claude to read this file) at the
 start of a new chat to continue the form-builder work started on
 2026-07-27/28 (SAR 104). It is meant to need almost no manual input beyond

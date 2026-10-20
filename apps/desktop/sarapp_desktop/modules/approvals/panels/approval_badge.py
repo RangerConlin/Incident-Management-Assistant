@@ -3,25 +3,39 @@ from __future__ import annotations
 from PySide6 import QtWidgets
 
 from modules.approvals.models import ApprovalStatus
+from utils.styles import approval_awaiting_me_color, approval_status_colors, subscribe_theme
 
-_BADGE_STYLES: dict[ApprovalStatus, tuple[str, str]] = {
-    "not_started": ("Not Started", "color: #888888;"),
-    "pending": ("Pending", "color: #E6A817; font-weight: bold;"),
-    "approved": ("Approved", "color: #3D9970; font-weight: bold;"),
-    "rejected": ("Rejected", "color: #CC0000; font-weight: bold;"),
+_LABELS: dict[ApprovalStatus, str] = {
+    "not_started": "Not Started",
+    "pending": "Pending",
+    "approved": "Approved",
+    "rejected": "Rejected",
 }
-
-_AWAITING_STYLE = "color: #E65400; font-weight: bold;"
 
 
 class ApprovalBadge(QtWidgets.QLabel):
     """Small inline status chip for list rows and nav items."""
 
+    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._status: ApprovalStatus = "not_started"
+        self._awaiting_me = False
+        subscribe_theme(self, lambda *_: self._apply_style())
+
     def set_status(self, status: ApprovalStatus, awaiting_me: bool = False) -> None:
-        if awaiting_me and status == "pending":
+        self._status = status
+        self._awaiting_me = awaiting_me
+        self._apply_style()
+
+    def _apply_style(self) -> None:
+        if self._awaiting_me and self._status == "pending":
             self.setText("Awaiting You")
-            self.setStyleSheet(_AWAITING_STYLE)
+            color = approval_awaiting_me_color().name()
+            self.setStyleSheet(f"color: {color}; font-weight: bold;")
+            return
+        colors = approval_status_colors().get(self._status)
+        self.setText(_LABELS.get(self._status, "Unknown"))
+        if colors:
+            self.setStyleSheet(f"color: {colors['bg'].color().name()}; font-weight: bold;")
         else:
-            text, style = _BADGE_STYLES.get(status, ("Unknown", ""))
-            self.setText(text)
-            self.setStyleSheet(style)
+            self.setStyleSheet("")

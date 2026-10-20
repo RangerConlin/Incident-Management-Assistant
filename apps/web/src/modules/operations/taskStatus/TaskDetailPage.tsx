@@ -4,6 +4,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import * as api from "../../../api/endpoints";
 import StatusPill from "../../../components/table/StatusPill";
 import { useSession } from "../../../auth/SessionContext";
+import PlanningTab from "./PlanningTab";
 import TeamsTab from "./TeamsTab";
 import { TASK_STATUS_OPTIONS, useSetTaskStatus, useTaskDetail, useUpdateTask } from "./hooks";
 
@@ -27,12 +28,12 @@ const STUB_TABS: { key: Tab; label: string; stub: string }[] = [
   { key: "attachments", label: "Attachments", stub: "Coming with the Forms module." },
   { key: "intel", label: "Intel", stub: "Coming with the Intel module." },
   { key: "log", label: "Log", stub: "Coming with the ICS-214 module." },
-  { key: "planning", label: "Planning", stub: "Coming with the Planning module." },
 ];
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "overview", label: "Overview" },
   { key: "teams", label: "Teams" },
+  { key: "planning", label: "Planning" },
   ...STUB_TABS,
 ];
 
@@ -181,6 +182,8 @@ export default function TaskDetailPage() {
       )}
 
       {tab === "teams" && <TeamsTab incidentId={incidentId} task={task} />}
+
+      {tab === "planning" && <PlanningTab incidentId={incidentId} task={task} />}
 
       {STUB_TABS.some((s) => s.key === tab) && (
         <p className="detail-tab-placeholder">{STUB_TABS.find((s) => s.key === tab)?.stub}</p>

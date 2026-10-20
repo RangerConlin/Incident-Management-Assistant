@@ -1,8 +1,10 @@
 from __future__ import annotations
 from collections import defaultdict
+from pathlib import Path
 from typing import Optional
+from urllib.parse import quote
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QObject, QRunnable, QThreadPool, Qt, Signal, Slot
 from PySide6.QtGui import QAction, QColor, QFont
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -10,10 +12,12 @@ from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QFormLayout,
+    QFileDialog,
     QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QInputDialog,
     QListWidget,
     QListWidgetItem,
     QMenu,
@@ -33,6 +37,7 @@ from PySide6.QtWidgets import (
 from styles.colors import MUTED_TEXT
 from utils.app_signals import app_signals
 from utils.state import AppState
+from utils.api_client import api_client
 
 from ..controller import IncidentOrganizationController
 from ..models import (
@@ -47,6 +52,34 @@ from ..models import (
     normalize_assignment_type,
 )
 from ..windows.ops_section_window import OperationsSectionWindow
+
+
+class _ExportSignals(QObject):
+    completed = Signal(str)
+    failed = Signal(str)
+
+
+class _Ics203Download(QRunnable):
+    def __init__(self, incident_id: str, period_id: int, path: Path, form_set_id: str) -> None:
+        super().__init__()
+        self.signals = _ExportSignals()
+        self.incident_id = incident_id
+        self.period_id = period_id
+        self.path = path
+        self.form_set_id = form_set_id
+
+    def run(self) -> None:
+        from ..export_service import generate_ics203
+
+        try:
+            generate_ics203(
+                incident_id=self.incident_id, operational_period_id=self.period_id,
+                output_path=self.path, form_set_id=self.form_set_id,
+            )
+        except Exception as exc:
+            self.signals.failed.emit(str(exc))
+        else:
+            self.signals.completed.emit(str(self.path))
 
 
 # ── ICS Classification → Position Title Mapping ──────────────────────────
@@ -703,7 +736,7 @@ class IncidentOrganizationPanel(QWidget):
         self.btn_templates.clicked.connect(self._apply_template)
         toolbar.addWidget(self.btn_templates)
         toolbar.addStretch(1)
-        self.btn_ics203 = QPushButton("Prepare ICS 203", self)
+        self.btn_ics203 = QPushButton("Export ICS 203", self)
         self.btn_ics203.clicked.connect(lambda: self._prepare_form("ICS_203"))
         toolbar.addWidget(self.btn_ics203)
         self.btn_ics207 = QPushButton("Prepare ICS 207", self)
@@ -1286,6 +1319,9 @@ class IncidentOrganizationPanel(QWidget):
     # ------------------------------------------------------------------
 
     def _prepare_form(self, form_type: str) -> None:
+        if form_type == "ICS_203":
+            self._export_ics203()
+            return
         controller = self._ensure_controller()
         payload = (
             controller.build_ics207_payload()
@@ -1298,3 +1334,72 @@ class IncidentOrganizationPanel(QWidget):
             f"{form_type.replace('_', ' ')} data was prepared from the incident organization "
             f"for IAP assembly ({len(payload.get('positions', []))} positions).",
         )
+
+    def _export_ics203(self) -> None:
+        incident_id = str(self.incident_id or "")
+        if not incident_id:
+            QMessageBox.warning(self, "Incident Required", "Load an incident first.")
+            return
+        if getattr(self, "_ics203_busy", False):
+            return
+        try:
+            periods = api_client.get(
+                f"/api/incidents/{quote(incident_id, safe='')}/planning/operational-periods"
+            )
+        except Exception as exc:
+            QMessageBox.warning(self, "Export Failed", str(exc))
+            return
+        if not periods:
+            QMessageBox.warning(
+                self, "Operational Period Required",
+                "Create an operational period before exporting ICS 203.",
+            )
+            return
+        labels = [
+            f"OP {period['number']}" + (f" - {period['name']}" if period.get("name") else "")
+            for period in periods
+        ]
+        selected, accepted = QInputDialog.getItem(
+            self, "Export ICS 203",
+            "Export the current saved organization. Select the operational period for the form header:",
+            labels, 0, False,
+        )
+        if not accepted:
+            return
+        form_sets = ["FEMA", "ICS Canada", "USCG"]
+        selected_set, accepted = QInputDialog.getItem(
+            self, "ICS 203 Form Set", "Publishing form set:", form_sets, 0, False,
+        )
+        if not accepted:
+            return
+        form_set_id = ["fema", "ics_canada", "uscg"][form_sets.index(selected_set)]
+        period_id = int(periods[labels.index(selected)]["id"])
+        filename, _ = QFileDialog.getSaveFileName(
+            self, "Save ICS 203", f"ics_203_{form_set_id}.pdf", "PDF files (*.pdf)"
+        )
+        if not filename:
+            return
+        path = Path(filename)
+        worker = _Ics203Download(incident_id, period_id, path, form_set_id)
+        worker.signals.completed.connect(self._ics203_completed)
+        worker.signals.failed.connect(self._ics203_failed)
+        self._ics203_worker = worker
+        self._ics203_busy = True
+        self.btn_ics203.setEnabled(False)
+        self.btn_ics203.setText("Exporting ICS 203...")
+        QThreadPool.globalInstance().start(worker)
+
+    @Slot(str)
+    def _ics203_completed(self, path: str) -> None:
+        self._reset_ics203_export()
+        QMessageBox.information(self, "ICS 203 Exported", f"Saved ICS 203 to:\n{path}")
+
+    @Slot(str)
+    def _ics203_failed(self, message: str) -> None:
+        self._reset_ics203_export()
+        QMessageBox.warning(self, "ICS 203 Export Failed", message)
+
+    def _reset_ics203_export(self) -> None:
+        self._ics203_busy = False
+        self.btn_ics203.setEnabled(bool(self.incident_id))
+        self.btn_ics203.setText("Export ICS 203")

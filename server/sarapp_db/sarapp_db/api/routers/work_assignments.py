@@ -195,17 +195,6 @@ def _get_doc(incident_id: str, wa_id: int) -> dict:
     return doc
 
 
-def _broadcast_updated(repo: WorkAssignmentsRepository, incident_id: str, wa_id: int) -> dict:
-    """$push/$pull array mutations aren't expressible via BaseRepository's
-    generic methods — drop to the raw collection for the mutation itself,
-    then re-fetch and broadcast, mirroring meetings.py's attendee/checklist
-    pattern."""
-    doc = repo._col.find_one({"incident_id": incident_id, "int_id": wa_id})
-    if doc:
-        repo._broadcast("updated", doc["_id"], doc)
-    return doc
-
-
 # -------------------------------------------------------------------------
 # Work assignment CRUD
 # -------------------------------------------------------------------------
@@ -408,11 +397,7 @@ def add_resource(incident_id: str, wa_id: int, body: Dict[str, Any]) -> Dict[str
         "updated_at": now,
         "assignments": [],
     }
-    # $push to an embedded array — not expressible via BaseRepository's
-    # generic methods, so we drop to the raw collection and broadcast
-    # ourselves, mirroring meetings.py's attendee/checklist pattern.
-    repo._col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$push": {"resources": req}})
-    _broadcast_updated(repo, incident_id, wa_id)
+    repo.apply_update(doc["_id"], {"$push": {"resources": req}})
     return _req_out(req)
 
 
@@ -441,8 +426,8 @@ def update_resource(incident_id: str, wa_id: int, req_id: int, body: Dict[str, A
 @router.delete("/incidents/{incident_id}/planning/work-assignments/{wa_id}/resources/{req_id}", status_code=204)
 def remove_resource(incident_id: str, wa_id: int, req_id: int) -> None:
     repo = _repo(incident_id)
-    repo._col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$pull": {"resources": {"id": req_id}}})
-    _broadcast_updated(repo, incident_id, wa_id)
+    doc = _get_doc(incident_id, wa_id)
+    repo.apply_update(doc["_id"], {"$pull": {"resources": {"id": req_id}}})
 
 
 @router.post("/incidents/{incident_id}/planning/work-assignments/{wa_id}/resources/{req_id}/assignments", status_code=201)
@@ -543,8 +528,7 @@ def add_hazard(incident_id: str, wa_id: int, body: Dict[str, Any]) -> Dict[str, 
         "created_at": now,
         "updated_at": now,
     }
-    repo._col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$push": {"hazards": hazard}})
-    _broadcast_updated(repo, incident_id, wa_id)
+    repo.apply_update(doc["_id"], {"$push": {"hazards": hazard}})
     return _hazard_out(hazard)
 
 
@@ -570,8 +554,8 @@ def update_hazard(incident_id: str, wa_id: int, hazard_id: int, body: Dict[str, 
 @router.delete("/incidents/{incident_id}/planning/work-assignments/{wa_id}/hazards/{hazard_id}", status_code=204)
 def remove_hazard(incident_id: str, wa_id: int, hazard_id: int) -> None:
     repo = _repo(incident_id)
-    repo._col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$pull": {"hazards": {"id": hazard_id}}})
-    _broadcast_updated(repo, incident_id, wa_id)
+    doc = _get_doc(incident_id, wa_id)
+    repo.apply_update(doc["_id"], {"$pull": {"hazards": {"id": hazard_id}}})
 
 
 # -------------------------------------------------------------------------
@@ -609,8 +593,7 @@ def add_comms(incident_id: str, wa_id: int, body: Dict[str, Any]) -> Dict[str, A
         "created_at": now,
         "updated_at": now,
     }
-    repo._col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$push": {"comms": comm}})
-    _broadcast_updated(repo, incident_id, wa_id)
+    repo.apply_update(doc["_id"], {"$push": {"comms": comm}})
     return _comms_out(comm)
 
 
@@ -635,8 +618,8 @@ def update_comms(incident_id: str, wa_id: int, comms_id: int, body: Dict[str, An
 @router.delete("/incidents/{incident_id}/planning/work-assignments/{wa_id}/comms/{comms_id}", status_code=204)
 def remove_comms(incident_id: str, wa_id: int, comms_id: int) -> None:
     repo = _repo(incident_id)
-    repo._col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$pull": {"comms": {"id": comms_id}}})
-    _broadcast_updated(repo, incident_id, wa_id)
+    doc = _get_doc(incident_id, wa_id)
+    repo.apply_update(doc["_id"], {"$pull": {"comms": {"id": comms_id}}})
 
 
 # -------------------------------------------------------------------------
@@ -664,16 +647,15 @@ def link_task(incident_id: str, wa_id: int, body: Dict[str, Any]) -> Optional[Di
         "created_at": _utcnow(),
         "notes": str(body.get("notes") or ""),
     }
-    repo._col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$push": {"task_links": link}})
-    _broadcast_updated(repo, incident_id, wa_id)
+    repo.apply_update(doc["_id"], {"$push": {"task_links": link}})
     return _link_out(link)
 
 
 @router.delete("/incidents/{incident_id}/planning/work-assignments/{wa_id}/task-links/{link_id}", status_code=204)
 def unlink_task(incident_id: str, wa_id: int, link_id: int) -> None:
     repo = _repo(incident_id)
-    repo._col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$pull": {"task_links": {"id": link_id}}})
-    _broadcast_updated(repo, incident_id, wa_id)
+    doc = _get_doc(incident_id, wa_id)
+    repo.apply_update(doc["_id"], {"$pull": {"task_links": {"id": link_id}}})
 
 
 def _agency_requests_repo(incident_id: str) -> LiaisonAgencyRequestsRepository:
@@ -721,16 +703,9 @@ def link_agency_request(incident_id: str, wa_id: int, body: Dict[str, Any]) -> O
         raise HTTPException(status_code=404, detail="Agency request not found")
     new_id = _next_sub_id(doc.get("agency_request_links", []))
     link = {"id": new_id, "agency_request_id": agency_request_id, "created_at": _utcnow()}
-    repo._col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$push": {"agency_request_links": link}})
-    _broadcast_updated(repo, incident_id, wa_id)
+    repo.apply_update(doc["_id"], {"$push": {"agency_request_links": link}})
     reverse_link = {"id": new_id, "work_assignment_id": wa_id, "wa_link_id": new_id, "created_at": _utcnow()}
-    req_repo._col.update_one(
-        {"incident_id": incident_id, "int_id": agency_request_id},
-        {"$push": {"strategy_links": reverse_link}},
-    )
-    updated_req = req_repo._col.find_one({"incident_id": incident_id, "int_id": agency_request_id})
-    if updated_req:
-        req_repo._broadcast("updated", updated_req["_id"], updated_req)
+    req_repo.apply_update(req["_id"], {"$push": {"strategy_links": reverse_link}})
     return _agency_request_link_out(link)
 
 
@@ -740,17 +715,15 @@ def unlink_agency_request(incident_id: str, wa_id: int, link_id: int) -> None:
     doc = _get_doc(incident_id, wa_id)
     links = doc.get("agency_request_links", [])
     target = next((l for l in links if l.get("id") == link_id), None)
-    repo._col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$pull": {"agency_request_links": {"id": link_id}}})
-    _broadcast_updated(repo, incident_id, wa_id)
+    repo.apply_update(doc["_id"], {"$pull": {"agency_request_links": {"id": link_id}}})
     if target:
         req_repo = _agency_requests_repo(incident_id)
-        req_repo._col.update_one(
-            {"incident_id": incident_id, "int_id": target.get("agency_request_id")},
-            {"$pull": {"strategy_links": {"wa_link_id": link_id, "work_assignment_id": wa_id}}},
-        )
-        updated_req = req_repo._col.find_one({"incident_id": incident_id, "int_id": target.get("agency_request_id")})
-        if updated_req:
-            req_repo._broadcast("updated", updated_req["_id"], updated_req)
+        req = req_repo._col.find_one({"incident_id": incident_id, "int_id": target.get("agency_request_id")})
+        if req:
+            req_repo.apply_update(
+                req["_id"],
+                {"$pull": {"strategy_links": {"wa_link_id": link_id, "work_assignment_id": wa_id}}},
+            )
 
 
 @router.get("/incidents/{incident_id}/planning/tasks/{task_id}/work-assignments")
@@ -798,8 +771,7 @@ def add_log_entry(incident_id: str, wa_id: int, body: Dict[str, Any]) -> Dict[st
         "critical": bool(body.get("critical", False)),
         "entered_by": body.get("entered_by"),
     }
-    repo._col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$push": {"log_entries": entry}})
-    _broadcast_updated(repo, incident_id, wa_id)
+    repo.apply_update(doc["_id"], {"$push": {"log_entries": entry}})
     return _log_out(entry)
 
 
@@ -822,8 +794,8 @@ def update_log_entry(incident_id: str, wa_id: int, log_id: int, body: Dict[str, 
 @router.delete("/incidents/{incident_id}/planning/work-assignments/{wa_id}/log/{log_id}", status_code=204)
 def remove_log_entry(incident_id: str, wa_id: int, log_id: int) -> None:
     repo = _repo(incident_id)
-    repo._col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$pull": {"log_entries": {"id": log_id}}})
-    _broadcast_updated(repo, incident_id, wa_id)
+    doc = _get_doc(incident_id, wa_id)
+    repo.apply_update(doc["_id"], {"$pull": {"log_entries": {"id": log_id}}})
 
 
 # -------------------------------------------------------------------------
@@ -859,6 +831,5 @@ def update_output(incident_id: str, wa_id: int, output_type: str, body: Dict[str
         "generated_at": body.get("generated_at"),
         "generated_by": body.get("generated_by"),
     }
-    repo._col.update_one({"incident_id": incident_id, "int_id": wa_id}, {"$push": {"outputs": entry}})
-    _broadcast_updated(repo, incident_id, wa_id)
+    repo.apply_update(doc["_id"], {"$push": {"outputs": entry}})
     return _output_out(entry)

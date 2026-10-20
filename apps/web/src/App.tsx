@@ -23,6 +23,36 @@ import SitrepDetailPage from "./modules/planning/sitreps/SitrepDetailPage";
 import WorkAssignmentsBoardPage from "./modules/planning/workAssignments/WorkAssignmentsBoardPage";
 import WorkAssignmentDetailPage from "./modules/planning/workAssignments/WorkAssignmentDetailPage";
 
+import CommandDashboardPage from "./modules/command/CommandDashboardPage";
+
+import ResourceStatusBoardPage from "./modules/logistics/resourceStatus/ResourceStatusBoardPage";
+import ResourceDetailPage from "./modules/logistics/resourceStatus/ResourceDetailPage";
+import CheckInPage from "./modules/logistics/checkin/CheckInPage";
+
+import PublicInformationLayout from "./modules/publicInformation/PublicInformationLayout";
+import PioOverviewPage from "./modules/publicInformation/PioOverviewPage";
+import ReleasesBoardPage from "./modules/publicInformation/ReleasesBoardPage";
+import ReleaseDetailPage from "./modules/publicInformation/ReleaseDetailPage";
+import RecordsBoardPage from "./modules/publicInformation/RecordsBoardPage";
+import RecordDetailPage from "./modules/publicInformation/RecordDetailPage";
+
+import LiaisonLayout from "./modules/liaison/LiaisonLayout";
+import LiaisonOverviewPage from "./modules/liaison/LiaisonOverviewPage";
+import LiaisonBoardPage from "./modules/liaison/LiaisonBoardPage";
+import LiaisonDetailPage from "./modules/liaison/LiaisonDetailPage";
+import AgencyContactPage from "./modules/liaison/AgencyContactPage";
+
+import LogisticsDashboardPage from "./modules/logistics/LogisticsDashboardPage";
+import ResourceRequestsBoardPage from "./modules/logistics/ResourceRequestsBoardPage";
+import ResourceRequestDetailPage from "./modules/logistics/ResourceRequestDetailPage";
+import FacilitiesBoardPage from "./modules/logistics/FacilitiesBoardPage";
+import FacilityDetailPage from "./modules/logistics/FacilityDetailPage";
+
+import CommsPlanPage from "./modules/communications/plan/CommsPlanPage";
+import CommsLogPage from "./modules/communications/log/CommsLogPage";
+
+import FormExportsPage from "./modules/forms/FormExportsPage";
+
 function RequireAuth({ children }: { children: JSX.Element }) {
   const { isAuthenticated } = useSession();
   return isAuthenticated ? children : <Navigate to="/login" replace />;
@@ -78,6 +108,28 @@ export default function App() {
         }
       >
         <Route index element={<IndexContent />} />
+        <Route path="forms" element={<RequireIncident><FormExportsPage /></RequireIncident>} />
+        <Route path="logistics" element={<RequireIncident><LogisticsDashboardPage /></RequireIncident>} />
+        <Route path="logistics/resource-requests" element={<RequireIncident><ResourceRequestsBoardPage /></RequireIncident>} />
+        <Route path="logistics/resource-requests/:requestId" element={<RequireIncident><ResourceRequestDetailPage /></RequireIncident>} />
+        <Route path="logistics/facilities" element={<RequireIncident><FacilitiesBoardPage /></RequireIncident>} />
+        <Route path="logistics/facilities/:facilityId" element={<RequireIncident><FacilityDetailPage /></RequireIncident>} />
+        <Route path="liaison" element={<RequireIncident><LiaisonLayout /></RequireIncident>}>
+          <Route index element={<LiaisonOverviewPage />} />
+          <Route path="agencies/:agencyId/contacts/new" element={<AgencyContactPage />} />
+          <Route path=":section" element={<LiaisonBoardPage />} />
+          <Route path=":section/:recordId" element={<LiaisonDetailPage />} />
+        </Route>
+        <Route path="pio" element={<RequireIncident><PublicInformationLayout /></RequireIncident>}>
+          <Route index element={<PioOverviewPage />} />
+          <Route path="releases" element={<ReleasesBoardPage />} />
+          <Route path="releases/:releaseId" element={<ReleaseDetailPage />} />
+          <Route path=":section" element={<RecordsBoardPage />} />
+          <Route path=":section/:recordId" element={<RecordDetailPage />} />
+        </Route>
+        <Route path="command" element={<RequireIncident><CommandDashboardPage /></RequireIncident>} />
+        <Route path="comms/plan" element={<RequireIncident><CommsPlanPage /></RequireIncident>} />
+        <Route path="comms/log" element={<RequireIncident><CommsLogPage /></RequireIncident>} />
         <Route
           path="ops/teams"
           element={
@@ -107,6 +159,30 @@ export default function App() {
           element={
             <RequireIncident>
               <TaskDetailPage />
+            </RequireIncident>
+          }
+        />
+        <Route
+          path="logistics/resources"
+          element={
+            <RequireIncident>
+              <ResourceStatusBoardPage />
+            </RequireIncident>
+          }
+        />
+        <Route
+          path="logistics/resources/:resourceType/:recordId"
+          element={
+            <RequireIncident>
+              <ResourceDetailPage />
+            </RequireIncident>
+          }
+        />
+        <Route
+          path="logistics/checkin"
+          element={
+            <RequireIncident>
+              <CheckInPage />
             </RequireIncident>
           }
         />

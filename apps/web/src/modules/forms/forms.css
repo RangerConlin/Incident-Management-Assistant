@@ -1,0 +1,9 @@
+.form-export-controls { border: 1px solid currentColor; border-radius: 8px; padding: 16px; margin: 20px 0; }
+.form-export-controls h3 { margin-top: 0; }
+.form-export-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
+.form-export-row label { display: flex; flex-direction: column; gap: 6px; max-width: 100%; }
+.form-export-controls button { width: auto; }
+.form-export-controls select { max-width: 100%; }
+.form-export-page { max-width: 1000px; margin: 0 auto; }
+.form-export-page a { color: inherit; }
+@media print { .form-export-controls { display: none; } }

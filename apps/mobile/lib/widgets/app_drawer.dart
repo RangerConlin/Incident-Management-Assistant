@@ -18,6 +18,7 @@ import '../screens/safety_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/team_management_screen.dart';
 import '../services/app_presence_service.dart';
+import '../services/chat_presence_service.dart';
 import '../services/notification_store.dart';
 import '../services/push_notification_service.dart';
 import '../services/session_store.dart';
@@ -51,6 +52,7 @@ class AppDrawer extends StatelessWidget {
       unawaited(PushNotificationService.unregisterCurrentToken());
     }
     AppPresenceService.stop();
+    ChatPresenceService.stop();
     // Native tracking shutdown can be slow or unavailable. Start it, but do
     // not make navigation depend on the plugin responding.
     unawaited(_stopTracking());

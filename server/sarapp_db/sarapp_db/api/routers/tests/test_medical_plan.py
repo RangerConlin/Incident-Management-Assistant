@@ -115,13 +115,14 @@ def test_ics206_sections_are_stored_in_medical_plan():
 
 def _approve_through_workflow(bridge, monkeypatch, app):
     """Run the real ICS-206 approval chain (MEDL, then SOFR) for the selected version."""
+    import sarapp_db.api.routers.approvals as approvals_router
     from modules.approvals.service import ApprovalService
     from utils.api_client import api_client
 
     api_client.configure_test_transport(app)
     people = {"Medical Unit Leader": (7, MED_LEAD), "Safety Officer": (9, SAFETY)}
     monkeypatch.setattr(
-        ApprovalService, "_resolve_actor", lambda self, role: (people[role][0], role)
+        approvals_router, "_resolve_actor", lambda incident_id, role: (people[role][0], role)
     )
     incident_id, plan_id = bridge.approval_target()
     service = ApprovalService(incident_id)
@@ -136,9 +137,7 @@ def _approve_through_workflow(bridge, monkeypatch, app):
         instance = service.sign(
             instance,
             step_id=step_id,
-            actor_id=str(person_record),
-            role_at_time=who["position"],
-            assignment_type="primary",
+            actor_id=person_record,
             action="approved",
         )
     assert instance.status == "approved"

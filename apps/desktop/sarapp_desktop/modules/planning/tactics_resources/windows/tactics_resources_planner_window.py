@@ -3,8 +3,8 @@ TacticsResourcesPlannerWindow
 =============================
 Main board window for the Tactics and Resources Planner.
 
-Shows all strategies as contained row cards. Double-click a card to open the
-strategy detail window; secondary actions live in the card context menu.
+Shows all Work Assignments as contained row cards. Double-click a card to open
+the assignment detail window; secondary actions live in the card context menu.
 
 Accessible from: Planning, Operations, and Logistics menus.
 """
@@ -13,7 +13,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Optional
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -31,6 +31,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from modules.planning.tactics_resources.data.work_assignment_desk import work_assignment_desk
 from modules.planning.tactics_resources.data.work_assignment_repository import WorkAssignmentRepository
 from modules.planning.tactics_resources.models.work_assignment_models import (
     PLANNING_STATUS_VALUES,
@@ -182,8 +183,8 @@ def _tint_stat_card(card: tuple[QFrame, QLabel, QLabel], brushes: dict[str, Any]
     )
 
 
-class _StrategyCard(QFrame):
-    """One contained row card for a strategy summary."""
+class _AssignmentCard(QFrame):
+    """One contained row card for a Work Assignment summary."""
 
     opened = Signal(int)
     clone_requested = Signal(int)
@@ -225,8 +226,8 @@ class _StrategyCard(QFrame):
 
         header = QHBoxLayout()
         header.setSpacing(8)
-        number = wa.assignment_number or f"Strategy {wa.id or ''}".strip()
-        title = QLabel(f"{number}  {wa.assignment_name or '(Untitled Strategy)'}")
+        number = wa.assignment_number or f"Assignment {wa.id or ''}".strip()
+        title = QLabel(f"{number}  {wa.assignment_name or '(Untitled Assignment)'}")
         title.setStyleSheet("font-weight:700; font-size:14px;")
         title.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         header.addWidget(title, 1)
@@ -303,7 +304,7 @@ class _StrategyCard(QFrame):
 
         opacity_rule = "color: palette(mid);" if wa.is_archived else ""
         self.setStyleSheet(
-            "_StrategyCard { "
+            "_AssignmentCard { "
             f"background-color:{_color_name('bg_raised')}; "
             f"border:1px solid {border_color}; "
             f"border-left:4px solid {left_border}; "
@@ -335,13 +336,13 @@ class _StrategyCard(QFrame):
         menu.addAction("Create Operations Task", lambda: self.create_task_requested.emit(assignment_id))
         menu.addAction("Link Existing Task", lambda: self.link_task_requested.emit(assignment_id))
         menu.addSeparator()
-        menu.addAction("Copy Strategy Summary", lambda: self.copy_requested.emit(assignment_id))
+        menu.addAction("Copy Assignment Summary", lambda: self.copy_requested.emit(assignment_id))
         menu.exec(self.mapToGlobal(position))
 
 
 class TacticsResourcesPlannerWindow(QWidget):
     """
-    Main planning board for strategies.
+    Main planning board for Work Assignments.
 
     Designed to be opened modeless (non-blocking).
     """
@@ -363,6 +364,18 @@ class TacticsResourcesPlannerWindow(QWidget):
             subscribe_theme(self, self._on_theme_changed)
         except Exception:
             pass
+
+        # Live updates: any client's write to work_assignments (including our
+        # own) arrives here via incident_cache's WebSocket feed. Coalesce
+        # bursts (e.g. importing several assignments at once) into one reload.
+        self._live_update_timer = QTimer(self)
+        self._live_update_timer.setSingleShot(True)
+        self._live_update_timer.setInterval(200)
+        self._live_update_timer.timeout.connect(self.reload)
+        work_assignment_desk.changed.connect(self._on_live_change)
+
+    def _on_live_change(self) -> None:
+        self._live_update_timer.start()
 
     def _on_theme_changed(self, _name: str) -> None:
         self._render_stats()
@@ -413,7 +426,7 @@ class TacticsResourcesPlannerWindow(QWidget):
         row.setSpacing(6)
 
         self._search_edit = QLineEdit()
-        self._search_edit.setPlaceholderText("Search strategies...")
+        self._search_edit.setPlaceholderText("Search assignments...")
         self._search_edit.setClearButtonEnabled(True)
         self._search_edit.textChanged.connect(lambda _text: self._render_cards())
         row.addWidget(QLabel("Search:"))
@@ -452,7 +465,7 @@ class TacticsResourcesPlannerWindow(QWidget):
             toolbar.addAction(action)
             return action
 
-        _action("New Strategy", self._new_assignment)
+        _action("New Work Assignment", self._new_assignment)
         toolbar.addSeparator()
         _action("Refresh", self.reload)
         return toolbar
@@ -480,7 +493,7 @@ class TacticsResourcesPlannerWindow(QWidget):
         return labels
 
     def reload(self) -> None:
-        """Reload strategies and render the card board."""
+        """Reload Work Assignments and render the card board."""
         filters: dict[str, Any] = {}
         if self._show_archived.isChecked():
             filters["show_archived"] = True
@@ -494,32 +507,9 @@ class TacticsResourcesPlannerWindow(QWidget):
         if resource and resource != self._filter_resource.itemText(0):
             filters["resource_status"] = resource
 
-        try:
-            repo = WorkAssignmentRepository(self._db_path)
-            repo.initialize_schema()
-            assignments = repo.list_work_assignments(filters)
-        except Exception as exc:
-            QMessageBox.critical(self, "Planner", f"Failed to load strategies:\n{exc}")
-            return
-
-        meta_by_id: dict[int, _Meta] = {}
-        for wa in assignments:
-            if wa.id is None:
-                continue
-            try:
-                reqs = repo.list_resource_requirements(wa.id)
-                hazards = repo.list_hazards(wa.id)
-                links = repo.list_linked_tasks(wa.id)
-            except Exception:
-                reqs, hazards, links = [], [], []
-            req_total = sum(r.quantity_required for r in reqs)
-            assigned_total = sum(r.quantity_assigned for r in reqs)
-            gap = sum(max(r.quantity_required - r.quantity_assigned, 0) for r in reqs)
-            open_hazards = sum(1 for h in hazards if not h.is_resolved)
-            meta_by_id[int(wa.id)] = (req_total, assigned_total, gap, len(hazards), open_hazards, len(links))
-
-        self._assignments_cache = assignments
-        self._meta_by_id = meta_by_id
+        pairs = work_assignment_desk.list_with_meta(filters)
+        self._assignments_cache = [wa for wa, _meta in pairs]
+        self._meta_by_id = {int(wa.id): meta for wa, meta in pairs if wa.id is not None}
         self._objective_labels = self._load_objective_labels()
         self._render_stats()
         self._render_cards()
@@ -606,7 +596,7 @@ class TacticsResourcesPlannerWindow(QWidget):
 
         rows = self._filtered_assignments()
         if not rows:
-            empty = QLabel("No strategies match the current filters.")
+            empty = QLabel("No Work Assignments match the current filters.")
             empty.setAlignment(Qt.AlignCenter)
             empty.setStyleSheet(f"color:{_color_name('muted')}; font-style:italic; padding:24px;")
             self._card_layout.insertWidget(0, empty)
@@ -617,7 +607,7 @@ class TacticsResourcesPlannerWindow(QWidget):
                 continue
             meta = self._meta_by_id.get(int(wa.id), _EMPTY_META)
             objective = self._objective_labels.get(str(wa.objective_id), str(wa.objective_id or ""))
-            card = _StrategyCard(wa, meta, objective, self._card_container)
+            card = _AssignmentCard(wa, meta, objective, self._card_container)
             card.opened.connect(self._open_detail)
             card.clone_requested.connect(self._clone_assignment)
             card.archive_requested.connect(self._archive_assignment)
@@ -676,7 +666,7 @@ class TacticsResourcesPlannerWindow(QWidget):
         if wa is None:
             return
         if wa.is_archived:
-            QMessageBox.information(self, "Archive", "Strategy is already archived.")
+            QMessageBox.information(self, "Archive", "Work Assignment is already archived.")
             return
         if QMessageBox.question(
             self, "Archive", f"Archive '{wa.assignment_name}'?"
@@ -695,7 +685,7 @@ class TacticsResourcesPlannerWindow(QWidget):
         if wa is None:
             return
         if not wa.is_archived:
-            QMessageBox.information(self, "Restore", "Strategy is not archived.")
+            QMessageBox.information(self, "Restore", "Work Assignment is not archived.")
             return
         try:
             repo = WorkAssignmentRepository(self._db_path)
@@ -727,7 +717,7 @@ class TacticsResourcesPlannerWindow(QWidget):
                 self,
                 "Create Task",
                 "Taskings module not found - task creation unavailable.\n"
-                "Open the strategy and create a task from the Tasks tab.",
+                "Open the Work Assignment and create a task from the Tasks tab.",
             )
         else:
             QMessageBox.information(self, "Create Task", f"Operations task {task_id} created.")

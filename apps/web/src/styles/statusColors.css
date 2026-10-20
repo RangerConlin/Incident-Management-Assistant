@@ -44,7 +44,9 @@
   --status-resource-assigned-bg: #2a1a4e; --status-resource-assigned-fg: #dbdbdb;
   --status-resource-available-bg: #003636; --status-resource-available-fg: #dbdbdb;
   --status-resource-out-of-service-bg: #4a1200; --status-resource-out-of-service-fg: #dbdbdb;
+  --status-resource-preparing-for-demobilization-bg: #4a3200; --status-resource-preparing-for-demobilization-fg: #dbdbdb;
   --status-resource-demobilized-bg: #1c2226; --status-resource-demobilized-fg: #dbdbdb;
+  --status-resource-cancelled-bg: #8c2f2f; --status-resource-cancelled-fg: #dbdbdb;
 
   /* OBJECTIVE_STATUS */
   --status-objective-draft-bg: #757575; --status-objective-draft-fg: #f5f5f5;
@@ -79,6 +81,78 @@
   --status-sitrep-approved-bg: #27ae60; --status-sitrep-approved-fg: #f5f5f5;
   --status-sitrep-distributed-bg: #2980b9; --status-sitrep-distributed-fg: #f5f5f5;
   --status-sitrep-archived-bg: #7f8c8d; --status-sitrep-archived-fg: #1a1a1a;
+
+  /* PIO_STATUS */
+  --status-pio-draft-bg: #757575; --status-pio-draft-fg: #f5f5f5;
+  --status-pio-pending-approval-bg: #f9a825; --status-pio-pending-approval-fg: #1a1a1a;
+  --status-pio-returned-for-revision-bg: #f9a825; --status-pio-returned-for-revision-fg: #1a1a1a;
+  --status-pio-approved-bg: #2e7d32; --status-pio-approved-fg: #f5f5f5;
+  --status-pio-published-bg: #1565c0; --status-pio-published-fg: #f5f5f5;
+  --status-pio-needs-corrections-bg: #616161; --status-pio-needs-corrections-fg: #f5f5f5;
+  --status-pio-archived-bg: #757575; --status-pio-archived-fg: #f5f5f5;
+
+  /* LIAISON_AGENCY_STATUS */
+  --status-liaison-agency-not-contacted-bg: #52525b; --status-liaison-agency-not-contacted-fg: #f5f5f5;
+  --status-liaison-agency-contacted-bg: #1d4ed8; --status-liaison-agency-contacted-fg: #ffffff;
+  --status-liaison-agency-awaiting-response-bg: #b45309; --status-liaison-agency-awaiting-response-fg: #ffffff;
+  --status-liaison-agency-standby-bg: #4338ca; --status-liaison-agency-standby-fg: #ffffff;
+  --status-liaison-agency-supporting-bg: #0f766e; --status-liaison-agency-supporting-fg: #ffffff;
+  --status-liaison-agency-active-bg: #15803d; --status-liaison-agency-active-fg: #ffffff;
+  --status-liaison-agency-demobilizing-bg: #7e22ce; --status-liaison-agency-demobilizing-fg: #ffffff;
+  --status-liaison-agency-released-bg: #3f3f46; --status-liaison-agency-released-fg: #f5f5f5;
+  --status-liaison-agency-unavailable-bg: #b91c1c; --status-liaison-agency-unavailable-fg: #ffffff;
+
+  /* LIAISON_REQUEST_STATUS */
+  --status-liaison-request-open-bg: #6d28d9; --status-liaison-request-open-fg: #ffffff;
+  --status-liaison-request-in-progress-bg: #0e7490; --status-liaison-request-in-progress-fg: #ffffff;
+  --status-liaison-request-resolved-bg: #0f766e; --status-liaison-request-resolved-fg: #ffffff;
+  --status-liaison-request-declined-bg: #52525b; --status-liaison-request-declined-fg: #f5f5f5;
+  --status-liaison-request-cancelled-bg: #52525b; --status-liaison-request-cancelled-fg: #f5f5f5;
+
+  /* LIAISON_PRIORITY */
+  --status-liaison-priority-low-bg: #15803d; --status-liaison-priority-low-fg: #ffffff;
+  --status-liaison-priority-medium-bg: #1d4ed8; --status-liaison-priority-medium-fg: #ffffff;
+  --status-liaison-priority-high-bg: #c2410c; --status-liaison-priority-high-fg: #ffffff;
+  --status-liaison-priority-critical-bg: #b91c1c; --status-liaison-priority-critical-fg: #ffffff;
+
+  /* LIAISON_REPORT_STATE */
+  --status-liaison-report-ready-bg: #16a34a; --status-liaison-report-ready-fg: #ffffff;
+  --status-liaison-report-not_ready-bg: #b45309; --status-liaison-report-not_ready-fg: #ffffff;
+
+  /* LOGISTICS_REQUEST_STATUS */
+  --status-logistics-request-draft-bg: #757575; --status-logistics-request-draft-fg: #f5f5f5;
+  --status-logistics-request-submitted-bg: #f9a825; --status-logistics-request-submitted-fg: #1a1a1a;
+  --status-logistics-request-reviewed-bg: #f9a825; --status-logistics-request-reviewed-fg: #1a1a1a;
+  --status-logistics-request-approved-bg: #2e7d32; --status-logistics-request-approved-fg: #f5f5f5;
+  --status-logistics-request-assigned-bg: #2e7d32; --status-logistics-request-assigned-fg: #f5f5f5;
+  --status-logistics-request-intransit-bg: #2e7d32; --status-logistics-request-intransit-fg: #f5f5f5;
+  --status-logistics-request-delivered-bg: #1565c0; --status-logistics-request-delivered-fg: #f5f5f5;
+  --status-logistics-request-partial-bg: #f9a825; --status-logistics-request-partial-fg: #1a1a1a;
+  --status-logistics-request-denied-bg: #616161; --status-logistics-request-denied-fg: #f5f5f5;
+  --status-logistics-request-cancelled-bg: #616161; --status-logistics-request-cancelled-fg: #f5f5f5;
+  --status-logistics-request-closed-bg: #1565c0; --status-logistics-request-closed-fg: #f5f5f5;
+
+  /* LOGISTICS_REQUEST_PRIORITY */
+  --status-logistics-priority-routine-bg: #1565c0; --status-logistics-priority-routine-fg: #f5f5f5;
+  --status-logistics-priority-high-bg: #e65100; --status-logistics-priority-high-fg: #f5f5f5;
+  --status-logistics-priority-immediate-bg: #c62828; --status-logistics-priority-immediate-fg: #f5f5f5;
+
+  /* FACILITY_STATUS */
+  --status-facility-active-bg: #2e7d32; --status-facility-active-fg: #f5f5f5;
+  --status-facility-planned-bg: #757575; --status-facility-planned-fg: #f5f5f5;
+  --status-facility-closed-bg: #616161; --status-facility-closed-fg: #f5f5f5;
+
+  /* APPROVAL_STATUS */
+  --status-approval-not_started-bg: #475569; --status-approval-not_started-fg: #ffffff;
+  --status-approval-pending-bg: #b45309; --status-approval-pending-fg: #ffffff;
+  --status-approval-approved-bg: #16a34a; --status-approval-approved-fg: #ffffff;
+  --status-approval-rejected-bg: #b91c1c; --status-approval-rejected-fg: #ffffff;
+
+  /* APPROVAL_STEP_STATUS */
+  --status-approval-step-waiting-bg: #9ca3af; --status-approval-step-waiting-fg: #9ca3af;
+  --status-approval-step-active-bg: #d97706; --status-approval-step-active-fg: #d97706;
+  --status-approval-step-completed-bg: #16a34a; --status-approval-step-completed-fg: #16a34a;
+  --status-approval-step-skipped-bg: #6b7280; --status-approval-step-skipped-fg: #6b7280;
 
   /* TEAM_TYPE_COLORS (single swatch, no fg pair) */
   --team-type-gt: #2f6d34;
@@ -133,7 +207,9 @@
   --status-resource-assigned-bg: #581ab4; --status-resource-assigned-fg: #ffffff;
   --status-resource-available-bg: #098d00; --status-resource-available-fg: #000000;
   --status-resource-out-of-service-bg: #c73221; --status-resource-out-of-service-fg: #010101;
+  --status-resource-preparing-for-demobilization-bg: #cc8400; --status-resource-preparing-for-demobilization-fg: #000000;
   --status-resource-demobilized-bg: #888888; --status-resource-demobilized-fg: #363636;
+  --status-resource-cancelled-bg: #e53935; --status-resource-cancelled-fg: #ffffff;
 
   /* OBJECTIVE_STATUS */
   --status-objective-draft-bg: #90a4ae; --status-objective-draft-fg: #1a1a1a;
@@ -168,6 +244,78 @@
   --status-sitrep-approved-bg: #43a047; --status-sitrep-approved-fg: #ffffff;
   --status-sitrep-distributed-bg: #1e88e5; --status-sitrep-distributed-fg: #ffffff;
   --status-sitrep-archived-bg: #90a4ae; --status-sitrep-archived-fg: #1a1a1a;
+
+  /* PIO_STATUS */
+  --status-pio-draft-bg: #90a4ae; --status-pio-draft-fg: #1a1a1a;
+  --status-pio-pending-approval-bg: #ffca28; --status-pio-pending-approval-fg: #1a1a1a;
+  --status-pio-returned-for-revision-bg: #ffca28; --status-pio-returned-for-revision-fg: #1a1a1a;
+  --status-pio-approved-bg: #43a047; --status-pio-approved-fg: #ffffff;
+  --status-pio-published-bg: #1e88e5; --status-pio-published-fg: #ffffff;
+  --status-pio-needs-corrections-bg: #9e9e9e; --status-pio-needs-corrections-fg: #1a1a1a;
+  --status-pio-archived-bg: #90a4ae; --status-pio-archived-fg: #1a1a1a;
+
+  /* LIAISON_AGENCY_STATUS */
+  --status-liaison-agency-not-contacted-bg: #78909c; --status-liaison-agency-not-contacted-fg: #1a1a1a;
+  --status-liaison-agency-contacted-bg: #1976d2; --status-liaison-agency-contacted-fg: #ffffff;
+  --status-liaison-agency-awaiting-response-bg: #fb8c00; --status-liaison-agency-awaiting-response-fg: #1a1a1a;
+  --status-liaison-agency-standby-bg: #5e35b1; --status-liaison-agency-standby-fg: #ffffff;
+  --status-liaison-agency-supporting-bg: #00897b; --status-liaison-agency-supporting-fg: #ffffff;
+  --status-liaison-agency-active-bg: #43a047; --status-liaison-agency-active-fg: #ffffff;
+  --status-liaison-agency-demobilizing-bg: #8e24aa; --status-liaison-agency-demobilizing-fg: #ffffff;
+  --status-liaison-agency-released-bg: #78716c; --status-liaison-agency-released-fg: #ffffff;
+  --status-liaison-agency-unavailable-bg: #e53935; --status-liaison-agency-unavailable-fg: #ffffff;
+
+  /* LIAISON_REQUEST_STATUS */
+  --status-liaison-request-open-bg: #7c3aed; --status-liaison-request-open-fg: #ffffff;
+  --status-liaison-request-in-progress-bg: #0891b2; --status-liaison-request-in-progress-fg: #ffffff;
+  --status-liaison-request-resolved-bg: #00897b; --status-liaison-request-resolved-fg: #ffffff;
+  --status-liaison-request-declined-bg: #78716c; --status-liaison-request-declined-fg: #ffffff;
+  --status-liaison-request-cancelled-bg: #78716c; --status-liaison-request-cancelled-fg: #ffffff;
+
+  /* LIAISON_PRIORITY */
+  --status-liaison-priority-low-bg: #43a047; --status-liaison-priority-low-fg: #ffffff;
+  --status-liaison-priority-medium-bg: #1976d2; --status-liaison-priority-medium-fg: #ffffff;
+  --status-liaison-priority-high-bg: #fb8c00; --status-liaison-priority-high-fg: #1a1a1a;
+  --status-liaison-priority-critical-bg: #e53935; --status-liaison-priority-critical-fg: #ffffff;
+
+  /* LIAISON_REPORT_STATE */
+  --status-liaison-report-ready-bg: #2e7d32; --status-liaison-report-ready-fg: #ffffff;
+  --status-liaison-report-not_ready-bg: #fb8c00; --status-liaison-report-not_ready-fg: #1a1a1a;
+
+  /* LOGISTICS_REQUEST_STATUS */
+  --status-logistics-request-draft-bg: #90a4ae; --status-logistics-request-draft-fg: #1a1a1a;
+  --status-logistics-request-submitted-bg: #ffca28; --status-logistics-request-submitted-fg: #1a1a1a;
+  --status-logistics-request-reviewed-bg: #ffca28; --status-logistics-request-reviewed-fg: #1a1a1a;
+  --status-logistics-request-approved-bg: #43a047; --status-logistics-request-approved-fg: #ffffff;
+  --status-logistics-request-assigned-bg: #43a047; --status-logistics-request-assigned-fg: #ffffff;
+  --status-logistics-request-intransit-bg: #43a047; --status-logistics-request-intransit-fg: #ffffff;
+  --status-logistics-request-delivered-bg: #1e88e5; --status-logistics-request-delivered-fg: #ffffff;
+  --status-logistics-request-partial-bg: #ffca28; --status-logistics-request-partial-fg: #1a1a1a;
+  --status-logistics-request-denied-bg: #9e9e9e; --status-logistics-request-denied-fg: #1a1a1a;
+  --status-logistics-request-cancelled-bg: #9e9e9e; --status-logistics-request-cancelled-fg: #1a1a1a;
+  --status-logistics-request-closed-bg: #1e88e5; --status-logistics-request-closed-fg: #ffffff;
+
+  /* LOGISTICS_REQUEST_PRIORITY */
+  --status-logistics-priority-routine-bg: #1e88e5; --status-logistics-priority-routine-fg: #ffffff;
+  --status-logistics-priority-high-bg: #fb8c00; --status-logistics-priority-high-fg: #1a1a1a;
+  --status-logistics-priority-immediate-bg: #e53935; --status-logistics-priority-immediate-fg: #ffffff;
+
+  /* FACILITY_STATUS */
+  --status-facility-active-bg: #43a047; --status-facility-active-fg: #ffffff;
+  --status-facility-planned-bg: #90a4ae; --status-facility-planned-fg: #1a1a1a;
+  --status-facility-closed-bg: #9e9e9e; --status-facility-closed-fg: #1a1a1a;
+
+  /* APPROVAL_STATUS */
+  --status-approval-not_started-bg: #607d8b; --status-approval-not_started-fg: #ffffff;
+  --status-approval-pending-bg: #fb8c00; --status-approval-pending-fg: #1a1a1a;
+  --status-approval-approved-bg: #2e7d32; --status-approval-approved-fg: #ffffff;
+  --status-approval-rejected-bg: #c62828; --status-approval-rejected-fg: #ffffff;
+
+  /* APPROVAL_STEP_STATUS */
+  --status-approval-step-waiting-bg: #9e9e9e; --status-approval-step-waiting-fg: #9e9e9e;
+  --status-approval-step-active-bg: #fb8c00; --status-approval-step-active-fg: #fb8c00;
+  --status-approval-step-completed-bg: #2e7d32; --status-approval-step-completed-fg: #2e7d32;
+  --status-approval-step-skipped-bg: #bdbdbd; --status-approval-step-skipped-fg: #bdbdbd;
 
   /* TEAM_TYPE_COLORS (single swatch, no fg pair) */
   --team-type-gt: #228b22;

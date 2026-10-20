@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -56,7 +56,14 @@ def _priority_label(value: object) -> str:
 
 
 class LinkedTasksPanel(QWidget):
-    """Displays and manages Operations task links for one Work Assignment."""
+    """Displays and manages Operations task links for one Work Assignment.
+
+    Signals:
+        changed() — emitted after any link/unlink/create so the parent
+                    window can refresh its header summary counts.
+    """
+
+    changed = Signal()
 
     def __init__(
         self,
@@ -225,12 +232,14 @@ class LinkedTasksPanel(QWidget):
 
         QMessageBox.information(self, "Create Task", f"Operations task created (ID: {task_id}).")
         self.reload()
+        self.changed.emit()
 
     def _link_existing(self) -> None:
         """Show a dialog to find and link an existing Operations task."""
         dialog = _LinkTaskDialog(self._work_assignment_id, self._db_path, parent=self)
         dialog.exec()
         self.reload()
+        self.changed.emit()
 
     def _open_task(self) -> None:
         _, task_id = self._current_link_and_task()
@@ -267,6 +276,7 @@ class LinkedTasksPanel(QWidget):
             QMessageBox.critical(self, "Unlink", f"Failed to unlink task:\n{exc}")
             return
         self.reload()
+        self.changed.emit()
 
 
 # ---------------------------------------------------------------------------

@@ -132,6 +132,19 @@ def _build_flat_colors(profile_module, attribute: str) -> Dict[str, QColor]:
     return {key: _ensure_qcolor(value) for key, value in data.items()}
 
 
+def _build_single_color(profile_module, attribute: str) -> QColor:
+    return _ensure_qcolor(getattr(profile_module, attribute, "#000000"))
+
+
+def _build_color_groups(profile_module, attribute: str) -> Dict[str, Dict[str, QColor]]:
+    """Like `_build_status`, but keeps every named color in each group (not just bg/fg)."""
+    data = getattr(profile_module, attribute, {})
+    return {
+        key: {name: _ensure_qcolor(value) for name, value in colors.items()}
+        for key, colors in data.items()
+    }
+
+
 def _build_team_types(profile_module) -> Dict[str, QColor]:
     return _build_flat_colors(profile_module, "TEAM_TYPE_COLORS")
 
@@ -169,6 +182,9 @@ _TEAM_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "
 _CONNECTION_STATUS_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "CONNECTION_STATUS")
 _CONNECTION_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "CONNECTION_STATUS")
 
+_CHAT_BUBBLE_LIGHT: Dict[str, Dict[str, QColor]] = _build_color_groups(_LIGHT_PROFILE, "CHAT_BUBBLE")
+_CHAT_BUBBLE_DARK: Dict[str, Dict[str, QColor]] = _build_color_groups(_DARK_PROFILE, "CHAT_BUBBLE")
+
 _RESOURCE_STATUS_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "RESOURCE_STATUS")
 _RESOURCE_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "RESOURCE_STATUS")
 
@@ -204,6 +220,15 @@ _LIAISON_REPORT_STATE_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_P
 
 _MEDICAL_PLAN_STATUS_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "MEDICAL_PLAN_STATUS")
 _MEDICAL_PLAN_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "MEDICAL_PLAN_STATUS")
+
+_APPROVAL_STATUS_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "APPROVAL_STATUS")
+_APPROVAL_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "APPROVAL_STATUS")
+
+_APPROVAL_STEP_STATUS_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "APPROVAL_STEP_STATUS")
+_APPROVAL_STEP_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "APPROVAL_STEP_STATUS")
+
+_APPROVAL_AWAITING_ME_COLOR_LIGHT: QColor = _build_single_color(_LIGHT_PROFILE, "APPROVAL_AWAITING_ME_COLOR")
+_APPROVAL_AWAITING_ME_COLOR_DARK: QColor = _build_single_color(_DARK_PROFILE, "APPROVAL_AWAITING_ME_COLOR")
 
 _LIAISON_REQUEST_STATUS_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "LIAISON_REQUEST_STATUS")
 _LIAISON_REQUEST_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "LIAISON_REQUEST_STATUS")
@@ -296,6 +321,10 @@ def connection_status_colors() -> Dict[str, Dict[str, QBrush]]:
     return _CONNECTION_STATUS_LIGHT if THEME_NAME == "light" else _CONNECTION_STATUS_DARK
 
 
+def chat_bubble_colors() -> Dict[str, Dict[str, QColor]]:
+    return _CHAT_BUBBLE_LIGHT if THEME_NAME == "light" else _CHAT_BUBBLE_DARK
+
+
 def task_status_colors() -> Dict[str, Dict[str, QBrush]]:
     return _TASK_STATUS_LIGHT if THEME_NAME == "light" else _TASK_STATUS_DARK
 
@@ -370,6 +399,18 @@ def liaison_report_state_colors() -> Dict[str, Dict[str, QBrush]]:
 
 def medical_plan_status_colors() -> Dict[str, Dict[str, QBrush]]:
     return _MEDICAL_PLAN_STATUS_LIGHT if THEME_NAME == "light" else _MEDICAL_PLAN_STATUS_DARK
+
+
+def approval_status_colors() -> Dict[str, Dict[str, QBrush]]:
+    return _APPROVAL_STATUS_LIGHT if THEME_NAME == "light" else _APPROVAL_STATUS_DARK
+
+
+def approval_step_status_colors() -> Dict[str, Dict[str, QBrush]]:
+    return _APPROVAL_STEP_STATUS_LIGHT if THEME_NAME == "light" else _APPROVAL_STEP_STATUS_DARK
+
+
+def approval_awaiting_me_color() -> QColor:
+    return _APPROVAL_AWAITING_ME_COLOR_LIGHT if THEME_NAME == "light" else _APPROVAL_AWAITING_ME_COLOR_DARK
 
 
 def liaison_request_status_colors() -> Dict[str, Dict[str, QBrush]]:
@@ -553,6 +594,7 @@ __all__ = [
     "team_status_colors",
     "team_status_light_colors",
     "connection_status_colors",
+    "chat_bubble_colors",
     "ribbon_colors",
     "map_symbol_colors",
     "task_status_colors",
@@ -576,6 +618,9 @@ __all__ = [
     "liaison_report_state_colors",
     "liaison_request_status_colors",
     "medical_plan_status_colors",
+    "approval_status_colors",
+    "approval_step_status_colors",
+    "approval_awaiting_me_color",
     "wa_planning_status_colors",
     "wa_safety_status_colors",
     "wa_priority_colors",

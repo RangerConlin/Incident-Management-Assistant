@@ -2,14 +2,14 @@
 LinkedAgencyRequestsPanel
 =========================
 Tab widget for linking Liaison agency requests (customer / external
-requests) to a Work Assignment (Strategy), so the LOFR can see which
-strategies are servicing a given request.
+requests) to a Work Assignment, so the LOFR can see which assignments
+are servicing a given request.
 """
 from __future__ import annotations
 
 from typing import Optional
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -34,7 +34,14 @@ from utils.styles import get_palette
 
 
 class LinkedAgencyRequestsPanel(QWidget):
-    """Displays and manages Liaison agency request links for one Work Assignment."""
+    """Displays and manages Liaison agency request links for one Work Assignment.
+
+    Signals:
+        changed() — emitted after any link/unlink so the parent window can
+                    refresh its own summaries.
+    """
+
+    changed = Signal()
 
     def __init__(
         self,
@@ -91,7 +98,7 @@ class LinkedAgencyRequestsPanel(QWidget):
                 item.widget().deleteLater()
         self._summary_label.setText(f"{len(links)} linked agency request{'s' if len(links) != 1 else ''}")
         if not links:
-            empty = QLabel("No agency requests linked to this strategy.")
+            empty = QLabel("No agency requests linked to this assignment.")
             empty.setAlignment(Qt.AlignCenter)
             empty.setStyleSheet(f"color:{get_palette().get('fg_muted').name()}; padding:24px;")
             self._card_layout.insertWidget(0, empty)
@@ -193,12 +200,13 @@ class LinkedAgencyRequestsPanel(QWidget):
         dialog = _LinkAgencyRequestDialog(self._work_assignment_id, self._db_path, parent=self)
         dialog.exec()
         self.reload()
+        self.changed.emit()
 
     def _unlink(self, link_id: int | None) -> None:
         if link_id is None:
             return
         if QMessageBox.question(
-            self, "Unlink Request", "Remove this agency request link from the strategy?"
+            self, "Unlink Request", "Remove this agency request link from the assignment?"
         ) != QMessageBox.Yes:
             return
         try:
@@ -208,6 +216,7 @@ class LinkedAgencyRequestsPanel(QWidget):
             QMessageBox.critical(self, "Unlink", f"Failed to unlink request:\n{exc}")
             return
         self.reload()
+        self.changed.emit()
 
 
 class _LinkAgencyRequestDialog(QDialog):
@@ -305,7 +314,7 @@ class _LinkAgencyRequestDialog(QDialog):
             QMessageBox.critical(self, "Link Request", f"Failed to link request:\n{exc}")
             return
         if result is None:
-            QMessageBox.information(self, "Link Request", "That request is already linked to this strategy.")
+            QMessageBox.information(self, "Link Request", "That request is already linked to this assignment.")
         else:
             QMessageBox.information(self, "Link Request", "Agency request linked successfully.")
         self.accept()

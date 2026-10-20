@@ -139,15 +139,14 @@ class AppStatusBar(QtWidgets.QStatusBar):
     def _poll_messages(self) -> None:
         try:
             from utils.state import AppState
-            from utils.api_client import api_client
+            from modules.chat import services as chat_services
             incident_id = AppState.get_active_incident()
-            if not incident_id:
+            personnel_id = AppState.get_active_user_id()
+            if not incident_id or not personnel_id:
                 self._set_messages(None)
                 return
-            result = api_client.get(
-                f"/api/incidents/{incident_id}/comms/unread-count"
-            ) or {}
-            self._set_messages(int(result.get("count", 0)))
+            count = chat_services.get_unread_count(incident_id, user_id=str(personnel_id))
+            self._set_messages(count)
         except Exception:
             self._set_messages(None)
 

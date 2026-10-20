@@ -31,6 +31,7 @@ Planning is the bridge between high-level incident direction and executable oper
 - Create or refine incident objectives and planning templates.
 - Build work assignments/strategies under objectives.
 - Identify required resources, hazards, agency requests, and planning outputs.
+- Confirm available resource needs directly on a work assignment when they are already filled, or escalate only unresolved needs into Resource Requests.
 - Generate or link operations tasks from planned work.
 - Run meetings and capture planning notes, action items, and logs.
 - Track planning-cycle blockers, approvals, gaps, and readiness.
@@ -63,7 +64,7 @@ Demobilization planning exists as a planning panel, but it appears more like an 
 ## Links To Other Modules
 
 - Tasking: planning work assignments can produce or link to operations tasks.
-- Logistics: resource requirements, gaps, agency requests, and demobilization planning connect to resource status, facilities, resource requests, vehicles, aircraft, and personnel availability.
+- Logistics: resource requirements, gaps, agency requests, and demobilization planning connect to resource status, facilities, resource requests, vehicles, aircraft, and personnel availability. Resource Requests should be used as an escalation path for unresolved or track-worthy needs, not as a mandatory step for every work-assignment resource line.
 - Command: objectives, command emphasis, approvals, and incident readiness are command-facing planning outputs.
 - Safety: hazards and ICS-215A-style planning data connect planning to risk review.
 - Documentation/Forms: operational periods, meetings, ICS-230, ICS-215/215A concepts, and planning outputs become incident documents.
@@ -100,6 +101,7 @@ Mobile receives planning outcomes indirectly through tasking, field dashboard co
 - Should Tactics and Resources become the primary planning workspace, with other planning screens treated as supporting tools?
 - What exactly is a work assignment in customer language, and how is it different from an operations task?
 - When a resource gap is identified in planning, what should happen automatically: create a resource request, alert logistics, reserve inventory, or simply flag the gap?
+- How should the planner mark "needed resources are available" and continue without creating a Resource Request?
 - Which planning products must be printable/exportable for an operational period to be considered complete?
 - How should meeting notes become tasks, resource requests, safety items, or log entries?
 - What does "approval" mean in the planning module: command approval, section approval, document approval, or all of these?

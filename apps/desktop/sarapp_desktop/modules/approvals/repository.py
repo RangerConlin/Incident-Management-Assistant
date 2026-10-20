@@ -1,11 +1,19 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional
 
-from .models import ApprovalInstance, ApprovalRecord
+from .models import ApprovalInstance
 
 
 class ApprovalRepository:
+    """Thin client over the shared approvals workflow API.
+
+    Escalation, step activation/advancement, and who-can-sign checks live
+    server-side (`server/sarapp_db/sarapp_db/api/routers/approvals.py`) so
+    desktop and web drive the same approval chains through the same
+    endpoints instead of each re-deriving that logic locally.
+    """
+
     def __init__(self, incident_id: str):
         self.incident_id = incident_id
         self._base = f"/api/incidents/{incident_id}/approvals"
@@ -18,13 +26,6 @@ class ApprovalRepository:
         from utils.api_client import api_client
         return api_client.post(self._base + path, json=body)
 
-    def _put(self, path: str, body: dict):
-        from utils.api_client import api_client
-        return api_client.put(self._base + path, json=body)
-
-    # ------------------------------------------------------------------
-    # Instances
-
     def get_instance(self, entity_type: str, entity_id: str) -> ApprovalInstance | None:
         try:
             doc = self._get(f"/instances/{entity_type}/{entity_id}")
@@ -32,30 +33,35 @@ class ApprovalRepository:
         except Exception:
             return None
 
-    def save_instance(self, instance: ApprovalInstance) -> None:
-        self._put(
-            f"/instances/{instance.entity_type}/{instance.entity_id}",
-            instance.to_dict(),
-        )
+    def start(self, entity_type: str, entity_id: str) -> ApprovalInstance:
+        doc = self._post(f"/{entity_type}/{entity_id}/start", {})
+        return ApprovalInstance.from_dict(doc)
 
-    def pending_for_roles(self, roles: list[str], person_record: int) -> list[dict[str, Any]]:
-        return self._post("/pending", {"roles": roles, "person_record": person_record})
-
-    # ------------------------------------------------------------------
-    # Records
-
-    def save_record(self, record: ApprovalRecord) -> None:
-        self._post("/records", {
-            "entity_type": record.entity_type,
-            "entity_id": record.entity_id,
-            "step_id": record.step_id,
-            "actor_id": record.actor_id,
-            "role_at_time": record.role_at_time,
-            "assignment_type_at_time": record.assignment_type_at_time,
-            "action": record.action,
-            "timestamp": record.timestamp,
-            "notes": record.notes,
+    def sign(
+        self,
+        entity_type: str,
+        entity_id: str,
+        step_id: str,
+        actor_id: int,
+        action: str,
+        notes: Optional[str] = None,
+    ) -> ApprovalInstance:
+        doc = self._post(f"/{entity_type}/{entity_id}/sign", {
+            "step_id": step_id,
+            "actor_id": actor_id,
+            "action": action,
+            "notes": notes,
         })
+        return ApprovalInstance.from_dict(doc)
 
-    def get_records(self, entity_type: str, entity_id: str) -> list[dict[str, Any]]:
-        return self._get("/records", entity_type=entity_type, entity_id=entity_id)
+    def pending_for_person(self, person_record: int) -> list[dict[str, Any]]:
+        return self._get(f"/pending/{person_record}")
+
+    def assign_step(
+        self, entity_type: str, entity_id: str, step_id: str, actor_id: int
+    ) -> ApprovalInstance:
+        doc = self._post(f"/{entity_type}/{entity_id}/assign-step", {
+            "step_id": step_id,
+            "actor_id": actor_id,
+        })
+        return ApprovalInstance.from_dict(doc)

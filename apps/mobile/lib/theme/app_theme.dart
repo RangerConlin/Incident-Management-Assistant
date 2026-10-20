@@ -76,6 +76,28 @@ class TeamStatusColors {
       byKey[statusKey.toLowerCase()] ?? fallback;
 }
 
+/// Chat presence dot colors, ported from the desktop app's
+/// `styles/profiles/dark.py` `PALETTE` success/warning/danger values so a
+/// user's status dot matches across platforms.
+class PresenceStatusColors {
+  PresenceStatusColors._();
+
+  static const online = Color(0xFF4CAF50);
+  static const away = Color(0xFFFFB300);
+  static const unavailable = Color(0xFFE5484D);
+
+  static Color forStatus(String status) {
+    switch (status) {
+      case 'away':
+        return away;
+      case 'unavailable':
+        return unavailable;
+      default:
+        return online;
+    }
+  }
+}
+
 /// A team-status option shown in the status grid: the canonical lowercase
 /// `status_key` the PATCH endpoint expects, plus its display label.
 class TeamStatusOption {

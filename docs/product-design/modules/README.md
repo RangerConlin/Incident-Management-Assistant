@@ -20,6 +20,7 @@ Each module document should describe current features, build status, workflows, 
 - [GIS And Maps](gis-maps.md)
 - [Communications](communications.md)
 - [Public Information](public-information.md)
+- [Liaison](liaison.md)
 - [Reference Library](reference-library.md)
 - [Admin And Settings](admin-settings.md)
 

@@ -1,4 +1,12 @@
 import {
+  pioStatusVar,
+  logisticsRequestStatusVar,
+  logisticsPriorityVar,
+  facilityStatusVar,
+  liaisonAgencyStatusVar,
+  liaisonRequestStatusVar,
+  liaisonPriorityVar,
+  liaisonReportStateVar,
   meetingStatusVar,
   objectivePriorityVar,
   objectiveStatusVar,
@@ -7,6 +15,8 @@ import {
   sitrepStatusVar,
   taskStatusVar,
   teamStatusVar,
+  approvalStatusVar,
+  approvalStepStatusVar,
 } from "../../styles/statusColors";
 
 type Domain =
@@ -17,7 +27,17 @@ type Domain =
   | "objective-priority"
   | "op-period"
   | "meeting"
-  | "sitrep";
+  | "sitrep"
+  | "pio"
+  | "liaison-agency"
+  | "liaison-request"
+  | "liaison-priority"
+  | "liaison-report"
+  | "logistics-request"
+  | "logistics-priority"
+  | "facility"
+  | "approval"
+  | "approval-step";
 
 interface StatusPillProps {
   domain: Domain;
@@ -26,6 +46,14 @@ interface StatusPillProps {
 }
 
 const RESOLVERS: Record<Domain, (key: string) => { bg: string; fg: string }> = {
+  pio: pioStatusVar,
+  "logistics-request": logisticsRequestStatusVar,
+  "logistics-priority": logisticsPriorityVar,
+  facility: facilityStatusVar,
+  "liaison-agency": liaisonAgencyStatusVar,
+  "liaison-request": liaisonRequestStatusVar,
+  "liaison-priority": liaisonPriorityVar,
+  "liaison-report": liaisonReportStateVar,
   team: teamStatusVar,
   task: taskStatusVar,
   resource: resourceStatusVar,
@@ -34,6 +62,8 @@ const RESOLVERS: Record<Domain, (key: string) => { bg: string; fg: string }> = {
   "op-period": operationalPeriodStatusVar,
   meeting: meetingStatusVar,
   sitrep: sitrepStatusVar,
+  approval: approvalStatusVar,
+  "approval-step": approvalStepStatusVar,
 };
 
 export default function StatusPill({ domain, statusKey, label }: StatusPillProps) {

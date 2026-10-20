@@ -12,7 +12,7 @@ after the first two passes miscounted — see Revision History.
 |---|---:|---:|---:|---:|---:|---|
 | ICS 201 | Partial (42.1%) | Partial (50.3%) | Partial (41.4%) | - | - | Generic exists; precise possible |
 | ICS 202 | Bound | Not Bound | Bound | - | - | Generic exists; precise possible |
-| ICS 203 | Partial (87.1%)¶ | Partial (96.2%)¶ | Partial (76.2%)¶ | - | - | Precise ICS-203 builder exists (`Ics203FormBuilder`) |
+| ICS 203 | Partial (87.1%)¶ | Partial (96.2%)¶ | Partial (77.0%)¶ | - | - | `Ics203FormBuilder` routes production exports to the shared server; all three sets supported |
 | ICS 204 | Partial (11.7%) | Not Bound | - | - | - | Generic + work-assignment builders exist |
 | ICS 205 | Bound | Bound | Bound | - | - | Generic exists; precise possible |
 | ICS 205A | Mapping | Not Bound | - | - | - | Generic exists; precise possible via ICS Canada |
@@ -192,3 +192,69 @@ checkbox state before the mapping ever sees it — the mapping itself is a strai
   `modules/forms_creator/ui/MapperWindow.py` and `modules/forms_creator/form_set_registry.py`.
 
 Default builder rule: use one builder per form concept, not one per form set/version. Add separate FEMA, USCG, ICS Canada, SAR, or CAP builders only when the data meaning genuinely differs.
+
+
+## ICS 203 server migration audit — 2026-10-19
+
+Rechecked each template's actual leaf fields, nonempty `fields[].source`, and
+`row_groups[].col_patterns` against real field names. FEMA: 101/116 (87.1%);
+ICS Canada: 102/106 (96.2%); USCG: 94/122 (77.0%). These are mapping coverage
+counts, not a claim that currently saved incidents populate every mapped field.
+Mappings and templates are bundled without renaming fields. The ICS Canada
+operational-period date/time paths were corrected after inspecting widget geometry.
+Its UC rows were also corrected: the dedicated first commander uses index 0, and
+the next two physical rows use indices 1 and 2 rather than repeating index 0.
+No new signature, approval, or historical staffing source was invented.
+
+### Fields without an established binding/source
+
+The following remain intentionally blank. Some have saved data that might be
+usable, but their template meaning/slot correspondence is unconfirmed; they are
+not all missing database fields. Do not invent a source to increase coverage.
+
+- FEMA: `Air Operations Branch Director 3`, `Air Operations BranchDirector 2`,
+  `Air Ops Branch Director 2`, `Air Ops Branch Director 3` (ambiguous additional
+  Air Ops slots); `Operations Section Alternate`, `Operations Section Alternate 1`,
+  `Operations Section Alternate 2` (unlabelled Alternate slots);
+  `Operations Section Chief 2`, `Operations Section Deputy 2`,
+  `Operations Section Staging Area 2` (additional personnel slots without an
+  established per-slot binding); `Branch Director Deputy 1/3/5` (documented unused
+  cells); `IAP Page_2` (no assembled-packet page number); `Signature_7` (signature
+  deliberately blank).
+- ICS Canada: `d. AIR OPERATIONS BRANCH Position1`, `Position2`, `Row1`, `Row2`
+  (all with the same `d. AIR OPERATIONS BRANCH ` prefix; ambiguous unlabelled cells).
+- USCG: `10 Finance  Administration Section`, `5 Agency  Organization Representatives`,
+  `7 Logistics SectionRow12`, `7 Logistics SectionRow7`, `8 Operations SectionRow3`,
+  `8 Operations SectionRow6`, `9 Intelligence  Investigations Section`,
+  `DeputyRow1_2`, `DeputyRow2`, `DeputyRow3`, `DeputyRow4`, `DeputyRow5`,
+  `Facilities UnitRow1`, `Liaison OfficerRow1`, `Medical UnitRow1`,
+  `Staging Area ManagerRow1`, `Staging Area Manager_2`, `Service Branch`,
+  `Support Branch`, `Notes5`, `Notes11`–`Notes17` (no approved per-field binding);
+  `Signature` (deliberately blank).
+
+### Existing export locations
+
+- `IncidentOrganizationPanel._prepare_form("ICS_203")`: previously prepared a
+  controller payload and displayed a message; now calls the domain wrapper
+  `generate_ics203` through a background worker. The wrapper uses
+  `Ics203FormBuilder` → `ExportService` → binary API client → shared server renderer.
+- `default_export_service()` registered ICS 203 keys: now use that same server path
+  and require an explicit operational-period ID. Supported sets are FEMA, ICS
+  Canada, and USCG; unsupported sets fail explicitly.
+- `MapperWindow._export`: generic local `engine.generate()` template-authoring
+  preview remains local. `IncidentOrganizationController.build_ics203_payload()`
+  remains a data-preparation method, not a PDF renderer.
+
+### Open questions and validation limits
+
+- The ambiguous fields above retain their established blanks. Confirm their
+  printed meaning before introducing bindings or new data-model fields.
+- The approved USCG third positional branch → Intelligence/Investigations division
+  bindings remain unchanged. This migration does not invent a classification rule.
+- The selected operational period labels the current saved organization; historical
+  organization snapshots do not exist here.
+- All three publisher variants were exported through the API against existing local
+  Mongo data. Available eligible incidents had no saved organization positions,
+  so populated role/continuation behavior is covered by fixtures rather than a
+  staffed live incident. Real incident samples are for visual review, not committed
+  form assets. No demonstration records were inserted.

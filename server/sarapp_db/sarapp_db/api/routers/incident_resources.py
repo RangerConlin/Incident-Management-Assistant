@@ -182,8 +182,10 @@ def check_in_resource(
     existing = repo.find_one({"entity_type": entity_type, "record_id": rid})
 
     if existing:
-        # Update status if it changed
         updates: dict[str, Any] = {"updated_at": now}
+        for field in ("location", "notes", "eta_utc"):
+            if field in overrides:
+                updates[field] = overrides[field]
         if status != existing.get("status"):
             updates["status"] = status
             entry = {"status": status, "timestamp": now, "changed_by": overrides.get("changed_by") or "Check-In"}

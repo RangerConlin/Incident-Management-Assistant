@@ -38,6 +38,7 @@ Coordinate incident support resources: checked-in resources, personnel availabil
 - Manage aircraft inventory, assignment, status, capabilities, maintenance notes, and exports.
 - Manage facilities and geocoded locations used by logistics/request/resource workflows.
 - Create, review, approve, assign, fulfill, audit, and print resource requests.
+- Use Resource Requests either as quick operational intake or as a full formal ICS-213RR workflow with approvals, fulfillment, procurement/finance metadata, and exportable documentation.
 - Assign resources to teams from desktop team detail or mobile team management.
 
 ## Build Status
@@ -75,6 +76,7 @@ Substantial but uneven. Logistics has several real, usable workspaces and some o
 - Teams consume vehicles, aircraft, equipment, personnel, and logistics status.
 - Tasking depends on teams/resources being available and assigned.
 - Resource requests can lead to fulfillment, assignment, and tracked resource changes.
+- Resource requests also provide the formal ICS-213RR path for documented requests, including approval, fulfillment, procurement/finance metadata, and printed/exported packets when the incident requires that level of process.
 - Facilities are used by resource status, delivery locations, check-in/resource movement, and request delivery.
 - Mobile team management can assign resources to teams.
 - Planning/demobilization depends on resource status and preparation for demob.
@@ -104,6 +106,7 @@ Mobile logistics is mostly embedded in team management today. A mobile user can 
 - Which logistics workflows should be dashboard-driven versus table/detail driven?
 - How should vehicle/aircraft/equipment inventory relate to check-in and resource status?
 - Should resource requests create or reserve resource-status rows automatically?
+- When should logistics users stay in the quick request path versus convert a request into the full formal ICS-213RR packet?
 - Which logistics workflows should be exposed to mobile field users?
 - How should facilities appear across check-in, requests, resource status, maps, and planning?
 
@@ -114,3 +117,30 @@ Mobile logistics is mostly embedded in team management today. A mobile user can 
 - Decide whether vehicle, aircraft, and equipment deserve separate design docs or remain subareas of Logistics.
 - Replace legacy placeholder panels with links to the active workspaces or remove them.
 - Turn the Logistics Dashboard into a true navigation hub for the logistics section.
+
+## Web Experience
+
+The web Logistics home (`/logistics`) joins existing shared API reads for requests,
+checked-in resources and facilities. It shows open/awaiting-approval requests, resources
+checked in today, available vehicles, active facilities, needs due within 24 hours and
+the preparing-for-demobilization queue. Failed data sources show unavailable totals.
+Existing Resource Status and Check-In pages remain the resource entry points.
+
+Resource Requests now provide quick intake, route-based details, separate line-item saves,
+approval actions with denial notes, supported request lifecycle transitions, multiple
+fulfillment records with assignment/destination/ETA/status updates, approval/audit history,
+and browser-printable summaries. Submitted critical header fields are locked; closed
+requests are read-only and denied/cancelled requests can be reopened. Unsaved item edits
+block section/lifecycle changes until saved or discarded. Filled ICS-213RR PDF downloads are available through the shared export API, alongside
+the browser-printable request summary. Signatures and unrecorded fields remain blank.
+
+Facilities provide searchable/filterable lists and create/update/delete detail pages,
+primary-by-type selection, personnel manager search, contact details, addresses/coordinates,
+function tags and served sections. The server enforces the primary facility constraint.
+The browser edits canonical fields only and preserves existing metadata on full PUT saves.
+Geocoding services and standalone vehicle/aircraft/equipment catalog administration remain
+outside this browser implementation; the existing Check-In catalog lookup is available.
+
+Supply/comms stock levels still lack backing data. No stock estimates or inventory
+reservations are generated. Request fulfillment and the overall request status are separate
+records: updating one does not automatically advance the other.

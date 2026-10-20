@@ -854,6 +854,7 @@ class IWIDetailDialog(QDialog):
         from modules.approvals.panels.approval_timeline import ApprovalTimeline
         self._approval_timeline = ApprovalTimeline()
         self._approval_timeline.sign_requested.connect(self._on_sign_requested)
+        self._approval_timeline.assign_requested.connect(self._on_assign_requested)
         layout.addWidget(self._approval_timeline)
 
         layout.addStretch()
@@ -1121,14 +1122,10 @@ class IWIDetailDialog(QDialog):
             uid_ = AppState.get_active_user_id()
             person_record = int(uid_) if uid_ and str(uid_).isdigit() else 0
             assignment_type = self._resolve_assignment_type()
-            step = next((s for s in instance.steps if s.step_id == step_id), None)
-            role_at_time = (step.resolved_role or step.role) if step else ""
             updated = svc.sign(
                 instance,
                 step_id=step_id,
                 actor_id=person_record,
-                role_at_time=role_at_time,
-                assignment_type=assignment_type or "primary",
                 action="approved",
             )
             self._approval_timeline.set_state(updated, person_record, assignment_type)
@@ -1136,6 +1133,30 @@ class IWIDetailDialog(QDialog):
                 self._load()
         except Exception as exc:
             QMessageBox.critical(self, "Sign Failed", str(exc))
+
+    def _on_assign_requested(self, step_id: str, step_label: str) -> None:
+        if not self._report_id:
+            return
+        from modules.approvals.panels.assign_step_dialog import AssignStepDialog
+
+        dlg = AssignStepDialog(step_label, self)
+        if not dlg.exec():
+            return
+        person_record = dlg.selected_person_record()
+        if not person_record:
+            return
+        try:
+            from modules.approvals.service import ApprovalService
+            svc = ApprovalService(self._incident_id)
+            instance = svc.get("iwi_report", self._report_id)
+            if not instance:
+                return
+            updated = svc.assign_step(instance, step_id, person_record)
+            uid_ = AppState.get_active_user_id()
+            viewer_person_record = int(uid_) if uid_ and str(uid_).isdigit() else 0
+            self._approval_timeline.set_state(updated, viewer_person_record, self._resolve_assignment_type())
+        except Exception as exc:
+            QMessageBox.critical(self, "Assign Failed", str(exc))
 
     def _resolve_assignment_type(self) -> str:
         """Return the assignment type (primary/deputy/trainee) for the active user, defaulting to 'primary'."""

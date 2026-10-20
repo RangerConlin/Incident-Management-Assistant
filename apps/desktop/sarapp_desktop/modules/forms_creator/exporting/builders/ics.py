@@ -72,6 +72,8 @@ def _safe_filename_part(value: object, fallback: str) -> str:
 
 
 def _output_path(form_id: str, request: ExportRequest, generated_at: str) -> Path:
+    if request.options.get("output_path"):
+        return Path(request.options["output_path"])
     paths = incident_context.get_active_incident_paths()
     paths.forms_generated.mkdir(parents=True, exist_ok=True)
     form_name = _safe_filename_part(form_id, "ics_form")
@@ -129,6 +131,11 @@ class Ics203FormBuilder(IcsFormBuilder):
 
     def build(self, request: ExportRequest) -> PreparedExport:
         prepared = super().build(request)
+        form_set_id = prepared.form_set_id
+        if form_set_id is None:
+            from modules.forms_creator.resolver import FormResolver
+
+            form_set_id = FormResolver()._default_set_id()
         extra_data = dict(prepared.extra_data)
         export_data = dict(extra_data.get("export") or {})
         export_data.update(
@@ -142,12 +149,15 @@ class Ics203FormBuilder(IcsFormBuilder):
             **prepared.metadata,
             "builder_level": "ics_203",
             "data_domain": "incident_organization",
+            "operational_period_id": request.options.get("operational_period_id"),
+            "prepared_by": request.options.get("prepared_by", ""),
+            "prepared_by_position": request.options.get("prepared_by_position", ""),
         }
         return PreparedExport(
             form_id=prepared.form_id,
             output_path=prepared.output_path,
             incident_id=prepared.incident_id,
-            form_set_id=prepared.form_set_id,
+            form_set_id=form_set_id,
             extra_data=extra_data,
             metadata=metadata,
         )

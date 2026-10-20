@@ -6,6 +6,7 @@ import '../models/narrative_entry.dart';
 import '../models/task.dart';
 import '../models/team.dart';
 import '../services/app_presence_service.dart';
+import '../services/chat_presence_service.dart';
 import '../services/push_notification_service.dart';
 import '../services/sarapp_api_client.dart';
 import '../services/tracking_service.dart';
@@ -94,6 +95,10 @@ class _FieldDashboardScreenState extends State<FieldDashboardScreen> {
         teamName: widget.teamName,
         personId: _displayName,
         personRecord: personRecord == null ? null : '$personRecord',
+      );
+      ChatPresenceService.start(
+        incidentId: widget.incidentId,
+        userId: _displayName,
       );
       if (!mounted) return;
       await PushNotificationService.syncRegistration(

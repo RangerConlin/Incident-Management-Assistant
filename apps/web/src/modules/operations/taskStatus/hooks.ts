@@ -83,6 +83,39 @@ export function useSetTaskTeamSortie(incidentId: string) {
   });
 }
 
+export function useTaskWorkAssignments(incidentId: string, taskId: number) {
+  return useQuery({
+    queryKey: ["incident", incidentId, "work_assignments", "task-links", taskId],
+    queryFn: () => api.listWorkAssignmentsForTask(incidentId, taskId),
+    refetchInterval: POLL_FLOOR_MS,
+  });
+}
+
+function useInvalidateTaskWorkAssignments(incidentId: string, taskId: number) {
+  const queryClient = useQueryClient();
+  return () => {
+    queryClient.invalidateQueries({ queryKey: ["incident", incidentId, "work_assignments"] });
+    queryClient.invalidateQueries({ queryKey: ["incident", incidentId, "tasks", taskId] });
+  };
+}
+
+export function useLinkTaskWorkAssignment(incidentId: string, taskId: number) {
+  const invalidate = useInvalidateTaskWorkAssignments(incidentId, taskId);
+  return useMutation({
+    mutationFn: (waId: number) => api.linkWorkAssignmentTask(incidentId, waId, { task_id: taskId }),
+    onSuccess: invalidate,
+  });
+}
+
+export function useUnlinkTaskWorkAssignment(incidentId: string, taskId: number) {
+  const invalidate = useInvalidateTaskWorkAssignments(incidentId, taskId);
+  return useMutation({
+    mutationFn: ({ waId, linkId }: { waId: number; linkId: number }) =>
+      api.unlinkWorkAssignmentTask(incidentId, waId, linkId),
+    onSuccess: invalidate,
+  });
+}
+
 export const TASK_STATUS_OPTIONS: { key: string; label: string }[] = [
   { key: "created", label: "Created" },
   { key: "planned", label: "Planned" },

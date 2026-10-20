@@ -18,6 +18,11 @@ class FakeChatService extends ChatService {
   List<ChatChannel> channels = <ChatChannel>[];
   Map<String, List<ChatMessage>> historyByChannel = <String, List<ChatMessage>>{};
 
+  Map<String, String> displayNames = <String, String>{};
+  List<PresenceEntry> presence = <PresenceEntry>[];
+  final List<Map<String, String?>> createdChannels = [];
+  final List<Map<String, String>> createdDms = [];
+
   @override
   Future<List<ChatChannel>> listChannels(
     String incidentId, {
@@ -25,6 +30,56 @@ class FakeChatService extends ChatService {
   }) async {
     listedUsers.add(userId);
     return channels;
+  }
+
+  @override
+  Future<Map<String, String>> fetchDisplayNames(String incidentId) async {
+    return displayNames;
+  }
+
+  @override
+  Future<List<PresenceEntry>> listPresence(String incidentId) async {
+    return presence;
+  }
+
+  @override
+  Future<void> sendPresenceHeartbeat(
+    String incidentId, {
+    required String userId,
+    String status = 'online',
+  }) async {}
+
+  @override
+  Future<ChatChannel> createChannel(
+    String incidentId, {
+    required String name,
+    required String createdBy,
+    List<String> participantIds = const [],
+  }) async {
+    createdChannels.add({'name': name, 'createdBy': createdBy});
+    return ChatChannel(
+      id: 'created-${createdChannels.length}',
+      type: 'group',
+      participantIds: const [],
+      name: name,
+      createdBy: createdBy,
+      createdAt: DateTime.parse('2026-07-18T12:10:00Z'),
+    );
+  }
+
+  @override
+  Future<ChatChannel> findOrCreateDm(
+    String incidentId, {
+    required String userA,
+    required String userB,
+  }) async {
+    createdDms.add({'userA': userA, 'userB': userB});
+    return ChatChannel(
+      id: 'dm-$userA-$userB',
+      type: 'dm',
+      participantIds: [userA, userB],
+      createdAt: DateTime.parse('2026-07-18T12:10:00Z'),
+    );
   }
 
   @override

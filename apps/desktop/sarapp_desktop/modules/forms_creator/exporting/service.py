@@ -39,6 +39,21 @@ class ExportService:
         )
 
     def _generate(self, prepared: PreparedExport) -> None:
+        if prepared.form_id == "ics_203":
+            from .server import download_ics203
+
+            if prepared.form_set_id not in (None, "fema", "ics_canada", "uscg"):
+                raise ValueError("Unsupported ICS 203 form set")
+            period_id = prepared.metadata.get("operational_period_id")
+            if not isinstance(period_id, int) or isinstance(period_id, bool):
+                raise ValueError("Select an operational period for ICS 203")
+            download_ics203(
+                str(prepared.incident_id or ""), period_id, prepared.output_path,
+                prepared_by=str(prepared.metadata.get("prepared_by") or ""),
+                form_set_id=prepared.form_set_id or "fema",
+                prepared_by_position=str(prepared.metadata.get("prepared_by_position") or ""),
+            )
+            return
         if self._generator is not None:
             self._generator(
                 prepared.form_id,

@@ -3,11 +3,19 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../models/home_nav_args.dart';
+import '../services/chat_presence_service.dart';
 import '../services/chat_service.dart';
+import '../theme/app_theme.dart';
 import '../utils/date_format.dart';
 import '../utils/session_identity.dart';
 import '../widgets/app_bottom_nav.dart';
 import '../widgets/app_drawer.dart';
+
+// How often to re-poll who's online. Presence is a staleness computation
+// the server can only do at request time (see PRESENCE_STALE_AFTER_SECONDS
+// in chat.py) — there's no live "went offline" event to listen for instead.
+// Mirrors the desktop client's ChatWindow poll interval.
+const _presencePollInterval = Duration(seconds: 15);
 
 /// Mobile incident chat wired to the same chat collections and incident
 /// WebSocket the desktop client uses.
@@ -31,8 +39,11 @@ class _MessageInboxScreenState extends State<MessageInboxScreen> {
   final TextEditingController _messageController = TextEditingController();
 
   StreamSubscription<ChatMessage>? _liveSubscription;
+  Timer? _presenceTimer;
   List<ChatChannel> _channels = const [];
   List<ChatMessage> _messages = const [];
+  Map<String, String> _displayNames = const {};
+  Map<String, String> _presenceByUser = const {};
   String? _activeChannelId;
   bool _loadingChannels = true;
   bool _loadingMessages = false;
@@ -60,11 +71,18 @@ class _MessageInboxScreenState extends State<MessageInboxScreen> {
   void initState() {
     super.initState();
     _loadChannels();
+    _loadDisplayNames();
+    _refreshPresence();
+    _presenceTimer = Timer.periodic(
+      _presencePollInterval,
+      (_) => _refreshPresence(),
+    );
   }
 
   @override
   void dispose() {
     _liveSubscription?.cancel();
+    _presenceTimer?.cancel();
     _messageController.dispose();
     if (_ownsChatService) {
       _chatService.dispose();
@@ -222,10 +240,268 @@ class _MessageInboxScreenState extends State<MessageInboxScreen> {
     }
   }
 
+  Future<void> _loadDisplayNames() async {
+    try {
+      final names = await _chatService.fetchDisplayNames(
+        widget.args.incidentId,
+      );
+      if (!mounted) return;
+      setState(() => _displayNames = names);
+    } catch (_) {
+      // Best-effort — DM titles/roster entries fall back to raw ids.
+    }
+  }
+
+  Future<void> _refreshPresence() async {
+    try {
+      final entries = await _chatService.listPresence(widget.args.incidentId);
+      if (!mounted) return;
+      setState(() {
+        _presenceByUser = {
+          for (final entry in entries)
+            if (entry.userId != _currentUserId) entry.userId: entry.status,
+        };
+      });
+    } catch (_) {
+      // Best-effort — keep the last known roster rather than clearing it on
+      // a transient network error.
+    }
+  }
+
+  /// Display title for a channel, resolving a DM's other participant id to
+  /// their real name via `_displayNames` when available (falls back to the
+  /// raw id, same as `ChatChannel.displayTitleFor`).
+  String _channelTitle(ChatChannel channel) {
+    if (!channel.isDirectMessage) {
+      return channel.displayTitleFor(_currentUserId);
+    }
+    final otherId = channel.participantIds.firstWhere(
+      (participant) => participant != _currentUserId,
+      orElse: () => '',
+    );
+    if (otherId.isEmpty) return 'Direct Message';
+    return _displayNames[otherId] ?? otherId;
+  }
+
+  String? _presenceStatusFor(ChatChannel channel) {
+    if (!channel.isDirectMessage) return null;
+    final otherId = channel.participantIds.firstWhere(
+      (participant) => participant != _currentUserId,
+      orElse: () => '',
+    );
+    if (otherId.isEmpty) return null;
+    return _presenceByUser[otherId];
+  }
+
+  Future<void> _showNewChannelDialog() async {
+    final controller = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('New Channel'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          textCapitalization: TextCapitalization.words,
+          decoration: const InputDecoration(labelText: 'Channel name'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.pop(dialogContext, controller.text.trim()),
+            child: const Text('Create'),
+          ),
+        ],
+      ),
+    );
+    if (name == null || name.isEmpty || _currentUserId.isEmpty) return;
+
+    try {
+      final channel = await _chatService.createChannel(
+        widget.args.incidentId,
+        name: name,
+        createdBy: _currentUserId,
+      );
+      if (!mounted) return;
+      setState(() => _channels = [..._channels, channel]);
+      await _selectChannel(channel.id);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Failed to create channel.')));
+    }
+  }
+
+  Future<void> _showNewDirectMessageSheet() async {
+    if (_displayNames.isEmpty) {
+      await _loadDisplayNames();
+    }
+    if (!mounted) return;
+
+    final candidates = _displayNames.entries
+        .where((entry) => entry.key != _currentUserId)
+        .toList()
+      ..sort((a, b) => a.value.toLowerCase().compareTo(b.value.toLowerCase()));
+
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        if (candidates.isEmpty) {
+          return const Padding(
+            padding: EdgeInsets.all(24),
+            child: Text('No one else is checked in to this incident yet.'),
+          );
+        }
+        return SafeArea(
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              for (final entry in candidates)
+                ListTile(
+                  leading: const Icon(Icons.person_outline),
+                  title: Text(entry.value),
+                  onTap: () => Navigator.pop(sheetContext, entry.key),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+    if (selected != null) {
+      await _startDirectMessage(selected);
+    }
+  }
+
+  Future<void> _startDirectMessage(String otherUserId) async {
+    if (_currentUserId.isEmpty) return;
+    try {
+      final channel = await _chatService.findOrCreateDm(
+        widget.args.incidentId,
+        userA: _currentUserId,
+        userB: otherUserId,
+      );
+      if (!mounted) return;
+      setState(() {
+        if (!_channels.any((existing) => existing.id == channel.id)) {
+          _channels = [..._channels, channel];
+        }
+      });
+      await _selectChannel(channel.id);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to start direct message.')),
+      );
+    }
+  }
+
+  String _statusLabel(String status) => switch (status) {
+    'away' => 'Away',
+    'unavailable' => 'Unavailable',
+    _ => 'Online',
+  };
+
+  Future<void> _showPeopleSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Your status',
+                  style: Theme.of(sheetContext).textTheme.labelLarge,
+                ),
+                const SizedBox(height: 8),
+                ValueListenableBuilder<String>(
+                  valueListenable: ChatPresenceService.status,
+                  builder: (context, status, _) => SegmentedButton<String>(
+                    segments: const [
+                      ButtonSegment(value: 'online', label: Text('Online')),
+                      ButtonSegment(value: 'away', label: Text('Away')),
+                      ButtonSegment(
+                        value: 'unavailable',
+                        label: Text('Unavailable'),
+                      ),
+                    ],
+                    selected: {status},
+                    onSelectionChanged: (selection) =>
+                        ChatPresenceService.setStatus(selection.first),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Online',
+                  style: Theme.of(sheetContext).textTheme.labelLarge,
+                ),
+                const SizedBox(height: 4),
+                if (_presenceByUser.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Text('No one else is online right now.'),
+                  )
+                else
+                  ..._presenceByUser.entries.map(
+                    (entry) => ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(
+                        Icons.circle,
+                        size: 12,
+                        color: PresenceStatusColors.forStatus(entry.value),
+                      ),
+                      title: Text(_displayNames[entry.key] ?? entry.key),
+                      subtitle: Text(_statusLabel(entry.value)),
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        _startDirectMessage(entry.key);
+                      },
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Messages')),
+      appBar: AppBar(
+        title: const Text('Messages'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.people_outline),
+            tooltip: 'People',
+            onPressed: _showPeopleSheet,
+          ),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.add),
+            tooltip: 'New',
+            onSelected: (value) {
+              if (value == 'channel') _showNewChannelDialog();
+              if (value == 'dm') _showNewDirectMessageSheet();
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(value: 'channel', child: Text('New Channel')),
+              PopupMenuItem(value: 'dm', child: Text('New Direct Message')),
+            ],
+          ),
+        ],
+      ),
       drawer: AppDrawer(args: widget.args),
       body: LayoutBuilder(
         builder: (context, constraints) {
@@ -304,7 +580,9 @@ class _MessageInboxScreenState extends State<MessageInboxScreen> {
         dense: true,
         leading: const Icon(Icons.chat_bubble_outline),
         title: Text(
-          _activeChannel?.displayTitleFor(_currentUserId) ?? 'Incident chat',
+          _activeChannel != null
+              ? _channelTitle(_activeChannel!)
+              : 'Incident chat',
         ),
         subtitle: Text(widget.args.incidentName),
       ),
@@ -333,8 +611,15 @@ class _MessageInboxScreenState extends State<MessageInboxScreen> {
         separatorBuilder: (_, _) => const SizedBox(width: 8),
         itemBuilder: (context, index) {
           final channel = _channels[index];
+          final status = _presenceStatusFor(channel);
           return ChoiceChip(
-            label: Text(channel.displayTitleFor(_currentUserId)),
+            avatar: status != null
+                ? CircleAvatar(
+                    backgroundColor: PresenceStatusColors.forStatus(status),
+                    radius: 6,
+                  )
+                : null,
+            label: Text(_channelTitle(channel)),
             selected: channel.id == _activeChannelId,
             onSelected: (_) => _selectChannel(channel.id),
           );
@@ -362,12 +647,14 @@ class _MessageInboxScreenState extends State<MessageInboxScreen> {
       itemBuilder: (context, index) {
         final channel = _channels[index];
         final selected = channel.id == _activeChannelId;
+        final status = _presenceStatusFor(channel);
         return ListTile(
           selected: selected,
           leading: Icon(
             channel.isDirectMessage ? Icons.person_outline : Icons.forum_outlined,
+            color: status != null ? PresenceStatusColors.forStatus(status) : null,
           ),
-          title: Text(channel.displayTitleFor(_currentUserId)),
+          title: Text(_channelTitle(channel)),
           onTap: () => _selectChannel(channel.id),
         );
       },
@@ -380,7 +667,7 @@ class _MessageInboxScreenState extends State<MessageInboxScreen> {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Text(
-        channel?.displayTitleFor(_currentUserId) ?? 'Select a channel',
+        channel != null ? _channelTitle(channel) : 'Select a channel',
         style: Theme.of(context).textTheme.titleMedium,
       ),
     );

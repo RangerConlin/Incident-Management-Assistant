@@ -138,7 +138,9 @@ RESOURCE_STATUS: Dict[str, Dict[str, str]] = {
     "Assigned":       {"bg": "#581ab4", "fg": "#ffffff"},
     "Available":      {"bg": "#098d00", "fg": "#000000"},
     "Out of Service": {"bg": "#c73221", "fg": "#010101"},
+    "Preparing for Demobilization": {"bg": "#cc8400", "fg": "#000000"},
     "Demobilized":    {"bg": "#888888", "fg": "#363636"},
+    "Cancelled":      {"bg": "#E53935", "fg": "#ffffff"},
 }
 
 TASK_STATUS: Dict[str, Dict[str, str]] = {
@@ -231,6 +233,12 @@ CONNECTION_STATUS: Dict[str, Dict[str, str]] = {
     "online":   {"bg": "#43A047", "fg": "#ffffff"},
     "offline":  {"bg": "#E53935", "fg": "#ffffff"},
     "checking": {"bg": "#90A4AE", "fg": "#1a1a1a"},
+}
+
+# Incident chat message bubbles — the sender's own messages vs. everyone else's.
+CHAT_BUBBLE: Dict[str, Dict[str, str]] = {
+    "own":   {"bg": PALETTE["ctrl_focus"], "fg": "#ffffff", "time_fg": "#e4edfc"},
+    "other": {"bg": PALETTE["ctrl_bg"], "fg": PALETTE["fg_primary"], "time_fg": PALETTE["fg_muted"]},
 }
 
 WEATHER_SEVERITY: Dict[str, Dict[str, str]] = {
@@ -355,6 +363,25 @@ LIAISON_REPORT_STATE: Dict[str, Dict[str, str]] = {
     "not_ready": {"bg": "#FB8C00", "fg": "#1a1a1a"},
 }
 
+# Generic approval-chain chip (ICS-205/206, IWI, IAP sign-off inbox/badge).
+APPROVAL_STATUS: Dict[str, Dict[str, str]] = {
+    "not_started": {"bg": "#607D8B", "fg": "#ffffff"},
+    "pending":     {"bg": "#FB8C00", "fg": "#1a1a1a"},
+    "approved":    {"bg": "#2E7D32", "fg": "#ffffff"},
+    "rejected":    {"bg": "#C62828", "fg": "#ffffff"},
+}
+
+# Per-step indicator dot in the approval timeline widget.
+APPROVAL_STEP_STATUS: Dict[str, Dict[str, str]] = {
+    "waiting":   {"bg": "#9E9E9E", "fg": "#9E9E9E"},
+    "active":    {"bg": "#FB8C00", "fg": "#FB8C00"},
+    "completed": {"bg": "#2E7D32", "fg": "#2E7D32"},
+    "skipped":   {"bg": "#BDBDBD", "fg": "#BDBDBD"},
+}
+
+# Highlight color for "it's your turn to sign" badges/timelines.
+APPROVAL_AWAITING_ME_COLOR = "#E65100"
+
 # Agency Requests board — status chips. Deliberately a different hue family
 # than LIAISON_PRIORITY (blue/orange/red) since both badges sit side by side
 # on the same card — reusing a priority hue here would make them unreadable
@@ -407,7 +434,49 @@ MAP_SYMBOL_COLORS: Dict[str, str] = {
     "command_area":            "#6a3fd0",
 }
 
+
+# Public Information release lifecycle; shared with the browser client.
+PIO_STATUS = {
+    "Draft": dict(OBJECTIVE_STATUS["draft"]),
+    "Pending Approval": dict(OBJECTIVE_STATUS["deferred"]),
+    "Returned for Revision": dict(OBJECTIVE_STATUS["deferred"]),
+    "Approved": dict(OBJECTIVE_STATUS["active"]),
+    "Published": dict(OBJECTIVE_STATUS["completed"]),
+    "Needs Corrections": dict(OBJECTIVE_STATUS["cancelled"]),
+    "Archived": dict(OBJECTIVE_STATUS["draft"]),
+}
+
+
+# Logistics workflow tokens shared by desktop profiles and browser status pills.
+LOGISTICS_REQUEST_STATUS = {
+    "DRAFT": dict(OBJECTIVE_STATUS["draft"]),
+    "SUBMITTED": dict(OBJECTIVE_STATUS["deferred"]),
+    "REVIEWED": dict(OBJECTIVE_STATUS["deferred"]),
+    "APPROVED": dict(OBJECTIVE_STATUS["active"]),
+    "ASSIGNED": dict(OBJECTIVE_STATUS["active"]),
+    "INTRANSIT": dict(OBJECTIVE_STATUS["active"]),
+    "DELIVERED": dict(OBJECTIVE_STATUS["completed"]),
+    "PARTIAL": dict(OBJECTIVE_STATUS["deferred"]),
+    "DENIED": dict(OBJECTIVE_STATUS["cancelled"]),
+    "CANCELLED": dict(OBJECTIVE_STATUS["cancelled"]),
+    "CLOSED": dict(OBJECTIVE_STATUS["completed"]),
+}
+LOGISTICS_REQUEST_PRIORITY = {
+    "ROUTINE": dict(OBJECTIVE_PRIORITY["normal"]),
+    "HIGH": dict(OBJECTIVE_PRIORITY["high"]),
+    "IMMEDIATE": dict(OBJECTIVE_PRIORITY["urgent"]),
+}
+FACILITY_STATUS = {
+    "active": dict(OBJECTIVE_STATUS["active"]),
+    "planned": dict(OBJECTIVE_STATUS["draft"]),
+    "closed": dict(OBJECTIVE_STATUS["cancelled"]),
+}
+
 __all__ = [
+    "LOGISTICS_REQUEST_STATUS",
+    "LOGISTICS_REQUEST_PRIORITY",
+    "FACILITY_STATUS",
+    "PIO_STATUS",
     "MAP_SYMBOL_COLORS",
     "NAMED_COLORS",
     "PALETTE",
@@ -422,6 +491,7 @@ __all__ = [
     "SITREP_STATUS",
     "NARRATIVE_STATUS",
     "CONNECTION_STATUS",
+    "CHAT_BUBBLE",
     "WEATHER_SEVERITY",
     "TEAM_TYPE_COLORS",
     "INTEL_SUBJECT_STATUS",
@@ -435,6 +505,9 @@ __all__ = [
     "LIAISON_PRIORITY",
     "LIAISON_REPORT_STATE",
     "MEDICAL_PLAN_STATUS",
+    "APPROVAL_STATUS",
+    "APPROVAL_STEP_STATUS",
+    "APPROVAL_AWAITING_ME_COLOR",
     "LIAISON_REQUEST_STATUS",
     "WA_PLANNING_STATUS",
     "WA_SAFETY_STATUS",

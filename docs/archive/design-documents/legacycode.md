@@ -118,6 +118,11 @@ Add entries below this line.
 - Removal Condition: every production caller of `export_form_unified()` has been migrated to `modules.forms_creator.exporting.ExportService` or a direct `engine.generate()` call using `forms/sets/**/mapping.json`.
 - Verification: `rg -n "export_form_unified" modules tests` shows no production callers.
 - Known Callers: `modules/command/widgets/objective_detail_dialog.py`, `modules/command/panels/incident_objectives_panel.py`, `modules/safety/print_ics_206.py`, `modules/operations/taskings/repository.py`.
+- Update 2026-10-19: the incident-organization ICS 203 export uses the existing
+  export service with shared-server rendering for FEMA/ICS Canada/USCG. It does
+  not use this bridge or add a fallback to it. Local `engine.generate()` remains
+  in Mapper Window for template-authoring previews; the bridge's remaining callers
+  listed above still need migration before deletion.
 - Update 2026-09-13: `modules/logistics/print_ics_213_rr.py` (a prior known caller, already dead — nothing imported it) was removed. ICS 213RR now exports via `modules.forms_creator.exporting.builders.resource_requests.ResourceRequestFormBuilder` / `modules.logistics.resource_requests.export_service.generate_ics213rr`, not this bridge.
 
 ### Forms Creator database template service
@@ -245,3 +250,26 @@ Add entries below this line.
 - Router: `server/sarapp_db/sarapp_db/api/routers/iap.py` (`IAPPackagesRepository(BaseRepository)`); forms embedded in package doc.
 - `IAPService._build_repository()` simplified — no longer resolves SQLite file paths.
 - Tests rewritten to use FastAPI TestClient against the new router.
+
+## Liaison runtime ID repair and parallel request models
+
+- Location: `server/sarapp_db/sarapp_db/api/routers/liaison.py` (`_ensure_int_ids`),
+  `liaison_requests.py`, and desktop Liaison repository/tests.
+- Existing compatibility: reads repair missing `int_id` values with raw collection writes.
+  Older agency requests, resource offers and feedback records coexist with the current
+  `liaison_requests` records and narrative thread; the request router explicitly retains
+  the older API for existing desktop consumers.
+- Web behavior: new requests use `liaison_requests` only. Agency detail displays existing
+  older records separately without copying them or falling back to them for current requests.
+- Removal condition: perform and verify a one-time identifier/data conversion, update remaining
+  desktop consumers and SQLite-era Liaison tests, then remove runtime repairs and retired APIs.
+
+## Facilities field aliases retained on the shared API
+
+- Locations: `server/sarapp_db/sarapp_db/api/routers/facilities.py` (`_serialize`, create/PUT)
+  and `apps/desktop/sarapp_desktop/modules/logistics/facilities/models.py` (`from_api`).
+- Existing compatibility: falls back from `function_tags` to `capabilities` and from
+  `served_sections` to `served_modules`, and server writes both shapes. The web Facilities
+  UI reads/writes only canonical `function_tags`/`served_sections`; no new fallback is added.
+- Removal condition: migrate existing facility documents once and update remaining consumers,
+  then remove server alias reads/writes and desktop compatibility reads together.

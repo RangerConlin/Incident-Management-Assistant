@@ -769,6 +769,7 @@ class ICS206Panel(QWidget):
         header_layout.addWidget(self._lock_note)
         self._timeline = ApprovalTimeline()
         self._timeline.sign_requested.connect(self._on_sign_requested)
+        self._timeline.assign_requested.connect(self._on_assign_requested)
         self._timeline.setVisible(False)
         header_layout.addWidget(self._timeline)
         outer.addWidget(header_bar)
@@ -1095,13 +1096,10 @@ class ICS206Panel(QWidget):
             assignment_type = service.assignment_type_for(person_record) if person_record else "primary"
             if not service.can_sign(instance, step_id, person_record, assignment_type):
                 raise RuntimeError("You are not able to act on this approval step.")
-            step = next(s for s in instance.steps if s.step_id == step_id)
             updated = service.sign(
                 instance,
                 step_id=step_id,
-                actor_id=str(person_record),
-                role_at_time=step.resolved_role or step.role,
-                assignment_type=assignment_type,
+                actor_id=person_record,
                 action=action,
                 notes=notes,
             )
@@ -1111,6 +1109,26 @@ class ICS206Panel(QWidget):
                 self._refresh_all()
         except Exception as exc:
             QMessageBox.critical(self, "Approval Failed", str(exc))
+
+    def _on_assign_requested(self, step_id: str, step_label: str) -> None:
+        from modules.approvals.panels.assign_step_dialog import AssignStepDialog
+
+        dlg = AssignStepDialog(step_label, self)
+        if not dlg.exec():
+            return
+        person_record = dlg.selected_person_record()
+        if not person_record:
+            return
+        try:
+            incident_id, plan_id = self._bridge.approval_target()
+            service = ApprovalService(incident_id)
+            instance = service.get("ics_206", plan_id)
+            if instance is None:
+                return
+            service.assign_step(instance, step_id, person_record)
+            self._refresh_all()
+        except Exception as exc:
+            QMessageBox.critical(self, "Assign Failed", str(exc))
 
     def _duplicate_op(self) -> None:
         if not self._bridge:

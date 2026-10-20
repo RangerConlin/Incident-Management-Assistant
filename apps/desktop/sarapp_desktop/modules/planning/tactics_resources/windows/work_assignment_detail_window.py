@@ -35,6 +35,10 @@ from PySide6.QtWidgets import (
 )
 
 from modules.logistics.facilities.widgets import FacilityPicker
+from modules.planning.tactics_resources.data.work_assignment_desk import (
+    resolve_person_name,
+    work_assignment_desk,
+)
 from modules.planning.tactics_resources.data.work_assignment_repository import WorkAssignmentRepository
 from modules.planning.tactics_resources.models.work_assignment_models import (
     ASSIGNMENT_KIND_VALUES,
@@ -57,6 +61,7 @@ from utils.styles import (
     resource_status_colors,
     subscribe_theme,
     wa_planning_status_colors,
+    wa_priority_colors,
     wa_safety_status_colors,
 )
 
@@ -110,6 +115,8 @@ class WorkAssignmentDetailWindow(QWidget):
         self._notes_text = ""
         self._prepared_by = ""
         self._approved_by = ""
+        self._updated_at = ""
+        self._updated_by = ""
 
         # Debounce timer — fires 800 ms after the last field change
         self._save_timer = QTimer(self)
@@ -120,6 +127,7 @@ class WorkAssignmentDetailWindow(QWidget):
         self._build_ui()
         self._update_title()
         self._refresh_status_chips()
+        self._update_summary()
 
         if work_assignment_id is not None:
             self._load()
@@ -172,7 +180,7 @@ class WorkAssignmentDetailWindow(QWidget):
 
         top_row = QHBoxLayout()
         top_row.setSpacing(8)
-        self._header_number_label = QLabel("New Strategy")
+        self._header_number_label = QLabel("New Work Assignment")
         self._header_number_label.setStyleSheet(
             f"color:{get_palette().get('accent').name()}; font-weight:700;"
         )
@@ -184,14 +192,30 @@ class WorkAssignmentDetailWindow(QWidget):
         top_row.addWidget(self._header_op_label)
         top_row.addStretch(1)
 
-        self._planning_chip = QLabel("")
-        self._safety_chip = QLabel("")
-        self._resource_chip = QLabel("")
-        for chip in (self._planning_chip, self._safety_chip, self._resource_chip):
-            top_row.addWidget(chip)
+        self._planning_status_combo = QComboBox()
+        self._planning_status_combo.addItems(PLANNING_STATUS_VALUES)
+        self._planning_status_combo.setToolTip("Planning status")
+        self._safety_status_combo = QComboBox()
+        self._safety_status_combo.addItems(SAFETY_STATUS_VALUES)
+        self._safety_status_combo.setToolTip("Safety status")
+        self._resource_status_combo = QComboBox()
+        self._resource_status_combo.addItems(RESOURCE_STATUS_VALUES)
+        self._resource_status_combo.setToolTip("Resource status")
+
+        muted = get_palette().get("fg_muted").name()
+        for prefix, combo in (
+            ("Planning", self._planning_status_combo),
+            ("Safety", self._safety_status_combo),
+            ("Resources", self._resource_status_combo),
+        ):
+            combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+            prefix_label = QLabel(prefix)
+            prefix_label.setStyleSheet(f"color:{muted}; font-size:11px; font-weight:600;")
+            top_row.addWidget(prefix_label)
+            top_row.addWidget(combo)
         outer.addLayout(top_row)
 
-        self._header_title_label = QLabel("New Strategy")
+        self._header_title_label = QLabel("New Work Assignment")
         self._header_title_label.setStyleSheet("font-size:18px; font-weight:700;")
         outer.addWidget(self._header_title_label)
 
@@ -201,45 +225,78 @@ class WorkAssignmentDetailWindow(QWidget):
         )
         outer.addWidget(self._header_meta_label)
 
-        self._summary_label = QLabel("Resources: - | Gap: - | Hazards: - | Unresolved: - | Tasks: -")
-        self._summary_label.setStyleSheet(
-            f"color:{get_palette().get('fg_muted').name()}; margin-top:4px;"
-        )
-        outer.addWidget(self._summary_label)
-
         return box
 
+    def _build_stat_row(self) -> QHBoxLayout:
+        """Quick-glance Priority/Resources/Gap/Hazards/Tasks cards, shown at
+        the top of the Overview tab. Replaces the old single summary line."""
+        row = QHBoxLayout()
+        row.setSpacing(10)
+        self._stat_cards: dict[str, tuple[QFrame, QLabel]] = {}
+        for key, title in (
+            ("priority", "Priority"),
+            ("resources", "Resources"),
+            ("gap", "Gap"),
+            ("hazards", "Open Hazards"),
+            ("tasks", "Linked Tasks"),
+        ):
+            frame = QFrame()
+            frame.setFrameShape(QFrame.StyledPanel)
+            frame.setAttribute(Qt.WA_StyledBackground, True)
+            frame.setStyleSheet(
+                "QFrame { "
+                f"background:{get_palette().get('bg_raised').name()}; "
+                f"border:1px solid {get_palette().get('ctrl_border').name()}; "
+                "border-radius:5px; }"
+            )
+            layout = QVBoxLayout(frame)
+            layout.setContentsMargins(10, 8, 10, 8)
+            layout.setSpacing(2)
+            label = QLabel(title.upper())
+            label.setStyleSheet(
+                f"color:{get_palette().get('fg_muted').name()}; font-size:10px; font-weight:700;"
+            )
+            value = QLabel("-")
+            value.setStyleSheet("font-size:16px; font-weight:700;")
+            layout.addWidget(label)
+            layout.addWidget(value)
+            row.addWidget(frame, 1)
+            self._stat_cards[key] = (frame, value)
+        return row
+
     @staticmethod
-    def _style_chip(label: QLabel, text: str, brushes: dict | None) -> None:
-        label.setText(text)
+    def _style_status_combo(combo: QComboBox, brushes: dict | None) -> None:
+        """Make a status QComboBox read as a colored pill, matching the
+        read-only chip look it replaces, while staying a real editable control."""
         if not brushes:
-            label.setStyleSheet("")
+            combo.setStyleSheet("")
             return
         bg = brushes["bg"].color().name()
         fg = brushes["fg"].color().name()
-        label.setStyleSheet(
-            f"background:{bg}; color:{fg}; padding:2px 8px; border-radius:4px; font-weight:700;"
+        popup_bg = get_palette().get("bg_raised").name()
+        popup_fg = get_palette().get("fg").name()
+        combo.setStyleSheet(
+            "QComboBox { "
+            f"background:{bg}; color:{fg}; padding:2px 8px; border-radius:4px; "
+            "border:none; font-weight:700; }"
+            "QComboBox::drop-down { border:none; width:16px; }"
+            "QComboBox QAbstractItemView { "
+            f"background:{popup_bg}; color:{popup_fg}; }}"
         )
 
     def _refresh_status_chips(self) -> None:
-        planning = (
-            self._planning_status_combo.currentText()
-            if hasattr(self, "_planning_status_combo")
-            else "Draft"
+        self._style_status_combo(
+            self._planning_status_combo,
+            wa_planning_status_colors().get(self._planning_status_combo.currentText()),
         )
-        safety = (
-            self._safety_status_combo.currentText()
-            if hasattr(self, "_safety_status_combo")
-            else "Unchecked"
+        self._style_status_combo(
+            self._safety_status_combo,
+            wa_safety_status_colors().get(self._safety_status_combo.currentText()),
         )
-        resource = (
-            self._resource_status_combo.currentText()
-            if hasattr(self, "_resource_status_combo")
-            else "Unreviewed"
+        self._style_status_combo(
+            self._resource_status_combo,
+            resource_status_colors().get(self._resource_status_combo.currentText()),
         )
-        self._style_chip(self._planning_chip, planning, wa_planning_status_colors().get(planning))
-        self._style_chip(self._safety_chip, safety, wa_safety_status_colors().get(safety))
-        self._style_chip(self._resource_chip, resource, resource_status_colors().get(resource))
         self._refresh_header()
 
     def _refresh_header(self) -> None:
@@ -247,11 +304,11 @@ class WorkAssignmentDetailWindow(QWidget):
             return
         number = self._number_label.text().strip()
         name = self._name_edit.text().strip()
-        self._header_number_label.setText(number or "New Strategy")
+        self._header_number_label.setText(number or "New Work Assignment")
         op_text = self._op_period_combo.currentText().strip() if hasattr(self, "_op_period_combo") else ""
         op_text = op_text.split(" (", 1)[0]
         self._header_op_label.setText(f"OP: {op_text}" if op_text and op_text != "(none)" else "")
-        self._header_title_label.setText(name or "New Strategy")
+        self._header_title_label.setText(name or "New Work Assignment")
 
         meta_parts: list[str] = []
         branch = self._branch_combo.currentText().strip()
@@ -268,15 +325,22 @@ class WorkAssignmentDetailWindow(QWidget):
         prepared = self._prepared_by.strip()
         approved = self._approved_by.strip()
         if prepared:
-            meta_parts.append(f"Prepared by {prepared}")
+            meta_parts.append(f"Prepared by {resolve_person_name(prepared)}")
         if approved:
-            meta_parts.append(f"Approved by {approved}")
+            meta_parts.append(f"Approved by {resolve_person_name(approved)}")
+        if self._updated_at:
+            updated_text = f"Updated {_format_display_timestamp(self._updated_at)}"
+            if self._updated_by:
+                updated_text += f" by {resolve_person_name(self._updated_by)}"
+            meta_parts.append(updated_text)
         self._header_meta_label.setText(" | ".join(meta_parts))
 
     def _build_overview_tab(self) -> None:
         tab = QWidget()
         layout = QVBoxLayout(tab)
         layout.setSpacing(12)
+
+        layout.addLayout(self._build_stat_row())
 
         assignment_title = QLabel("ASSIGNMENT")
         assignment_title.setStyleSheet(
@@ -289,9 +353,9 @@ class WorkAssignmentDetailWindow(QWidget):
         grid.setVerticalSpacing(8)
 
         self._name_edit = QLineEdit()
-        self._name_edit.setPlaceholderText("Strategy name (required)")
+        self._name_edit.setPlaceholderText("Assignment name (required)")
         self._number_label = QLineEdit()
-        self._number_label.setPlaceholderText("Strategy #")
+        self._number_label.setPlaceholderText("(auto-generated)")
 
         self._objective_combo = QComboBox()
         self._objective_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
@@ -337,13 +401,6 @@ class WorkAssignmentDetailWindow(QWidget):
         grid.setColumnStretch(2, 1)
         layout.addLayout(grid)
 
-        self._planning_status_combo = QComboBox()
-        self._planning_status_combo.addItems(PLANNING_STATUS_VALUES)
-        self._resource_status_combo = QComboBox()
-        self._resource_status_combo.addItems(RESOURCE_STATUS_VALUES)
-        self._safety_status_combo = QComboBox()
-        self._safety_status_combo.addItems(SAFETY_STATUS_VALUES)
-
         narrative_title = QLabel("OVERVIEW")
         narrative_title.setStyleSheet(
             f"color:{get_palette().get('fg_muted').name()}; font-weight:700;"
@@ -387,6 +444,7 @@ class WorkAssignmentDetailWindow(QWidget):
         self._location_picker.textChanged.connect(lambda *_: self._refresh_header())
         self._kind_combo.currentIndexChanged.connect(self._schedule_save)
         self._priority_combo.currentIndexChanged.connect(self._schedule_save)
+        self._priority_combo.currentIndexChanged.connect(self._update_summary)
         self._planning_status_combo.currentIndexChanged.connect(self._schedule_save)
         self._safety_status_combo.currentIndexChanged.connect(self._schedule_save)
         self._resource_status_combo.currentIndexChanged.connect(self._schedule_save)
@@ -403,27 +461,27 @@ class WorkAssignmentDetailWindow(QWidget):
 
     def _build_resources_tab(self) -> None:
         placeholder = QWidget()
-        lbl = QLabel("Save the strategy first to add resource requirements.", placeholder)
+        lbl = QLabel("Save the Work Assignment first to add resource requirements.", placeholder)
         lbl.setAlignment(Qt.AlignCenter)
         lbl.setStyleSheet(f"color: {get_palette().get('muted').name()}; font-style: italic;")
         lay = QVBoxLayout(placeholder)
         lay.addWidget(lbl)
         self._resources_placeholder = placeholder
-        self._resources_tab_index = self._tabs.addTab(self._resources_placeholder, "Resources / ICS 215")
+        self._resources_tab_index = self._tabs.addTab(self._resources_placeholder, "Resources")
 
     def _build_hazards_tab(self) -> None:
         placeholder = QWidget()
-        lbl = QLabel("Save the strategy first to add hazard analysis entries.", placeholder)
+        lbl = QLabel("Save the Work Assignment first to add hazard analysis entries.", placeholder)
         lbl.setAlignment(Qt.AlignCenter)
         lbl.setStyleSheet(f"color: {get_palette().get('muted').name()}; font-style: italic;")
         lay = QVBoxLayout(placeholder)
         lay.addWidget(lbl)
         self._hazards_placeholder = placeholder
-        self._hazards_tab_index = self._tabs.addTab(self._hazards_placeholder, "Hazards / ICS 215A")
+        self._hazards_tab_index = self._tabs.addTab(self._hazards_placeholder, "Hazards")
 
     def _build_tasks_tab(self) -> None:
         placeholder = QWidget()
-        lbl = QLabel("Save the strategy first to link or create tasks.", placeholder)
+        lbl = QLabel("Save the Work Assignment first to link or create tasks.", placeholder)
         lbl.setAlignment(Qt.AlignCenter)
         lbl.setStyleSheet(f"color: {get_palette().get('muted').name()}; font-style: italic;")
         lay = QVBoxLayout(placeholder)
@@ -433,7 +491,7 @@ class WorkAssignmentDetailWindow(QWidget):
 
     def _build_agency_requests_tab(self) -> None:
         placeholder = QWidget()
-        lbl = QLabel("Save the strategy first to link agency requests.", placeholder)
+        lbl = QLabel("Save the Work Assignment first to link agency requests.", placeholder)
         lbl.setAlignment(Qt.AlignCenter)
         lbl.setStyleSheet(f"color: {get_palette().get('muted').name()}; font-style: italic;")
         lay = QVBoxLayout(placeholder)
@@ -611,6 +669,8 @@ class WorkAssignmentDetailWindow(QWidget):
         self._notes_text = wa.notes
         self._prepared_by = str(wa.prepared_by or "")
         self._approved_by = str(wa.approved_by or "")
+        self._updated_at = wa.updated_at
+        self._updated_by = str(wa.updated_by or "")
         self._tactics_edit.setPlainText(wa.tactics_summary)
         self._instructions_edit.setPlainText(wa.special_instructions)
         self._refresh_header()
@@ -624,7 +684,7 @@ class WorkAssignmentDetailWindow(QWidget):
         )
         editor.changed.connect(self._update_summary)
         self._tabs.removeTab(self._resources_tab_index)
-        self._tabs.insertTab(self._resources_tab_index, editor, "Resources / ICS 215")
+        self._tabs.insertTab(self._resources_tab_index, editor, "Resources")
         self._resources_placeholder = editor
 
     def _populate_hazard_tab(self) -> None:
@@ -635,7 +695,7 @@ class WorkAssignmentDetailWindow(QWidget):
         )
         editor.changed.connect(self._update_summary)
         self._tabs.removeTab(self._hazards_tab_index)
-        self._tabs.insertTab(self._hazards_tab_index, editor, "Hazards / ICS 215A")
+        self._tabs.insertTab(self._hazards_tab_index, editor, "Hazards")
         self._hazards_placeholder = editor
 
     def _populate_tasks_tab(self) -> None:
@@ -644,6 +704,7 @@ class WorkAssignmentDetailWindow(QWidget):
         panel = LinkedTasksPanel(
             self._work_assignment_id, db_path=self._db_path, parent=self
         )
+        panel.changed.connect(self._update_summary)
         self._tabs.removeTab(self._tasks_tab_index)
         self._tabs.insertTab(self._tasks_tab_index, panel, "Tasks")
         self._tasks_placeholder = panel
@@ -654,6 +715,7 @@ class WorkAssignmentDetailWindow(QWidget):
         panel = LinkedAgencyRequestsPanel(
             self._work_assignment_id, db_path=self._db_path, parent=self
         )
+        panel.changed.connect(self._update_summary)
         self._tabs.removeTab(self._agency_requests_tab_index)
         self._tabs.insertTab(self._agency_requests_tab_index, panel, "Agency Requests")
         self._agency_requests_placeholder = panel
@@ -662,31 +724,39 @@ class WorkAssignmentDetailWindow(QWidget):
         name = self._name_edit.text().strip() if hasattr(self, "_name_edit") else ""
         num = self._number_label.text() if hasattr(self, "_number_label") else ""
         if name:
-            self.setWindowTitle(f"Strategy: {num} {name}".strip())
+            self.setWindowTitle(f"Work Assignment: {num} {name}".strip())
         else:
-            self.setWindowTitle("Strategy: New")
+            self.setWindowTitle("Work Assignment: New")
 
     def _update_summary(self) -> None:
-        """Refresh the counters in the header summary label."""
+        """Refresh the Overview tab's quick-glance stat cards."""
+        priority = self._priority_combo.currentText()
+        self._set_stat("priority", priority, wa_priority_colors().get(priority))
+
         if self._work_assignment_id is None:
+            for key in ("resources", "gap", "hazards", "tasks"):
+                self._set_stat(key, "-")
             return
-        try:
-            repo = WorkAssignmentRepository(self._db_path)
-            reqs = repo.list_resource_requirements(self._work_assignment_id)
-            hazards = repo.list_hazards(self._work_assignment_id)
-            links = repo.list_linked_tasks(self._work_assignment_id)
-        except Exception:
-            return
-        total_req = sum(r.quantity_required for r in reqs)
-        total_assigned = sum(r.quantity_assigned for r in reqs)
-        total_gap = sum(max(r.quantity_required - r.quantity_assigned, 0) for r in reqs)
-        unresolved = sum(1 for h in hazards if not h.is_resolved)
-        self._summary_label.setText(
-            f"Resources: {total_req} req / {total_assigned} assigned | "
-            f"Gap: {total_gap} | "
-            f"Hazards: {len(hazards)} ({unresolved} unresolved) | "
-            f"Tasks: {len(links)}"
+
+        total_req, total_assigned, total_gap, hazard_total, unresolved, link_total = (
+            work_assignment_desk.meta_for(self._work_assignment_id)
         )
+        self._set_stat("resources", f"{total_assigned} / {total_req}")
+        self._set_stat("gap", str(total_gap), warn=total_gap > 0)
+        self._set_stat("hazards", f"{unresolved} / {hazard_total}", warn=unresolved > 0)
+        self._set_stat("tasks", str(link_total))
+
+    def _set_stat(self, key: str, text: str, brushes: dict | None = None, warn: bool = False) -> None:
+        _frame, value_label = self._stat_cards[key]
+        value_label.setText(text)
+        if brushes:
+            value_label.setStyleSheet(
+                f"font-size:16px; font-weight:700; color:{brushes['bg'].color().name()};"
+            )
+        elif warn:
+            value_label.setStyleSheet(f"font-size:16px; font-weight:700; color:{get_palette().get('danger').name()};")
+        else:
+            value_label.setStyleSheet("font-size:16px; font-weight:700;")
 
     # ------------------------------------------------------------------
     # Save logic
@@ -733,7 +803,7 @@ class WorkAssignmentDetailWindow(QWidget):
         data = self._collect_header_data()
         if not data.get("assignment_name"):
             if not quiet:
-                QMessageBox.warning(self, "Save", "Strategy name is required.")
+                QMessageBox.warning(self, "Save", "Assignment name is required.")
             return False
         # Temporarily block field signals to prevent re-triggering auto-save
         self._save_timer.stop()
@@ -746,15 +816,25 @@ class WorkAssignmentDetailWindow(QWidget):
                 self._populate_hazard_tab()
                 self._populate_tasks_tab()
                 self._populate_agency_requests_tab()
-                repo.add_log_entry(new_id, "Strategy created.", entry_type="System")
+                repo.add_log_entry(new_id, "Work Assignment created.", entry_type="System")
             else:
                 repo.update_work_assignment(self._work_assignment_id, data)
                 if not quiet:
-                    repo.add_log_entry(self._work_assignment_id, "Strategy updated.", entry_type="System")
+                    repo.add_log_entry(self._work_assignment_id, "Work Assignment updated.", entry_type="System")
+            saved_wa = repo.get_work_assignment(self._work_assignment_id)
         except Exception as exc:
             if not quiet:
                 QMessageBox.critical(self, "Save", f"Failed to save:\n{exc}")
             return False
+        if saved_wa:
+            if saved_wa.assignment_number:
+                self._number_label.blockSignals(True)
+                self._number_label.setText(saved_wa.assignment_number)
+                self._number_label.blockSignals(False)
+            self._prepared_by = str(saved_wa.prepared_by or "")
+            self._approved_by = str(saved_wa.approved_by or "")
+            self._updated_at = saved_wa.updated_at
+            self._updated_by = str(saved_wa.updated_by or "")
         self._update_title()
         self._reload_outputs()
         self._refresh_header()

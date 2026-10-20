@@ -36,6 +36,9 @@ from ..views.new_channel_dialog import NewChannelDialog
 from ..views.import_ics217_dialog import ImportICS217Dialog
 from ..views.edit_channel_dialog import EditChannelDialog
 from utils.table_view_styles import apply_statusboard_table_behavior
+from modules.approvals.service import ApprovalService
+from modules.approvals.panels.approval_timeline import ApprovalTimeline
+from modules.approvals.panels.assign_step_dialog import AssignStepDialog
 
 _NON_EDITABLE_KEYS = {"priority", "encryption"}
 
@@ -230,6 +233,22 @@ class ICS205Window(QWidget):
         instr_v.addWidget(self.ed_special_instructions)
         root.addWidget(instr_box)
 
+        # ── Approval ──────────────────────────────────────────────────────────
+        self.approval_box = QGroupBox("Approval")
+        approval_v = QVBoxLayout(self.approval_box)
+        approval_header = QHBoxLayout()
+        self.btn_submit_approval = _btn(
+            "Submit for Approval", "Send this plan to the Communications Unit Leader for sign-off"
+        )
+        approval_header.addWidget(self.btn_submit_approval)
+        approval_header.addStretch()
+        approval_v.addLayout(approval_header)
+        self.approval_timeline = ApprovalTimeline()
+        approval_v.addWidget(self.approval_timeline)
+        root.addWidget(self.approval_box)
+        self.approval_box.setVisible(False)
+        self._plan_id: str | None = None
+
         # ── Status bar ────────────────────────────────────────────────────────
         self.status = QStatusBar()
         root.addWidget(self.status)
@@ -244,6 +263,9 @@ class ICS205Window(QWidget):
         self.btn_import.clicked.connect(self._open_import_dialog)
         self.btn_validate.clicked.connect(self._validate)
         self.btn_generate.clicked.connect(self._preview)
+        self.btn_submit_approval.clicked.connect(self._submit_for_approval)
+        self.approval_timeline.sign_requested.connect(self._on_sign_requested)
+        self.approval_timeline.assign_requested.connect(self._on_assign_requested)
 
         QTimer.singleShot(0, self._late_init)
 
@@ -313,12 +335,93 @@ class ICS205Window(QWidget):
         self.ed_special_instructions.blockSignals(True)
         self.ed_special_instructions.setPlainText(plan.get("special_instructions") or "")
         self.ed_special_instructions.blockSignals(False)
+        self._plan_id = plan.get("plan_id")
+        self._load_approval_state()
 
     def _save_plan(self, *_args):
         op_period_id = self.cmb_op_period.currentData()
         self.controller.incident_repo.save_plan(
             self.ed_special_instructions.toPlainText(), op_period_id
         )
+
+    # ── Approval ──────────────────────────────────────────────────────────────
+
+    def _person_record(self) -> int:
+        uid = AppState.get_active_user_id()
+        return int(uid) if uid and str(uid).isdigit() else 0
+
+    def _load_approval_state(self):
+        self.approval_box.setVisible(bool(self._plan_id))
+        if not self._plan_id:
+            self.approval_timeline.set_state(None)
+            return
+        incident_id = str(AppState.get_active_incident())
+        service = ApprovalService(incident_id)
+        try:
+            instance = service.get("ics_205", self._plan_id)
+        except Exception:
+            instance = None
+        person_record = self._person_record()
+        assignment_type = service.assignment_type_for(person_record) if person_record else None
+        self.approval_timeline.set_state(instance, person_record, assignment_type)
+        self.btn_submit_approval.setEnabled(instance is None)
+
+    def _submit_for_approval(self):
+        if not self._plan_id:
+            return
+        from PySide6.QtWidgets import QMessageBox
+        incident_id = str(AppState.get_active_incident())
+        try:
+            ApprovalService(incident_id).start("ics_205", self._plan_id)
+        except Exception as exc:
+            QMessageBox.critical(self, "Submission Failed", str(exc))
+            return
+        self._load_approval_state()
+        self.status.showMessage("Submitted for approval.", 3000)
+
+    def _on_sign_requested(self, step_id: str):
+        if not self._plan_id:
+            return
+        from PySide6.QtWidgets import QMessageBox
+        incident_id = str(AppState.get_active_incident())
+        service = ApprovalService(incident_id)
+        instance = service.get("ics_205", self._plan_id)
+        if instance is None:
+            return
+        person_record = self._person_record()
+        if not service.can_sign(instance, step_id, person_record, service.assignment_type_for(person_record)):
+            QMessageBox.information(self, "Sign", "You are not able to act on this approval step.")
+            return
+        try:
+            service.sign(instance, step_id=step_id, actor_id=person_record, action="approved")
+        except Exception as exc:
+            QMessageBox.critical(self, "Sign Failed", str(exc))
+            return
+        self._load_approval_state()
+        self.status.showMessage("Signed.", 3000)
+
+    def _on_assign_requested(self, step_id: str, step_label: str):
+        if not self._plan_id:
+            return
+        dlg = AssignStepDialog(step_label, self)
+        if not dlg.exec():
+            return
+        person_record = dlg.selected_person_record()
+        if not person_record:
+            return
+        from PySide6.QtWidgets import QMessageBox
+        incident_id = str(AppState.get_active_incident())
+        service = ApprovalService(incident_id)
+        instance = service.get("ics_205", self._plan_id)
+        if instance is None:
+            return
+        try:
+            service.assign_step(instance, step_id, person_record)
+        except Exception as exc:
+            QMessageBox.critical(self, "Assign Failed", str(exc))
+            return
+        self._load_approval_state()
+        self.status.showMessage("Assigned.", 3000)
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 

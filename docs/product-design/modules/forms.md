@@ -112,3 +112,26 @@ The mobile field dashboard has a Forms action, but it is marked coming soon. Mob
 - Signature/approval routing for generated forms.
 - Export history with generated PDFs, versions, source data, and distribution records.
 - Form readiness dashboard for administrators.
+
+## Shared web export path
+
+The browser Forms workspace exports saved incident data to editable ICS 202, 204,
+209, 211, 213RR, 215, 215A and 230 PDFs. The same controls appear on the corresponding
+web workspaces. Exact publisher/template choices are shown in the catalog: ICS 209
+and 215 use the repository's ICS Canada PDFs; the remaining entries use its FEMA set.
+The ICS 230 source retains the standard preprinted common-meeting guide.
+
+Exports use repository reads and a headless service under `sarapp_db.form_exports`,
+without importing desktop runtime state or SQLite. Repeated rows paginate and full
+source text is retained in continuation pages. Signatures are left blank. These are
+read-only downloads; exporting does not approve a record or persist a form instance.
+The shared API has a catalog GET and PDF POST at each incident's `/form-exports` path.
+
+ICS 203 exports the current saved organization through the same shared API, with
+FEMA, ICS Canada, and USCG publishing sets and an explicit operational period for
+the header. The desktop organization panel now downloads this PDF in a background
+worker through its existing export service. The server uses canonical embedded
+assignments and referenced personnel, preserves editable fields, leaves signatures
+blank, and paginates repeated sections. Local template-authoring preview remains
+available in Mapper Window. The field audit and unresolved template meanings are
+recorded in `form_builder_inventory.md`.

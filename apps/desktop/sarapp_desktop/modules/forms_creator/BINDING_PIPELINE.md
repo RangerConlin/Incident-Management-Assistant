@@ -1,5 +1,30 @@
 # Form Data Binding Pipeline
 
+## ICS 203 server migration (2026-10-19)
+
+The production ICS 203 export now resolves the same binding paths and the same
+FEMA/ICS Canada/USCG JSON mappings in `sarapp_db.form_exports.organization`.
+The server bundles byte copies of the authoritative templates/mappings from
+`forms/sets/`; `tools/scripts/sync_server_form_templates.py --check` detects drift.
+No desktop/Qt imports or alternate persisted schemas are used on the server.
+The organization-panel export continues through its domain wrapper and the
+registered `Ics203FormBuilder`/`ExportService`; local mapper preview remains an
+authoring tool. Missing referenced personnel produce an error rather than silently
+dropping names. Ended assignments are excluded; deputies and trainees retain their roles.
+
+This supersedes the old accepted ICS 203 truncation limitation described below:
+the current headless export rules require pagination and lossless annex text.
+Repeated branches retain their slot while divisions continue; approved irregular
+field names and USCG's positional third-branch/Intel bindings remain unchanged.
+The ICS Canada operational-period geometry was rechecked: `Text17.0.0` is from date,
+`Text17.0.1` is to date, `Text17.2` is from time, and `Text17.1` is to time. The
+previous date/time bindings were transposed; the authoritative mapping is corrected.
+The Canadian UC repeating group also repeated the first commander in its second
+physical row. Its two remaining UC rows now explicitly bind indices 1 and 2,
+following the dedicated first-commander row, matching the verified field geometry.
+Timestamps are human-readable at minute/second precision and show the stored zone
+when available; server-generated preparation times are UTC.
+
 This is the reference name for the system that lets stored data (MongoDB
 collections under `sarapp_incident_<id>` and `sarapp_master`) get pulled
 live into a fillable PDF form. Use this name consistently in commits, PRs,

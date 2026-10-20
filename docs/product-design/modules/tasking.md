@@ -31,6 +31,7 @@ Tasking is where incident objectives and work assignments become concrete field 
 - Fill task identity, type/category, priority, status, location, narrative, and assignment details.
 - Link the task to a planning work assignment when planning context exists.
 - Assign one or more teams, mark a primary team, and review assigned personnel, vehicles, and air/ground details.
+- Confirm already-available task resources directly on the task, or escalate an unmet need into Resource Requests only when sourcing/tracking is needed.
 - Add safety, communication, intelligence, forms, attachments, and log records as the task evolves.
 - Use desktop task status views to monitor work, filter by operational state, and change status quickly.
 - Use mobile to find assigned tasks, view current assignment context, monitor status, and read narratives.
@@ -60,7 +61,7 @@ There is also a wiring question around the desktop Operations Dashboard: a rich 
 - Planning: tasks can be linked to objectives/work assignments and surfaced from the tactics/resources planning flow.
 - Teams: tasks assign teams, track primary team, show team status, and pull team resources into the assignment.
 - Personnel: task team/personnel tabs expose assigned people and their roles.
-- Logistics: vehicles, aircraft, resource status, and resource requests can support task fulfillment.
+- Logistics: vehicles, aircraft, resource status, and resource requests can support task fulfillment. Tasking should not require a Resource Request when the needed resources are already available and can simply be assigned or acknowledged.
 - GIS/Mapping: task locations can be geocoded and linked to GIS objects.
 - Communications: task communications channels are managed from the task detail workflow.
 - Safety: hazards, safety notes, and GAR-style risk rollups attach to task work.
@@ -100,6 +101,7 @@ Mobile task status actions are not complete yet. The visible acknowledge/en rout
 - Which task fields are required before a task can be assigned to a team?
 - Should mobile users be able to change task status directly, or should those changes require team leader role checks?
 - How should planning work assignments, operations tasks, and resource requests appear together so users understand the handoff?
+- What is the fastest task-level path for "we have the needed resources; continue" without opening Logistics?
 - Which task tabs are essential for field operations, and which are specialist/staff-only?
 - Should task logs, team logs, and ICS-214 logs remain separate views or become one filtered activity timeline?
 - What must happen when a task is completed: debrief required, resource release, team status change, forms generated, planning objective updated?

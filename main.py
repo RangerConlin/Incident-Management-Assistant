@@ -3730,6 +3730,8 @@ class MainWindow(QMainWindow):
         bar = AppStatusBar(self)
         self.setStatusBar(bar)
         self._app_status_bar = bar
+        from utils.version import DESKTOP_VERSION
+        bar.addPermanentWidget(QLabel(f"Desktop {DESKTOP_VERSION}", bar))
 
         # Wire connection status
         try:

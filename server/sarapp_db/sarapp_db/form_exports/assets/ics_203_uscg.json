@@ -1,0 +1,559 @@
+{
+  "description": "ICS 203 — Organization Assignment List — USCG ICS Forms 2023",
+  "fields": [
+    {
+      "pdf_field": "1 Incident Name",
+      "source": "incident.name"
+    },
+    {
+      "pdf_field": "2 Incident Location",
+      "source": "incident.icp_location"
+    },
+    {
+      "pdf_field": "Chief",
+      "source": "organization.operations_section_chief.name"
+    },
+    {
+      "pdf_field": "uc_name1",
+      "source": {
+        "key": "uc_commanders.0.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "DeputyRow1",
+      "source": "organization.deputy_incident_commander.name"
+    },
+    {
+      "pdf_field": "uc_agency1",
+      "source": {
+        "key": "uc_commanders.0.agency",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Deputy",
+      "source": "organization.deputy_operations_section_chief.name"
+    },
+    {
+      "pdf_field": "uc_name2",
+      "source": {
+        "key": "uc_commanders.1.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "DeputyRow2",
+      "source": ""
+    },
+    {
+      "pdf_field": "uc_agency2",
+      "source": {
+        "key": "uc_commanders.1.agency",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "DeputyRow1_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "8 Operations SectionRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "uc_name3",
+      "source": {
+        "key": "uc_commanders.2.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "DeputyRow3",
+      "source": ""
+    },
+    {
+      "pdf_field": "uc_agency3",
+      "source": {
+        "key": "uc_commanders.2.agency",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Staging Area Manager",
+      "source": "organization.staging_area_manager.name"
+    },
+    {
+      "pdf_field": "uc_name4",
+      "source": {
+        "key": "uc_commanders.3.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "DeputyRow4",
+      "source": ""
+    },
+    {
+      "pdf_field": "uc_agency4",
+      "source": {
+        "key": "uc_commanders.3.agency",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Staging Area Manager_2",
+      "source": ""
+    },
+    {
+      "pdf_field": "uc_name5",
+      "source": {
+        "key": "uc_commanders.4.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "DeputyRow5",
+      "source": ""
+    },
+    {
+      "pdf_field": "uc_agency5",
+      "source": {
+        "key": "uc_commanders.4.agency",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Staging Area ManagerRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "8 Operations SectionRow6",
+      "source": ""
+    },
+    {
+      "pdf_field": "Safety Officer",
+      "source": "organization.safety_officer.name"
+    },
+    {
+      "pdf_field": "Information Officer",
+      "source": "organization.public_information_officer.name"
+    },
+    {
+      "pdf_field": "Liaison Officer",
+      "source": "organization.liaison_officer.name"
+    },
+    {
+      "pdf_field": "Liaison OfficerRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "5 Agency  Organization Representatives",
+      "source": ""
+    },
+    {
+      "pdf_field": "rep_agency1",
+      "source": {
+        "key": "org_agency_reps.0.agency",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "rep_name1",
+      "source": {
+        "key": "org_agency_reps.0.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "rep_agency2",
+      "source": {
+        "key": "org_agency_reps.1.agency",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "rep_name2",
+      "source": {
+        "key": "org_agency_reps.1.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "rep_agency3",
+      "source": {
+        "key": "org_agency_reps.2.agency",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "rep_name3",
+      "source": {
+        "key": "org_agency_reps.2.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "DivisionGroup_6",
+      "source": {
+        "key": "org_branches.0.divisions.5.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "rep_agency4",
+      "source": {
+        "key": "org_agency_reps.3.agency",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "rep_name4",
+      "source": {
+        "key": "org_agency_reps.3.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Chief_2",
+      "source": "organization.planning_section_chief.name"
+    },
+    {
+      "pdf_field": "Deputy_4",
+      "source": "organization.deputy_planning_section_chief.name"
+    },
+    {
+      "pdf_field": "Resources Unit",
+      "source": "organization.resources_unit_leader.name"
+    },
+    {
+      "pdf_field": "Situation Unit",
+      "source": "organization.situation_unit_leader.name"
+    },
+    {
+      "pdf_field": "Environmental Unit",
+      "source": "organization.environmental_unit_leader.name"
+    },
+    {
+      "pdf_field": "Documentation Unit",
+      "source": "organization.documentation_unit_leader.name"
+    },
+    {
+      "pdf_field": "Demobilization Unit",
+      "source": "organization.demobilization_unit_leader.name"
+    },
+    {
+      "pdf_field": "DivisionGroup_12",
+      "source": {
+        "key": "org_branches.1.divisions.5.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "tech_name1",
+      "source": {
+        "key": "planning_tech_specialists.0.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "9 Intelligence  Investigations Section",
+      "source": ""
+    },
+    {
+      "pdf_field": "tech_specialty1",
+      "source": {
+        "key": "planning_tech_specialists.0.specialty",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "tech_name2",
+      "source": {
+        "key": "planning_tech_specialists.1.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Chief_3",
+      "source": "organization.intelligence_section_chief.name"
+    },
+    {
+      "pdf_field": "tech_specialty2",
+      "source": {
+        "key": "planning_tech_specialists.1.specialty",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "tech_name3",
+      "source": {
+        "key": "planning_tech_specialists.2.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Deputy_5",
+      "source": "organization.deputy_intelligence_section_chief.name"
+    },
+    {
+      "pdf_field": "DivisionGroup_13",
+      "source": {
+        "key": "org_branches.2.divisions.0.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Chief_4",
+      "source": "organization.logistics_section_chief.name"
+    },
+    {
+      "pdf_field": "DivisionGroup_14",
+      "source": {
+        "key": "org_branches.2.divisions.1.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Deputy_6",
+      "source": "organization.deputy_logistics_section_chief.name"
+    },
+    {
+      "pdf_field": "DivisionGroup_15",
+      "source": {
+        "key": "org_branches.2.divisions.2.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Support Branch",
+      "source": ""
+    },
+    {
+      "pdf_field": "DivisionGroup_16",
+      "source": {
+        "key": "org_branches.2.divisions.3.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Director",
+      "source": "organization.support_branch_director.name"
+    },
+    {
+      "pdf_field": "DivisionGroup_17",
+      "source": {
+        "key": "org_branches.2.divisions.4.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Supply Unit",
+      "source": "organization.supply_unit_leader.name"
+    },
+    {
+      "pdf_field": "DivisionGroup_18",
+      "source": {
+        "key": "org_branches.2.divisions.5.name",
+        "default": ""
+      }
+    },
+    {
+      "pdf_field": "Facilities Unit",
+      "source": "organization.facilities_unit_leader.name"
+    },
+    {
+      "pdf_field": "10 Finance  Administration Section",
+      "source": ""
+    },
+    {
+      "pdf_field": "Facilities UnitRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Logistics SectionRow7",
+      "source": ""
+    },
+    {
+      "pdf_field": "Chief_5",
+      "source": "organization.finance_admin_section_chief.name"
+    },
+    {
+      "pdf_field": "Service Branch",
+      "source": ""
+    },
+    {
+      "pdf_field": "Deputy_7",
+      "source": "organization.deputy_finance_admin_section_chief.name"
+    },
+    {
+      "pdf_field": "Director_2",
+      "source": "organization.service_branch_director.name"
+    },
+    {
+      "pdf_field": "Time Unit",
+      "source": "organization.time_unit_leader.name"
+    },
+    {
+      "pdf_field": "Communications Unit",
+      "source": "organization.communications_unit_leader.name"
+    },
+    {
+      "pdf_field": "Procurement Unit",
+      "source": "organization.procurement_unit_leader.name"
+    },
+    {
+      "pdf_field": "Medical Unit",
+      "source": "organization.medical_unit_leader.name"
+    },
+    {
+      "pdf_field": "CompClaims Unit",
+      "source": "organization.compensation_claims_unit_leader.name"
+    },
+    {
+      "pdf_field": "Medical UnitRow1",
+      "source": ""
+    },
+    {
+      "pdf_field": "7 Logistics SectionRow12",
+      "source": ""
+    },
+    {
+      "pdf_field": "Cost Unit",
+      "source": "organization.cost_unit_leader.name"
+    },
+    {
+      "pdf_field": "Name",
+      "source": "prepared_by.name"
+    },
+    {
+      "pdf_field": "Position Title",
+      "source": "prepared_by.position"
+    },
+    {
+      "pdf_field": "Signature",
+      "source": ""
+    },
+    {
+      "pdf_field": "DateTime",
+      "source": "prepared_by.date_time"
+    },
+    {
+      "pdf_field": "Date/Time0",
+      "source": {
+        "key": "op_period.start",
+        "transform": "datetime_human"
+      }
+    },
+    {
+      "pdf_field": "Date/Time1",
+      "source": {
+        "key": "op_period.end",
+        "transform": "datetime_human"
+      }
+    },
+    {
+      "pdf_field": "Notes5",
+      "source": ""
+    },
+    {
+      "pdf_field": "Notes11",
+      "source": ""
+    },
+    {
+      "pdf_field": "Notes12",
+      "source": ""
+    },
+    {
+      "pdf_field": "Notes13",
+      "source": ""
+    },
+    {
+      "pdf_field": "Notes14",
+      "source": ""
+    },
+    {
+      "pdf_field": "Notes15",
+      "source": ""
+    },
+    {
+      "pdf_field": "Notes16",
+      "source": ""
+    },
+    {
+      "pdf_field": "Notes17",
+      "source": ""
+    }
+  ],
+  "row_groups": [
+    {
+      "ref": "uc_commanders",
+      "data_key": "uc_commanders",
+      "overflow_mode": "truncate",
+      "rows_per_page": [
+        5
+      ],
+      "col_patterns": {
+        "name": "uc_name{n}",
+        "agency": "uc_agency{n}"
+      }
+    },
+    {
+      "ref": "org_branches",
+      "data_key": "org_branches",
+      "overflow_mode": "truncate",
+      "rows_per_page": [
+        2
+      ],
+      "col_patterns": {
+        "name": "branch_id{n}",
+        "director_name": "branch_director{n}",
+        "deputy_name": "branch_deputy{n}",
+        "divisions.0.name": "div_1_name{n}",
+        "divisions.1.name": "div_2_name{n}",
+        "divisions.2.name": "div_3_name{n}",
+        "divisions.3.name": "div_4_name{n}",
+        "divisions.4.name": "div_5_name{n}",
+        "divisions.0.supervisor_name": "div_1_supervisor{n}",
+        "divisions.1.supervisor_name": "div_2_supervisor{n}",
+        "divisions.2.supervisor_name": "div_3_supervisor{n}",
+        "divisions.3.supervisor_name": "div_4_supervisor{n}",
+        "divisions.4.supervisor_name": "div_5_supervisor{n}"
+      }
+    },
+    {
+      "ref": "org_agency_reps",
+      "data_key": "org_agency_reps",
+      "overflow_mode": "truncate",
+      "rows_per_page": [
+        4
+      ],
+      "col_patterns": {
+        "agency": "rep_agency{n}",
+        "name": "rep_name{n}"
+      }
+    },
+    {
+      "ref": "planning_tech_specialist_names",
+      "data_key": "planning_tech_specialists",
+      "overflow_mode": "truncate",
+      "rows_per_page": [
+        3
+      ],
+      "col_patterns": {
+        "name": "tech_name{n}"
+      }
+    },
+    {
+      "ref": "planning_tech_specialist_specialties",
+      "data_key": "planning_tech_specialists",
+      "overflow_mode": "truncate",
+      "rows_per_page": [
+        2
+      ],
+      "col_patterns": {
+        "specialty": "tech_specialty{n}"
+      }
+    }
+  ]
+}

@@ -33,7 +33,9 @@ export type ResourceStatusKey =
   | "assigned"
   | "available"
   | "out of service"
-  | "demobilized";
+  | "preparing for demobilization"
+  | "demobilized"
+  | "cancelled";
 
 export type TeamTypeKey = "gt" | "udf" | "lsar" | "df" | "gt/uas" | "udf/uas" | "uas" | "air" | "k9" | "util";
 
@@ -61,7 +63,17 @@ type StatusDomain =
   | "objective-priority"
   | "op-period"
   | "meeting"
-  | "sitrep";
+  | "sitrep"
+  | "pio"
+  | "liaison-agency"
+  | "liaison-request"
+  | "liaison-priority"
+  | "liaison-report"
+  | "logistics-request"
+  | "logistics-priority"
+  | "facility"
+  | "approval"
+  | "approval-step";
 
 function slug(key: string): string {
   return key.trim().toLowerCase().replace(/\s+/g, "-").replace(/\//g, "-");
@@ -128,3 +140,24 @@ export function applyTheme(theme: ThemeName): void {
     // best-effort persistence only
   }
 }
+
+export type PioStatusKey = "Draft" | "Pending Approval" | "Returned for Revision" | "Approved" | "Published" | "Needs Corrections" | "Archived";
+export function pioStatusVar(key: PioStatusKey | string) { return statusVar("pio", key); }
+
+export type LiaisonAgencyStatusKey = "Not Contacted" | "Contacted" | "Awaiting Response" | "Standby" | "Supporting" | "Active" | "Demobilizing" | "Released" | "Unavailable";
+export type LiaisonRequestStatusKey = "Open" | "In Progress" | "Resolved" | "Declined" | "Cancelled";
+export type LiaisonPriorityKey = "Low" | "Medium" | "High" | "Critical";
+export function liaisonAgencyStatusVar(key: LiaisonAgencyStatusKey | string) { return statusVar("liaison-agency", key); }
+export function liaisonRequestStatusVar(key: LiaisonRequestStatusKey | string) { return statusVar("liaison-request", key); }
+export function liaisonPriorityVar(key: LiaisonPriorityKey | string) { return statusVar("liaison-priority", key); }
+export function liaisonReportStateVar(key: "ready" | "not_ready" | string) { return statusVar("liaison-report", key); }
+
+export type LogisticsRequestStatusKey = "DRAFT" | "SUBMITTED" | "REVIEWED" | "APPROVED" | "ASSIGNED" | "INTRANSIT" | "DELIVERED" | "PARTIAL" | "DENIED" | "CANCELLED" | "CLOSED";
+export function logisticsRequestStatusVar(key: LogisticsRequestStatusKey | string) { return statusVar("logistics-request",key); }
+export function logisticsPriorityVar(key: "ROUTINE" | "HIGH" | "IMMEDIATE" | string) { return statusVar("logistics-priority",key); }
+export function facilityStatusVar(key: "active" | "planned" | "closed" | string) { return statusVar("facility",key); }
+
+export type ApprovalStatusKey = "not_started" | "pending" | "approved" | "rejected";
+export type ApprovalStepStatusKey = "waiting" | "active" | "completed" | "skipped";
+export function approvalStatusVar(key: ApprovalStatusKey | string) { return statusVar("approval", key); }
+export function approvalStepStatusVar(key: ApprovalStepStatusKey | string) { return statusVar("approval-step", key); }

@@ -121,7 +121,7 @@
     "statusboard.team.columns.hidden": [
         "vehicle"
     ],
-    "lastIncidentNumber": "test-incident",
+    "lastIncidentNumber": "1ad9c37a-58a0-4ab1-b793-3973ef7a2ee3",
     "statusboard.task.textSize": "large",
     "statusboard.team.refreshMs": 15000,
     "statusboard.team.columns.widths": {
@@ -162,7 +162,7 @@
             "connect_code": "DEMO-0001",
             "server_url": "",
             "last_status": "online",
-            "last_checked": "2026-10-11T02:22:48.123525+00:00"
+            "last_checked": "2026-10-14T13:52:11.068267+00:00"
         },
         {
             "id": "fb8918a91ed446ccae626706c6d0a762",
@@ -170,7 +170,7 @@
             "connect_code": "OURS-9165",
             "server_url": "",
             "last_status": "offline",
-            "last_checked": "2026-10-11T02:22:48.117089+00:00"
+            "last_checked": "2026-10-14T13:52:11.038541+00:00"
         }
     ],
     "lastConnectionId": "9f574424680e47e5b19f1d417523f8f8",
