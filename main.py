@@ -757,6 +757,7 @@ class MainWindow(QMainWindow):
         self._add_action(m_edit, "Hospitals…", "Ctrl+H", "edit.hospitals")
         self._add_action(m_edit, "Objectives", None, "edit.objectives")
         self._add_action(m_edit, "Personnel", None, "edit.personnel")
+        self._add_action(m_edit, "Resource Packages", None, "edit.resource_packages")
         self._add_action(m_edit, "Resource Type Library", None, "edit.resource_types")
         self._add_action(m_edit, "Safety Analysis Templates", None, "edit.safety_templates")
         self._add_action(m_edit, "Task Types", None, "edit.task_types")
@@ -1134,6 +1135,7 @@ class MainWindow(QMainWindow):
             "edit.vehicles": self.open_edit_vehicles,
             "edit.aircraft": self.open_edit_aircraft,
             "edit.equipment": self.open_edit_equipment,
+            "edit.resource_packages": self.open_edit_resource_packages,
             "edit.resource_types": self.open_edit_resource_types,
             "edit.hazard_types": self.open_edit_hazard_types,
             "edit.gar_templates": self.open_edit_gar_templates,
@@ -1575,6 +1577,22 @@ class MainWindow(QMainWindow):
             )
             return
         open_resource_type_library(parent=self)
+
+    def open_edit_resource_packages(self) -> None:
+        """Open the Resource Packages library from the Edit menu."""
+        try:
+            from modules.admin.resource_packages.windows.resource_package_list_window import (
+                open_resource_package_library,
+            )
+        except Exception as exc:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.critical(
+                self,
+                "Resource Packages",
+                f"Unable to load Resource Packages.\n{exc}",
+            )
+            return
+        open_resource_package_library(parent=self)
 
     def open_edit_hazard_types(self) -> None:
         """Open the Hazard Type Library from the Edit menu."""

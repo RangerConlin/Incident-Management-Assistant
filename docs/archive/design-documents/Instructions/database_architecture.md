@@ -87,3 +87,24 @@
   calls `associations_panel.register_open_handler(<kind>, <opener>)` at
   import time so "Open Associated Resource" can jump to any kind's own
   detail window without the panel importing all four modules up front.
+- `MasterCollections.RESOURCE_PACKAGES` (`resource_packages.py` router) holds
+  reusable collections of personnel/vehicles/aircraft/equipment that
+  routinely respond together (a CAP ground team, a fire engine company) --
+  a standing roster definition, never an incident team. Membership mixes,
+  per resource reference, `membership: fixed | preferred | optional`, plus
+  package-level `required_positions` (role/qualification, no person named)
+  and `minimum_quantities` (e.g. "4 qualified personnel"). A package is
+  always saveable incomplete/understaffed -- the router never requires full
+  staffing to create or save one, and resource-existence/duplicate
+  validation only runs against whatever membership *is* present.
+  `GET /api/resource-packages/for-resource/{type}/{id}` lists every active
+  package naming a given resource anywhere in its membership, for Stage 4's
+  check-in integration. A resource may legitimately belong to several
+  packages' standing membership at once -- that is never itself a conflict
+  (see the Stage 6 conflict-prevention note once it lands).
+- Desktop: `modules/admin/resource_packages/` (model, API repository, a
+  list window, and a tabbed editor window following the Resource Type
+  Library editor's convention -- Overview / Personnel / Vehicles / Aircraft
+  / Equipment / Requirements). Reuses `resource_associations`' generic
+  `ResourcePickerDialog` for membership selection. Reachable from
+  Edit -> Resource Packages.
