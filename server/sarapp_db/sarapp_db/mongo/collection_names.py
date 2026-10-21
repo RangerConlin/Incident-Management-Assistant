@@ -237,6 +237,15 @@ class IncidentCollections:
     SPATIAL_FEATURES = "spatial_features"
     SPATIAL_FEATURE_LINKS = "spatial_feature_links"
 
+    # SAR Toolkit — Search Segment Management (segment records are a SAR
+    # planning object; GIS geometry is optional and owned by the GIS module
+    # when present, see docs/archive/design-documents/toolkit_sar_playbook.md)
+    SEARCH_SEGMENTS = "search_segments"
+    # SAR Toolkit — Search Assignment Planner. Holds ONLY the search-specific
+    # fields linked to an Operations task record (IncidentCollections.TASKS);
+    # Operations remains the sole owner of the task/assignment record itself.
+    SEARCH_TASK_DETAILS = "search_task_details"
+
     # ICS-208 Safety Message (one document per incident + op period)
     ICS_208_INSTANCES = "ics_208_instances"
 

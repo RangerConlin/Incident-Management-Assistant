@@ -940,6 +940,8 @@ class MainWindow(QMainWindow):
         self._add_action(m_tool, "Projection Dashboard", None, "toolkit.projection_dashboard")
         self._add_action(sar_menu, "Missing Person Toolkit", None, "toolkit.sar.missing_person")
         self._add_action(sar_menu, "POD Calculator", None, "toolkit.sar.pod")
+        self._add_action(sar_menu, "Search Segment Manager", None, "toolkit.sar.segment_manager")
+        self._add_action(sar_menu, "Search Assignment Planner", None, "toolkit.sar.search_task_planner")
 
         dis_menu = m_tool.addMenu("Disaster Toolkit")
         self._add_action(dis_menu, "Damage Assessment", None, "toolkit.disaster.damage")
@@ -1244,6 +1246,8 @@ class MainWindow(QMainWindow):
             # ----- Toolkits -----
             "toolkit.sar.missing_person": self.open_toolkit_sar_missing_person,
             "toolkit.sar.pod": self.open_toolkit_sar_pod,
+            "toolkit.sar.segment_manager": self.open_toolkit_sar_segment_manager,
+            "toolkit.sar.search_task_planner": self.open_toolkit_sar_search_task_planner,
             "toolkit.disaster.damage": self.open_toolkit_disaster_damage,
             "toolkit.disaster.urban_interview": self.open_toolkit_disaster_urban_interview,
             "toolkit.disaster.photos": self.open_toolkit_disaster_photos,
@@ -2837,6 +2841,18 @@ class MainWindow(QMainWindow):
         incident_id = AppState.get_active_incident()
         panel = sar.get_pod_panel(incident_id)
         self._open_panel(panel, title="POD Calculator")
+
+    def open_toolkit_sar_segment_manager(self) -> None:
+        from modules.sartoolkit import sar
+        incident_id = AppState.get_active_incident()
+        panel = sar.get_segment_manager_panel(incident_id)
+        self._open_panel(panel, title="Search Segment Manager")
+
+    def open_toolkit_sar_search_task_planner(self) -> None:
+        from modules.sartoolkit import sar
+        incident_id = AppState.get_active_incident()
+        panel = sar.get_search_task_planner_panel(incident_id)
+        self._open_panel(panel, title="Search Assignment Planner")
 
     def open_toolkit_disaster_damage(self) -> None:
         from modules.disasterresponse import disaster
