@@ -19,6 +19,15 @@ export function useTeamDetail(incidentId: string, teamId: number) {
   });
 }
 
+export function useTeamOverviewOptions(incidentId: string) {
+  const orgPositions = useQuery({
+    queryKey: ["incident", incidentId, "incident_org"],
+    queryFn: () => api.listOrgPositions(incidentId),
+    refetchInterval: POLL_FLOOR_MS,
+  });
+  return { orgPositions };
+}
+
 function useInvalidateTeams(incidentId: string) {
   const queryClient = useQueryClient();
   return () => queryClient.invalidateQueries({ queryKey: ["incident", incidentId, "teams"] });
@@ -82,7 +91,12 @@ export const STATUSES_REQUIRING_TASK = new Set([
 
 export const TEAM_STATUS_OTHER: { key: string; label: string }[] = [
   { key: "available", label: "Available" },
+  { key: "at other location", label: "At Other Location" },
+  { key: "to other location", label: "To Other Location" },
   { key: "out of service", label: "Out of Service" },
   { key: "break", label: "Break" },
   { key: "crew rest", label: "Crew Rest" },
+  { key: "report writing", label: "Report Writing" },
+  { key: "post incident", label: "Post Incident Management" },
+  { key: "wheels down", label: "Wheels Down" },
 ];

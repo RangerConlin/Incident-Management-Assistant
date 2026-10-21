@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import StatusPill from "../../../components/table/StatusPill";
 import { TEAM_STATUS_STEPS } from "../../../api/endpoints";
 import { useSession } from "../../../auth/SessionContext";
+import { formatDateTime } from "../../../utils/formatDateTime";
 import ReferenceListEditor from "./ReferenceListEditor";
 import TaskPickerDialog from "./TaskPickerDialog";
 import {
@@ -10,8 +11,10 @@ import {
   useAssignTeamToTask,
   useSetTeamStatus,
   useTeamDetail,
+  useTeamOverviewOptions,
   useUpdateTeam,
 } from "./hooks";
+import { assignableUnitOptions, statusKeyForValue, TEAM_TYPE_OPTIONS } from "./teamOverviewModel";
 
 type Tab = "overview" | "personnel" | "vehicles" | "equipment" | "logistics" | "logs" | "safety";
 
@@ -37,12 +40,20 @@ export default function TeamDetailPage() {
   const updateTeam = useUpdateTeam(incidentId!);
   const setStatus = useSetTeamStatus(incidentId!);
   const assignToTask = useAssignTeamToTask(incidentId!);
+  const { orgPositions } = useTeamOverviewOptions(incidentId!);
 
   if (!incidentId) return null;
   if (isLoading) return <p>Loading team…</p>;
   if (error || !team) return <p className="error">Could not load this team.</p>;
 
   const save = (body: Record<string, unknown>) => updateTeam.mutate({ teamId: id, body });
+  const unitOptions = assignableUnitOptions(orgPositions.data ?? []);
+  const isAirTeam = (team.team_type ?? "").toUpperCase() === "AIR";
+  const statusOptions = [...TEAM_STATUS_STEPS, ...TEAM_STATUS_OTHER].filter(
+    (option) => isAirTeam || option.key !== "wheels down",
+  );
+  const currentStatusKey = statusKeyForValue(team.status);
+  const lastContact = team.last_comm_ts ?? team.last_contact_ts ?? team.last_update_ts ?? team.last_comm_ping;
 
   return (
     <div className="detail-page">
@@ -69,14 +80,28 @@ export default function TeamDetailPage() {
         <div className="detail-header">
           <div className="field">
             <label>Team Type</label>
-            <input defaultValue={team.team_type ?? ""} onBlur={(e) => save({ team_type: e.target.value })} />
+            <select value={team.team_type ?? ""} onChange={(e) => save({ team_type: e.target.value })}>
+              <option value="" disabled>Select a team type…</option>
+              {team.team_type && !TEAM_TYPE_OPTIONS.some((type) => type.value === team.team_type) && (
+                <option value={team.team_type}>{team.team_type}</option>
+              )}
+              {TEAM_TYPE_OPTIONS.map((type) => (
+                <option key={type.value} value={type.value}>
+                  {type.label} ({type.value})
+                </option>
+              ))}
+            </select>
           </div>
           <div className="field">
-            <label>Team Name</label>
-            <input defaultValue={team.name ?? ""} onBlur={(e) => save({ name: e.target.value })} />
+            <label>{isAirTeam ? "Callsign" : "Team Name"}</label>
+            <input
+              key={`${isAirTeam ? "callsign" : "name"}-${isAirTeam ? team.callsign : team.name}`}
+              defaultValue={(isAirTeam ? team.callsign : team.name) ?? ""}
+              onBlur={(e) => save({ [isAirTeam ? "callsign" : "name"]: e.target.value.trim() })}
+            />
           </div>
           <div className="field">
-            <label>Team Leader</label>
+            <label>{isAirTeam ? "Pilot" : "Team Leader"}</label>
             <input value={team.leader_name ?? ""} readOnly />
           </div>
           <div className="field">
@@ -88,7 +113,7 @@ export default function TeamDetailPage() {
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <StatusPill domain="team" statusKey={team.status} />
               <select
-                value=""
+                value={currentStatusKey}
                 onChange={(e) => {
                   const key = e.target.value;
                   if (!key) return;
@@ -99,14 +124,20 @@ export default function TeamDetailPage() {
                   setStatus.mutate({ teamId: id, statusKey: key });
                 }}
               >
-                <option value="">Change status…</option>
-                {[...TEAM_STATUS_STEPS, ...TEAM_STATUS_OTHER].map((s) => (
+                {!statusOptions.some((s) => s.key === currentStatusKey) && (
+                  <option value={currentStatusKey}>{team.status}</option>
+                )}
+                {statusOptions.map((s) => (
                   <option key={s.key} value={s.key}>
                     {s.label}
                   </option>
                 ))}
               </select>
             </div>
+          </div>
+          <div className="field">
+            <label>Last Contact</label>
+            <output>{lastContact ? formatDateTime(lastContact) : "Not recorded"}</output>
           </div>
           <div className="field">
             <label>Linked Task</label>
@@ -126,12 +157,29 @@ export default function TeamDetailPage() {
             )}
           </div>
           <div className="field">
+            <label>Assignment</label>
+            <input key={`assignment-${team.assignment}`} defaultValue={team.assignment ?? ""} onBlur={(e) => save({ assignment: e.target.value.trim() })} />
+          </div>
+          <div className="field">
             <label>Location</label>
-            <input defaultValue={team.location ?? ""} onBlur={(e) => save({ location: e.target.value })} />
+            <input key={`location-${team.location}`} defaultValue={team.location ?? ""} onBlur={(e) => save({ location: e.target.value.trim() })} />
+          </div>
+          <div className="field">
+            <label>Assigned Unit</label>
+            <select
+              value={team.operational_unit_id == null ? "" : String(team.operational_unit_id)}
+              onChange={(e) => save({ operational_unit_id: e.target.value ? Number(e.target.value) : null })}
+            >
+              <option value="">Unassigned</option>
+              {team.operational_unit_id != null && !unitOptions.some((unit) => String(unit.value) === String(team.operational_unit_id)) && (
+                <option value={String(team.operational_unit_id)}>Current unit ({team.operational_unit_id})</option>
+              )}
+              {unitOptions.map((unit) => <option key={unit.value} value={unit.value}>{unit.label}</option>)}
+            </select>
           </div>
           <div className="field">
             <label>Notes</label>
-            <textarea defaultValue={team.notes ?? ""} onBlur={(e) => save({ notes: e.target.value })} />
+            <textarea key={`notes-${team.notes}`} defaultValue={team.notes ?? ""} onBlur={(e) => save({ notes: e.target.value })} />
           </div>
           <div className="field">
             <label>Needs Assistance</label>

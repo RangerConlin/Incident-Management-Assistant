@@ -90,6 +90,7 @@ export interface TeamDetail {
   team_type: string | null;
   role: string | null;
   priority: string | null;
+  assignment: string | null;
   notes: string | null;
   status: string;
   ci_status: string;
@@ -102,6 +103,9 @@ export interface TeamDetail {
   last_checkin_at: string | null;
   checkin_reference_at: string | null;
   last_comm_ping: string | null;
+  last_comm_ts?: string | null;
+  last_contact_ts?: string | null;
+  last_update_ts?: string | null;
   members_json: string;
   vehicles_json: string;
   equipment_json: string;
