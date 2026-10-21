@@ -348,6 +348,15 @@ Cost Summary
   these constraints for other API callers.
 - Browser Logistics: standalone vehicle/aircraft/equipment catalog administration and facility
   geocoding are pending; resource check-in/status workflows and coordinate entry are available.
+- Resource Associations, Resource Packages, Team Builder, and team-readiness validation (2026-10-21)
+  shipped server-side (new `resource_associations`/`resource_packages` master routers,
+  `checkin.py` package-activation endpoints, `resource_validation.py`) and on the desktop client
+  only. `apps/web/` and the mobile app have no equivalent UI yet: no Associations section on the
+  web personnel/vehicle/aircraft/equipment detail pages, no Resource Packages list/editor, no
+  package-aware check-in prompt, no Team Builder, and no readiness/conflict display on the web
+  team detail view. The API is fully usable from the web client as-is (same shared FastAPI app);
+  this is purely front-end parity work for `apps/web/` (and mobile, lower priority) following the
+  per-module pattern in `apps/web/AGENTS.md`.
 
 
 [Forms — server export migration]

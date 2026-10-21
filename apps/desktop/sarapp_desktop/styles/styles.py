@@ -188,6 +188,9 @@ _CHAT_BUBBLE_DARK: Dict[str, Dict[str, QColor]] = _build_color_groups(_DARK_PROF
 _RESOURCE_STATUS_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "RESOURCE_STATUS")
 _RESOURCE_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "RESOURCE_STATUS")
 
+_VALIDATION_STATUS_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "VALIDATION_STATUS")
+_VALIDATION_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "VALIDATION_STATUS")
+
 _INTEL_SUBJECT_STATUS_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "INTEL_SUBJECT_STATUS")
 _INTEL_SUBJECT_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "INTEL_SUBJECT_STATUS")
 
@@ -355,6 +358,12 @@ def narrative_status_colors() -> Dict[str, Dict[str, QBrush]]:
 
 def resource_status_colors() -> Dict[str, Dict[str, QBrush]]:
     return _RESOURCE_STATUS_LIGHT if THEME_NAME == "light" else _RESOURCE_STATUS_DARK
+
+
+def validation_status_colors() -> Dict[str, Dict[str, QBrush]]:
+    """Ready / Ready with Limitations / Not Ready / Not Evaluated colors
+    (Stage 6 team readiness validation)."""
+    return _VALIDATION_STATUS_LIGHT if THEME_NAME == "light" else _VALIDATION_STATUS_DARK
 
 
 def intel_subject_status_colors() -> Dict[str, Dict[str, QBrush]]:
@@ -605,6 +614,7 @@ __all__ = [
     "sitrep_status_colors",
     "narrative_status_colors",
     "resource_status_colors",
+    "validation_status_colors",
     "TEAM_TYPE_COLORS",
     "intel_subject_status_colors",
     "intel_assessment_status_colors",

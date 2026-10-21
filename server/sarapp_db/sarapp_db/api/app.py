@@ -283,6 +283,9 @@ def create_app(server_info_fn=None, request_log_fn=None, mode: str = "full") -> 
         from sarapp_db.api.routers import operations
         app.include_router(operations.router, prefix="/api", tags=["operations"])
 
+        from sarapp_db.api.routers import resource_validation
+        app.include_router(resource_validation.router, prefix="/api", tags=["resource-validation"])
+
         from sarapp_db.api.routers import operational_periods
         app.include_router(operational_periods.router, prefix="/api", tags=["planning"])
 

@@ -45,6 +45,7 @@ from modules.operations.teams.panels.team_detail_window import (
     AddVehicleDialog,
 )
 from utils.constants import TEAM_TYPE_DETAILS
+from utils.styles import subscribe_theme, validation_status_colors
 
 _RESOURCE_KIND_LABELS = {"personnel": "Personnel", "vehicle": "Vehicles", "aircraft": "Aircraft", "equipment": "Equipment"}
 
@@ -157,6 +158,7 @@ class TeamBuilderWindow(QDialog):
         self._aircraft: list[int] = []
         self._source_package_ids: set[str] = set()
         self._activated_team_id: Optional[int] = None
+        self._readiness_outcome: Optional[str] = None
 
         layout = QVBoxLayout(self)
 
@@ -207,6 +209,13 @@ class TeamBuilderWindow(QDialog):
         self.requirements_list.setMaximumHeight(120)
         layout.addWidget(self.requirements_list)
 
+        self.readiness_label = QLabel("Readiness: Not Evaluated (activate the team to evaluate readiness)")
+        self.readiness_label.setAutoFillBackground(True)
+        layout.addWidget(self.readiness_label)
+        self.readiness_messages = QListWidget()
+        self.readiness_messages.setMaximumHeight(100)
+        layout.addWidget(self.readiness_messages)
+
         footer = QHBoxLayout()
         self.activate_button = QPushButton("Activate as Incident Team")
         self.save_as_package_button = QPushButton("Save as Package…")
@@ -226,6 +235,7 @@ class TeamBuilderWindow(QDialog):
         self.activate_button.clicked.connect(self._activate_team)
         self.save_as_package_button.clicked.connect(self._save_as_package)
         self.close_button.clicked.connect(self.accept)
+        subscribe_theme(self, lambda *_: self._apply_readiness_color())
 
     # ------------------------------------------------------------------
     # Assembly
@@ -246,6 +256,7 @@ class TeamBuilderWindow(QDialog):
         item = QListWidgetItem(label or str(resource_id))
         item.setData(Qt.UserRole, resource_id)
         self._lists[resource_type].addItem(item)
+        self._sync_and_revalidate_if_activated()
 
     def _remove_selected(self, resource_type: str) -> None:
         lst = self._lists[resource_type]
@@ -257,6 +268,7 @@ class TeamBuilderWindow(QDialog):
         ids = self._kind_list(resource_type)
         if resource_id in ids:
             ids.remove(resource_id)
+        self._sync_and_revalidate_if_activated()
 
     def _add_from_package(self) -> None:
         dialog = _PackageBrowserDialog(self)
@@ -355,7 +367,55 @@ class TeamBuilderWindow(QDialog):
             return
         self._activated_team_id = saved.team_id
         self.save_as_package_button.setEnabled(True)
+        self._refresh_readiness()
         QMessageBox.information(self, "Team Builder", f"Team '{name}' activated (ID {saved.team_id}).")
+
+    def _sync_and_revalidate_if_activated(self) -> None:
+        """Keep an already-activated team's live composition in sync with
+        this window's working set, and re-run readiness validation against
+        the team's *actual* composition -- never an assumed/cached one --
+        every time that composition changes."""
+        if self._activated_team_id is None:
+            return
+        team = Team(
+            team_id=self._activated_team_id,
+            name=self.name_edit.text().strip(),
+            team_type=self.type_combo.currentData() or "GT",
+            members=list(self._members),
+            vehicles=[str(v) for v in self._vehicles],
+            equipment=[str(e) for e in self._equipment],
+            aircraft=[str(a) for a in self._aircraft],
+        )
+        try:
+            team_repo.save_team(team)
+        except Exception:
+            pass
+        self._refresh_readiness()
+
+    def _refresh_readiness(self) -> None:
+        if self._activated_team_id is None:
+            self.readiness_label.setText("Readiness: Not Evaluated (activate the team to evaluate readiness)")
+            self.readiness_messages.clear()
+            return
+        result = team_repo.fetch_team_validation(self._activated_team_id)
+        outcome = result.get("outcome", "Not Evaluated")
+        self._readiness_outcome = outcome
+        self.readiness_label.setText(f"Readiness: {outcome}")
+        self._apply_readiness_color()
+        self.readiness_messages.clear()
+        for message in result.get("messages") or []:
+            self.readiness_messages.addItem(message)
+
+    def _apply_readiness_color(self) -> None:
+        if not self._readiness_outcome:
+            return
+        colors = validation_status_colors().get(self._readiness_outcome.lower())
+        if not colors:
+            return
+        palette = self.readiness_label.palette()
+        palette.setColor(self.readiness_label.backgroundRole(), colors["bg"].color())
+        palette.setColor(self.readiness_label.foregroundRole(), colors["fg"].color())
+        self.readiness_label.setPalette(palette)
 
     def _save_as_package(self) -> None:
         """Explicit, separate action -- never triggered by ordinary team

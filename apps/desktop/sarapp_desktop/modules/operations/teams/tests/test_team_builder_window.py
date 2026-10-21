@@ -201,6 +201,52 @@ def test_activation_reuses_team_repository_save(qt_app: QApplication, monkeypatc
         window.close()
 
 
+def test_readiness_revalidates_on_composition_change_after_activation(qt_app: QApplication, monkeypatch) -> None:
+    """Validation must re-run whenever an activated team's composition
+    changes, and must read the team's live composition each time rather
+    than a cached value."""
+    outcomes = iter([
+        {"outcome": "Not Ready", "messages": ["Requires 1 additional personnel."]},
+        {"outcome": "Ready", "messages": ["All staffing, qualification, and equipment requirements are met."]},
+    ])
+    validation_calls = []
+
+    def fake_fetch_validation(team_id):
+        validation_calls.append(team_id)
+        return next(outcomes)
+
+    def fake_save_team(team, **kw):
+        team.team_id = 55
+        return team
+
+    monkeypatch.setattr(team_repo, "fetch_team_validation", fake_fetch_validation)
+    monkeypatch.setattr(team_repo, "save_team", fake_save_team)
+    monkeypatch.setattr(QMessageBox, "information", lambda *a, **k: QMessageBox.StandardButton.Ok)
+
+    window = TeamBuilderWindow()
+    try:
+        window.name_edit.setText("GT-9")
+        window._append_resource("personnel", 1, "Alice")
+        window._activate_team()
+        assert window.readiness_label.text() == "Readiness: Not Ready"
+        assert len(validation_calls) == 1
+
+        window._append_resource("personnel", 2, "Bob")
+        assert window.readiness_label.text() == "Readiness: Ready"
+        assert len(validation_calls) == 2
+    finally:
+        window.close()
+
+
+def test_readiness_not_evaluated_before_activation(qt_app: QApplication) -> None:
+    window = TeamBuilderWindow()
+    try:
+        window._append_resource("personnel", 1, "Alice")
+        assert window.readiness_label.text().startswith("Readiness: Not Evaluated")
+    finally:
+        window.close()
+
+
 def test_save_as_package_is_explicit_and_separate_from_activation(qt_app: QApplication, monkeypatch) -> None:
     """Activating a team must never, on its own, write a package. Only the
     dedicated Save as Package action does, and it always creates a new

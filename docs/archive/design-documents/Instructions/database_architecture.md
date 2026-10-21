@@ -162,3 +162,46 @@
   opens the Resource Package editor on a brand-new, unsaved draft (`id`
   is always `None`), so it can never silently overwrite one of the
   packages the team was built from -- ordinary team edits never call it.
+
+## Team Readiness Validation + Conflict Prevention (Stage 6)
+- `sarapp_db.services.team_validation` (framework/Mongo-free, pure
+  dataclasses and functions) is **the sole authoritative source for team
+  readiness evaluation going forward.** Before this module, `team_type`
+  was an unconstrained free string with no validation logic of any kind
+  attached anywhere in the codebase -- there was no prior GT/UDF/UAS/AIR
+  readiness ruleset to preserve, migrate, or reconcile with. Any future
+  readiness rule (new outcome, new requirement kind) belongs in this
+  module; nothing else may compute or hardcode a team's readiness.
+  `resource_validation.py` is the thin Mongo-reading router wrapper
+  (`GET /api/incidents/{incident_id}/operations/teams/{team_id}/validation`)
+  that resolves a team's live composition and its linked Resource Type
+  Library entry, then calls the pure `evaluate_team()`.
+  - Outcomes: `Ready`, `Ready with Limitations`, `Not Ready`, `Not Evaluated`
+    (no Resource Type Library entry linked -- nothing to evaluate against).
+    Messages are actionable, e.g. "Requires one additional qualified Ground
+    Team Member."
+  - Evaluation always reads the team's **actual** live composition
+    (`members_json`/`vehicles_json`/`equipment_json`/`aircraft_json` on the
+    team document) -- never an assumed/cached completeness from a source
+    package. Qualification matching is best-effort: a person's `primary_role`/
+    `role`/`rank` plus any resolvable `certification_types` names, compared
+    case-insensitively against the Resource Type Library's free-text
+    `required_qualifications`.
+  - Conflict prevention (`find_conflicting_assignments`): a vehicle/person/
+    equipment item cannot be simultaneously committed to two different
+    *active* (non-disbanded) incident team assignments in the same
+    incident; any conflict forces `Not Ready` regardless of staffing.
+    Being named in several Resource Packages' *standing* membership is
+    never itself a conflict -- packages are never teams, and this check
+    only ever compares teams against other teams.
+  - A `resource_associations` relationship (Stage 2) is never touched by
+    any of this: an association's onboard/assigned relationship is
+    retained across incident reassignment unless a user explicitly edits
+    or removes that association record itself.
+- Desktop: `modules/operations/teams/panels/team_builder_window.py`'s
+  Readiness section calls this endpoint after activation and again after
+  every subsequent add/remove/substitute, so the displayed outcome is
+  always freshly computed, never stale. Colors come from
+  `styles.validation_status_colors()` (`VALIDATION_STATUS` in
+  `styles/profiles/{dark,light}.py`) and repaint on theme switch via
+  `subscribe_theme`.
