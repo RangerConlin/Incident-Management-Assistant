@@ -843,6 +843,7 @@ class MainWindow(QMainWindow):
         self._add_action(m_ops, "Tactics and Resources Planner", None, "planning.tactics_planner")
         m_ops.addSeparator()
         self._add_action(m_ops, "Operations Section Organization", None, "operations.section_org")
+        self._add_action(m_ops, "Team Builder", None, "operations.team_builder")
         self._add_action(m_ops, "Team Status Board", None, "operations.team_status")
         self._add_action(m_ops, "Task Board", None, "operations.task_board")
         self._add_action(m_ops, "Incident Map", None, "operations.incident_map")
@@ -1167,6 +1168,7 @@ class MainWindow(QMainWindow):
             "operations.unit_log": self.open_operations_unit_log,
             "operations.dashboard": self.open_operations_dashboard,
             "operations.section_org": self.open_operations_section_org,
+            "operations.team_builder": self.open_operations_team_builder,
             "operations.team_status": self.open_operations_team_status,
             "operations.task_board": self.open_operations_task_board,
             "operations.incident_map": self.open_operations_incident_map,
@@ -2113,6 +2115,19 @@ class MainWindow(QMainWindow):
             w.setAutoRefresh(60000)
         except Exception:
             pass
+
+    def open_operations_team_builder(self) -> None:
+        """Open the Team Builder from the Operations menu."""
+        incident_id = AppState.get_active_incident()
+        if not incident_id:
+            QMessageBox.warning(self, "Team Builder", "No active incident.")
+            return
+        try:
+            from modules.operations.teams.panels.team_builder_window import open_team_builder
+        except Exception as exc:
+            QMessageBox.warning(self, "Team Builder", f"Could not load Team Builder.\n{exc}")
+            return
+        open_team_builder(parent=self)
 
     def open_operations_section_org(self) -> None:
         incident_id = AppState.get_active_incident()

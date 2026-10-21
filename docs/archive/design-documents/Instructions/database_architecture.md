@@ -138,3 +138,27 @@
   package member is already checked in, and never prompts for, or writes,
   anything beyond what the operator explicitly confirms per row (Confirm
   Arrived / Substitute / Omit / Pending).
+
+## Team Builder (Stage 5)
+- `modules/operations/teams/panels/team_builder_window.py` is a new, minimal
+  window -- it does not replace or modify `team_detail_window.py`. It
+  reuses that module's composition primitives directly (`AddTeamMemberDialog`,
+  `AddVehicleDialog`, `AddEquipmentDialog`, and `team_repo` for persistence)
+  rather than duplicating them, and activates a team through
+  `operations.py`'s existing `create_team`/`update_team` endpoints (via
+  `team_repo.save_team`), so numbering and `team_type` behavior are
+  unchanged from every other team-creation path.
+- "Add From Package" (`_PackageBrowserDialog`) calls checkin.py's
+  `packages/{id}/status` endpoint and only lets the operator pull in
+  members that are *already checked in* at the incident -- a package
+  member who checks in later is never auto-added; the operator must
+  re-open the browser or add them individually. Resources from multiple
+  packages, and individually added resources, combine into one working
+  set with no duplicate entries; splitting a package's checked-in members
+  across two different Team Builder sessions (two teams) works because
+  each window keeps its own independent working set.
+- "Save as Package" (`_save_as_package`) is a distinct, explicit action
+  available only after a team has been assembled/activated. It always
+  opens the Resource Package editor on a brand-new, unsaved draft (`id`
+  is always `None`), so it can never silently overwrite one of the
+  packages the team was built from -- ordinary team edits never call it.
