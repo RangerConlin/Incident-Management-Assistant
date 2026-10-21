@@ -375,6 +375,11 @@ class VehicleEditDialog(QDialog):
         tags_label.setBuddy(self.tags_edit)
         form_layout.addRow(tags_label, self.tags_edit)
 
+        from modules.admin.resource_associations.widgets.associations_panel import AssociationsPanel
+
+        self.associations_panel = AssociationsPanel("vehicle", None, self)
+        main_layout.addWidget(self.associations_panel)
+
         button_row = QHBoxLayout()
         button_row.addStretch(1)
         self.save_button = QPushButton("Save")
@@ -534,6 +539,11 @@ class VehicleEditDialog(QDialog):
 
         self.org_combo.setCurrentText(record.get("organization") or "")
 
+        try:
+            self.associations_panel.set_resource("vehicle", record.get("vehicle_record"))
+        except Exception:
+            pass
+
     def _select_combo_value(self, combo: QComboBox, value: Any) -> None:
         if value is None:
             combo.setCurrentIndex(0)
@@ -573,6 +583,10 @@ class VehicleEditDialog(QDialog):
         self.org_combo.clearEditText()
         self.tags_edit.clear()
         self._current_record = None
+        try:
+            self.associations_panel.set_resource("vehicle", None)
+        except Exception:
+            pass
 
     def set_vehicle_id(self, vehicle_id: int | str | None) -> None:
         """Change the active vehicle being edited."""
@@ -715,3 +729,16 @@ class VehicleEditDialog(QDialog):
 
     def _format_error_message(self, exc: Exception) -> str:
         return f"Unable to save the vehicle.\n\n{exc}"
+
+
+def _open_vehicle_detail_for_association(vehicle_record: int) -> None:
+    dialog = VehicleEditDialog(vehicle_id=vehicle_record)
+    dialog.exec()
+
+
+try:
+    from modules.admin.resource_associations.widgets.associations_panel import register_open_handler
+
+    register_open_handler("vehicle", _open_vehicle_detail_for_association)
+except Exception:  # pragma: no cover - defensive import guard
+    pass

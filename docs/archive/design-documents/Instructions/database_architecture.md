@@ -55,3 +55,35 @@
 - Listen to `utils.app_signals.app_signals.incidentChanged` to refresh bound views.
 - FastAPI/services should accept `incident_id` explicitly where practical so routing stays obvious and testable.
 - Tests can set `AppState.set_active_incident("TEST-123")` or `incident_context.set_active_incident("TEST-123")`; use `CHECKIN_DATA_DIR` for sandboxed paths.
+
+## Resource Associations And Resource Packages (sarapp_master)
+- `MasterCollections.RESOURCE_ASSOCIATIONS` (`resource_associations.py` router,
+  `server/sarapp_db/sarapp_db/mongo/resource_kinds.py` helper) holds
+  **standing, non-incident-specific** relationships between two individual
+  master resources (personnel/vehicle/aircraft/equipment) -- a radio
+  assigned to a person, equipment carried onboard a vehicle. Each document
+  has `source`/`target` endpoints (`{resource_type, resource_id}`), a free-text
+  `association_type` (no enum -- new relationship kinds need no schema
+  change), optional `owning_organization`/`effective_start`/`effective_end`,
+  `notes`, and `active`. Duplicate (source, target, type) pairs and
+  dependency cycles are rejected server-side (`find_path` graph search);
+  invalid resource references are rejected with 404. **Nothing in the
+  incident-team code path (operations.py teams, checkin.py) may write to
+  this collection** -- changing an incident team's composition must never
+  alter a standing association.
+- `resource_kinds.py`'s `RESOURCE_KIND_FIELDS` is the one place that maps a
+  `resource_type` string to its master collection and dual-key record field
+  (reusing `int_id.dual_key_field`, the same local-vs-central pattern every
+  other master collection already follows). Any new feature that needs to
+  reference "an individual master resource" generically (packages, check-in
+  integration, validation) should resolve through this module rather than
+  re-deriving the mapping.
+- Desktop UI: `modules/admin/resource_associations/` (models, API-backed
+  repository, a generic cross-kind `ResourcePickerDialog`, and an embeddable
+  `AssociationsPanel`). The panel is wired into Personnel
+  (`ui/personnel/ui_personnel.py`), Vehicle (`vehicle_edit_window.py`),
+  Aircraft (`aircraft_inventory_window.py`'s `AircraftDetailPane`), and
+  Equipment (`equipment_edit_panel.py`) detail dialogs. Each of those modules
+  calls `associations_panel.register_open_handler(<kind>, <opener>)` at
+  import time so "Open Associated Resource" can jump to any kind's own
+  detail window without the panel importing all four modules up front.

@@ -130,6 +130,9 @@ def create_app(server_info_fn=None, request_log_fn=None, mode: str = "full") -> 
     from sarapp_db.api.routers import resource_types
     app.include_router(resource_types.router, prefix="/api/resource-types", tags=["resource-types"])
 
+    from sarapp_db.api.routers import resource_associations
+    app.include_router(resource_associations.router, prefix="/api/resource-associations", tags=["resource-associations"])
+
     from sarapp_db.api.routers import communications
     app.include_router(communications.master_router, prefix="/api/comms", tags=["communications"])
 
