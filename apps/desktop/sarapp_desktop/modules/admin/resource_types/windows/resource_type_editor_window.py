@@ -36,9 +36,34 @@ from ..models.resource_type_models import (
     RESOURCE_SOURCES,
     ResourceType,
     ResourceTypeComponent,
+    ResourceTypeSpec,
 )
 from ..widgets.resource_type_search_box import ResourceTypeSearchBox
 from .capability_manager_window import CapabilityManagerWindow
+
+
+class _EquipmentRequirementPickerDialog(QDialog):
+    """Small modal: pick one existing Resource Type Library record to use
+    as an equipment requirement (required or recommended)."""
+
+    def __init__(self, repository: ApiResourceTypeRepository, parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Select Equipment Resource Type")
+        self.resource_search = ResourceTypeSearchBox(repository, self)
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(self._validate_then_accept)
+        buttons.rejected.connect(self.reject)
+        form = QFormLayout()
+        form.addRow("Resource type", self.resource_search)
+        layout = QVBoxLayout(self)
+        layout.addLayout(form)
+        layout.addWidget(buttons)
+
+    def _validate_then_accept(self) -> None:
+        if self.resource_search.resource_type_id is None:
+            QMessageBox.warning(self, "Equipment Requirement", "Select an existing resource type.")
+            return
+        self.accept()
 
 
 class ComponentEditorDialog(QDialog):
@@ -139,6 +164,7 @@ class ResourceTypeEditorWindow(QDialog):
 
         self.tabs = QTabWidget()
         self.tabs.addTab(self._build_basic_tab(), "Basic Info")
+        self.tabs.addTab(self._build_requirements_tab(), "Classification && Requirements")
         self.tabs.addTab(self._build_aliases_tab(), "Aliases")
         self.tabs.addTab(self._build_capabilities_tab(), "Capabilities")
         self.tabs.addTab(self._build_components_tab(), "Components / Kit Contents")
@@ -207,6 +233,203 @@ class ResourceTypeEditorWindow(QDialog):
         form.addRow("Active", self.active_check)
         form.addRow("Notes", self.notes_edit)
         return widget
+
+    def _build_requirements_tab(self) -> QWidget:
+        """Extensible classification + composition-requirement fields.
+
+        Everything here is structured-but-generic (free text kind, a
+        name/value/unit spec table, plain qualification strings, and
+        resource-type-id equipment references) so a new kind of resource
+        can be fully described without any code change.
+        """
+        record = self.resource_type
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+
+        form = QFormLayout()
+        self.kind_combo = QComboBox()
+        self.kind_combo.setEditable(True)
+        self.kind_combo.setInsertPolicy(QComboBox.NoInsert)
+        try:
+            self.kind_combo.addItems(self.repository.list_kinds())
+        except Exception:
+            pass
+        if record and record.kind:
+            self.kind_combo.setCurrentText(record.kind)
+        else:
+            self.kind_combo.setCurrentText("")
+        form.addRow("Resource Kind", self.kind_combo)
+
+        self.min_personnel_spin = QSpinBox()
+        self.min_personnel_spin.setRange(0, 10000)
+        self.min_personnel_spin.setSpecialValueText("Not set")
+        self.min_personnel_spin.setValue((record.min_personnel or 0) if record else 0)
+        form.addRow("Minimum staffing (personnel)", self.min_personnel_spin)
+        layout.addLayout(form)
+
+        # Required qualifications ------------------------------------------------
+        layout.addWidget(QLabel("Required qualifications (name or code a member must hold):"))
+        self.qualifications_list = QListWidget()
+        for q in (record.required_qualifications if record else []):
+            self.qualifications_list.addItem(q)
+        qual_row = QHBoxLayout()
+        self.qualification_edit = QLineEdit()
+        self.qualification_edit.setPlaceholderText("e.g. Ground Team Member, EMT-B")
+        add_qual_btn = QPushButton("Add")
+        remove_qual_btn = QPushButton("Remove selected")
+        add_qual_btn.clicked.connect(self._add_qualification)
+        remove_qual_btn.clicked.connect(
+            lambda: self.qualifications_list.takeItem(self.qualifications_list.currentRow())
+        )
+        qual_row.addWidget(self.qualification_edit, 1)
+        qual_row.addWidget(add_qual_btn)
+        layout.addLayout(qual_row)
+        layout.addWidget(self.qualifications_list)
+        layout.addWidget(remove_qual_btn)
+
+        # Required / recommended equipment ---------------------------------------
+        equip_box = QGroupBox("Equipment")
+        equip_layout = QVBoxLayout(equip_box)
+        equip_layout.addWidget(QLabel("Required equipment (resource types this kind cannot operate without):"))
+        self.required_equipment_list = QListWidget()
+        for rt_id in (record.required_equipment_ids if record else []):
+            self._add_equipment_requirement_row(self.required_equipment_list, rt_id)
+        req_row = QHBoxLayout()
+        req_add_btn = QPushButton("Add required equipment")
+        req_remove_btn = QPushButton("Remove selected")
+        req_add_btn.clicked.connect(lambda: self._prompt_add_equipment_requirement(self.required_equipment_list))
+        req_remove_btn.clicked.connect(
+            lambda: self.required_equipment_list.takeItem(self.required_equipment_list.currentRow())
+        )
+        req_row.addWidget(req_add_btn)
+        req_row.addWidget(req_remove_btn)
+        req_row.addStretch()
+        equip_layout.addWidget(self.required_equipment_list)
+        equip_layout.addLayout(req_row)
+
+        equip_layout.addWidget(QLabel("Recommended / optional equipment:"))
+        self.recommended_equipment_list = QListWidget()
+        for rt_id in (record.recommended_equipment_ids if record else []):
+            self._add_equipment_requirement_row(self.recommended_equipment_list, rt_id)
+        rec_row = QHBoxLayout()
+        rec_add_btn = QPushButton("Add recommended equipment")
+        rec_remove_btn = QPushButton("Remove selected")
+        rec_add_btn.clicked.connect(lambda: self._prompt_add_equipment_requirement(self.recommended_equipment_list))
+        rec_remove_btn.clicked.connect(
+            lambda: self.recommended_equipment_list.takeItem(self.recommended_equipment_list.currentRow())
+        )
+        rec_row.addWidget(rec_add_btn)
+        rec_row.addWidget(rec_remove_btn)
+        rec_row.addStretch()
+        equip_layout.addWidget(self.recommended_equipment_list)
+        equip_layout.addLayout(rec_row)
+        layout.addWidget(equip_box)
+
+        # Technical specs ----------------------------------------------------------
+        layout.addWidget(QLabel("Technical specifications (name / value / unit / notes):"))
+        self.spec_headers = ["Name", "Value", "Unit", "Notes"]
+        self.spec_table = QTableWidget(0, len(self.spec_headers))
+        self.spec_table.setHorizontalHeaderLabels(self.spec_headers)
+        self.spec_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.spec_table.setSelectionBehavior(QTableWidget.SelectRows)
+        for spec in (record.technical_specs if record else []):
+            self._add_spec_row(spec)
+        spec_actions = QHBoxLayout()
+        add_spec_btn = QPushButton("Add spec row")
+        remove_spec_btn = QPushButton("Remove selected row")
+        add_spec_btn.clicked.connect(lambda: self._add_spec_row(ResourceTypeSpec(name="")))
+        remove_spec_btn.clicked.connect(self._remove_selected_spec_row)
+        spec_actions.addWidget(add_spec_btn)
+        spec_actions.addWidget(remove_spec_btn)
+        spec_actions.addStretch()
+        layout.addWidget(self.spec_table)
+        layout.addLayout(spec_actions)
+
+        layout.addWidget(QLabel("Other composition requirements:"))
+        self.composition_notes_edit = QTextEdit(record.composition_notes if record else "")
+        layout.addWidget(self.composition_notes_edit)
+        return widget
+
+    def _add_qualification(self) -> None:
+        text = self.qualification_edit.text().strip()
+        if not text:
+            return
+        existing = {self.qualifications_list.item(i).text().lower() for i in range(self.qualifications_list.count())}
+        if text.lower() in existing:
+            self.qualification_edit.clear()
+            return
+        self.qualifications_list.addItem(text)
+        self.qualification_edit.clear()
+
+    def _add_equipment_requirement_row(self, target: QListWidget, resource_type_id: int) -> None:
+        label = str(resource_type_id)
+        try:
+            rt = self.repository.get_resource_type(int(resource_type_id))
+            if rt:
+                label = rt.resource_name or rt.name
+        except Exception:
+            pass
+        item = QListWidgetItem(label)
+        item.setData(Qt.UserRole, int(resource_type_id))
+        target.addItem(item)
+
+    def _prompt_add_equipment_requirement(self, target: QListWidget) -> None:
+        dialog = _EquipmentRequirementPickerDialog(self.repository, self)
+        if dialog.exec() != QDialog.Accepted:
+            return
+        rt_id = int(dialog.resource_search.resource_type_id)
+        existing_ids = {target.item(i).data(Qt.UserRole) for i in range(target.count())}
+        if rt_id in existing_ids:
+            return
+        self._add_equipment_requirement_row(target, rt_id)
+
+    def _add_spec_row(self, spec: ResourceTypeSpec) -> None:
+        row = self.spec_table.rowCount()
+        self.spec_table.insertRow(row)
+        self.spec_table.setItem(row, 0, QTableWidgetItem(spec.name))
+        self.spec_table.setItem(row, 1, QTableWidgetItem(spec.value))
+        self.spec_table.setItem(row, 2, QTableWidgetItem(spec.unit))
+        self.spec_table.setItem(row, 3, QTableWidgetItem(spec.notes))
+
+    def _remove_selected_spec_row(self) -> None:
+        row = self.spec_table.currentRow()
+        if row >= 0:
+            self.spec_table.removeRow(row)
+
+    def _requirement_tab_values(self) -> dict[str, Any]:
+        qualifications = [
+            self.qualifications_list.item(i).text() for i in range(self.qualifications_list.count())
+        ]
+        required_ids = [
+            int(self.required_equipment_list.item(i).data(Qt.UserRole))
+            for i in range(self.required_equipment_list.count())
+        ]
+        recommended_ids = [
+            int(self.recommended_equipment_list.item(i).data(Qt.UserRole))
+            for i in range(self.recommended_equipment_list.count())
+        ]
+        specs: list[ResourceTypeSpec] = []
+        for row in range(self.spec_table.rowCount()):
+            name_item = self.spec_table.item(row, 0)
+            if not name_item or not name_item.text().strip():
+                continue
+            specs.append(
+                ResourceTypeSpec(
+                    name=name_item.text().strip(),
+                    value=(self.spec_table.item(row, 1).text() if self.spec_table.item(row, 1) else ""),
+                    unit=(self.spec_table.item(row, 2).text() if self.spec_table.item(row, 2) else ""),
+                    notes=(self.spec_table.item(row, 3).text() if self.spec_table.item(row, 3) else ""),
+                )
+            )
+        return {
+            "kind": self.kind_combo.currentText().strip(),
+            "min_personnel": self.min_personnel_spin.value() or None,
+            "required_qualifications": qualifications,
+            "required_equipment_ids": required_ids,
+            "recommended_equipment_ids": recommended_ids,
+            "technical_specs": specs,
+            "composition_notes": self.composition_notes_edit.toPlainText(),
+        }
 
     def _build_aliases_tab(self) -> QWidget:
         widget = QWidget()
@@ -459,6 +682,7 @@ class ResourceTypeEditorWindow(QDialog):
                     notes=self.fema_notes_edit.toPlainText(),
                 )
             )
+        requirements = self._requirement_tab_values()
         return ResourceType(
             id=self.resource_type.id if self.resource_type else None,
             name=self.name_edit.text(),
@@ -481,6 +705,13 @@ class ResourceTypeEditorWindow(QDialog):
             updated_at=self.resource_type.updated_at if self.resource_type else "",
             created_by=self.resource_type.created_by if self.resource_type else "",
             updated_by=self.resource_type.updated_by if self.resource_type else "",
+            kind=requirements["kind"],
+            technical_specs=requirements["technical_specs"],
+            min_personnel=requirements["min_personnel"],
+            required_qualifications=requirements["required_qualifications"],
+            required_equipment_ids=requirements["required_equipment_ids"],
+            recommended_equipment_ids=requirements["recommended_equipment_ids"],
+            composition_notes=requirements["composition_notes"],
         )
 
     def components(self) -> list[ResourceTypeComponent]:

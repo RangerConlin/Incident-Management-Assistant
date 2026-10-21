@@ -58,6 +58,16 @@ def _normalize(doc: dict[str, Any]) -> dict[str, Any]:
     capability_names = d.get("capability_names") or []
     d["capabilities"] = ", ".join(capability_names)
     d["component_count"] = len(d.get("components") or [])
+    # Classification/requirements fields (Stage 1 expansion) -- default
+    # safely for legacy documents the backfill migration hasn't reached
+    # rather than requiring every reader to guard against a missing key.
+    d["kind"] = d.get("kind") or ""
+    d["technical_specs"] = d.get("technical_specs") or []
+    d["min_personnel"] = d.get("min_personnel")
+    d["required_qualifications"] = d.get("required_qualifications") or []
+    d["required_equipment_ids"] = d.get("required_equipment_ids") or []
+    d["recommended_equipment_ids"] = d.get("recommended_equipment_ids") or []
+    d["composition_notes"] = d.get("composition_notes") or ""
     return d
 
 
@@ -80,6 +90,8 @@ def _search_matches(doc: dict[str, Any], text: str) -> str | None:
     for cap in doc.get("capability_names") or []:
         if t in (cap or "").lower():
             return "capability"
+    if t in (doc.get("kind") or "").lower():
+        return "kind"
     for m in doc.get("fema_mappings") or []:
         if t in (m.get("nims_name") or "").lower() or t in (m.get("type_code") or "").lower():
             return "FEMA/NIMS"
@@ -94,6 +106,7 @@ def list_resource_types(
     search_text: str = Query(""),
     category: str = Query("All"),
     source: str = Query("All"),
+    kind: str = Query("All"),
     active_filter: str = Query("Active"),
     include_inactive: bool = Query(False),
 ) -> list[dict[str, Any]]:
@@ -106,6 +119,8 @@ def list_resource_types(
         query["category"] = category
     if source and source != "All":
         query["source"] = source
+    if kind and kind != "All":
+        query["kind"] = kind
 
     docs = list(_col().find(query).sort("name", 1))
 
@@ -146,6 +161,21 @@ def search_resource_types(
         if len(results) >= limit:
             break
     return results
+
+
+# ------------------------------------------------------------------
+# Distinct kinds (defined before /{resource_type_id} to avoid conflict)
+
+@router.get("/kinds")
+def list_resource_kinds() -> list[str]:
+    """Return every distinct, non-empty `kind` already in use.
+
+    `kind` is intentionally free text (see resource_type_models.py), so this
+    is a convenience for the editor's autocomplete -- not a constraint. A
+    brand-new kind name is always accepted.
+    """
+    values = _col().distinct("kind", {"kind": {"$nin": [None, ""]}})
+    return sorted({str(v).strip() for v in values if str(v or "").strip()})
 
 
 # ------------------------------------------------------------------
@@ -194,6 +224,14 @@ class SaveResourceTypeRequest(BaseModel):
     capability_names: list[str] = []
     components: list[dict[str, Any]] = []
     fema_mappings: list[dict[str, Any]] = []
+    # Classification / composition requirements (Stage 1 expansion)
+    kind: str = ""
+    technical_specs: list[dict[str, Any]] = []
+    min_personnel: int | None = None
+    required_qualifications: list[str] = []
+    required_equipment_ids: list[int] = []
+    recommended_equipment_ids: list[int] = []
+    composition_notes: str = ""
 
 
 @router.post("", status_code=201)
