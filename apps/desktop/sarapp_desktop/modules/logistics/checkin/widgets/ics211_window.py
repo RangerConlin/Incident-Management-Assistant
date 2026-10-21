@@ -625,6 +625,18 @@ class ICS211CheckInWindow(QWidget):
                     identifier,
                     arrival_status,
                 )
+            try:
+                from modules.admin.resource_packages.widgets.package_activation_dialog import (
+                    offer_package_activation,
+                )
+
+                offer_package_activation(resource_type, int(identifier), self, activated_by="Check-In")
+            except Exception:
+                logger.exception(
+                    "package activation offer failed resource_type=%s identifier=%s",
+                    resource_type,
+                    identifier,
+                )
             self._previews[resource_type].setText(self._describe_record(resource_type, row) + "\nChecked in.")
             self._clear_tab(resource_type, keep_preview=True)
             self.refresh()

@@ -279,6 +279,63 @@ def save_checkin(record: CheckInRecord) -> CheckInRecord:
 
 
 # ---------------------------------------------------------------------------
+# Resource Package check-in integration (Stage 4)
+# ---------------------------------------------------------------------------
+
+def fetch_package_suggestions(resource_type: str, resource_id: int) -> List[Dict]:
+    """Standing packages involving this resource, each with per-member
+    checked-in status, for the active incident. Empty list (never raises)
+    when there is no active incident or the resource is in no package."""
+    from utils import incident_context
+
+    incident_id = incident_context.get_active_incident_id()
+    if not incident_id:
+        return []
+    try:
+        return _client().get(
+            f"{_incident_base(incident_id)}/package-suggestions/{resource_type}/{resource_id}"
+        ) or []
+    except Exception:
+        return []
+
+
+def fetch_package_status(package_id: str) -> Optional[Dict]:
+    from utils import incident_context
+
+    incident_id = incident_context.get_active_incident_id()
+    if not incident_id:
+        return None
+    try:
+        return _client().get(f"{_incident_base(incident_id)}/packages/{package_id}/status")
+    except Exception:
+        return None
+
+
+def activate_package(
+    package_id: str,
+    *,
+    confirmed: Sequence[Dict],
+    substitutions: Sequence[Dict] = (),
+    omitted: Sequence[Dict] = (),
+    activated_by: str = "",
+) -> Optional[Dict]:
+    """Check in only the confirmed/substitute members of a package and
+    record the activation. Never auto-checks-in an omitted member."""
+    from utils import incident_context
+
+    incident_id = incident_context.get_active_incident_id()
+    if not incident_id:
+        return None
+    body = {
+        "activated_by": activated_by,
+        "confirmed": list(confirmed),
+        "substitutions": list(substitutions),
+        "omitted": list(omitted),
+    }
+    return _client().post(f"{_incident_base(incident_id)}/packages/{package_id}/activate", json=body)
+
+
+# ---------------------------------------------------------------------------
 # History helpers
 # ---------------------------------------------------------------------------
 

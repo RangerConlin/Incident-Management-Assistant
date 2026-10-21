@@ -108,3 +108,33 @@
   / Equipment / Requirements). Reuses `resource_associations`' generic
   `ResourcePickerDialog` for membership selection. Reachable from
   Edit -> Resource Packages.
+
+## Check-In / Package Activation Integration (Stage 4)
+- `IncidentCollections.PACKAGE_ACTIVATIONS` (`sarapp_incident_<id>.package_activations`,
+  `PackageActivationsRepository` in `checkin.py`) records which package was
+  activated, which resources were actually used (confirmed/substituted),
+  and which expected members were omitted -- one append-only document per
+  activation, never a snapshot of the package's standing definition.
+- New endpoints on the existing `checkin.py` router (still mounted at
+  `/api/incidents/{incident_id}/checkin`):
+  - `GET /package-suggestions/{resource_type}/{resource_id}` -- standing
+    packages involving a resource that just checked in, each member
+    annotated with its current checked-in state.
+  - `GET /packages/{package_id}/status` -- the same per-member annotation,
+    independent of any triggering resource (used by Team Builder).
+  - `POST /packages/{package_id}/activate` -- confirms which members
+    arrived (optionally substituted or omitted) and checks in **only**
+    those; absent members are never auto-checked-in. Reuses each resource
+    kind's own existing idempotent check-in write (`save_checkin` for
+    personnel, `incident_resources.check_in_resource` otherwise) so a
+    resource already at or past "checked in" status is left untouched
+    rather than duplicated or downgraded.
+  - `GET /packages/activations` -- activation history for the incident.
+- Desktop: `modules/admin/resource_packages/widgets/package_activation_dialog.py`'s
+  `offer_package_activation(resource_type, resource_id, parent)` is called
+  right after a resource checks in from the two primary check-in surfaces
+  (`ics211_window.py`'s full check-in flow and `checkin_window.py`'s Quick
+  Check-In). It is a no-op when the resource is in no package or every
+  package member is already checked in, and never prompts for, or writes,
+  anything beyond what the operator explicitly confirms per row (Confirm
+  Arrived / Substitute / Omit / Pending).

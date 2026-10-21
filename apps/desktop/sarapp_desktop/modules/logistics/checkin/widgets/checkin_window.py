@@ -212,6 +212,17 @@ class QuickCheckInWindow(QWidget):
                 record.update(updated)
             record["_checked_in"] = status == "Checked In"
             record["status"] = status
+            if status == "Checked In":
+                try:
+                    from modules.admin.resource_packages.widgets.package_activation_dialog import (
+                        offer_package_activation,
+                    )
+
+                    person_record = record.get("person_record") or record.get("id")
+                    if person_record is not None:
+                        offer_package_activation("personnel", int(person_record), self, activated_by="Quick Check In")
+                except Exception:
+                    pass
             self._display.setPlainText(self._format_record(record, message=f"{status} recorded."))
             self._entry.selectAll()
             self._entry.setFocus()
