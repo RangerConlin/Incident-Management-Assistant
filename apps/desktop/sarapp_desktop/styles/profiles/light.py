@@ -131,6 +131,13 @@ TEAM_STATUS: Dict[str, Dict[str, str]] = {
     "complete":         {"bg": "#2E7D32", "fg": "#ffffff"},
 }
 
+VALIDATION_STATUS: Dict[str, Dict[str, str]] = {
+    "ready":                 {"bg": "#098d00", "fg": "#000000"},
+    "ready with limitations": {"bg": "#FFC107", "fg": "#1a1a1a"},
+    "not ready":             {"bg": "#E53935", "fg": "#ffffff"},
+    "not evaluated":         {"bg": "#9e9e9e", "fg": "#000000"},
+}
+
 RESOURCE_STATUS: Dict[str, Dict[str, str]] = {
     "Pending":        {"bg": "#efe229", "fg": "#000000"},
     "Enroute":        {"bg": "#006ab6", "fg": "#000000"},

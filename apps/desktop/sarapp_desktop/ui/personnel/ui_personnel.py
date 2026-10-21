@@ -336,6 +336,7 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
         self._build_tab_certifications()
         self._build_tab_emergency()
         self._build_tab_contact()
+        self._build_tab_associations()
 
         btn_save = QtWidgets.QPushButton("Save")
         btn_cancel = QtWidgets.QPushButton("Cancel")
@@ -674,6 +675,12 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
 
         self.tabs.addTab(widget, "Contact Info")
 
+    def _build_tab_associations(self) -> None:
+        from modules.admin.resource_associations.widgets.associations_panel import AssociationsPanel
+
+        self.associations_panel = AssociationsPanel("personnel", self.person_record)
+        self.tabs.addTab(self.associations_panel, "Associations")
+
     def _build_tab_certifications(self) -> None:
         widget = QtWidgets.QWidget()
         layout = QtWidgets.QVBoxLayout(widget)
@@ -858,6 +865,10 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
         except APIError as exc:
             QtWidgets.QMessageBox.warning(self, "Save Failed", str(exc))
             return
+        try:
+            self.associations_panel.set_resource("personnel", self.person_record)
+        except Exception:
+            pass
         self.accept()
 
     def _choose_photo(self) -> None:
@@ -1332,3 +1343,16 @@ class PersonnelInventoryWindow(QtWidgets.QWidget):
             )
         except Exception:
             pass
+
+
+def _open_personnel_detail_for_association(person_record: int) -> None:
+    dialog = PersonnelDetailDialog(None, person_record=person_record)
+    dialog.exec()
+
+
+try:
+    from modules.admin.resource_associations.widgets.associations_panel import register_open_handler
+
+    register_open_handler("personnel", _open_personnel_detail_for_association)
+except Exception:  # pragma: no cover - defensive import guard
+    pass

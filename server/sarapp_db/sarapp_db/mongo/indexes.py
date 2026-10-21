@@ -65,7 +65,16 @@ def create_incident_indexes(incident_db: Database) -> None:
     _create_resource_status_indexes(incident_db)
     _create_iap_indexes(incident_db)
     _create_sitrep_indexes(incident_db)
+    _create_package_activations_indexes(incident_db)
     logger.debug("Incident database indexes verified: %s", incident_db.name)
+
+
+def _create_package_activations_indexes(incident_db: Database) -> None:
+    activations = incident_db[IncidentCollections.PACKAGE_ACTIVATIONS]
+    _ensure_index(activations, [("incident_id", ASCENDING)])
+    _ensure_index(activations, [("package_id", ASCENDING)])
+    _ensure_index(activations, [("activated_at", DESCENDING)])
+    _ensure_index(activations, [("deleted", ASCENDING)])
 
 
 def _create_teams_indexes(incident_db: Database) -> None:
@@ -439,7 +448,27 @@ def create_master_indexes(master_db: Database) -> None:
     _create_equipment_indexes(master_db)
     _create_user_presence_indexes(master_db)
     _create_push_token_indexes(master_db)
+    _create_resource_associations_indexes(master_db)
+    _create_resource_packages_indexes(master_db)
     logger.debug("Master database indexes verified: %s", master_db.name)
+
+
+def _create_resource_associations_indexes(master_db: Database) -> None:
+    associations = master_db[MasterCollections.RESOURCE_ASSOCIATIONS]
+    _ensure_index(associations, [("source.resource_type", ASCENDING), ("source.resource_id", ASCENDING)])
+    _ensure_index(associations, [("target.resource_type", ASCENDING), ("target.resource_id", ASCENDING)])
+    _ensure_index(associations, [("active", ASCENDING)])
+    _ensure_index(associations, [("deleted", ASCENDING)])
+
+
+def _create_resource_packages_indexes(master_db: Database) -> None:
+    packages = master_db[MasterCollections.RESOURCE_PACKAGES]
+    _ensure_index(packages, [("name", ASCENDING)])
+    _ensure_index(packages, [("owning_organization", ASCENDING)])
+    _ensure_index(packages, [("is_active", ASCENDING)])
+    _ensure_index(packages, [("deleted", ASCENDING)])
+    _ensure_index(packages, [("linked_resource_type_id", ASCENDING)])
+    _ensure_index(packages, [("fixed_resources.resource_type", ASCENDING), ("fixed_resources.resource_id", ASCENDING)])
 
 
 def _create_personnel_indexes(master_db: Database) -> None:

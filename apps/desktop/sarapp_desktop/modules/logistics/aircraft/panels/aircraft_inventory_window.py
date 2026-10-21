@@ -418,6 +418,7 @@ class AircraftDetailPane(QWidget):
         self.tab_widget.addTab(self._build_details_tab(), "Details")
         self.tab_widget.addTab(self._build_capabilities_tab(), "Capabilities")
         self.tab_widget.addTab(self._build_maintenance_tab(), "Maintenance")
+        self.tab_widget.addTab(self._build_associations_tab(), "Associations")
         self.tab_widget.addTab(self._build_history_tab(), "History")
         form_layout.addWidget(self.tab_widget)
 
@@ -652,6 +653,16 @@ class AircraftDetailPane(QWidget):
             self._refresh_history(record)
         finally:
             self._updating = False
+        try:
+            self.associations_panel.set_resource("aircraft", record.get("id") if record else None)
+        except Exception:
+            pass
+
+    def _build_associations_tab(self) -> QWidget:
+        from modules.admin.resource_associations.widgets.associations_panel import AssociationsPanel
+
+        self.associations_panel = AssociationsPanel("aircraft", None)
+        return self.associations_panel
 
     def _refresh_maintenance(self, record: Dict[str, Any]) -> None:
         self.maintenance_list.clear()
@@ -1829,3 +1840,20 @@ class AircraftInventoryWindow(QMainWindow):
     def _sort_value(self, record: Dict[str, Any], key: str) -> Any:
         value = record.get(key)
         return "" if value is None else value
+
+
+def _open_aircraft_detail_for_association(aircraft_record: int) -> None:
+    repository = AircraftRepository()
+    record = repository.fetch_aircraft(int(aircraft_record))
+    if record is None:
+        return
+    dialog = AircraftEditDialog(record, repository)
+    dialog.exec()
+
+
+try:
+    from modules.admin.resource_associations.widgets.associations_panel import register_open_handler
+
+    register_open_handler("aircraft", _open_aircraft_detail_for_association)
+except Exception:  # pragma: no cover - defensive import guard
+    pass

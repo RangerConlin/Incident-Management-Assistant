@@ -79,6 +79,16 @@ class MasterCollections:
     RESOURCE_CAPABILITIES = "resource_capabilities"
     AGENCY_DIRECTORY = "agency_directory"
 
+    # Standing (not incident-specific) relationships between two individual
+    # master resources -- e.g. a radio assigned to a person, equipment
+    # carried onboard a vehicle. See resource_associations.py.
+    RESOURCE_ASSOCIATIONS = "resource_associations"
+
+    # Reusable resource packages (e.g. a CAP ground team, fire engine
+    # company) -- collections of personnel/vehicles/equipment that
+    # routinely respond together. See resource_packages.py.
+    RESOURCE_PACKAGES = "resource_packages"
+
     # Templates
     FORM_FAMILIES = "form_families"
     FORM_TEMPLATES = "form_templates"
@@ -275,3 +285,8 @@ class IncidentCollections:
 
     # Presence — per-incident online/away/unavailable roster for chat
     PRESENCE = "presence"
+
+    # Record of a Resource Package activated for this incident -- which
+    # package, which actual resources were used/substituted/omitted, when.
+    # See routers/checkin.py's package-activation endpoints.
+    PACKAGE_ACTIVATIONS = "package_activations"
