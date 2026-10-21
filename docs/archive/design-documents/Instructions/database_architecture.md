@@ -55,3 +55,153 @@
 - Listen to `utils.app_signals.app_signals.incidentChanged` to refresh bound views.
 - FastAPI/services should accept `incident_id` explicitly where practical so routing stays obvious and testable.
 - Tests can set `AppState.set_active_incident("TEST-123")` or `incident_context.set_active_incident("TEST-123")`; use `CHECKIN_DATA_DIR` for sandboxed paths.
+
+## Resource Associations And Resource Packages (sarapp_master)
+- `MasterCollections.RESOURCE_ASSOCIATIONS` (`resource_associations.py` router,
+  `server/sarapp_db/sarapp_db/mongo/resource_kinds.py` helper) holds
+  **standing, non-incident-specific** relationships between two individual
+  master resources (personnel/vehicle/aircraft/equipment) -- a radio
+  assigned to a person, equipment carried onboard a vehicle. Each document
+  has `source`/`target` endpoints (`{resource_type, resource_id}`), a free-text
+  `association_type` (no enum -- new relationship kinds need no schema
+  change), optional `owning_organization`/`effective_start`/`effective_end`,
+  `notes`, and `active`. Duplicate (source, target, type) pairs and
+  dependency cycles are rejected server-side (`find_path` graph search);
+  invalid resource references are rejected with 404. **Nothing in the
+  incident-team code path (operations.py teams, checkin.py) may write to
+  this collection** -- changing an incident team's composition must never
+  alter a standing association.
+- `resource_kinds.py`'s `RESOURCE_KIND_FIELDS` is the one place that maps a
+  `resource_type` string to its master collection and dual-key record field
+  (reusing `int_id.dual_key_field`, the same local-vs-central pattern every
+  other master collection already follows). Any new feature that needs to
+  reference "an individual master resource" generically (packages, check-in
+  integration, validation) should resolve through this module rather than
+  re-deriving the mapping.
+- Desktop UI: `modules/admin/resource_associations/` (models, API-backed
+  repository, a generic cross-kind `ResourcePickerDialog`, and an embeddable
+  `AssociationsPanel`). The panel is wired into Personnel
+  (`ui/personnel/ui_personnel.py`), Vehicle (`vehicle_edit_window.py`),
+  Aircraft (`aircraft_inventory_window.py`'s `AircraftDetailPane`), and
+  Equipment (`equipment_edit_panel.py`) detail dialogs. Each of those modules
+  calls `associations_panel.register_open_handler(<kind>, <opener>)` at
+  import time so "Open Associated Resource" can jump to any kind's own
+  detail window without the panel importing all four modules up front.
+- `MasterCollections.RESOURCE_PACKAGES` (`resource_packages.py` router) holds
+  reusable collections of personnel/vehicles/aircraft/equipment that
+  routinely respond together (a CAP ground team, a fire engine company) --
+  a standing roster definition, never an incident team. Membership mixes,
+  per resource reference, `membership: fixed | preferred | optional`, plus
+  package-level `required_positions` (role/qualification, no person named)
+  and `minimum_quantities` (e.g. "4 qualified personnel"). A package is
+  always saveable incomplete/understaffed -- the router never requires full
+  staffing to create or save one, and resource-existence/duplicate
+  validation only runs against whatever membership *is* present.
+  `GET /api/resource-packages/for-resource/{type}/{id}` lists every active
+  package naming a given resource anywhere in its membership, for Stage 4's
+  check-in integration. A resource may legitimately belong to several
+  packages' standing membership at once -- that is never itself a conflict
+  (see the Stage 6 conflict-prevention note once it lands).
+- Desktop: `modules/admin/resource_packages/` (model, API repository, a
+  list window, and a tabbed editor window following the Resource Type
+  Library editor's convention -- Overview / Personnel / Vehicles / Aircraft
+  / Equipment / Requirements). Reuses `resource_associations`' generic
+  `ResourcePickerDialog` for membership selection. Reachable from
+  Edit -> Resource Packages.
+
+## Check-In / Package Activation Integration (Stage 4)
+- `IncidentCollections.PACKAGE_ACTIVATIONS` (`sarapp_incident_<id>.package_activations`,
+  `PackageActivationsRepository` in `checkin.py`) records which package was
+  activated, which resources were actually used (confirmed/substituted),
+  and which expected members were omitted -- one append-only document per
+  activation, never a snapshot of the package's standing definition.
+- New endpoints on the existing `checkin.py` router (still mounted at
+  `/api/incidents/{incident_id}/checkin`):
+  - `GET /package-suggestions/{resource_type}/{resource_id}` -- standing
+    packages involving a resource that just checked in, each member
+    annotated with its current checked-in state.
+  - `GET /packages/{package_id}/status` -- the same per-member annotation,
+    independent of any triggering resource (used by Team Builder).
+  - `POST /packages/{package_id}/activate` -- confirms which members
+    arrived (optionally substituted or omitted) and checks in **only**
+    those; absent members are never auto-checked-in. Reuses each resource
+    kind's own existing idempotent check-in write (`save_checkin` for
+    personnel, `incident_resources.check_in_resource` otherwise) so a
+    resource already at or past "checked in" status is left untouched
+    rather than duplicated or downgraded.
+  - `GET /packages/activations` -- activation history for the incident.
+- Desktop: `modules/admin/resource_packages/widgets/package_activation_dialog.py`'s
+  `offer_package_activation(resource_type, resource_id, parent)` is called
+  right after a resource checks in from the two primary check-in surfaces
+  (`ics211_window.py`'s full check-in flow and `checkin_window.py`'s Quick
+  Check-In). It is a no-op when the resource is in no package or every
+  package member is already checked in, and never prompts for, or writes,
+  anything beyond what the operator explicitly confirms per row (Confirm
+  Arrived / Substitute / Omit / Pending).
+
+## Team Builder (Stage 5)
+- `modules/operations/teams/panels/team_builder_window.py` is a new, minimal
+  window -- it does not replace or modify `team_detail_window.py`. It
+  reuses that module's composition primitives directly (`AddTeamMemberDialog`,
+  `AddVehicleDialog`, `AddEquipmentDialog`, and `team_repo` for persistence)
+  rather than duplicating them, and activates a team through
+  `operations.py`'s existing `create_team`/`update_team` endpoints (via
+  `team_repo.save_team`), so numbering and `team_type` behavior are
+  unchanged from every other team-creation path.
+- "Add From Package" (`_PackageBrowserDialog`) calls checkin.py's
+  `packages/{id}/status` endpoint and only lets the operator pull in
+  members that are *already checked in* at the incident -- a package
+  member who checks in later is never auto-added; the operator must
+  re-open the browser or add them individually. Resources from multiple
+  packages, and individually added resources, combine into one working
+  set with no duplicate entries; splitting a package's checked-in members
+  across two different Team Builder sessions (two teams) works because
+  each window keeps its own independent working set.
+- "Save as Package" (`_save_as_package`) is a distinct, explicit action
+  available only after a team has been assembled/activated. It always
+  opens the Resource Package editor on a brand-new, unsaved draft (`id`
+  is always `None`), so it can never silently overwrite one of the
+  packages the team was built from -- ordinary team edits never call it.
+
+## Team Readiness Validation + Conflict Prevention (Stage 6)
+- `sarapp_db.services.team_validation` (framework/Mongo-free, pure
+  dataclasses and functions) is **the sole authoritative source for team
+  readiness evaluation going forward.** Before this module, `team_type`
+  was an unconstrained free string with no validation logic of any kind
+  attached anywhere in the codebase -- there was no prior GT/UDF/UAS/AIR
+  readiness ruleset to preserve, migrate, or reconcile with. Any future
+  readiness rule (new outcome, new requirement kind) belongs in this
+  module; nothing else may compute or hardcode a team's readiness.
+  `resource_validation.py` is the thin Mongo-reading router wrapper
+  (`GET /api/incidents/{incident_id}/operations/teams/{team_id}/validation`)
+  that resolves a team's live composition and its linked Resource Type
+  Library entry, then calls the pure `evaluate_team()`.
+  - Outcomes: `Ready`, `Ready with Limitations`, `Not Ready`, `Not Evaluated`
+    (no Resource Type Library entry linked -- nothing to evaluate against).
+    Messages are actionable, e.g. "Requires one additional qualified Ground
+    Team Member."
+  - Evaluation always reads the team's **actual** live composition
+    (`members_json`/`vehicles_json`/`equipment_json`/`aircraft_json` on the
+    team document) -- never an assumed/cached completeness from a source
+    package. Qualification matching is best-effort: a person's `primary_role`/
+    `role`/`rank` plus any resolvable `certification_types` names, compared
+    case-insensitively against the Resource Type Library's free-text
+    `required_qualifications`.
+  - Conflict prevention (`find_conflicting_assignments`): a vehicle/person/
+    equipment item cannot be simultaneously committed to two different
+    *active* (non-disbanded) incident team assignments in the same
+    incident; any conflict forces `Not Ready` regardless of staffing.
+    Being named in several Resource Packages' *standing* membership is
+    never itself a conflict -- packages are never teams, and this check
+    only ever compares teams against other teams.
+  - A `resource_associations` relationship (Stage 2) is never touched by
+    any of this: an association's onboard/assigned relationship is
+    retained across incident reassignment unless a user explicitly edits
+    or removes that association record itself.
+- Desktop: `modules/operations/teams/panels/team_builder_window.py`'s
+  Readiness section calls this endpoint after activation and again after
+  every subsequent add/remove/substitute, so the displayed outcome is
+  always freshly computed, never stale. Colors come from
+  `styles.validation_status_colors()` (`VALIDATION_STATUS` in
+  `styles/profiles/{dark,light}.py`) and repaint on theme switch via
+  `subscribe_theme`.

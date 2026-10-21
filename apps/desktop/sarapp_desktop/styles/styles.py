@@ -161,6 +161,13 @@ _TASK_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "
 _OBJECTIVE_STATUS_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "OBJECTIVE_STATUS")
 _OBJECTIVE_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "OBJECTIVE_STATUS")
 
+_SEGMENT_PLANNING_STATUS_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "SEGMENT_PLANNING_STATUS")
+_SEGMENT_PLANNING_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "SEGMENT_PLANNING_STATUS")
+_SEGMENT_SEARCH_STATUS_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "SEGMENT_SEARCH_STATUS")
+_SEGMENT_SEARCH_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "SEGMENT_SEARCH_STATUS")
+_SEGMENT_REVIEW_STATUS_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "SEGMENT_REVIEW_STATUS")
+_SEGMENT_REVIEW_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "SEGMENT_REVIEW_STATUS")
+
 _OBJECTIVE_PRIORITY_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "OBJECTIVE_PRIORITY")
 _OBJECTIVE_PRIORITY_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "OBJECTIVE_PRIORITY")
 
@@ -187,6 +194,9 @@ _CHAT_BUBBLE_DARK: Dict[str, Dict[str, QColor]] = _build_color_groups(_DARK_PROF
 
 _RESOURCE_STATUS_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "RESOURCE_STATUS")
 _RESOURCE_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "RESOURCE_STATUS")
+
+_VALIDATION_STATUS_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "VALIDATION_STATUS")
+_VALIDATION_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "VALIDATION_STATUS")
 
 _INTEL_SUBJECT_STATUS_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "INTEL_SUBJECT_STATUS")
 _INTEL_SUBJECT_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "INTEL_SUBJECT_STATUS")
@@ -337,6 +347,18 @@ def objective_priority_colors() -> Dict[str, Dict[str, QBrush]]:
     return _OBJECTIVE_PRIORITY_LIGHT if THEME_NAME == "light" else _OBJECTIVE_PRIORITY_DARK
 
 
+def segment_planning_status_colors() -> Dict[str, Dict[str, QBrush]]:
+    return _SEGMENT_PLANNING_STATUS_LIGHT if THEME_NAME == "light" else _SEGMENT_PLANNING_STATUS_DARK
+
+
+def segment_search_status_colors() -> Dict[str, Dict[str, QBrush]]:
+    return _SEGMENT_SEARCH_STATUS_LIGHT if THEME_NAME == "light" else _SEGMENT_SEARCH_STATUS_DARK
+
+
+def segment_review_status_colors() -> Dict[str, Dict[str, QBrush]]:
+    return _SEGMENT_REVIEW_STATUS_LIGHT if THEME_NAME == "light" else _SEGMENT_REVIEW_STATUS_DARK
+
+
 def operational_period_status_colors() -> Dict[str, Dict[str, QBrush]]:
     return _OPERATIONAL_PERIOD_STATUS_LIGHT if THEME_NAME == "light" else _OPERATIONAL_PERIOD_STATUS_DARK
 
@@ -355,6 +377,12 @@ def narrative_status_colors() -> Dict[str, Dict[str, QBrush]]:
 
 def resource_status_colors() -> Dict[str, Dict[str, QBrush]]:
     return _RESOURCE_STATUS_LIGHT if THEME_NAME == "light" else _RESOURCE_STATUS_DARK
+
+
+def validation_status_colors() -> Dict[str, Dict[str, QBrush]]:
+    """Ready / Ready with Limitations / Not Ready / Not Evaluated colors
+    (Stage 6 team readiness validation)."""
+    return _VALIDATION_STATUS_LIGHT if THEME_NAME == "light" else _VALIDATION_STATUS_DARK
 
 
 def intel_subject_status_colors() -> Dict[str, Dict[str, QBrush]]:
@@ -599,12 +627,16 @@ __all__ = [
     "map_symbol_colors",
     "task_status_colors",
     "objective_status_colors",
+    "segment_planning_status_colors",
+    "segment_search_status_colors",
+    "segment_review_status_colors",
     "objective_priority_colors",
     "operational_period_status_colors",
     "meeting_status_colors",
     "sitrep_status_colors",
     "narrative_status_colors",
     "resource_status_colors",
+    "validation_status_colors",
     "TEAM_TYPE_COLORS",
     "intel_subject_status_colors",
     "intel_assessment_status_colors",

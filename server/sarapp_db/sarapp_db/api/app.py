@@ -130,6 +130,12 @@ def create_app(server_info_fn=None, request_log_fn=None, mode: str = "full") -> 
     from sarapp_db.api.routers import resource_types
     app.include_router(resource_types.router, prefix="/api/resource-types", tags=["resource-types"])
 
+    from sarapp_db.api.routers import resource_associations
+    app.include_router(resource_associations.router, prefix="/api/resource-associations", tags=["resource-associations"])
+
+    from sarapp_db.api.routers import resource_packages
+    app.include_router(resource_packages.router, prefix="/api/resource-packages", tags=["resource-packages"])
+
     from sarapp_db.api.routers import communications
     app.include_router(communications.master_router, prefix="/api/comms", tags=["communications"])
 
@@ -277,6 +283,9 @@ def create_app(server_info_fn=None, request_log_fn=None, mode: str = "full") -> 
         from sarapp_db.api.routers import operations
         app.include_router(operations.router, prefix="/api", tags=["operations"])
 
+        from sarapp_db.api.routers import resource_validation
+        app.include_router(resource_validation.router, prefix="/api", tags=["resource-validation"])
+
         from sarapp_db.api.routers import operational_periods
         app.include_router(operational_periods.router, prefix="/api", tags=["planning"])
 
@@ -286,6 +295,12 @@ def create_app(server_info_fn=None, request_log_fn=None, mode: str = "full") -> 
 
         from sarapp_db.api.routers import work_assignments
         app.include_router(work_assignments.router, prefix="/api", tags=["planning"])
+
+        from sarapp_db.api.routers import search_segments
+        app.include_router(search_segments.router, prefix="/api", tags=["sar-toolkit"])
+
+        from sarapp_db.api.routers import search_task_details
+        app.include_router(search_task_details.router, prefix="/api", tags=["sar-toolkit"])
 
         from sarapp_db.api.routers import gis
         app.include_router(gis.router, prefix="/api", tags=["gis"])

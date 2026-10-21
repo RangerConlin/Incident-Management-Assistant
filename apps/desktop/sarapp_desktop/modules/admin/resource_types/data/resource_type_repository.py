@@ -18,6 +18,7 @@ from ..models.resource_type_models import (
     ResourceType,
     ResourceTypeComponent,
     ResourceTypeSearchResult,
+    ResourceTypeSpec,
 )
 
 ISO_TIMESTAMP = "%Y-%m-%dT%H:%M:%S"
@@ -74,6 +75,11 @@ class ApiResourceTypeRepository:
 
         from utils.api_client import api_client
         return api_client.get("/api/resource-types", params=params) or []
+
+    def list_kinds(self) -> list[str]:
+        """Return every distinct Resource Kind already in use (autocomplete only)."""
+        from utils.api_client import api_client
+        return api_client.get("/api/resource-types/kinds") or []
 
     def search_resource_types(self, text: str, limit: int = 20) -> list[ResourceTypeSearchResult]:
         from utils.api_client import api_client
@@ -379,6 +385,21 @@ def _api_doc_to_resource_type(doc: dict[str, Any]) -> ResourceType:
             )
             for m in (doc.get("fema_mappings") or [])
         ],
+        kind=doc.get("kind") or "",
+        technical_specs=[
+            ResourceTypeSpec(
+                name=s.get("name", ""),
+                value=s.get("value", ""),
+                unit=s.get("unit", ""),
+                notes=s.get("notes", ""),
+            )
+            for s in (doc.get("technical_specs") or [])
+        ],
+        min_personnel=doc.get("min_personnel"),
+        required_qualifications=list(doc.get("required_qualifications") or []),
+        required_equipment_ids=list(doc.get("required_equipment_ids") or []),
+        recommended_equipment_ids=list(doc.get("recommended_equipment_ids") or []),
+        composition_notes=doc.get("composition_notes") or "",
     )
 
 
@@ -415,6 +436,16 @@ def _resource_type_to_api_doc(rt: ResourceType) -> dict[str, Any]:
             }
             for m in rt.fema_mappings
         ],
+        "kind": rt.kind,
+        "technical_specs": [
+            {"name": s.name, "value": s.value, "unit": s.unit, "notes": s.notes}
+            for s in rt.technical_specs
+        ],
+        "min_personnel": rt.min_personnel,
+        "required_qualifications": list(rt.required_qualifications),
+        "required_equipment_ids": list(rt.required_equipment_ids),
+        "recommended_equipment_ids": list(rt.recommended_equipment_ids),
+        "composition_notes": rt.composition_notes,
     }
 
 

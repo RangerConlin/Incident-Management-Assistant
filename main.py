@@ -757,6 +757,7 @@ class MainWindow(QMainWindow):
         self._add_action(m_edit, "Hospitals…", "Ctrl+H", "edit.hospitals")
         self._add_action(m_edit, "Objectives", None, "edit.objectives")
         self._add_action(m_edit, "Personnel", None, "edit.personnel")
+        self._add_action(m_edit, "Resource Packages", None, "edit.resource_packages")
         self._add_action(m_edit, "Resource Type Library", None, "edit.resource_types")
         self._add_action(m_edit, "Safety Analysis Templates", None, "edit.safety_templates")
         self._add_action(m_edit, "Task Types", None, "edit.task_types")
@@ -842,6 +843,7 @@ class MainWindow(QMainWindow):
         self._add_action(m_ops, "Tactics and Resources Planner", None, "planning.tactics_planner")
         m_ops.addSeparator()
         self._add_action(m_ops, "Operations Section Organization", None, "operations.section_org")
+        self._add_action(m_ops, "Team Builder", None, "operations.team_builder")
         self._add_action(m_ops, "Team Status Board", None, "operations.team_status")
         self._add_action(m_ops, "Task Board", None, "operations.task_board")
         self._add_action(m_ops, "Incident Map", None, "operations.incident_map")
@@ -938,6 +940,8 @@ class MainWindow(QMainWindow):
         self._add_action(m_tool, "Projection Dashboard", None, "toolkit.projection_dashboard")
         self._add_action(sar_menu, "Missing Person Toolkit", None, "toolkit.sar.missing_person")
         self._add_action(sar_menu, "POD Calculator", None, "toolkit.sar.pod")
+        self._add_action(sar_menu, "Search Segment Manager", None, "toolkit.sar.segment_manager")
+        self._add_action(sar_menu, "Search Assignment Planner", None, "toolkit.sar.search_task_planner")
 
         dis_menu = m_tool.addMenu("Disaster Toolkit")
         self._add_action(dis_menu, "Damage Assessment", None, "toolkit.disaster.damage")
@@ -1134,6 +1138,7 @@ class MainWindow(QMainWindow):
             "edit.vehicles": self.open_edit_vehicles,
             "edit.aircraft": self.open_edit_aircraft,
             "edit.equipment": self.open_edit_equipment,
+            "edit.resource_packages": self.open_edit_resource_packages,
             "edit.resource_types": self.open_edit_resource_types,
             "edit.hazard_types": self.open_edit_hazard_types,
             "edit.gar_templates": self.open_edit_gar_templates,
@@ -1165,6 +1170,7 @@ class MainWindow(QMainWindow):
             "operations.unit_log": self.open_operations_unit_log,
             "operations.dashboard": self.open_operations_dashboard,
             "operations.section_org": self.open_operations_section_org,
+            "operations.team_builder": self.open_operations_team_builder,
             "operations.team_status": self.open_operations_team_status,
             "operations.task_board": self.open_operations_task_board,
             "operations.incident_map": self.open_operations_incident_map,
@@ -1240,6 +1246,8 @@ class MainWindow(QMainWindow):
             # ----- Toolkits -----
             "toolkit.sar.missing_person": self.open_toolkit_sar_missing_person,
             "toolkit.sar.pod": self.open_toolkit_sar_pod,
+            "toolkit.sar.segment_manager": self.open_toolkit_sar_segment_manager,
+            "toolkit.sar.search_task_planner": self.open_toolkit_sar_search_task_planner,
             "toolkit.disaster.damage": self.open_toolkit_disaster_damage,
             "toolkit.disaster.urban_interview": self.open_toolkit_disaster_urban_interview,
             "toolkit.disaster.photos": self.open_toolkit_disaster_photos,
@@ -1575,6 +1583,22 @@ class MainWindow(QMainWindow):
             )
             return
         open_resource_type_library(parent=self)
+
+    def open_edit_resource_packages(self) -> None:
+        """Open the Resource Packages library from the Edit menu."""
+        try:
+            from modules.admin.resource_packages.windows.resource_package_list_window import (
+                open_resource_package_library,
+            )
+        except Exception as exc:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.critical(
+                self,
+                "Resource Packages",
+                f"Unable to load Resource Packages.\n{exc}",
+            )
+            return
+        open_resource_package_library(parent=self)
 
     def open_edit_hazard_types(self) -> None:
         """Open the Hazard Type Library from the Edit menu."""
@@ -2095,6 +2119,19 @@ class MainWindow(QMainWindow):
             w.setAutoRefresh(60000)
         except Exception:
             pass
+
+    def open_operations_team_builder(self) -> None:
+        """Open the Team Builder from the Operations menu."""
+        incident_id = AppState.get_active_incident()
+        if not incident_id:
+            QMessageBox.warning(self, "Team Builder", "No active incident.")
+            return
+        try:
+            from modules.operations.teams.panels.team_builder_window import open_team_builder
+        except Exception as exc:
+            QMessageBox.warning(self, "Team Builder", f"Could not load Team Builder.\n{exc}")
+            return
+        open_team_builder(parent=self)
 
     def open_operations_section_org(self) -> None:
         incident_id = AppState.get_active_incident()
@@ -2804,6 +2841,18 @@ class MainWindow(QMainWindow):
         incident_id = AppState.get_active_incident()
         panel = sar.get_pod_panel(incident_id)
         self._open_panel(panel, title="POD Calculator")
+
+    def open_toolkit_sar_segment_manager(self) -> None:
+        from modules.sartoolkit import sar
+        incident_id = AppState.get_active_incident()
+        panel = sar.get_segment_manager_panel(incident_id)
+        self._open_panel(panel, title="Search Segment Manager")
+
+    def open_toolkit_sar_search_task_planner(self) -> None:
+        from modules.sartoolkit import sar
+        incident_id = AppState.get_active_incident()
+        panel = sar.get_search_task_planner_panel(incident_id)
+        self._open_panel(panel, title="Search Assignment Planner")
 
     def open_toolkit_disaster_damage(self) -> None:
         from modules.disasterresponse import disaster

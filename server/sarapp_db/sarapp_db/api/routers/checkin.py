@@ -721,3 +721,180 @@ def list_history(incident_id: str, person_record: int) -> list[dict[str, Any]]:
     if not doc:
         return []
     return _status_log_to_history(doc)
+
+
+# ---------------------------------------------------------------------------
+# Resource Package check-in integration (Stage 4)
+#
+# When a person/vehicle/other resource checks in, look up standing
+# associations/packages involving it and show which other expected
+# package/associated resources haven't checked in yet, let the operator
+# confirm which actually arrived (with substitution/omission), check in
+# only the confirmed ones, and avoid duplicate check-in. Absent package
+# members are never auto-checked-in.
+# ---------------------------------------------------------------------------
+
+_PACKAGE_CHECKED_IN_STATUSES = DERIVED_CHECKED_IN_STATUSES
+
+
+class PackageActivationsRepository(BaseRepository):
+    collection_name = IncidentCollections.PACKAGE_ACTIVATIONS
+
+
+def _package_activations_repo(incident_id: str) -> PackageActivationsRepository:
+    return PackageActivationsRepository(get_incident_db(incident_id))
+
+
+def _package_entity_type(resource_type: str) -> str:
+    return resource_type
+
+
+def _resource_status_doc(incident_id: str, resource_type: str, resource_id: int) -> dict[str, Any] | None:
+    return _resource_status_repo(incident_id).find_one(
+        {"entity_type": _package_entity_type(resource_type), "record_id": resource_id}
+    )
+
+
+def _member_status(incident_id: str, member: dict[str, Any], master_db) -> dict[str, Any]:
+    from sarapp_db.mongo.resource_kinds import find_resource, resource_display_name
+
+    resource_type = member.get("resource_type", "")
+    resource_id = int(member.get("resource_id") or 0)
+    master_doc = find_resource(master_db, resource_type, resource_id)
+    label = resource_display_name(master_doc, resource_type) or str(resource_id)
+    rs_doc = _resource_status_doc(incident_id, resource_type, resource_id)
+    status = (rs_doc or {}).get("status")
+    checked_in = str(status or "") in _PACKAGE_CHECKED_IN_STATUSES
+    return {
+        "resource_type": resource_type,
+        "resource_id": resource_id,
+        "label": label,
+        "membership": member.get("membership", "fixed"),
+        "role": member.get("role", ""),
+        "checked_in": checked_in,
+        "status": status,
+        "committed_to_team": status == "Assigned" and bool((rs_doc or {}).get("assignment_reference")),
+        "unavailable": status in ("Out of Service", "Unavailable", "Cancelled"),
+    }
+
+
+def _package_status_payload(incident_id: str, package_doc: dict[str, Any], master_db) -> dict[str, Any]:
+    members = [_member_status(incident_id, m, master_db) for m in (package_doc.get("resources") or [])]
+    return {
+        "package_id": package_doc.get("_id"),
+        "package_name": package_doc.get("name", ""),
+        "default_team_designation": package_doc.get("default_team_designation", ""),
+        "members": members,
+        "checked_in_count": sum(1 for m in members if m["checked_in"]),
+        "total_count": len(members),
+    }
+
+
+def _packages_repo():
+    from sarapp_db.api.routers.resource_packages import ResourcePackagesRepository
+
+    return ResourcePackagesRepository(get_master_db())
+
+
+@router.get("/package-suggestions/{resource_type}/{resource_id}")
+def package_suggestions(incident_id: str, resource_type: str, resource_id: int) -> list[dict[str, Any]]:
+    """Standing packages involving this resource, each annotated with which
+    members have/haven't checked in yet at this incident."""
+    repo = _packages_repo()
+    docs = repo.find_many(
+        {
+            "is_active": True,
+            "resources": {"$elemMatch": {"resource_type": resource_type, "resource_id": resource_id}},
+        },
+        sort=[("name", 1)],
+    )
+    return [_package_status_payload(incident_id, d, repo._db) for d in docs]
+
+
+@router.get("/packages/{package_id}/status")
+def package_status(incident_id: str, package_id: str) -> dict[str, Any]:
+    """Per-member checked-in status for one package, independent of any
+    single triggering resource (used by Team Builder's "Add from Package")."""
+    repo = _packages_repo()
+    doc = repo.find_by_id(package_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Resource package not found")
+    return _package_status_payload(incident_id, doc, repo._db)
+
+
+def _check_in_one(incident_id: str, resource_type: str, resource_id: int, *, activated_by: str) -> None:
+    """Check in a single resource, reusing the same idempotent (no-duplicate)
+    logic each resource kind's own check-in endpoint already uses."""
+    if resource_type == "personnel":
+        existing = _person_resource_status_doc(incident_id, resource_id)
+        if existing is not None and str(existing.get("status") or "") in _PACKAGE_CHECKED_IN_STATUSES:
+            return  # already checked in -- never duplicate the record
+        save_checkin(incident_id, resource_id, {"status": "Checked In", "arrival_time": _utcnow()})
+        return
+
+    from sarapp_db.api.routers.incident_resources import check_in_resource
+
+    existing = _resource_status_doc(incident_id, resource_type, resource_id)
+    if existing is not None and str(existing.get("status") or "") in _PACKAGE_CHECKED_IN_STATUSES:
+        return  # already checked in -- never duplicate the record
+    check_in_resource(incident_id, resource_type, str(resource_id), {"changed_by": activated_by})
+
+
+class PackageActivationMember(dict):
+    """Typed alias kept as a plain dict -- see ActivatePackageRequest."""
+
+
+@router.post("/packages/{package_id}/activate", status_code=201)
+def activate_package(
+    incident_id: str, package_id: str, body: dict[str, Any] = Body(...)
+) -> dict[str, Any]:
+    """Confirm which of a package's members actually arrived, with optional
+    substitutions and omissions, and check in only the confirmed set.
+
+    Body:
+        confirmed: [{resource_type, resource_id}, ...]  -- original package
+            members the operator confirms arrived as-is.
+        substitutions: [{original: {resource_type, resource_id},
+                          substitute: {resource_type, resource_id}}, ...]
+        omitted: [{resource_type, resource_id}, ...]  -- original package
+            members the operator confirms did NOT arrive. Never checked in.
+        activated_by: str
+    """
+    repo = _packages_repo()
+    package_doc = repo.find_by_id(package_id)
+    if package_doc is None:
+        raise HTTPException(status_code=404, detail="Resource package not found")
+
+    activated_by = str(body.get("activated_by") or "")
+    confirmed = body.get("confirmed") or []
+    substitutions = body.get("substitutions") or []
+    omitted = body.get("omitted") or []
+
+    for member in confirmed:
+        _check_in_one(incident_id, member["resource_type"], int(member["resource_id"]), activated_by=activated_by)
+    for sub in substitutions:
+        substitute = sub["substitute"]
+        _check_in_one(incident_id, substitute["resource_type"], int(substitute["resource_id"]), activated_by=activated_by)
+
+    now = _utcnow()
+    activation_doc = {
+        "incident_id": incident_id,
+        "package_id": package_id,
+        "package_name": package_doc.get("name", ""),
+        "activated_at": now,
+        "activated_by": activated_by,
+        "confirmed_members": confirmed,
+        "substitutions": substitutions,
+        "omitted_members": omitted,
+    }
+    saved = _package_activations_repo(incident_id).insert_one(activation_doc)
+    saved.pop("_id", None)
+    return saved
+
+
+@router.get("/packages/activations")
+def list_package_activations(incident_id: str) -> list[dict[str, Any]]:
+    docs = _package_activations_repo(incident_id).find_many({}, sort=[("activated_at", -1)])
+    for d in docs:
+        d.pop("_id", None)
+    return docs

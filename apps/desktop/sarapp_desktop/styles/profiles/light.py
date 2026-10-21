@@ -131,6 +131,13 @@ TEAM_STATUS: Dict[str, Dict[str, str]] = {
     "complete":         {"bg": "#2E7D32", "fg": "#ffffff"},
 }
 
+VALIDATION_STATUS: Dict[str, Dict[str, str]] = {
+    "ready":                 {"bg": "#098d00", "fg": "#000000"},
+    "ready with limitations": {"bg": "#FFC107", "fg": "#1a1a1a"},
+    "not ready":             {"bg": "#E53935", "fg": "#ffffff"},
+    "not evaluated":         {"bg": "#9e9e9e", "fg": "#000000"},
+}
+
 RESOURCE_STATUS: Dict[str, Dict[str, str]] = {
     "Pending":        {"bg": "#efe229", "fg": "#000000"},
     "Enroute":        {"bg": "#006ab6", "fg": "#000000"},
@@ -161,6 +168,28 @@ OBJECTIVE_STATUS: Dict[str, Dict[str, str]] = {
     "deferred":         {"bg": "#FFCA28", "fg": "#1a1a1a"},
     "completed":        {"bg": "#1E88E5", "fg": "#ffffff"},
     "cancelled":        {"bg": "#9E9E9E", "fg": "#1a1a1a"},
+}
+
+SEGMENT_PLANNING_STATUS: Dict[str, Dict[str, str]] = {
+    "draft":                  {"bg": "#B0BEC5", "fg": "#1a1a1a"},
+    "ready for evaluation":   {"bg": "#CE93D8", "fg": "#1a1a1a"},
+    "evaluated":              {"bg": "#26C6DA", "fg": "#1a1a1a"},
+    "ready for assignment":   {"bg": "#FFC107", "fg": "#1a1a1a"},
+    "deferred":               {"bg": "#E53935", "fg": "#ffffff"},
+}
+
+SEGMENT_SEARCH_STATUS: Dict[str, Dict[str, str]] = {
+    "unassigned":             {"bg": "#90A4AE", "fg": "#1a1a1a"},
+    "assigned":               {"bg": "#FFC107", "fg": "#1a1a1a"},
+    "in progress":            {"bg": "#00ACC1", "fg": "#ffffff"},
+    "searched":                {"bg": "#2E7D32", "fg": "#ffffff"},
+    "partially searched":     {"bg": "#FB8C00", "fg": "#1a1a1a"},
+}
+
+SEGMENT_REVIEW_STATUS: Dict[str, Dict[str, str]] = {
+    "pending review":         {"bg": "#B0BEC5", "fg": "#1a1a1a"},
+    "needs re-search":        {"bg": "#E53935", "fg": "#ffffff"},
+    "closed":                 {"bg": "#2E7D32", "fg": "#ffffff"},
 }
 
 OBJECTIVE_PRIORITY: Dict[str, Dict[str, str]] = {
@@ -486,6 +515,9 @@ __all__ = [
     "TASK_STATUS",
     "OBJECTIVE_STATUS",
     "OBJECTIVE_PRIORITY",
+    "SEGMENT_PLANNING_STATUS",
+    "SEGMENT_SEARCH_STATUS",
+    "SEGMENT_REVIEW_STATUS",
     "OPERATIONAL_PERIOD_STATUS",
     "MEETING_STATUS",
     "SITREP_STATUS",

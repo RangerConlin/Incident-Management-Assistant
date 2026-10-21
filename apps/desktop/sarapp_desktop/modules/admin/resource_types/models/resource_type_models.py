@@ -51,6 +51,23 @@ class ResourceCapability:
 
 
 @dataclass(slots=True)
+class ResourceTypeSpec:
+    """A single generic technical-specification entry (name/value/unit).
+
+    Deliberately schemaless (name/value/unit/notes only) so a brand-new
+    resource kind can record whatever specs matter to it -- pump capacity,
+    aircraft useful load, radio frequency range -- without a code change or
+    a new dataclass field. Attached to a `ResourceType` via
+    ``technical_specs``.
+    """
+
+    name: str
+    value: str = ""
+    unit: str = ""
+    notes: str = ""
+
+
+@dataclass(slots=True)
 class ResourceTypeComponent:
     """A child resource type and quantity contained in a kit/cache resource."""
 
@@ -106,6 +123,25 @@ class ResourceType:
     capability_ids: list[int] = field(default_factory=list)
     components: list[ResourceTypeComponent] = field(default_factory=list)
     fema_mappings: list[FemaNimsMapping] = field(default_factory=list)
+    # ------------------------------------------------------------------
+    # Resource Kind / composition requirements (extensible, generic fields --
+    # see module docstring). `kind` is what the resource *is* (e.g. "Fire
+    # Engine", "Ground Search Team"), distinct from the broad `category`
+    # above and from any formal FEMA/NIMS type in `fema_mappings`. It is
+    # deliberately free text, never a hardcoded enum, so a brand-new kind of
+    # resource never needs a code change to be added.
+    kind: str = ""
+    technical_specs: list[ResourceTypeSpec] = field(default_factory=list)
+    # Minimum staffing requirement for this resource/team kind, if any.
+    min_personnel: Optional[int] = None
+    # Qualification names/codes a member must hold to staff this kind.
+    required_qualifications: list[str] = field(default_factory=list)
+    # Other resource-type ids (equipment, usually) this kind cannot operate
+    # without, and ids that are optional/recommended but not mandatory.
+    required_equipment_ids: list[int] = field(default_factory=list)
+    recommended_equipment_ids: list[int] = field(default_factory=list)
+    # Any other composition requirement that doesn't fit a structured field.
+    composition_notes: str = ""
     id: Optional[int] = None
     created_at: str = ""
     updated_at: str = ""

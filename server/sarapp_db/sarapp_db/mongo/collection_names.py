@@ -79,6 +79,16 @@ class MasterCollections:
     RESOURCE_CAPABILITIES = "resource_capabilities"
     AGENCY_DIRECTORY = "agency_directory"
 
+    # Standing (not incident-specific) relationships between two individual
+    # master resources -- e.g. a radio assigned to a person, equipment
+    # carried onboard a vehicle. See resource_associations.py.
+    RESOURCE_ASSOCIATIONS = "resource_associations"
+
+    # Reusable resource packages (e.g. a CAP ground team, fire engine
+    # company) -- collections of personnel/vehicles/equipment that
+    # routinely respond together. See resource_packages.py.
+    RESOURCE_PACKAGES = "resource_packages"
+
     # Templates
     FORM_FAMILIES = "form_families"
     FORM_TEMPLATES = "form_templates"
@@ -227,6 +237,15 @@ class IncidentCollections:
     SPATIAL_FEATURES = "spatial_features"
     SPATIAL_FEATURE_LINKS = "spatial_feature_links"
 
+    # SAR Toolkit — Search Segment Management (segment records are a SAR
+    # planning object; GIS geometry is optional and owned by the GIS module
+    # when present, see docs/archive/design-documents/toolkit_sar_playbook.md)
+    SEARCH_SEGMENTS = "search_segments"
+    # SAR Toolkit — Search Assignment Planner. Holds ONLY the search-specific
+    # fields linked to an Operations task record (IncidentCollections.TASKS);
+    # Operations remains the sole owner of the task/assignment record itself.
+    SEARCH_TASK_DETAILS = "search_task_details"
+
     # ICS-208 Safety Message (one document per incident + op period)
     ICS_208_INSTANCES = "ics_208_instances"
 
@@ -275,3 +294,8 @@ class IncidentCollections:
 
     # Presence — per-incident online/away/unavailable roster for chat
     PRESENCE = "presence"
+
+    # Record of a Resource Package activated for this incident -- which
+    # package, which actual resources were used/substituted/omitted, when.
+    # See routers/checkin.py's package-activation endpoints.
+    PACKAGE_ACTIVATIONS = "package_activations"

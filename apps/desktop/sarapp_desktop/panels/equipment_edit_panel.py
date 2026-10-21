@@ -159,6 +159,12 @@ class EquipmentEditDialog(QDialog):
         form.addRow("Notes", self.e_notes)
         layout.addLayout(form)
 
+        from modules.admin.resource_associations.widgets.associations_panel import AssociationsPanel
+
+        equipment_record = record.get("equipment_record") if record else None
+        self.associations_panel = AssociationsPanel("equipment", equipment_record)
+        layout.addWidget(self.associations_panel)
+
         btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         btns.accepted.connect(self._on_accept)
         btns.rejected.connect(self.reject)
@@ -664,3 +670,26 @@ class EquipmentEditPanel(QWidget):
             )
         except Exception:
             pass
+
+
+def _open_equipment_detail_for_association(equipment_record: int) -> None:
+    try:
+        record = _api().get(f"{_BASE}/{equipment_record}")
+    except Exception:
+        record = None
+    if record is None:
+        return
+    dialog = EquipmentEditDialog(record=record)
+    if dialog.exec() == QDialog.DialogCode.Accepted:
+        try:
+            _api().patch(f"{_BASE}/{equipment_record}", json=dialog.payload())
+        except Exception:
+            pass
+
+
+try:
+    from modules.admin.resource_associations.widgets.associations_panel import register_open_handler
+
+    register_open_handler("equipment", _open_equipment_detail_for_association)
+except Exception:  # pragma: no cover - defensive import guard
+    pass

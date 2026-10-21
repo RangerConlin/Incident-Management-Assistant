@@ -124,6 +124,13 @@ TEAM_STATUS: Dict[str, Dict[str, str]] = {
     "complete":         {"bg": "#2f6d34", "fg": "#f5f5f5"},
 }
 
+VALIDATION_STATUS: Dict[str, Dict[str, str]] = {
+    "ready":                 {"bg": "#1b3a1f", "fg": "#dbdbdb"},
+    "ready with limitations": {"bg": "#4a3200", "fg": "#dbdbdb"},
+    "not ready":             {"bg": "#4a1200", "fg": "#dbdbdb"},
+    "not evaluated":         {"bg": "#2a2a2a", "fg": "#dbdbdb"},
+}
+
 RESOURCE_STATUS: Dict[str, Dict[str, str]] = {
     "Pending":        {"bg": "#4e3c00", "fg": "#dbdbdb"},
     "Enroute":        {"bg": "#0d2a4a", "fg": "#dbdbdb"},
@@ -155,6 +162,31 @@ OBJECTIVE_STATUS: Dict[str, Dict[str, str]] = {
     "deferred":         {"bg": "#f9a825", "fg": "#1a1a1a"},
     "completed":        {"bg": "#1565c0", "fg": "#f5f5f5"},
     "cancelled":        {"bg": "#616161", "fg": "#f5f5f5"},
+}
+
+# SAR Toolkit — Search Segment Manager status badges (segment `planning_status`,
+# `search_status`, `review_status`; see
+# docs/archive/design-documents/toolkit_sar_playbook.md "Search Segment Management").
+SEGMENT_PLANNING_STATUS: Dict[str, Dict[str, str]] = {
+    "draft":                  {"bg": "#616161", "fg": "#f5f5f5"},
+    "ready for evaluation":   {"bg": "#6d5478", "fg": "#f5f5f5"},
+    "evaluated":              {"bg": "#1aa8a8", "fg": "#f5f5f5"},
+    "ready for assignment":   {"bg": "#a88f1a", "fg": "#f5f5f5"},
+    "deferred":               {"bg": "#8c2f2f", "fg": "#f5f5f5"},
+}
+
+SEGMENT_SEARCH_STATUS: Dict[str, Dict[str, str]] = {
+    "unassigned":             {"bg": "#444c55", "fg": "#f5f5f5"},
+    "assigned":               {"bg": "#a88f1a", "fg": "#f5f5f5"},
+    "in progress":            {"bg": "#1f6088", "fg": "#f5f5f5"},
+    "searched":                {"bg": "#2f6d34", "fg": "#f5f5f5"},
+    "partially searched":     {"bg": "#b2700d", "fg": "#f5f5f5"},
+}
+
+SEGMENT_REVIEW_STATUS: Dict[str, Dict[str, str]] = {
+    "pending review":         {"bg": "#616161", "fg": "#f5f5f5"},
+    "needs re-search":        {"bg": "#8c2f2f", "fg": "#f5f5f5"},
+    "closed":                 {"bg": "#2f6d34", "fg": "#f5f5f5"},
 }
 
 OBJECTIVE_PRIORITY: Dict[str, Dict[str, str]] = {
@@ -490,6 +522,9 @@ __all__ = [
     "TASK_STATUS",
     "OBJECTIVE_STATUS",
     "OBJECTIVE_PRIORITY",
+    "SEGMENT_PLANNING_STATUS",
+    "SEGMENT_SEARCH_STATUS",
+    "SEGMENT_REVIEW_STATUS",
     "OPERATIONAL_PERIOD_STATUS",
     "MEETING_STATUS",
     "SITREP_STATUS",

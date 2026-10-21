@@ -358,6 +358,17 @@ def _active_user_display() -> str:
         return ""
 
 
+def fetch_team_validation(team_id: int) -> dict[str, Any]:
+    """Stage 6 readiness evaluation: {"outcome": "Ready" | "Ready with
+    Limitations" | "Not Ready" | "Not Evaluated", "messages": [...]}.
+    Always reads the team's live composition -- never a cached/assumed
+    value -- so callers should call this again after any edit."""
+    try:
+        return _client().get(f"{_base()}/teams/{team_id}/validation") or {"outcome": "Not Evaluated", "messages": []}
+    except Exception as exc:
+        return {"outcome": "Not Evaluated", "messages": [f"Validation unavailable: {exc}"]}
+
+
 def get_team_gar(team_id: int) -> dict[str, Any]:
     """Return {"current": {...} | None, "history": [...]} for a team's GAR assessments."""
     cached = _cached_team_doc(team_id)

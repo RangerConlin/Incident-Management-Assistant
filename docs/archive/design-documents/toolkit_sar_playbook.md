@@ -68,9 +68,36 @@ The SAR Toolkit should consume Intel outputs such as:
 - investigative findings relevant to search planning
 
 ## Current Repo Signals
-- Placeholder panels already exist for:
+- Placeholder panels still exist for:
   - Missing Person Toolkit
   - POD Calculator
+- Search Segment Management and Search Assignment Planner are now implemented
+  (no longer placeholders):
+  - Search Segment Management: `search_segments` MongoDB collection
+    (`IncidentCollections.SEARCH_SEGMENTS`), `SearchSegmentsRepository` and
+    router at `server/sarapp_db/sarapp_db/api/routers/search_segments.py`
+    (CRUD + an `auto-create-grid` batch-create endpoint doing rectangle
+    tiling/rotation math only — no real GIS clipping), and the desktop panel
+    at `apps/desktop/sarapp_desktop/modules/sartoolkit/panels/segment_manager_panel.py`
+    (`get_segment_manager_panel(incident_id)` in `windows.py`). A segment can
+    always be created with zero GIS geometry; `gis_reference` is optional.
+  - Search Assignment Planner: `search_task_details` MongoDB collection
+    (`IncidentCollections.SEARCH_TASK_DETAILS`) and router at
+    `server/sarapp_db/sarapp_db/api/routers/search_task_details.py`, plus the
+    desktop panel at
+    `apps/desktop/sarapp_desktop/modules/sartoolkit/panels/search_task_planner_panel.py`
+    (`get_search_task_planner_panel(incident_id)` in `windows.py`).
+    **Ownership decision**: per this doc's Search Segment Management
+    boundary notes and agents.md, Operations owns the official task/assignment
+    record and deployment lifecycle. `search_task_details` does NOT duplicate
+    that record — it holds only the search-specific fields (segment_id,
+    search_method, track_spacing, completion criteria, safety notes, radio
+    channel, team leader, departure/due-back times), keyed by the existing
+    Operations task's `int_id`. "Publish to Task Board" calls the existing
+    Operations tasking creation API
+    (`modules.operations.taskings.repository.create_task`) to create the real
+    task, then creates the linked `search_task_details` record — see
+    `apps/desktop/sarapp_desktop/modules/sartoolkit/data/search_task_repository.py`.
 - The active app wiring imports SAR tools from the root-level package `modules.sartoolkit`.
 - `modules/toolkits/sar` appears to be older scaffolding and should not drive new design decisions.
 
