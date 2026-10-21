@@ -533,7 +533,7 @@ def create_team(incident_id: str, body: dict[str, Any]) -> dict:
         "last_checkin_at": None,
         "checkin_reference_at": None,
         "last_comm_ping": None,
-        "members_json": body.get("members_json", "[]"),
+        "member_person_records": list(body.get("member_person_records") or []),
         "vehicles_json": body.get("vehicles_json", "[]"),
         "equipment_json": body.get("equipment_json", "[]"),
         "aircraft_json": body.get("aircraft_json", "[]"),
@@ -1188,7 +1188,7 @@ def list_task_personnel(incident_id: str, task_id: int) -> list[dict]:
     out: list[dict] = []
     for team in _task_team_docs(incident_id, task_id):
         team_name = team.get("name") or f"Team {team.get('int_id')}"
-        member_ids = _parse_id_list(team.get("members_json") or team.get("member_person_records") or team.get("member_personnel_ids"))
+        member_ids = _parse_id_list(team.get("member_person_records"))
         for pid in member_ids:
             person = _find_incident_person(incident_id, pid)
             if not person:

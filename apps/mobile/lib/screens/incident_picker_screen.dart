@@ -5,6 +5,7 @@ import '../services/local_profile_store.dart';
 import '../services/sarapp_api_client.dart';
 import '../utils/natural_sort.dart';
 import 'field_dashboard_screen.dart';
+import 'incident_staff_dashboard_screen.dart';
 
 /// Choose an incident and team on the connected server, then join as the
 /// saved profile. There is no sign-in here: the profile already identifies
@@ -105,12 +106,12 @@ class _IncidentPickerScreenState extends State<IncidentPickerScreen> {
       setState(() {
         _teams =
             teams
-                .map((e) => Map<String, dynamic>.from(e as Map<dynamic, dynamic>))
+                .map(
+                  (e) => Map<String, dynamic>.from(e as Map<dynamic, dynamic>),
+                )
                 .toList()
               ..sort((a, b) => naturalCompare(_teamName(a), _teamName(b)));
-        if (!_teams.contains(_selectedTeam)) {
-          _selectedTeam = _teams.isNotEmpty ? _teams.first : null;
-        }
+        if (!_teams.contains(_selectedTeam)) _selectedTeam = null;
       });
     } catch (e) {
       if (mounted) {
@@ -139,18 +140,13 @@ class _IncidentPickerScreenState extends State<IncidentPickerScreen> {
   String _teamName(Map<String, dynamic> team) =>
       '${team['team_name'] ?? _teamId(team)}';
 
-  Future<void> _join() async {
+  Future<void> _join({bool withoutTeam = false}) async {
     final incident = _selectedIncident;
-    final team = _selectedTeam;
+    final team = withoutTeam ? null : _selectedTeam;
     if (incident == null) {
       setState(() => _errorMessage = 'Select an incident.');
       return;
     }
-    if (team == null) {
-      setState(() => _errorMessage = 'Select your team.');
-      return;
-    }
-
     setState(() {
       _joining = true;
       _errorMessage = null;
@@ -160,26 +156,34 @@ class _IncidentPickerScreenState extends State<IncidentPickerScreen> {
         profile: widget.profile,
         incidentId: _incidentId(incident),
         incidentName: _incidentName(incident),
-        teamId: _teamId(team),
-        teamName: _teamName(team),
+        teamId: team == null ? null : _teamId(team),
+        teamName: team == null ? null : _teamName(team),
       );
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(
-          builder: (_) => FieldDashboardScreen(
-            incidentId: started.incidentId,
-            incidentName: started.incidentName,
-            incidentType: started.incidentType,
-            teamId: started.teamId,
-            teamName: started.teamName,
-            session: started.session,
-          ),
+          builder: (_) => started.teamId.isEmpty
+              ? IncidentStaffDashboardScreen(
+                  incidentId: started.incidentId,
+                  incidentName: started.incidentName,
+                  session: started.session,
+                )
+              : FieldDashboardScreen(
+                  incidentId: started.incidentId,
+                  incidentName: started.incidentName,
+                  incidentType: started.incidentType,
+                  teamId: started.teamId,
+                  teamName: started.teamName,
+                  session: started.session,
+                ),
         ),
         (route) => false,
       );
     } catch (e) {
       if (mounted) {
-        setState(() => _errorMessage = 'Could not load incident: ${_describe(e)}');
+        setState(
+          () => _errorMessage = 'Could not load incident: ${_describe(e)}',
+        );
       }
     } finally {
       if (mounted) setState(() => _joining = false);
@@ -287,9 +291,10 @@ class _IncidentPickerScreenState extends State<IncidentPickerScreen> {
           const SizedBox(height: 16),
           if (_errorMessage != null) _errorText(_errorMessage!),
           FilledButton(
-            onPressed: (_joining || _selectedIncident == null || _selectedTeam == null)
+            onPressed:
+                (_joining || _selectedIncident == null || _selectedTeam == null)
                 ? null
-                : _join,
+                : () => _join(),
             child: _joining
                 ? const SizedBox(
                     width: 20,
@@ -297,6 +302,13 @@ class _IncidentPickerScreenState extends State<IncidentPickerScreen> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Text('Load incident'),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton(
+            onPressed: (_joining || _selectedIncident == null)
+                ? null
+                : () => _join(withoutTeam: true),
+            child: const Text('Enter without a field team'),
           ),
         ],
       ),

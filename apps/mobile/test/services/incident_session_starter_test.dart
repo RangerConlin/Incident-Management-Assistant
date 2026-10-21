@@ -51,6 +51,16 @@ void main() {
               jsonEncode({'session_id': 's1', 'person_record': 42}),
               201,
             );
+          case '/api/incidents/i1/mobile/entry':
+            return http.Response(
+              jsonEncode({
+                'person': {'person_record': 42, 'name': 'Jane Doe'},
+                'resource_status': {'status': 'Checked In'},
+                'team': {'team_id': 1, 'team_name': 'Team 1'},
+                'staff_assignments': [],
+              }),
+              200,
+            );
           case '/api/incidents/i1/profile':
             return http.Response(jsonEncode({'type': 'SAR'}), 200);
           default:
@@ -63,7 +73,7 @@ void main() {
         profile: _profile,
         incidentId: 'i1',
         incidentName: 'Training',
-        teamId: 't1',
+        teamId: '1',
         teamName: 'Team 1',
       );
       return (started: started, requests: requests, error: null);

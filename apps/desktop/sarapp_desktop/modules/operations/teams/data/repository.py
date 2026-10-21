@@ -131,7 +131,7 @@ def get_team(team_id: int) -> Optional[Team]:
     raw_leader = doc.get("leader_person_record") or doc.get("team_leader") or doc.get("leader_personnel_id")
     leader_id = _parse_int(raw_leader)
     current_task_id = _parse_int(doc.get("current_task_id"))
-    members = _parse_int_list(doc.get("members_json") or doc.get("member_person_records") or doc.get("member_personnel_ids"))
+    members = _parse_int_list(doc.get("member_person_records"))
     leader_phone = doc.get("leader_phone") or doc.get("phone") or _cached_personnel_phone(raw_leader)
     return Team(
         team_id=int(doc.get("int_id") or team_id),
@@ -174,7 +174,7 @@ def save_team(team: Team, *, clear_operational_unit: bool = False) -> Team:
         "notes": getattr(team, "notes", None),
         "status": getattr(team, "status", None),
         "location": getattr(team, "location", None),
-        "members_json": json.dumps(list(getattr(team, "members", []) or [])),
+        "member_person_records": list(getattr(team, "members", []) or []),
         "vehicles_json": json.dumps(list(getattr(team, "vehicles", []) or [])),
         "equipment_json": json.dumps(list(getattr(team, "equipment", []) or [])),
         "aircraft_json": json.dumps(list(getattr(team, "aircraft", []) or [])),

@@ -69,7 +69,7 @@ def _seed():
         "team_leader": LEADER_ID,
         # Deliberately does NOT include OUTSIDER_ID — team attribution comes
         # from the ping's team_id, not this roster list.
-        "members_json": f"[{LEADER_ID}, {MEMBER_ID}]",
+        "member_person_records": [LEADER_ID, MEMBER_ID],
         "current_location_lat": None,
         "current_location_lon": None,
         "current_location_updated_at": None,
@@ -234,7 +234,7 @@ def test_non_leader_ping_accepted_once_leader_not_source():
 def test_person_not_on_roster_still_recorded_for_signed_in_team():
     """The device's signed-in team_id is trusted directly — no roster-
     membership gate. OUTSIDER_ID is checked in but not in the team's
-    members_json, and the ping still records."""
+    member roster, and the ping still records."""
     _clear()
     _seed()
     app = create_app()

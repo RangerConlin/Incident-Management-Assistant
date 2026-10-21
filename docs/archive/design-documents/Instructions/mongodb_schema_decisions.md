@@ -155,3 +155,13 @@
 - Document shape: `{incident_id, int_id, source_type: "objective"|"task", source_id, source_title, auto_summary, lofr_summary, ready_to_report, last_synced_at, updated_by, updated_at}`. `int_id` is sequential per-incident like the rest of the Liaison collections (see `_next_int_id` in `liaison.py`).
 - Objectives (`objectives.py`) and Tasks (`operations.py`'s task-create endpoint) both gained optional `origin_module`/`origin_id` fields so a customer request logged in Liaison can be converted directly into a real Objective or Task with a back-link to where it came from. This is the same directional-FK pattern Liaison Feedback already used (`objective_id`/`task_id`/`resource_request_id` on `FeedbackItem`), just reversed: the *new* Objective/Task points back at its Liaison origin instead of Liaison pointing at an existing Objective/Task.
 - `liaison_agency_requests` gained `converted_to_type`/`converted_to_id` (set via `PATCH .../agency-requests/{id}/converted`) so the Customer Requests board can show a request has already been actioned and block converting it twice.
+# Team personnel membership
+
+Team personnel membership is canonical on each incident `teams` document as
+the integer array `member_person_records`. The legacy JSON-string
+`members_json` field is retired. The array is indexed so both team-to-person
+and person-to-team lookups remain fast without copying the assignment onto
+`incident_personnel`. Existing incident databases must be converted with
+`sarapp_db.migrations.migrate_team_member_person_records` before clients rely
+on mobile participation context.
+

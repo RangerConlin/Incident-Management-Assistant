@@ -88,6 +88,7 @@ def _create_teams_indexes(incident_db: Database) -> None:
     _ensure_index(teams, [("int_id", ASCENDING)], unique=True, sparse=True)
     _ensure_index(teams, [("name", ASCENDING)])
     _ensure_index(teams, [("status", ASCENDING)])
+    _ensure_index(teams, [("member_person_records", ASCENDING)])
 
 
 def _create_tasks_indexes(incident_db: Database) -> None:

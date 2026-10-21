@@ -68,7 +68,7 @@ _ASSET_COLLECTIONS = {
 
 def _team_refs(team_doc: dict[str, Any]) -> list[tuple[str, int]]:
     refs: list[tuple[str, int]] = []
-    for pid in _parse_json_int_list(team_doc.get("members_json")):
+    for pid in _parse_json_int_list(team_doc.get("member_person_records")):
         refs.append(("personnel", pid))
     for kind, json_field in _ASSET_FIELDS:
         for rid in _parse_json_int_list(team_doc.get(json_field)):
@@ -158,7 +158,7 @@ def validate_team(incident_id: str, team_id: int) -> dict[str, Any]:
             {"resource_type_id": str(resource_type_id)}
         )
 
-    personnel_ids = _parse_json_int_list(team_doc.get("members_json"))
+    personnel_ids = _parse_json_int_list(team_doc.get("member_person_records"))
     composition = TeamComposition(
         personnel_ids=personnel_ids,
         personnel_qualifications={pid: _person_qualifications(master_db, pid) for pid in personnel_ids},

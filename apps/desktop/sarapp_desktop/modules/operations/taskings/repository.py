@@ -372,7 +372,7 @@ def _personnel_rollup_from_cache(task_id: int) -> Optional[List[Dict[str, Any]]]
         team = teams_by_id.get(int(tid))
         if not team:
             continue
-        member_ids = _parse_id_list(team.get("members_json") or team.get("member_person_records") or team.get("member_personnel_ids"))
+        member_ids = _parse_id_list(team.get("member_person_records"))
         for pid in member_ids:
             person = personnel_by_id.get(pid)
             if not person:

@@ -10,8 +10,7 @@ class Team:
     """Team domain model used by Team Detail Window.
 
     This model mirrors the minimum fields we need across UI and persistence.
-    Multi-valued relationships are stored as lists and persisted as JSON blobs
-    in the teams table (best-effort) until dedicated link tables are finalized.
+    Multi-valued relationships are stored as lists on the team document.
     """
 
     team_id: Optional[int] = None
@@ -84,7 +83,7 @@ class Team:
             "last_comm_ping": (self.last_comm_ts.isoformat(timespec="seconds") if self.last_comm_ts else None),
             "last_known_lat": self.last_known_lat,
             "last_known_lon": self.last_known_lon,
-            "members_json": json.dumps(list(self.members or [])),
+            "member_person_records": list(self.members or []),
             "vehicles_json": json.dumps(list(self.vehicles or [])),
             "equipment_json": json.dumps(list(self.equipment or [])),
             "aircraft_json": json.dumps(list(self.aircraft or [])),

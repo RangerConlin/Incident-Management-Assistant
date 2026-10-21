@@ -86,19 +86,24 @@ def _resolve_audience(
         person_records.append(int(audience_user_id))
 
     if audience_role:
-        personnel_col = db[IncidentCollections.INCIDENT_PERSONNEL]
-        for doc in personnel_col.find({"role": audience_role, "person_record": {"$exists": True}}):
-            person_records.append(int(doc["person_record"]))
+        org_col = db[IncidentCollections.INCIDENT_ORG]
+        for position in org_col.find(
+            {
+                "title": audience_role,
+                "status": {"$ne": "inactive"},
+            }
+        ):
+            for bucket in ("primary", "deputies", "staff_assistants"):
+                for assignment in position.get(bucket) or []:
+                    record = assignment.get("person_record")
+                    if record is not None and assignment.get("end_time") is None:
+                        person_records.append(int(record))
 
     if audience_team_id is not None:
         team_col = db[IncidentCollections.TEAMS]
         team_doc = team_col.find_one({"int_id": int(audience_team_id)})
         if team_doc:
-            members = (
-                team_doc.get("members_json")
-                or team_doc.get("member_person_records")
-                or team_doc.get("member_personnel_ids")
-            )
+            members = team_doc.get("member_person_records")
             person_records.extend(_parse_member_ids(members))
 
     seen: set[int] = set()

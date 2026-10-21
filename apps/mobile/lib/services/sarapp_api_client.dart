@@ -7,6 +7,7 @@ import '../models/geocode_result.dart';
 import '../models/incident_alert.dart';
 import '../models/ics205_plan.dart';
 import '../models/ics206_plan.dart';
+import '../models/mobile_incident_context.dart';
 import '../models/team_location.dart';
 import 'local_profile_store.dart';
 
@@ -195,6 +196,25 @@ class SarAppApiClient {
     String incidentId,
     String personRecord,
   ) => _getJson('/api/incidents/$incidentId/checkin/$personRecord');
+
+  Future<MobileIncidentContext> enterIncident({
+    required String incidentId,
+    required int personRecord,
+    String? teamId,
+  }) async {
+    final parsedTeamId = teamId == null || teamId.isEmpty
+        ? null
+        : int.tryParse(teamId);
+    return MobileIncidentContext.fromJson(
+      await _postJson(
+        '/api/incidents/$incidentId/mobile/entry',
+        body: {
+          'person_record': personRecord,
+          if (parsedTeamId != null) 'team_id': parsedTeamId,
+        },
+      ),
+    );
+  }
 
   /// Checks a login ID against the personnel roster. The result's status says
   /// whether the ID matched exactly one record, none (offer to create one) or
@@ -462,10 +482,9 @@ class SarAppApiClient {
     String incidentId,
     String teamIntId, {
     String? since,
-  }) => _getJsonList(
-    '/api/incidents/$incidentId/mobile/teams/$teamIntId/log',
-    {'since': ?since},
-  );
+  }) => _getJsonList('/api/incidents/$incidentId/mobile/teams/$teamIntId/log', {
+    'since': ?since,
+  });
 
   Future<Map<String, dynamic>> postTeamLogEntry({
     required String incidentId,

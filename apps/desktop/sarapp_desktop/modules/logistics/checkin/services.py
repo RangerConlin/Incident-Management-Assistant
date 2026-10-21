@@ -232,7 +232,7 @@ class CheckInService:
         if not incident_id or not resource_id:
             return False
         field_map = {
-            "personnel": "members_json",
+            "personnel": "member_person_records",
             "vehicle": "vehicles_json",
             "aircraft": "aircraft_json",
             "equipment": "equipment_json",

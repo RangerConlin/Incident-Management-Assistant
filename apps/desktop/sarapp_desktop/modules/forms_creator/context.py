@@ -1692,7 +1692,7 @@ class FormDataContext:
                     leader_name = ""
 
             member_count = 0
-            members_raw = team.get("members_json") or team.get("members")
+            members_raw = team.get("member_person_records") or []
             if isinstance(members_raw, str):
                 import json as _json
                 try:

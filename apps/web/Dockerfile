@@ -3,7 +3,7 @@
 # Traefik labels), but standalone: this never touches those directories or
 # their images. Build context is apps/web/ itself.
 
-FROM node:20.17-alpine AS build
+FROM node:22-alpine AS build
 WORKDIR /build
 COPY package.json package-lock.json ./
 RUN npm ci

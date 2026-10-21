@@ -41,6 +41,22 @@ MVP mobile endpoints:
 - GET /api/incidents/{incident_id}/checkin/personnel/search?q={query}
 - PUT /api/incidents/{incident_id}/checkin/{person_id}
 - GET /api/incidents/{incident_id}/checkin/roster
+- POST /api/incidents/{incident_id}/mobile/entry
+  Body: {person_record, team_id?}. Enters a known person into the incident,
+  creating their checked-in resource-status and incident-personnel records
+  when needed. If team_id is supplied, the person is placed on that team.
+  Returns factual context only: {person, resource_status, team?,
+  staff_assignments[]}. The client decides which experience to display.
+- GET /api/incidents/{incident_id}/mobile/context/{person_record}
+  Returns the same factual context without changing incident state.
+
+Mobile participation rules:
+- A person does not need to be pre-added to enter an incident.
+- Team membership is stored canonically on the team document in
+  member_person_records and is found through an indexed lookup.
+- Staff assignments remain canonical in incident_org.
+- The server never tells mobile which screen to display. Mobile currently
+  opens Field MDT when team is present and Incident Staff when it is absent.
 
 Push notifications (FCM):
 - POST /api/mobile/push-token — legacy notification-token registration.

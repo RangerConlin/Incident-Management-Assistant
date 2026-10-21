@@ -62,7 +62,7 @@ def create_app(server_info_fn=None, request_log_fn=None, mode: str = "full") -> 
     include_incident_routers = mode == "full"
     app = FastAPI(
         title="SARApp API",
-        version="0.1.2",
+        version="0.1.3",
         docs_url="/docs",
         redoc_url=None,
     )
@@ -213,6 +213,7 @@ def create_app(server_info_fn=None, request_log_fn=None, mode: str = "full") -> 
         from sarapp_db.api.routers import client_connections
         from sarapp_db.api.routers import push_tokens
         from sarapp_db.api.routers import mobile_location
+        from sarapp_db.api.routers import mobile_context
         app.include_router(objectives.router, prefix="/api/objectives", tags=["objectives"])
         app.include_router(auth_sessions.router, prefix="/api/auth", tags=["auth"])
         app.include_router(audit.router, prefix="/api/audit", tags=["audit"])
@@ -221,6 +222,7 @@ def create_app(server_info_fn=None, request_log_fn=None, mode: str = "full") -> 
         app.include_router(client_connections.router, prefix="/api/client-connections", tags=["client-connections"])
         app.include_router(push_tokens.router, prefix="/api/mobile", tags=["mobile"])
         app.include_router(mobile_location.router, prefix="/api/mobile", tags=["mobile"])
+        app.include_router(mobile_context.router, prefix="/api/incidents", tags=["mobile"])
 
         from sarapp_db.api.routers import ic_overview
         app.include_router(ic_overview.router, prefix="/api/incidents", tags=["incidents"])

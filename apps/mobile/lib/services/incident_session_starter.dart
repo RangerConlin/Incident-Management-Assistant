@@ -35,8 +35,8 @@ class IncidentSessionStarter {
     required LocalProfile profile,
     required String incidentId,
     required String incidentName,
-    required String teamId,
-    required String teamName,
+    String? teamId,
+    String? teamName,
   }) async {
     await ProfileSync(_api).sync(profile);
 
@@ -51,23 +51,26 @@ class IncidentSessionStarter {
     // screen shows the real id, not the record.
     session['person_id'] = profile.personId;
 
-    // The check-in endpoint keys off an integer `person_record`, resolved
-    // server-side during startSession. Best-effort: associate the team
-    // server-side, but never block joining on it — the team is always saved
-    // locally regardless. There's no role/permission gating on this.
     final personRecord =
         session['person_record'] ?? session['user']?['person_record'];
-    if (personRecord != null) {
-      try {
-        await _api.submitCheckin(
-          incidentId: incidentId,
-          personId: '$personRecord',
-          checkinPayload: {'team_id': teamId},
-        );
-      } on SarAppApiException {
-        // Non-fatal: the team is still recorded locally below.
-      }
+    if (personRecord == null) {
+      throw SarAppApiException(
+        'The server session did not identify a personnel record.',
+      );
     }
+    final context = await _api.enterIncident(
+      incidentId: incidentId,
+      personRecord: int.parse('$personRecord'),
+      teamId: teamId,
+    );
+    session['mobile_context'] = {
+      'person': context.person,
+      'resource_status': context.resourceStatus,
+      'team': context.team,
+      'staff_assignments': context.staffAssignments,
+    };
+    final resolvedTeamId = context.teamId;
+    final resolvedTeamName = context.teamName;
 
     // Best-effort: the incident type drives which tab content/extra screens
     // show up (see `IncidentCategory`). An unknown type falls back to the
@@ -85,8 +88,8 @@ class IncidentSessionStarter {
       incidentId: incidentId,
       incidentName: incidentName,
       incidentType: incidentType,
-      teamId: teamId,
-      teamName: teamName,
+      teamId: resolvedTeamId,
+      teamName: resolvedTeamName,
       session: session,
     );
 
@@ -97,8 +100,8 @@ class IncidentSessionStarter {
       incidentId: incidentId,
       incidentName: incidentName,
       incidentType: incidentType,
-      teamId: teamId,
-      teamName: teamName,
+      teamId: resolvedTeamId,
+      teamName: resolvedTeamName,
       session: session,
     );
   }

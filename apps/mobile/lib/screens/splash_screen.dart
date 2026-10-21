@@ -6,6 +6,7 @@ import '../services/server_connection_store.dart';
 import '../services/session_store.dart';
 import '../widgets/arc_horizon_mark.dart';
 import 'field_dashboard_screen.dart';
+import 'incident_staff_dashboard_screen.dart';
 import 'main_menu_screen.dart';
 
 /// First screen on launch. Loads what's stored on the device — no network —
@@ -47,6 +48,12 @@ class _SplashScreenState extends State<SplashScreen> {
 
     final Widget next = saved == null
         ? const MainMenuScreen()
+        : saved.teamId.isEmpty
+        ? IncidentStaffDashboardScreen(
+            incidentId: saved.incidentId,
+            incidentName: saved.incidentName,
+            session: saved.session,
+          )
         : FieldDashboardScreen(
             incidentId: saved.incidentId,
             incidentName: saved.incidentName,
@@ -81,10 +88,9 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final logoWidth = (MediaQuery.sizeOf(context).width - 48).clamp(
-      0.0,
-      320.0,
-    ).toDouble();
+    final logoWidth = (MediaQuery.sizeOf(context).width - 48)
+        .clamp(0.0, 320.0)
+        .toDouble();
     return Scaffold(
       body: SafeArea(
         child: Column(

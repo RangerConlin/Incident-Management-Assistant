@@ -29,12 +29,12 @@ class _TeamManagementScreenState extends State<TeamManagementScreen>
   late final SarAppApiClient _apiClient =
       widget._injectedApiClient ?? SarAppApiClient();
   late final bool _ownsApiClient = widget._injectedApiClient == null;
-  late final TabController _tabController = TabController(length: 3, vsync: this)
-    ..addListener(() {
-      if (!_tabController.indexIsChanging && mounted) {
-        setState(() {});
-      }
-    });
+  late final TabController _tabController =
+      TabController(length: 3, vsync: this)..addListener(() {
+        if (!_tabController.indexIsChanging && mounted) {
+          setState(() {});
+        }
+      });
 
   Map<String, dynamic>? _team;
   List<Map<String, dynamic>> _personnel = const [];
@@ -70,24 +70,34 @@ class _TeamManagementScreenState extends State<TeamManagementScreen>
     });
     try {
       final team = await _loadTeam();
-      final roster = await _apiClient.fetchCheckinRoster(widget.args.incidentId);
-      final resources = await _apiClient.fetchResourceStatuses(widget.args.incidentId);
+      final roster = await _apiClient.fetchCheckinRoster(
+        widget.args.incidentId,
+      );
+      final resources = await _apiClient.fetchResourceStatuses(
+        widget.args.incidentId,
+      );
       if (!mounted) return;
       setState(() {
         _team = team;
-        _personnel = roster
-            .whereType<Map>()
-            .map((e) => Map<String, dynamic>.from(e))
-            .where(_belongsToCurrentTeam)
-            .toList()
-          ..sort((a, b) => _personName(a).compareTo(_personName(b)));
-        _resources = resources
-            .whereType<Map>()
-            .map((e) => Map<String, dynamic>.from(e))
-            .where(_isTeamResource)
-            .where((row) => '${row['entity_type'] ?? ''}'.toLowerCase() != 'personnel')
-            .toList()
-          ..sort((a, b) => _resourceName(a).compareTo(_resourceName(b)));
+        _personnel =
+            roster
+                .whereType<Map>()
+                .map((e) => Map<String, dynamic>.from(e))
+                .where(_belongsToCurrentTeam)
+                .toList()
+              ..sort((a, b) => _personName(a).compareTo(_personName(b)));
+        _resources =
+            resources
+                .whereType<Map>()
+                .map((e) => Map<String, dynamic>.from(e))
+                .where(_isTeamResource)
+                .where(
+                  (row) =>
+                      '${row['entity_type'] ?? ''}'.toLowerCase() !=
+                      'personnel',
+                )
+                .toList()
+              ..sort((a, b) => _resourceName(a).compareTo(_resourceName(b)));
       });
     } on SarAppApiException catch (e) {
       if (mounted) {
@@ -113,16 +123,21 @@ class _TeamManagementScreenState extends State<TeamManagementScreen>
         .map((e) => Map<String, dynamic>.from(e))
         .cast<Map<String, dynamic>?>()
         .firstWhere(
-          (row) => '${row?['name'] ?? ''}'.trim().toLowerCase() ==
+          (row) =>
+              '${row?['name'] ?? ''}'.trim().toLowerCase() ==
               widget.args.teamName.trim().toLowerCase(),
           orElse: () => null,
         );
     if (match == null) {
-      throw SarAppApiException('Unable to find team "${widget.args.teamName}".');
+      throw SarAppApiException(
+        'Unable to find team "${widget.args.teamName}".',
+      );
     }
     final intId = parseInt(match['int_id']);
     if (intId == null) {
-      throw SarAppApiException('The selected team does not have a valid team id.');
+      throw SarAppApiException(
+        'The selected team does not have a valid team id.',
+      );
     }
     return _apiClient.fetchTeam(widget.args.incidentId, '$intId');
   }
@@ -149,20 +164,26 @@ class _TeamManagementScreenState extends State<TeamManagementScreen>
 
   String _personName(Map<String, dynamic> row) {
     final name = '${row['name'] ?? row['resource_name'] ?? ''}'.trim();
-    return name.isNotEmpty ? name : 'Person ${row['person_record'] ?? row['person_id'] ?? ''}';
+    return name.isNotEmpty
+        ? name
+        : 'Person ${row['person_record'] ?? row['person_id'] ?? ''}';
   }
 
   String _personRole(Map<String, dynamic> row) {
-    return '${row['role'] ?? row['primary_role'] ?? row['role_on_team'] ?? ''}'.trim();
+    return '${row['role'] ?? row['primary_role'] ?? row['role_on_team'] ?? ''}'
+        .trim();
   }
 
   String _resourceName(Map<String, dynamic> row) {
     final name = '${row['resource_name'] ?? row['name'] ?? ''}'.trim();
-    return name.isNotEmpty ? name : 'Resource ${row['record_id'] ?? row['resource_id'] ?? ''}';
+    return name.isNotEmpty
+        ? name
+        : 'Resource ${row['record_id'] ?? row['resource_id'] ?? ''}';
   }
 
   String _resourceTypeLabel(Map<String, dynamic> row) {
-    final raw = '${row['resource_type'] ?? row['entity_type'] ?? 'Resource'}'.trim();
+    final raw = '${row['resource_type'] ?? row['entity_type'] ?? 'Resource'}'
+        .trim();
     return raw.isEmpty ? 'Resource' : raw;
   }
 
@@ -177,7 +198,10 @@ class _TeamManagementScreenState extends State<TeamManagementScreen>
     for (final field in fields) {
       final value = _team?[field];
       if (value is List) {
-        final ids = value.map((e) => '$e'.trim()).where((e) => e.isNotEmpty).toSet();
+        final ids = value
+            .map((e) => '$e'.trim())
+            .where((e) => e.isNotEmpty)
+            .toSet();
         if (ids.isNotEmpty) return ids;
       }
       final raw = '${value ?? ''}'.trim();
@@ -216,17 +240,12 @@ class _TeamManagementScreenState extends State<TeamManagementScreen>
     }
     final sorted = ids.toList()..sort();
     final body = switch (entityType) {
-      'vehicle' => {
-          'vehicles_json': jsonEncode(sorted),
-          'vehicle_ids': sorted,
-        },
-      'equipment' => {
-          'equipment_json': jsonEncode(sorted),
-        },
+      'vehicle' => {'vehicles_json': jsonEncode(sorted), 'vehicle_ids': sorted},
+      'equipment' => {'equipment_json': jsonEncode(sorted)},
       'aircraft' => {
-          'aircraft_json': jsonEncode(sorted),
-          'aircraft_ids': sorted,
-        },
+        'aircraft_json': jsonEncode(sorted),
+        'aircraft_ids': sorted,
+      },
       _ => <String, dynamic>{},
     };
     if (body.isEmpty) return;
@@ -239,14 +258,16 @@ class _TeamManagementScreenState extends State<TeamManagementScreen>
 
   Future<void> _showError(Object error) async {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$error')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('$error')));
   }
 
   Future<void> _showSaved(String message) async {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _syncTeamMemberIds(Set<int> memberIds) async {
@@ -257,10 +278,7 @@ class _TeamManagementScreenState extends State<TeamManagementScreen>
     await _apiClient.updateTeam(
       incidentId: widget.args.incidentId,
       teamIntId: '$teamIntId',
-      body: {
-        'member_person_records': memberIds.toList()..sort(),
-        'members_json': jsonEncode(memberIds.toList()..sort()),
-      },
+      body: {'member_person_records': memberIds.toList()..sort()},
     );
   }
 
@@ -269,14 +287,6 @@ class _TeamManagementScreenState extends State<TeamManagementScreen>
     if (values is List) {
       return values.map(parseInt).whereType<int>().toSet();
     }
-    final raw = '${_team?['members_json'] ?? ''}'.trim();
-    if (raw.isEmpty) return <int>{};
-    try {
-      final decoded = jsonDecode(raw);
-      if (decoded is List) {
-        return decoded.map(parseInt).whereType<int>().toSet();
-      }
-    } catch (_) {}
     return <int>{};
   }
 
@@ -297,7 +307,10 @@ class _TeamManagementScreenState extends State<TeamManagementScreen>
     try {
       Map<String, dynamic> existing = <String, dynamic>{};
       try {
-        existing = await _apiClient.fetchCheckin(widget.args.incidentId, '$personRecord');
+        existing = await _apiClient.fetchCheckin(
+          widget.args.incidentId,
+          '$personRecord',
+        );
       } on SarAppApiException catch (e) {
         if (e.statusCode != 404) rethrow;
       }
@@ -311,7 +324,8 @@ class _TeamManagementScreenState extends State<TeamManagementScreen>
           'location': existing['location'] ?? 'ICP',
           'notes': existing['notes'],
           'arrival_time':
-              existing['arrival_time'] ?? DateTime.now().toUtc().toIso8601String(),
+              existing['arrival_time'] ??
+              DateTime.now().toUtc().toIso8601String(),
         },
       );
       final memberIds = _currentMemberIds()..add(personRecord);
@@ -437,7 +451,11 @@ class _TeamManagementScreenState extends State<TeamManagementScreen>
           'changed_by': _changedBy,
         },
       );
-      await _syncTeamAssetIds(resource.entityType, resource.recordId, add: true);
+      await _syncTeamAssetIds(
+        resource.entityType,
+        resource.recordId,
+        add: true,
+      );
       await _load();
       await _showSaved('Assigned ${resource.displayName} to $_teamName.');
     } catch (e) {
@@ -450,8 +468,8 @@ class _TeamManagementScreenState extends State<TeamManagementScreen>
       context: context,
       builder: (context) => _ResourceEditDialog(
         initialResourceType: '${row['entity_type'] ?? 'vehicle'}',
-        initialResourceId:
-            '${row['record_id'] ?? row['resource_id'] ?? ''}'.trim(),
+        initialResourceId: '${row['record_id'] ?? row['resource_id'] ?? ''}'
+            .trim(),
         initialStatus: '${row['status'] ?? 'Assigned'}',
         initialLocation: '${row['location'] ?? ''}',
         initialNotes: '${row['notes'] ?? ''}',
@@ -461,7 +479,9 @@ class _TeamManagementScreenState extends State<TeamManagementScreen>
     if (updated == null) return;
     final itemId = '${row['id'] ?? row['_id'] ?? ''}'.trim();
     if (itemId.isEmpty) {
-      await _showError('This resource cannot be edited because its record id is missing.');
+      await _showError(
+        'This resource cannot be edited because its record id is missing.',
+      );
       return;
     }
     try {
@@ -514,17 +534,16 @@ class _TeamManagementScreenState extends State<TeamManagementScreen>
     if (confirmed != true) return;
     final itemId = '${row['id'] ?? row['_id'] ?? ''}'.trim();
     if (itemId.isEmpty) {
-      await _showError('This resource cannot be updated because its record id is missing.');
+      await _showError(
+        'This resource cannot be updated because its record id is missing.',
+      );
       return;
     }
     try {
       await _apiClient.patchIncidentResource(
         incidentId: widget.args.incidentId,
         itemId: itemId,
-        body: {
-          'assigned_to': null,
-          'assignment_reference': null,
-        },
+        body: {'assigned_to': null, 'assignment_reference': null},
       );
       await _syncTeamAssetIds(
         '${row['entity_type'] ?? ''}'.toLowerCase(),
@@ -567,9 +586,7 @@ class _TeamManagementScreenState extends State<TeamManagementScreen>
                         break;
                     }
                   },
-            icon: Icon(
-              _tabController.index == 2 ? Icons.refresh : Icons.add,
-            ),
+            icon: Icon(_tabController.index == 2 ? Icons.refresh : Icons.add),
             tooltip: _tabController.index == 0
                 ? 'Add team member'
                 : _tabController.index == 1
@@ -620,7 +637,8 @@ class _TeamManagementScreenState extends State<TeamManagementScreen>
         ),
         if (_personnel.isEmpty)
           const _EmptyCard(
-            message: 'No team members are currently assigned in the mobile roster.',
+            message:
+                'No team members are currently assigned in the mobile roster.',
           )
         else
           ..._personnel.map(
@@ -673,7 +691,8 @@ class _TeamManagementScreenState extends State<TeamManagementScreen>
         ),
         _SectionHeader(
           title: 'Team Resources',
-          subtitle: 'Manage vehicles, aircraft, and equipment assigned to this team.',
+          subtitle:
+              'Manage vehicles, aircraft, and equipment assigned to this team.',
           actionLabel: 'Add resource',
           onAction: _addResource,
         ),
@@ -714,7 +733,9 @@ class _TeamManagementScreenState extends State<TeamManagementScreen>
   Widget _buildCheckinTab(BuildContext context) {
     final checkedIn = _personnel.where((row) {
       final status = '${row['status'] ?? row['ci_status'] ?? ''}'.toLowerCase();
-      return status.contains('checked') || status == 'available' || status == 'assigned';
+      return status.contains('checked') ||
+          status == 'available' ||
+          status == 'assigned';
     }).toList();
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -738,7 +759,9 @@ class _TeamManagementScreenState extends State<TeamManagementScreen>
                 leading: const Icon(Icons.badge_outlined),
                 title: Text(_personName(entry)),
                 subtitle: Text(_personRole(entry)),
-                trailing: Text('${entry['status'] ?? entry['ci_status'] ?? ''}'),
+                trailing: Text(
+                  '${entry['status'] ?? entry['ci_status'] ?? ''}',
+                ),
                 onTap: () => _editMember(entry),
               ),
             ),
@@ -813,10 +836,7 @@ class _MessageCard extends StatelessWidget {
     return Card(
       color: color,
       margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Text(message),
-      ),
+      child: Padding(padding: const EdgeInsets.all(12), child: Text(message)),
     );
   }
 }
@@ -829,10 +849,7 @@ class _EmptyCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Text(message),
-      ),
+      child: Padding(padding: const EdgeInsets.all(16), child: Text(message)),
     );
   }
 }
@@ -915,7 +932,10 @@ class _PersonSearchDialogState extends State<_PersonSearchDialog> {
             ),
             const SizedBox(height: 12),
             if (_error != null)
-              Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+              Text(
+                _error!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
             if (_loading)
               const Padding(
                 padding: EdgeInsets.all(12),
@@ -938,9 +958,13 @@ class _PersonSearchDialogState extends State<_PersonSearchDialog> {
                       title: Text('${person['name'] ?? 'Unknown'}'),
                       subtitle: Text(
                         [
-                          if ('${person['primary_role'] ?? ''}'.trim().isNotEmpty)
+                          if ('${person['primary_role'] ?? ''}'
+                              .trim()
+                              .isNotEmpty)
                             '${person['primary_role']}',
-                          if ('${person['person_record'] ?? ''}'.trim().isNotEmpty)
+                          if ('${person['person_record'] ?? ''}'
+                              .trim()
+                              .isNotEmpty)
                             'ID ${person['person_record']}',
                         ].join(' • '),
                       ),
@@ -992,10 +1016,12 @@ class _PersonEditDialogState extends State<_PersonEditDialog> {
   late String _status = _statusOptions.contains(widget.initialStatus)
       ? widget.initialStatus
       : _statusOptions.first;
-  late final TextEditingController _locationController =
-      TextEditingController(text: widget.initialLocation);
-  late final TextEditingController _notesController =
-      TextEditingController(text: widget.initialNotes);
+  late final TextEditingController _locationController = TextEditingController(
+    text: widget.initialLocation,
+  );
+  late final TextEditingController _notesController = TextEditingController(
+    text: widget.initialNotes,
+  );
 
   @override
   void dispose() {
@@ -1017,7 +1043,10 @@ class _PersonEditDialogState extends State<_PersonEditDialog> {
               initialValue: _status,
               decoration: const InputDecoration(labelText: 'Status'),
               items: _statusOptions
-                  .map((status) => DropdownMenuItem(value: status, child: Text(status)))
+                  .map(
+                    (status) =>
+                        DropdownMenuItem(value: status, child: Text(status)),
+                  )
                   .toList(),
               onChanged: (value) => setState(() => _status = value ?? _status),
             ),
@@ -1150,11 +1179,25 @@ class _ResourcePickerDialogState extends State<_ResourcePickerDialog> {
             '${row['entity_type'] ?? ''}:${row['record_id'] ?? row['resource_id'] ?? ''}';
         statusByKey[key] = row;
       }
-      final candidates = <_ResourceCandidate>[
-        ..._buildVehicleCandidates(results[0] as List<dynamic>, statusByKey),
-        ..._buildAircraftCandidates(results[1] as List<dynamic>, statusByKey),
-        ..._buildEquipmentCandidates(results[2] as List<dynamic>, statusByKey),
-      ]..sort((a, b) => a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase()));
+      final candidates =
+          <_ResourceCandidate>[
+            ..._buildVehicleCandidates(
+              results[0] as List<dynamic>,
+              statusByKey,
+            ),
+            ..._buildAircraftCandidates(
+              results[1] as List<dynamic>,
+              statusByKey,
+            ),
+            ..._buildEquipmentCandidates(
+              results[2] as List<dynamic>,
+              statusByKey,
+            ),
+          ]..sort(
+            (a, b) => a.displayName.toLowerCase().compareTo(
+              b.displayName.toLowerCase(),
+            ),
+          );
       if (!mounted) return;
       setState(() => _all = candidates);
     } on SarAppApiException catch (e) {
@@ -1172,14 +1215,16 @@ class _ResourcePickerDialogState extends State<_ResourcePickerDialog> {
   ) {
     return rows.whereType<Map>().map((raw) {
       final row = Map<String, dynamic>.from(raw);
-      final recordId = '${row['vehicle_record'] ?? row['vehicle_id'] ?? ''}'.trim();
+      final recordId = '${row['vehicle_record'] ?? row['vehicle_id'] ?? ''}'
+          .trim();
       final vehicleId = '${row['vehicle_id'] ?? ''}'.trim();
       final plate = '${row['license_plate'] ?? ''}'.trim();
       final type = '${row['type'] ?? row['type_id'] ?? 'Vehicle'}'.trim();
-      final display = [
-        if (vehicleId.isNotEmpty) vehicleId,
-        if (plate.isNotEmpty && plate != vehicleId) plate,
-      ].isEmpty
+      final display =
+          [
+            if (vehicleId.isNotEmpty) vehicleId,
+            if (plate.isNotEmpty && plate != vehicleId) plate,
+          ].isEmpty
           ? 'Vehicle $recordId'
           : [
               if (vehicleId.isNotEmpty) vehicleId,
@@ -1191,7 +1236,13 @@ class _ResourcePickerDialogState extends State<_ResourcePickerDialog> {
         displayName: display,
         typeLabel: 'Vehicle',
         subtitle: type,
-        searchParts: [display, vehicleId, plate, type, '${row['organization'] ?? ''}'],
+        searchParts: [
+          display,
+          vehicleId,
+          plate,
+          type,
+          '${row['organization'] ?? ''}',
+        ],
         statusByKey: statusByKey,
       );
     }).toList();
@@ -1203,16 +1254,18 @@ class _ResourcePickerDialogState extends State<_ResourcePickerDialog> {
   ) {
     return rows.whereType<Map>().map((raw) {
       final row = Map<String, dynamic>.from(raw);
-      final recordId = '${row['aircraft_record'] ?? row['aircraft_id'] ?? ''}'.trim();
+      final recordId = '${row['aircraft_record'] ?? row['aircraft_id'] ?? ''}'
+          .trim();
       final aircraftId = '${row['aircraft_id'] ?? ''}'.trim();
       final callsign = '${row['callsign'] ?? ''}'.trim();
       final tail = '${row['tail_number'] ?? ''}'.trim();
       final type = '${row['type'] ?? 'Aircraft'}'.trim();
-      final display = [
-        if (callsign.isNotEmpty) callsign,
-        if (aircraftId.isNotEmpty && aircraftId != callsign) aircraftId,
-        if (tail.isNotEmpty && tail != aircraftId) tail,
-      ].isEmpty
+      final display =
+          [
+            if (callsign.isNotEmpty) callsign,
+            if (aircraftId.isNotEmpty && aircraftId != callsign) aircraftId,
+            if (tail.isNotEmpty && tail != aircraftId) tail,
+          ].isEmpty
           ? 'Aircraft $recordId'
           : [
               if (callsign.isNotEmpty) callsign,
@@ -1225,7 +1278,14 @@ class _ResourcePickerDialogState extends State<_ResourcePickerDialog> {
         displayName: display,
         typeLabel: 'Aircraft',
         subtitle: type,
-        searchParts: [display, aircraftId, callsign, tail, type, '${row['organization'] ?? ''}'],
+        searchParts: [
+          display,
+          aircraftId,
+          callsign,
+          tail,
+          type,
+          '${row['organization'] ?? ''}',
+        ],
         statusByKey: statusByKey,
       );
     }).toList();
@@ -1237,16 +1297,18 @@ class _ResourcePickerDialogState extends State<_ResourcePickerDialog> {
   ) {
     return rows.whereType<Map>().map((raw) {
       final row = Map<String, dynamic>.from(raw);
-      final recordId = '${row['equipment_record'] ?? row['equipment_id'] ?? ''}'.trim();
+      final recordId = '${row['equipment_record'] ?? row['equipment_id'] ?? ''}'
+          .trim();
       final equipmentId = '${row['equipment_id'] ?? ''}'.trim();
       final name = '${row['name'] ?? ''}'.trim();
       final serial = '${row['serial_number'] ?? ''}'.trim();
       final type = '${row['type'] ?? 'Equipment'}'.trim();
-      final display = [
-        if (name.isNotEmpty) name,
-        if (equipmentId.isNotEmpty && equipmentId != name) equipmentId,
-        if (serial.isNotEmpty && serial != equipmentId) serial,
-      ].isEmpty
+      final display =
+          [
+            if (name.isNotEmpty) name,
+            if (equipmentId.isNotEmpty && equipmentId != name) equipmentId,
+            if (serial.isNotEmpty && serial != equipmentId) serial,
+          ].isEmpty
           ? 'Equipment $recordId'
           : [
               if (name.isNotEmpty) name,
@@ -1282,18 +1344,25 @@ class _ResourcePickerDialogState extends State<_ResourcePickerDialog> {
       typeLabel: typeLabel,
       subtitle: subtitle,
       searchText: searchParts.join(' ').toLowerCase(),
-      statusId: '${status?['id'] ?? ''}'.trim().isEmpty ? null : '${status?['id']}',
+      statusId: '${status?['id'] ?? ''}'.trim().isEmpty
+          ? null
+          : '${status?['id']}',
       assignedTo: '${status?['assigned_to'] ?? ''}'.trim().isEmpty
           ? null
           : '${status?['assigned_to']}',
-      assignmentReference: '${status?['assignment_reference'] ?? ''}'.trim().isEmpty
+      assignmentReference:
+          '${status?['assignment_reference'] ?? ''}'.trim().isEmpty
           ? null
           : '${status?['assignment_reference']}',
-      currentStatus: '${status?['status'] ?? ''}'.trim().isEmpty ? null : '${status?['status']}',
+      currentStatus: '${status?['status'] ?? ''}'.trim().isEmpty
+          ? null
+          : '${status?['status']}',
       currentLocation: '${status?['location'] ?? ''}'.trim().isEmpty
           ? null
           : '${status?['location']}',
-      currentNotes: '${status?['notes'] ?? ''}'.trim().isEmpty ? null : '${status?['notes']}',
+      currentNotes: '${status?['notes'] ?? ''}'.trim().isEmpty
+          ? null
+          : '${status?['notes']}',
     );
   }
 
@@ -1339,11 +1408,18 @@ class _ResourcePickerDialogState extends State<_ResourcePickerDialog> {
             Wrap(
               spacing: 8,
               children: [
-                for (final filter in const ['all', 'vehicle', 'aircraft', 'equipment'])
+                for (final filter in const [
+                  'all',
+                  'vehicle',
+                  'aircraft',
+                  'equipment',
+                ])
                   ChoiceChip(
-                    label: Text(filter == 'all'
-                        ? 'All'
-                        : filter[0].toUpperCase() + filter.substring(1)),
+                    label: Text(
+                      filter == 'all'
+                          ? 'All'
+                          : filter[0].toUpperCase() + filter.substring(1),
+                    ),
                     selected: _typeFilter == filter,
                     onSelected: (_) => setState(() => _typeFilter = filter),
                   ),
@@ -1351,7 +1427,10 @@ class _ResourcePickerDialogState extends State<_ResourcePickerDialog> {
             ),
             const SizedBox(height: 12),
             if (_error != null)
-              Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error))
+              Text(
+                _error!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              )
             else if (_loading)
               const Padding(
                 padding: EdgeInsets.all(24),
@@ -1375,7 +1454,9 @@ class _ResourcePickerDialogState extends State<_ResourcePickerDialog> {
                     );
                     return Card(
                       child: ListTile(
-                        leading: Icon(_resourceIconForType(candidate.entityType)),
+                        leading: Icon(
+                          _resourceIconForType(candidate.entityType),
+                        ),
                         title: Text(candidate.displayName),
                         subtitle: Text(candidate.subtitle),
                         trailing: _AssignmentBadge(
@@ -1485,7 +1566,8 @@ class _ResourceEditDialogState extends State<_ResourceEditDialog> {
     'Out of Service',
   ];
 
-  late String _resourceType = _types.contains(widget.initialResourceType.toLowerCase())
+  late String _resourceType =
+      _types.contains(widget.initialResourceType.toLowerCase())
       ? widget.initialResourceType.toLowerCase()
       : _types.first;
   late String _status = _statuses.contains(widget.initialStatus)
@@ -1493,10 +1575,12 @@ class _ResourceEditDialogState extends State<_ResourceEditDialog> {
       : _statuses.first;
   late final TextEditingController _resourceIdController =
       TextEditingController(text: widget.initialResourceId);
-  late final TextEditingController _locationController =
-      TextEditingController(text: widget.initialLocation);
-  late final TextEditingController _notesController =
-      TextEditingController(text: widget.initialNotes);
+  late final TextEditingController _locationController = TextEditingController(
+    text: widget.initialLocation,
+  );
+  late final TextEditingController _notesController = TextEditingController(
+    text: widget.initialNotes,
+  );
 
   @override
   void dispose() {
@@ -1509,7 +1593,9 @@ class _ResourceEditDialogState extends State<_ResourceEditDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(widget.readOnlyIdentity ? 'Edit Team Resource' : 'Add Team Resource'),
+      title: Text(
+        widget.readOnlyIdentity ? 'Edit Team Resource' : 'Add Team Resource',
+      ),
       content: SizedBox(
         width: 380,
         child: Column(
@@ -1529,14 +1615,17 @@ class _ResourceEditDialogState extends State<_ResourceEditDialog> {
               initialValue: _resourceType,
               decoration: const InputDecoration(labelText: 'Resource type'),
               items: _types
-                  .map((type) => DropdownMenuItem(
-                        value: type,
-                        child: Text(type[0].toUpperCase() + type.substring(1)),
-                      ))
+                  .map(
+                    (type) => DropdownMenuItem(
+                      value: type,
+                      child: Text(type[0].toUpperCase() + type.substring(1)),
+                    ),
+                  )
                   .toList(),
               onChanged: widget.readOnlyIdentity
                   ? null
-                  : (value) => setState(() => _resourceType = value ?? _resourceType),
+                  : (value) =>
+                        setState(() => _resourceType = value ?? _resourceType),
             ),
             const SizedBox(height: 12),
             TextField(
@@ -1552,7 +1641,10 @@ class _ResourceEditDialogState extends State<_ResourceEditDialog> {
               initialValue: _status,
               decoration: const InputDecoration(labelText: 'Status'),
               items: _statuses
-                  .map((status) => DropdownMenuItem(value: status, child: Text(status)))
+                  .map(
+                    (status) =>
+                        DropdownMenuItem(value: status, child: Text(status)),
+                  )
                   .toList(),
               onChanged: (value) => setState(() => _status = value ?? _status),
             ),

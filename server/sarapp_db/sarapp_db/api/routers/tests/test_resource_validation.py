@@ -48,7 +48,7 @@ def test_not_evaluated_when_team_has_no_linked_resource_type():
         with TestClient(app) as client:
             created = client.post(
                 f"/api/incidents/{INCIDENT_ID}/operations/teams",
-                json={"name": "GT-1", "team_type": "GT", "members_json": f"[{_PERSON_IDS[0]}]"},
+                json={"name": "GT-1", "team_type": "GT", "member_person_records": [_PERSON_IDS[0]]},
             )
             assert created.status_code == 201
             team_id = created.json()["int_id"]
@@ -85,7 +85,7 @@ def test_qualification_and_min_staffing_outcomes_end_to_end():
                     "name": "GT-1",
                     "team_type": "GT",
                     "resource_type_id": int(resource_type_id),
-                    "members_json": f"[{_PERSON_IDS[0]}]",
+                    "member_person_records": [_PERSON_IDS[0]],
                 },
             )
             team_id = created.json()["int_id"]
@@ -99,7 +99,7 @@ def test_qualification_and_min_staffing_outcomes_end_to_end():
             # message from the spec.
             client.patch(
                 f"/api/incidents/{INCIDENT_ID}/operations/teams/{team_id}",
-                json={"members_json": f"[{_PERSON_IDS[0]}, {_PERSON_IDS[1]}]"},
+                json={"member_person_records": [_PERSON_IDS[0], _PERSON_IDS[1]]},
             )
             limited = client.get(f"/api/incidents/{INCIDENT_ID}/operations/teams/{team_id}/validation")
             assert limited.json()["outcome"] == "Ready with Limitations"
@@ -109,7 +109,7 @@ def test_qualification_and_min_staffing_outcomes_end_to_end():
             # Not Ready again -- never a stale/cached outcome.
             client.patch(
                 f"/api/incidents/{INCIDENT_ID}/operations/teams/{team_id}",
-                json={"members_json": f"[{_PERSON_IDS[0]}]"},
+                json={"member_person_records": [_PERSON_IDS[0]]},
             )
             after_removal = client.get(f"/api/incidents/{INCIDENT_ID}/operations/teams/{team_id}/validation")
             assert after_removal.json()["outcome"] == "Not Ready"
@@ -215,11 +215,11 @@ def test_standing_package_unchanged_after_incident_team_edits():
 
             team = client.post(
                 f"/api/incidents/{INCIDENT_ID}/operations/teams",
-                json={"name": "GT-1", "team_type": "GT", "members_json": f"[{_PERSON_IDS[0]}]"},
+                json={"name": "GT-1", "team_type": "GT", "member_person_records": [_PERSON_IDS[0]]},
             ).json()
             client.patch(
                 f"/api/incidents/{INCIDENT_ID}/operations/teams/{team['int_id']}",
-                json={"members_json": f"[{_PERSON_IDS[0]}, {_PERSON_IDS[1]}]"},
+                json={"member_person_records": [_PERSON_IDS[0], _PERSON_IDS[1]]},
             )
             client.delete(f"/api/incidents/{INCIDENT_ID}/operations/teams/{team['int_id']}")
 

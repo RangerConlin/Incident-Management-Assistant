@@ -24,9 +24,15 @@ def _reset_db():
     db = get_incident_db(INCIDENT_ID)
     db[IncidentCollections.NOTIFICATIONS].delete_many({})
     db[IncidentCollections.PLANNED_SCHEDULE_TRIGGERS].delete_many({})
-    db[IncidentCollections.INCIDENT_PERSONNEL].delete_many({})
-    db[IncidentCollections.INCIDENT_PERSONNEL].insert_one(
-        {"_id": "person-1", "person_record": 501, "role": "Safety Officer", "incident_id": INCIDENT_ID}
+    db[IncidentCollections.INCIDENT_ORG].delete_many({})
+    db[IncidentCollections.INCIDENT_ORG].insert_one(
+        {
+            "position_id": 1,
+            "title": "Safety Officer",
+            "primary": [{"person_record": 501, "end_time": None}],
+            "deputies": [],
+            "staff_assistants": [],
+        }
     )
     return db
 

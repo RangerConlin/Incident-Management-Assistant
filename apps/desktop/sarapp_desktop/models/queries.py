@@ -7,7 +7,7 @@ def fetch_team_personnel(team_id: int) -> List[Dict[str, Any]]:
     """Return personnel assigned to the given team.
 
     Team membership is stored as master personnel ids (see the incident
-    teams collection's ``members_json``/``member_personnel_ids``), not a
+    teams collection's ``member_person_records``), not a
     local SQLite row number — so this resolves each member through the
     master-id-aware identity chain (master roster + the incident's
     check-in copy), the same chain ``get_person_identity`` uses.
@@ -25,19 +25,11 @@ def fetch_team_personnel(team_id: int) -> List[Dict[str, Any]]:
         return []
 
     member_ids: List[int] = []
-    raw = team_doc.get("members_json")
-    if raw:
+    for value in team_doc.get("member_person_records") or []:
         try:
-            import json
-            member_ids = [int(x) for x in json.loads(raw) or []]
-        except Exception:
-            member_ids = []
-    if not member_ids:
-        for v in (team_doc.get("member_person_records") or team_doc.get("member_personnel_ids") or []):
-            try:
-                member_ids.append(int(v))
-            except (TypeError, ValueError):
-                continue
+            member_ids.append(int(value))
+        except (TypeError, ValueError):
+            continue
 
     if not member_ids:
         return []

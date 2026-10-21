@@ -1120,7 +1120,7 @@ class TeamDetailBridge(QObject):
 
     @Slot('QVariant')
     def addMember(self, person_id: Any = None) -> None:
-        """Add a person to this team by updating teams.members_json; also sync Check-In."""
+        """Add a person to this team's personnel roster; also sync Check-In."""
         try:
             if not self._team.team_id:
                 raise RuntimeError("No team id")
