@@ -202,10 +202,9 @@ def test_team_type_catalog_create_and_edit(monkeypatch) -> None:
                 "name": "GUI Test Engine Company",
                 "type_short": "eng",
                 "category": "Fire & Rescue",
-                "scope": "system",
-                "color_key": "team_type_fire",
-                "text_color_key": "team_text_white",
-                "icon_key": "engine",
+                "background_color": "#c62828",
+                "text_color": "#ffffff",
+                "icon_key": "truck",
                 "capability_ids": "fire-suppression, water-supply",
                 "minimum_personnel": "3",
                 "required_roles": "Officer, Operator",
@@ -226,13 +225,17 @@ def test_team_type_catalog_create_and_edit(monkeypatch) -> None:
         assert row["type_short"] == "ENG"
         assert row["capability_ids"] == ["fire-suppression", "water-supply"]
         assert row["minimum_personnel"] == 3
-        assert row["text_color_key"] == "team_text_white"
+        assert row["text_color"] == "#ffffff"
         assert row["version"] == 1
 
         page = client.get(f"/central-master/gui/team-types/{row['id']}")
         assert page.status_code == 200
-        assert "Theme Color Key" in page.text
-        assert "Text Color Key" in page.text
+        assert "Background Color" in page.text
+        assert "Text Color" in page.text
+        assert 'type="color"' in page.text
+        assert "Capabilities" in page.text
+        assert 'multiple size="8"' in page.text
+        assert "Scope" not in page.text
         assert "Detail Sections" in page.text
     finally:
         _clear_team_types()

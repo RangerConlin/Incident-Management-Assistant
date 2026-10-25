@@ -10,6 +10,7 @@ import '../models/home_nav_args.dart';
 import '../models/map/map_basemap.dart';
 import '../models/map/map_search_result.dart';
 import '../models/team_location.dart';
+import '../models/team_type_definition.dart';
 import '../services/map_preferences_store.dart';
 import '../services/sarapp_api_client.dart';
 import '../services/tracking_service.dart';
@@ -40,6 +41,8 @@ class _MapScreenState extends State<MapScreen> {
 
   MapBasemap _selectedBasemap = MapBasemaps.osm;
   List<TeamLocation> _locations = const [];
+  Map<String, String> _teamTypeByTeamId = const {};
+  Map<String, TeamTypeDefinition> _teamTypes = const {};
   TeamLocation? _myLocation;
   MapSearchResult? _searchPin;
   LatLng? _coordinatePin;
@@ -127,11 +130,27 @@ class _MapScreenState extends State<MapScreen> {
     }
 
     try {
-      final locations = await _apiClient.fetchTeamLocations(
-        widget.args.incidentId,
-      );
+      final results = await Future.wait([
+        _apiClient.fetchTeamLocations(widget.args.incidentId),
+        _apiClient.fetchTeams(widget.args.incidentId),
+        _apiClient.fetchTeamTypes(),
+      ]);
+      final locations = List<TeamLocation>.from(results[0]);
+      final teamTypeByTeamId = <String, String>{
+        for (final row in results[1].whereType<Map>())
+          '${row['int_id'] ?? row['id'] ?? ''}': '${row['team_type'] ?? ''}'.toUpperCase(),
+      };
+      final teamTypes = <String, TeamTypeDefinition>{};
+      for (final raw in results[2].whereType<Map>()) {
+        final definition = TeamTypeDefinition.fromJson(Map<String, dynamic>.from(raw));
+        if (definition.code.isNotEmpty) teamTypes[definition.code] = definition;
+      }
       if (!mounted) return;
-      setState(() => _locations = locations);
+      setState(() {
+        _locations = locations;
+        _teamTypeByTeamId = teamTypeByTeamId;
+        _teamTypes = teamTypes;
+      });
     } on SarAppApiException catch (e) {
       if (!mounted) return;
       setState(
@@ -645,8 +664,11 @@ class _MapScreenState extends State<MapScreen> {
               child: _MapMarkerLabel(
                 icon: Icons.groups,
                 label: location.displayName,
-                color: theme.colorScheme.primary,
-                foreground: theme.colorScheme.onPrimary,
+                color: _teamTypes[_teamTypeByTeamId[location.teamId]]?.backgroundColor ?? theme.colorScheme.primary,
+                foreground: _teamTypes[_teamTypeByTeamId[location.teamId]]?.textColor ?? theme.colorScheme.onPrimary,
+                assetIcon: _teamTypes[_teamTypeByTeamId[location.teamId]] == null
+                    ? null
+                    : 'assets/team_symbols/light/${_teamTypes[_teamTypeByTeamId[location.teamId]]!.iconKey}.png',
               ),
             ),
           ),
@@ -1068,6 +1090,7 @@ class _MapMarkerLabel extends StatelessWidget {
     required this.color,
     required this.foreground,
     this.badge,
+    this.assetIcon,
   });
 
   final IconData icon;
@@ -1075,6 +1098,7 @@ class _MapMarkerLabel extends StatelessWidget {
   final Color color;
   final Color foreground;
   final String? badge;
+  final String? assetIcon;
 
   @override
   Widget build(BuildContext context) {
@@ -1096,7 +1120,9 @@ class _MapMarkerLabel extends StatelessWidget {
           ),
           child: Padding(
             padding: const EdgeInsets.all(8),
-            child: Icon(icon, size: 20, color: foreground),
+            child: assetIcon == null
+                ? Icon(icon, size: 20, color: foreground)
+                : Image.asset(assetIcon!, width: 20, height: 20, color: foreground),
           ),
         ),
         if (badge != null)

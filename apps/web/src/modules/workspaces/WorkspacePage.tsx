@@ -52,7 +52,7 @@ function DatasetContent({ workspace, dataset }: { workspace: Workspace; dataset:
   const changeParam = (key: string, value: string) => setParams(previous => { const next = new URLSearchParams(previous); value ? next.set(key, value) : next.delete(key); return next; });
   const fields = dataset.columns ?? dataset.fields.filter(f => f.kind !== "textarea" && f.kind !== "list").slice(0, 7).map(f => f.key);
   const filtered = filterRows(query.data ?? [], [...new Set([...fields, ...dataset.fields.map(f => f.key)])], params);
-  const columns: ColumnDef<RecordData>[] = fields.map(key => ({ key, header: dataset.fields.find(f => f.key === key)?.label ?? key.replace(/_/g, " "), render: r => ["status", "status_id", "priority", "initial_risk", "residual_risk", "severity"].includes(key) ? <StatusPill statusKey={displayValue(key, fieldValue(r, key))} /> : displayValue(key, fieldValue(r, key)) }));
+  const columns: ColumnDef<RecordData>[] = fields.map(key => ({ key, header: dataset.fields.find(f => f.key === key)?.label ?? key.replace(/_/g, " "), render: r => key === "priority" ? <StatusPill domain="intel-priority" statusKey={displayValue(key, fieldValue(r, key))} /> : ["status", "status_id", "initial_risk", "residual_risk", "severity"].includes(key) ? <StatusPill statusKey={displayValue(key, fieldValue(r, key))} /> : displayValue(key, fieldValue(r, key)) }));
   columns.unshift({ key: "open", header: "Record", render: r => <Link to={`${boardPath}/${encodeURIComponent(recordId(dataset, r))}${params.size ? `?${params}` : ""}`}>Open</Link>, defaultWidth: 85 });
   const promoted = Boolean(row?.promoted_read_only);
   const editable = creating ? dataset.create : dataset.update && !promoted;

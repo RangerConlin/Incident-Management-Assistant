@@ -23,15 +23,10 @@ class _PanelStyleHarness:
 def test_team_type_cell_uses_independent_catalog_text_color(monkeypatch) -> None:
     app = QApplication.instance() or QApplication([])
     assert app is not None
-    monkeypatch.setattr(
-        styles,
-        "TEAM_TYPE_COLORS",
-        {"team_type_search_rescue": QColor("#228b22")},
-    )
     harness = _PanelStyleHarness(
         {
-            "color_key": "team_type_search_rescue",
-            "text_color_key": "team_text_white",
+            "background_color": "#228b22",
+            "text_color": "#ffffff",
         }
     )
 
@@ -39,4 +34,4 @@ def test_team_type_cell_uses_independent_catalog_text_color(monkeypatch) -> None
 
     item = harness.table.item(0, 3)
     assert item.background().color() == QColor("#228b22").lighter(130)
-    assert item.foreground().color() == styles.team_type_text_colors()["team_text_white"]
+    assert item.foreground().color() == QColor("#ffffff")

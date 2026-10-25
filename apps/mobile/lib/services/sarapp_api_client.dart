@@ -433,6 +433,9 @@ class SarAppApiClient {
   Future<List<dynamic>> fetchMasterOrganizations() =>
       _getJsonList('/api/master/organizations');
 
+  Future<List<dynamic>> fetchTeamTypes() =>
+      _getJsonList('/api/lookup/team-types');
+
   /// Ranks for one rank structure, or every structure if [structureKey] is
   /// omitted.
   Future<List<dynamic>> fetchMasterRanks({String structureKey = ''}) =>

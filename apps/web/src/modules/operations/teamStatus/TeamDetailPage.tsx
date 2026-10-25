@@ -4,7 +4,8 @@ import StatusPill from "../../../components/table/StatusPill";
 import { TEAM_STATUS_STEPS } from "../../../api/endpoints";
 import { useSession } from "../../../auth/SessionContext";
 import { formatDateTime } from "../../../utils/formatDateTime";
-import ReferenceListEditor from "./ReferenceListEditor";
+import TeamMembersEditor from "./TeamMembersEditor";
+import TeamAssetsEditor from "./TeamAssetsEditor";
 import TaskPickerDialog from "./TaskPickerDialog";
 import {
   TEAM_STATUS_OTHER,
@@ -12,9 +13,10 @@ import {
   useSetTeamStatus,
   useTeamDetail,
   useTeamOverviewOptions,
+  useTeamTypes,
   useUpdateTeam,
 } from "./hooks";
-import { assignableUnitOptions, statusKeyForValue, TEAM_TYPE_OPTIONS } from "./teamOverviewModel";
+import { assignableUnitOptions, statusKeyForValue } from "./teamOverviewModel";
 
 type Tab = "overview" | "personnel" | "vehicles" | "equipment" | "logistics" | "logs" | "safety";
 
@@ -41,6 +43,7 @@ export default function TeamDetailPage() {
   const setStatus = useSetTeamStatus(incidentId!);
   const assignToTask = useAssignTeamToTask(incidentId!);
   const { orgPositions } = useTeamOverviewOptions(incidentId!);
+  const { data: teamTypes = [] } = useTeamTypes();
 
   if (!incidentId) return null;
   if (isLoading) return <p>Loading team…</p>;
@@ -48,7 +51,8 @@ export default function TeamDetailPage() {
 
   const save = (body: Record<string, unknown>) => updateTeam.mutate({ teamId: id, body });
   const unitOptions = assignableUnitOptions(orgPositions.data ?? []);
-  const isAirTeam = (team.team_type ?? "").toUpperCase() === "AIR";
+  const selectedTeamType = teamTypes.find((type) => type.type_short === team.team_type);
+  const isAirTeam = Boolean(selectedTeamType?.is_aviation);
   const statusOptions = [...TEAM_STATUS_STEPS, ...TEAM_STATUS_OTHER].filter(
     (option) => isAirTeam || option.key !== "wheels down",
   );
@@ -71,7 +75,7 @@ export default function TeamDetailPage() {
             title={t.stub}
             onClick={() => setTab(t.key)}
           >
-            {t.label}
+            {t.key === "vehicles" && isAirTeam ? "Aircraft" : t.label}
           </button>
         ))}
       </div>
@@ -82,12 +86,12 @@ export default function TeamDetailPage() {
             <label>Team Type</label>
             <select value={team.team_type ?? ""} onChange={(e) => save({ team_type: e.target.value })}>
               <option value="" disabled>Select a team type…</option>
-              {team.team_type && !TEAM_TYPE_OPTIONS.some((type) => type.value === team.team_type) && (
+              {team.team_type && !teamTypes.some((type) => type.type_short === team.team_type) && (
                 <option value={team.team_type}>{team.team_type}</option>
               )}
-              {TEAM_TYPE_OPTIONS.map((type) => (
-                <option key={type.value} value={type.value}>
-                  {type.label} ({type.value})
+              {teamTypes.map((type) => (
+                <option key={type.type_short} value={type.type_short}>
+                  {type.name} ({type.type_short})
                 </option>
               ))}
             </select>
@@ -102,7 +106,7 @@ export default function TeamDetailPage() {
           </div>
           <div className="field">
             <label>{isAirTeam ? "Pilot" : "Team Leader"}</label>
-            <input value={team.leader_name ?? ""} readOnly />
+            <input value={team.leader_name || "Unassigned — set from the Personnel tab"} readOnly />
           </div>
           <div className="field">
             <label>Phone</label>
@@ -195,25 +199,20 @@ export default function TeamDetailPage() {
       )}
 
       {tab === "personnel" && (
-        <ReferenceListEditor
-          label="Personnel"
-          jsonValue={team.members_json}
-          onSave={(v) => save({ members_json: v })}
+        <TeamMembersEditor
+          memberIds={team.member_person_records ?? []}
+          leaderId={team.leader_person_record}
+          onSave={(next) => save(next)}
         />
       )}
-      {tab === "vehicles" && (
-        <ReferenceListEditor
-          label="Vehicles"
-          jsonValue={team.vehicles_json}
-          onSave={(v) => save({ vehicles_json: v })}
-        />
-      )}
+      {tab === "vehicles" &&
+        (isAirTeam ? (
+          <TeamAssetsEditor kind="aircraft" jsonValue={team.aircraft_json} onSave={(v) => save({ aircraft_json: v })} />
+        ) : (
+          <TeamAssetsEditor kind="vehicle" jsonValue={team.vehicles_json} onSave={(v) => save({ vehicles_json: v })} />
+        ))}
       {tab === "equipment" && (
-        <ReferenceListEditor
-          label="Equipment"
-          jsonValue={team.equipment_json}
-          onSave={(v) => save({ equipment_json: v })}
-        />
+        <TeamAssetsEditor kind="equipment" jsonValue={team.equipment_json} onSave={(v) => save({ equipment_json: v })} />
       )}
       {tab === "logistics" && (
         <div>

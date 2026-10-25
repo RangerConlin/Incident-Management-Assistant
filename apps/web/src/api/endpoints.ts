@@ -70,6 +70,7 @@ import type {
   WorkAssignmentResourceRequirement,
   WorkAssignmentTaskLink,
   IncidentProfile, OrgAssignment, OrgPosition, OrgTemplate, IapPackage,
+  TeamTypeDefinition,
 } from "./types";
 
 export function lookupPerson(personId: string) {
@@ -133,6 +134,10 @@ export function listIncidents() {
 
 export function fetchTeamAssignmentRows(incidentId: string) {
   return api.get<TeamAssignmentRow[]>(`/api/incidents/${incidentId}/operations/team-assignment-rows`);
+}
+
+export function listTeamTypes() {
+  return api.get<TeamTypeDefinition[]>("/api/lookup/team-types");
 }
 
 export function getTeam(incidentId: string, teamId: number) {

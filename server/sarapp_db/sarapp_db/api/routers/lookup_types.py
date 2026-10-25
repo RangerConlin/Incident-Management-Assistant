@@ -183,10 +183,8 @@ class UpsertTeamTypeRequest(BaseModel):
     type_short: str
     category: str = "General"
     description: str = ""
-    scope: str = "system"
-    organization_id: Optional[int] = None
-    color_key: str = "team_type_default"
-    text_color_key: str = "team_text_auto"
+    background_color: str = "#7a7a7a"
+    text_color: str = "#ffffff"
     icon_key: str = "team"
     capability_ids: list[str] = Field(default_factory=list)
     minimum_personnel: int = Field(default=0, ge=0)
@@ -201,6 +199,16 @@ class UpsertTeamTypeRequest(BaseModel):
     is_drone: bool = False
     is_aviation: bool = False
     is_active: bool = True
+
+
+TEAM_TYPE_CATEGORIES = (
+    "Search & Rescue", "Fire & Rescue", "EMS", "Law Enforcement", "Aviation",
+    "Emergency Management", "Public Works", "Planned Events", "General",
+)
+TEAM_TYPE_ICON_KEYS = (
+    "team", "df", "car", "pickup", "van", "truck", "util", "k9", "uas",
+    "fixed_wing", "helo",
+)
 
 
 # ---------------------------------------------------------------------------
@@ -272,10 +280,8 @@ def restore_task_type(int_id: int) -> dict[str, Any]:
 
 _TEAM_EXTRA = (
     "type_short",
-    "scope",
-    "organization_id",
-    "color_key",
-    "text_color_key",
+    "background_color",
+    "text_color",
     "icon_key",
     "capability_ids",
     "minimum_personnel",
@@ -297,9 +303,11 @@ def _team_type_payload(body: UpsertTeamTypeRequest) -> dict[str, Any]:
     data["type_short"] = data["type_short"].strip().upper()
     data["category"] = data["category"].strip() or "General"
     data["description"] = data["description"].strip()
-    data["scope"] = data["scope"].strip().lower() or "system"
-    data["color_key"] = data["color_key"].strip() or "team_type_default"
-    data["text_color_key"] = data["text_color_key"].strip() or "team_text_auto"
+    for field, default in (("background_color", "#7a7a7a"), ("text_color", "#ffffff")):
+        value = data[field].strip().lower() or default
+        if not re.fullmatch(r"#[0-9a-f]{6}", value):
+            raise HTTPException(status_code=422, detail=f"{field} must be a six-digit hex color")
+        data[field] = value
     data["icon_key"] = data["icon_key"].strip() or "team"
     data["capability_ids"] = [
         str(value).strip() for value in data["capability_ids"] if str(value).strip()
@@ -314,10 +322,10 @@ def _team_type_payload(body: UpsertTeamTypeRequest) -> dict[str, Any]:
         raise HTTPException(status_code=422, detail="Team type name is required")
     if not data["type_short"]:
         raise HTTPException(status_code=422, detail="Team type code is required")
-    if data["scope"] not in {"system", "organization"}:
-        raise HTTPException(status_code=422, detail="Team type scope must be system or organization")
-    if data["scope"] == "organization" and data["organization_id"] is None:
-        raise HTTPException(status_code=422, detail="Organization-scoped team types require organization_id")
+    if data["category"] not in TEAM_TYPE_CATEGORIES:
+        raise HTTPException(status_code=422, detail="Unknown team type category")
+    if data["icon_key"] not in TEAM_TYPE_ICON_KEYS:
+        raise HTTPException(status_code=422, detail="Unknown team type icon")
     return data
 
 
@@ -330,15 +338,13 @@ def _ensure_unique_team_type(
     for field, label in (("name", "name"), ("type_short", "code")):
         filt: dict[str, Any] = {
             field: {"$regex": f"^{re.escape(data[field])}$", "$options": "i"},
-            "scope": data["scope"],
-            "organization_id": data.get("organization_id"),
         }
         if exclude_id is not None:
             filt["int_id"] = {"$ne": exclude_id}
         if repo.find_one(filt):
             raise HTTPException(
                 status_code=409,
-                detail=f"A team type with that {label} already exists in this scope",
+                detail=f"A team type with that {label} already exists",
             )
 
 

@@ -57,7 +57,8 @@ def test_seed_is_idempotent_and_preserves_existing_edits() -> None:
         assert customized["color_key"] == "team_type_general"
         assert customized["minimum_personnel"] == 99
         assert customized["category"] == "Search & Rescue"
-        assert customized["text_color_key"] == "team_text_auto"
+        assert customized["text_color"] == "#ffffff"
+        assert customized["background_color"] == "#228b22"
         assert customized["capability_ids"]
 
         second = seed_team_types(db=db)

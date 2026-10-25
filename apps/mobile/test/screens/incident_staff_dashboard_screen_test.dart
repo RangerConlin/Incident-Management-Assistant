@@ -28,6 +28,7 @@ Map<String, dynamic> _teamJson({
   'int_id': intId,
   'name': name,
   'status': status,
+  'team_type': 'GT',
   'current_task_id': null,
 };
 
@@ -66,6 +67,16 @@ SarAppApiClient _buildClient({
     }
     if (path.endsWith('/narratives')) {
       return http.Response(jsonEncode([]), 200);
+    }
+    if (path.endsWith('/lookup/team-types')) {
+      return http.Response(jsonEncode([
+        {
+          'id': 1, 'name': 'Ground Team', 'type_short': 'GT',
+          'category': 'Search & Rescue', 'background_color': '#228b22',
+          'text_color': '#ffffff', 'icon_key': 'team', 'capability_ids': ['1'],
+          'is_aviation': false, 'is_drone': false,
+        }
+      ]), 200);
     }
     return http.Response('not found', 404);
   });

@@ -222,6 +222,12 @@ Master/reference endpoints useful to mobile:
 - GET /api/resource-types
 - GET /api/hazard-types
 - GET /api/lookup/task-types
+- GET /api/lookup/team-types — active catalog-wide operational team types.
+  Each row includes type_short, name, category, description,
+  background_color, text_color, icon_key, capability_ids, minimum resource
+  counts, detail_sections, is_drone, is_aviation, and is_active. Colors are
+  six-digit hex values; icon_key identifies an asset in the shared GIS team
+  symbol vocabulary.
 - GET /api/comms/master-channels
 - GET /api/forms
 

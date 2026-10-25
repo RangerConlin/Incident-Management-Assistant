@@ -1,8 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import * as api from "../../../api/endpoints";
 import type { TaskDetail } from "../../../api/types";
+import { WORKSPACES } from "../../workspaces/config";
 import { useAddTaskTeam, useRemoveTaskTeam, useSetTaskTeamPrimary, useSetTaskTeamSortie } from "./hooks";
 
 type SubTab = "teams" | "personnel" | "vehicles";
@@ -31,10 +32,27 @@ export default function TeamsTab({ incidentId, task }: { incidentId: string; tas
     queryFn: () => api.listTeams(incidentId),
     enabled: subTab !== "teams",
   });
+  const rosterDataset = WORKSPACES.find((w) => w.path === "/personnel")!.datasets[0];
+  const { data: personnelRoster = [] } = useQuery({
+    queryKey: ["master", "personnel", "roster-all"],
+    queryFn: () => api.listWorkspaceRecords(rosterDataset, ""),
+    enabled: subTab === "personnel",
+  });
+  const personByRecord = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const r of personnelRoster) {
+      if (r.person_record != null) map.set(Number(r.person_record), String(r.name ?? r.person_id ?? r.person_record));
+    }
+    return map;
+  }, [personnelRoster]);
 
   const assignedRosterTeams = rosterTeams.filter((t) => assignedTeamIds.includes(t.int_id));
-  const personnelRollup = assignedRosterTeams.flatMap((t) => parseList(t.members_json));
-  const vehiclesRollup = assignedRosterTeams.flatMap((t) => parseList(t.vehicles_json));
+  const personnelRollup = assignedRosterTeams.flatMap((t) =>
+    (t.member_person_records ?? []).map((id) => personByRecord.get(id) ?? `Person #${id}`)
+  );
+  const vehiclesRollup = assignedRosterTeams.flatMap((t) =>
+    parseList(String(t.team_type ?? "").toUpperCase() === "AIR" ? t.aircraft_json : t.vehicles_json)
+  );
 
   return (
     <div>

@@ -393,7 +393,7 @@ class AddTeamMemberDialog(QDialog):
         except Exception:
             pass
 
-from utils.styles import team_status_colors, TEAM_TYPE_COLORS, subscribe_theme
+from utils.styles import team_status_colors, subscribe_theme
 from utils import incident_context
 from utils.state import AppState
 from modules.operations.teams.data.team import Team
@@ -418,7 +418,8 @@ from utils.constants import (
     GT_UAS_ROLES,
     UDF_UAS_ROLES,
 )
-from utils.constants import TEAM_STATUSES, TEAM_TYPE_DETAILS
+from utils.constants import TEAM_STATUSES
+from modules.common.team_type_catalog import active_team_types
 
 
 class TeamDetailBridge(QObject):
@@ -460,10 +461,10 @@ class TeamDetailBridge(QObject):
             for lbl in TEAM_STATUSES
         ]
 
+        self._team_type_records = active_team_types()
         self._team_type_list: list[dict[str, str]] = [
-            {"code": code, "label": info["label"]}
-            for code, info in TEAM_TYPE_DETAILS.items()
-            if not info.get("planned_only")
+            {"code": str(row.get("type_short") or ""), "label": str(row.get("name") or row.get("type_short") or "")}
+            for row in self._team_type_records
         ]
         try:
             subscribe_theme(self, lambda *_: self.statusChanged.emit(self._team.status))
@@ -499,16 +500,17 @@ class TeamDetailBridge(QObject):
         """Color representing the current team type."""
         try:
             code = (self._team.team_type or "").upper()
-            color = TEAM_TYPE_COLORS.get(code)
-            return color.name() if color else "#5b8efc"
+            record = next((row for row in self._team_type_records if str(row.get("type_short") or "").upper() == code), {})
+            color = QColor(str(record.get("background_color") or ""))
+            return color.name() if color.isValid() else "#5b8efc"
         except Exception:
             return "#5b8efc"
 
     @Property(bool, notify=teamChanged)
     def isAircraftTeam(self) -> bool:
         code = (self._team.team_type or "").upper()
-        info = TEAM_TYPE_DETAILS.get(code)
-        return bool(info and info.get("is_aircraft"))
+        record = next((row for row in self._team_type_records if str(row.get("type_short") or "").upper() == code), {})
+        return bool(record.get("is_aviation"))
 
     @Property(bool, notify=teamChanged)
     def needsAssistActive(self) -> bool:

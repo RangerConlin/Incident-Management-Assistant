@@ -19,7 +19,7 @@ from PySide6.QtCore import Qt, QTimer, QRect, QRectF, QEvent, QByteArray
 from PySide6.QtGui import QPainter, QPixmap, QColor, QBrush, QImage, QFont, QFontMetrics
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import QStyleOptionViewItem, QToolTip
-from utils.styles import team_status_colors, team_type_text_colors, subscribe_theme, get_palette
+from utils.styles import team_status_colors, subscribe_theme, get_palette
 from utils.itemview_delegates import RowOutlineSelectionDelegate, IconWithOutlineDelegate, RowOutlineTableWidget
 from utils.audit import write_audit
 from datetime import datetime, timezone
@@ -582,17 +582,17 @@ class TeamStatusPanel(QWidget):
             from utils.styles import TEAM_TYPE_COLORS
             code = str(team_type or "").strip().upper()
             definition = self._team_type_styles.get(code, {})
-            background_key = str(definition.get("color_key") or code)
-            color = TEAM_TYPE_COLORS.get(background_key) or TEAM_TYPE_COLORS.get(code)
-            if not color:
+            color = QColor(str(definition.get("background_color") or ""))
+            if not color.isValid():
+                color = QColor(TEAM_TYPE_COLORS.get(code))
+            if not color.isValid():
                 return
-            base = QColor(color).lighter(130)
+            base = color.lighter(130)
             item.setBackground(QBrush(base))
-            text_key = str(definition.get("text_color_key") or "team_text_auto")
-            text_color = team_type_text_colors().get(text_key)
-            if text_color is None:
+            text_color = QColor(str(definition.get("text_color") or ""))
+            if not text_color.isValid():
                 palette = get_palette()
-                text_color = palette["fg"] if base.lightness() > 128 else palette["bg"]
+                text_color = QColor(palette["fg"] if base.lightness() > 128 else palette["bg"])
             item.setForeground(QBrush(text_color))
         except Exception:
             pass

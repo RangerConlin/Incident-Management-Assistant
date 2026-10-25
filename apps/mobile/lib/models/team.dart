@@ -13,6 +13,7 @@ class Team {
     this.currentTaskId,
     this.leaderName,
     this.leaderPhone,
+    this.teamType,
   });
 
   final int intId;
@@ -22,6 +23,7 @@ class Team {
   final int? currentTaskId;
   final String? leaderName;
   final String? leaderPhone;
+  final String? teamType;
 
   factory Team.fromJson(Map<String, dynamic> json) {
     return Team(
@@ -32,6 +34,7 @@ class Team {
       currentTaskId: parseInt(json['current_task_id']),
       leaderName: nullIfBlank(json['leader_name']),
       leaderPhone: nullIfBlank(json['leader_phone']),
+      teamType: nullIfBlank(json['team_type'])?.toUpperCase(),
     );
   }
 }

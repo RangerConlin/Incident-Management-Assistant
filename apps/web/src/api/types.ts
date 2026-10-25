@@ -32,6 +32,26 @@ export interface Incident {
   type?: string;
 }
 
+export interface TeamTypeDefinition {
+  id: number;
+  name: string;
+  type_short: string;
+  category: string;
+  description: string;
+  background_color: string;
+  text_color: string;
+  icon_key: string;
+  capability_ids: string[];
+  minimum_personnel: number;
+  minimum_vehicles: number;
+  minimum_aircraft: number;
+  minimum_equipment: number;
+  detail_sections: string[];
+  is_drone: boolean;
+  is_aviation: boolean;
+  is_active: boolean;
+}
+
 // GET /api/incidents/{id}/operations/team-assignment-rows — one row per team.
 export interface TeamAssignmentRow {
   tt_id: number | null;
@@ -86,6 +106,8 @@ export interface TeamDetail {
   team_leader: number | string | null;
   leader_name?: string | null;
   leader_phone?: string | null;
+  leader_person_record?: number | string | null;
+  member_person_records: number[];
   phone: string | null;
   team_type: string | null;
   role: string | null;
@@ -106,7 +128,6 @@ export interface TeamDetail {
   last_comm_ts?: string | null;
   last_contact_ts?: string | null;
   last_update_ts?: string | null;
-  members_json: string;
   vehicles_json: string;
   equipment_json: string;
   aircraft_json: string;

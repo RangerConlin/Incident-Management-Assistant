@@ -116,6 +116,30 @@ export function useUnlinkTaskWorkAssignment(incidentId: string, taskId: number) 
   });
 }
 
+// Mirrors desktop's modules/operations/taskings/data/lookups.py — category
+// gates the available task types there via a cascading dropdown.
+export const TASK_CATEGORIES = [
+  "Air SAR",
+  "Damage Assessment",
+  "Ground SAR",
+  "Logistics Support",
+  "Other",
+  "Photography",
+  "Relocation",
+];
+
+export const TASK_TYPES_BY_CATEGORY: Record<string, string[]> = {
+  "Air SAR": ["ELT Search", "Creeping Line", "Parallel Track", "Sector Search", "Photo Recon", "Route Search"],
+  "Ground SAR": ["Hasty", "Area", "Grid", "Tracking", "Clue Follow-up", "Electronic Grid Search"],
+  "Damage Assessment": ["Wind/Storm Survey", "Flood Assessment", "Wildfire Perimeter", "Infrastructure Survey"],
+  "Logistics Support": ["Transport", "Supply Run", "Staging Support", "Shelter Support"],
+  "Photography": ["Aerial Photo", "Ground Photo", "Video Recon"],
+  "Relocation": ["Relocate Team", "Relocate Aircraft", "Relocate Equipment"],
+  "Other": ["Other/Custom"],
+};
+
+export const TASK_PRIORITIES = ["Low", "Medium", "High", "Critical"];
+
 export const TASK_STATUS_OPTIONS: { key: string; label: string }[] = [
   { key: "created", label: "Created" },
   { key: "planned", label: "Planned" },

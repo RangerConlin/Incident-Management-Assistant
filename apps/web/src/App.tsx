@@ -61,6 +61,8 @@ import CertificationsPage from "./modules/workspaces/CertificationsPage";
 import WeatherPage from "./modules/workspaces/WeatherPage";
 import DemobilizationPage from "./modules/workspaces/DemobilizationPage";
 import CustomizationPage from "./modules/workspaces/CustomizationPage";
+import WorkspacePage from "./modules/workspaces/WorkspacePage";
+import { WORKSPACES } from "./modules/workspaces/config";
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const { isAuthenticated } = useSession();
@@ -294,6 +296,28 @@ export default function App() {
             </RequireIncident>
           }
         />
+        {WORKSPACES.map((w) => (
+          <Route
+            key={w.path}
+            path={w.path.slice(1)}
+            element={
+              <RequireIncident>
+                <WorkspacePage workspace={w} />
+              </RequireIncident>
+            }
+          />
+        ))}
+        {WORKSPACES.map((w) => (
+          <Route
+            key={`${w.path}-dataset`}
+            path={`${w.path.slice(1)}/:datasetKey/:recordId?`}
+            element={
+              <RequireIncident>
+                <WorkspacePage workspace={w} />
+              </RequireIncident>
+            }
+          />
+        ))}
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

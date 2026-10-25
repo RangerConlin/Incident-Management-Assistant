@@ -8,12 +8,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import time
 from typing import Mapping
 
 from PySide6.QtGui import QColor
 
-from utils.constants import TEAM_TYPE_DETAILS
 from utils import styles as style_palette
+from modules.common.team_type_catalog import active_team_types
 
 
 @dataclass(frozen=True)
@@ -41,21 +42,25 @@ class TeamSymbolSpec:
     icon_url: str | None = None
 
 
-TEAM_TYPE_SYMBOLS: Mapping[str, TeamTypeSymbol] = {
-    "GT": TeamTypeSymbol("GT", "Ground Team", "GT", "team.png"),
-    "UDF": TeamTypeSymbol("UDF", "Urban DF Team", "DF", "df.png"),
-    "LSAR": TeamTypeSymbol("LSAR", "Land SAR", "SAR", "team.png"),
-    "DF": TeamTypeSymbol("DF", "Direction Finding Team", "DF", "df.png"),
-    "GT/UAS": TeamTypeSymbol("GT/UAS", "Ground/UAS Team", "GT", "team.png", base_type="GT"),
-    "UDF/UAS": TeamTypeSymbol("UDF/UAS", "UDF/UAS Team", "DF", "df.png", base_type="UDF"),
-    "UAS": TeamTypeSymbol("UAS", "UAS Team", "UAS", "uas.png"),
-    "AIR": TeamTypeSymbol("AIR", "Aircraft", "AIR", "fixed_wing.png"),
-    "HELO": TeamTypeSymbol("HELO", "Helicopter Team", "HEL", "helo.png", base_type="AIR"),
-    "K9": TeamTypeSymbol("K9", "K9 Team", "K9", "k9.png"),
-    "UTIL": TeamTypeSymbol("UTIL", "Utility/Support", "SUP", "util.png"),
-}
-
 _ASSET_ROOT = Path(__file__).resolve().parent.parent / "assets" / "team_symbols"
+_catalog_by_code: dict[str, dict] | None = None
+_catalog_loaded_at = 0.0
+
+
+def refresh_team_type_symbols() -> None:
+    global _catalog_by_code, _catalog_loaded_at
+    _catalog_by_code = None
+    _catalog_loaded_at = 0.0
+
+
+def _catalog() -> dict[str, dict]:
+    global _catalog_by_code, _catalog_loaded_at
+    if _catalog_by_code is None or time.monotonic() - _catalog_loaded_at >= 30:
+        _catalog_by_code = {
+            str(row.get("type_short") or "").strip().upper(): row for row in active_team_types()
+        }
+        _catalog_loaded_at = time.monotonic()
+    return _catalog_by_code
 
 _STATUS_ALIASES: Mapping[str, str] = {
     "rest": "crew rest",
@@ -115,19 +120,23 @@ def team_symbol_spec(team_type: object, status: object) -> TeamSymbolSpec:
 
     requested_type = _normalize_team_type(team_type)
     team_type_colors = style_palette.TEAM_TYPE_COLORS
-    symbol = TEAM_TYPE_SYMBOLS.get(requested_type)
-    if symbol is None:
-        label = TEAM_TYPE_DETAILS.get(requested_type, {}).get("label") or requested_type or "Team"
-        symbol = TeamTypeSymbol(requested_type, label, requested_type[:3] or "T")
+    catalog_row = _catalog().get(requested_type, {})
+    label = str(catalog_row.get("name") or requested_type or "Team")
+    symbol = TeamTypeSymbol(requested_type, label, requested_type[:3] or "T")
 
     fill_type = symbol.base_type or symbol.code
     palette = style_palette.get_palette()
-    fill = QColor(team_type_colors.get(fill_type) or team_type_colors.get(symbol.code) or palette["accent"])
+    fill = QColor(str(catalog_row.get("background_color") or ""))
+    if not fill.isValid():
+        fill = QColor(team_type_colors.get(fill_type) or team_type_colors.get(symbol.code) or palette["accent"])
     status_key = _normalize_status(status)
     status_colors = style_palette.team_status_light_colors()
     border_hex = _brush_hex(status_colors, status_key, palette["accent"])
     border_color = QColor(border_hex)
-    text = _contrast_text_color(fill)
+    text_color = QColor(str(catalog_row.get("text_color") or ""))
+    text = _qcolor_hex(text_color) if text_color.isValid() else _contrast_text_color(fill)
+    icon_key = str(catalog_row.get("icon_key") or "").strip()
+    icon_name = f"{icon_key}.png" if icon_key else None
     return TeamSymbolSpec(
         team_type=symbol.code,
         label=symbol.label,
@@ -140,5 +149,5 @@ def team_symbol_spec(team_type: object, status: object) -> TeamSymbolSpec:
         inner_ring_color=_shade(fill, 145),
         text_color=text,
         status_key=status_key,
-        icon_url=_icon_url(symbol.icon_name),
+        icon_url=_icon_url(icon_name),
     )

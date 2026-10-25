@@ -73,7 +73,8 @@ type StatusDomain =
   | "logistics-priority"
   | "facility"
   | "approval"
-  | "approval-step";
+  | "approval-step"
+  | "intel-priority";
 
 function slug(key: string): string {
   return key.trim().toLowerCase().replace(/\s+/g, "-").replace(/\//g, "-");
@@ -161,3 +162,6 @@ export type ApprovalStatusKey = "not_started" | "pending" | "approved" | "reject
 export type ApprovalStepStatusKey = "waiting" | "active" | "completed" | "skipped";
 export function approvalStatusVar(key: ApprovalStatusKey | string) { return statusVar("approval", key); }
 export function approvalStepStatusVar(key: ApprovalStepStatusKey | string) { return statusVar("approval-step", key); }
+
+export type IntelPriorityKey = "Critical" | "High" | "Medium" | "Low";
+export function intelPriorityVar(key: IntelPriorityKey | string) { return statusVar("intel-priority", key); }

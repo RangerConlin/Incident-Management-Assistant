@@ -44,7 +44,7 @@ from modules.operations.teams.panels.team_detail_window import (
     AddTeamMemberDialog,
     AddVehicleDialog,
 )
-from utils.constants import TEAM_TYPE_DETAILS
+from modules.common.team_type_catalog import active_team_types
 from utils.styles import subscribe_theme, validation_status_colors
 
 _RESOURCE_KIND_LABELS = {"personnel": "Personnel", "vehicle": "Vehicles", "aircraft": "Aircraft", "equipment": "Equipment"}
@@ -168,9 +168,9 @@ class TeamBuilderWindow(QDialog):
         header.addWidget(self.name_edit, 1)
         header.addWidget(QLabel("Team Type:"))
         self.type_combo = QComboBox()
-        for code, info in TEAM_TYPE_DETAILS.items():
-            if not info.get("planned_only"):
-                self.type_combo.addItem(info["label"], code)
+        for team_type in active_team_types():
+            code = str(team_type.get("type_short") or "")
+            self.type_combo.addItem(str(team_type.get("name") or code), code)
         header.addWidget(self.type_combo)
         layout.addLayout(header)
 

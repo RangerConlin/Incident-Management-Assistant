@@ -46,7 +46,7 @@ _SESSION_MAX_AGE_SECONDS = 12 * 60 * 60
 class FieldSpec:
     name: str
     label: str
-    input_type: str = "text"  # "text" | "password" | "number" | "checkbox" | "textarea" | "list" | "select" | "select_fk" | "combo"
+    input_type: str = "text"  # text/password/number/checkbox/textarea/list/select/select_fk/combo/color/multiselect
     value_type: str = "str"  # "str" | "int" | "float" | "bool"
 
 
@@ -265,22 +265,19 @@ def _resource_type_update_payload(resource_type_body_cls: type, body: dict[str, 
 
 def _team_type_form_row(doc: dict[str, Any]) -> dict[str, Any]:
     row = dict(doc)
-    for field in ("capability_ids", "required_roles", "detail_sections"):
+    for field in ("required_roles", "detail_sections"):
         row[field] = _list_to_csv(row.get(field))
     return row
 
 
 def _team_type_form_payload(form: dict[str, Any]) -> dict[str, Any]:
-    organization_id = str(form.get("organization_id") or "").strip()
     return {
         "name": str(form.get("name") or "").strip(),
         "type_short": str(form.get("type_short") or "").strip(),
         "category": str(form.get("category") or "").strip(),
         "description": str(form.get("description") or "").strip(),
-        "scope": str(form.get("scope") or "system").strip(),
-        "organization_id": int(organization_id) if organization_id else None,
-        "color_key": str(form.get("color_key") or "team_type_default").strip(),
-        "text_color_key": str(form.get("text_color_key") or "team_text_auto").strip(),
+        "background_color": str(form.get("background_color") or "#7a7a7a").strip(),
+        "text_color": str(form.get("text_color") or "#ffffff").strip(),
         "icon_key": str(form.get("icon_key") or "team").strip(),
         "capability_ids": _csv_to_list(form.get("capability_ids")),
         "minimum_personnel": int(form.get("minimum_personnel") or 0),
@@ -1131,7 +1128,7 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
     ]
     resource_capability_fields = [
         FieldSpec("name", "Name"),
-        FieldSpec("category", "Category"),
+        FieldSpec("category", "Category", input_type="select"),
         FieldSpec("description", "Description", input_type="textarea"),
         FieldSpec("is_active", "Active", input_type="checkbox", value_type="bool"),
         FieldSpec("notes", "Notes", input_type="textarea"),
@@ -1141,12 +1138,10 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
         FieldSpec("type_short", "Code"),
         FieldSpec("category", "Category"),
         FieldSpec("description", "Description", input_type="textarea"),
-        FieldSpec("scope", "Scope"),
-        FieldSpec("organization_id", "Organization ID", input_type="number", value_type="int"),
-        FieldSpec("color_key", "Theme Color Key"),
-        FieldSpec("text_color_key", "Text Color Key"),
-        FieldSpec("icon_key", "Icon Key"),
-        FieldSpec("capability_ids", "Capability IDs", input_type="list"),
+        FieldSpec("background_color", "Background Color", input_type="color"),
+        FieldSpec("text_color", "Text Color", input_type="color"),
+        FieldSpec("icon_key", "Map Icon", input_type="select"),
+        FieldSpec("capability_ids", "Capabilities", input_type="multiselect"),
         FieldSpec("minimum_personnel", "Minimum Personnel", input_type="number", value_type="int"),
         FieldSpec("required_roles", "Required Roles", input_type="list"),
         FieldSpec("minimum_vehicles", "Minimum Vehicles", input_type="number", value_type="int"),
@@ -1705,7 +1700,7 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
             delete_fn=lookup_types_router.delete_team_type,
             form_row_fn=_team_type_form_row,
             form_payload_fn=_team_type_form_payload,
-            list_fields=["name", "type_short", "category", "scope", "is_aviation", "is_active"],
+            list_fields=["name", "type_short", "category", "icon_key", "is_aviation", "is_active"],
         ),
         CollectionSpec(
             key="certification-types",
@@ -2541,6 +2536,22 @@ def _field_input_html(
     combo_depends: dict[str, str] | None = None,
 ) -> str:
     safe_value = escape(str(value)) if value is not None else ""
+    if field.input_type == "color":
+        color = str(value or ("#ffffff" if field.name == "text_color" else "#7a7a7a"))
+        return (
+            f'<div style="display:flex;align-items:center;gap:8px">'
+            f'<input type="color" name="{escape(field.name)}" value="{escape(color)}" '
+            f'style="width:64px;height:38px;padding:2px">'
+            f'<code>{escape(color)}</code></div>'
+        )
+    if field.input_type == "multiselect":
+        selected = {str(item) for item in (value or [])}
+        options = list((combo_options or {}).get(field.name, []))
+        option_html = "".join(
+            f'<option value="{escape(opt_id)}"{" selected" if opt_id in selected else ""}>'
+            f'{escape(label)}</option>' for opt_id, label in options
+        )
+        return f'<select name="{escape(field.name)}" multiple size="8">{option_html}</select>'
     if field.input_type == "checkbox":
         is_checked = (
             field.name in {"is_active", "active", "appears_on_ics230_default"} and value is None
@@ -2996,6 +3007,24 @@ def _form_html(spec: CollectionSpec, doc: dict[str, Any], *, action: str, submit
 
         combo_options["category"] = [(value, value) for value in RESOURCE_CATEGORIES]
         combo_options["source"] = [(value, value) for value in RESOURCE_SOURCES]
+    if spec.key == "team-types":
+        from sarapp_db.api.routers.lookup_types import TEAM_TYPE_CATEGORIES, TEAM_TYPE_ICON_KEYS
+        from sarapp_db.api.routers import resource_types as resource_types_router
+
+        combo_options["category"] = [(value, value) for value in TEAM_TYPE_CATEGORIES]
+        icon_labels = {"df": "Direction Finding", "util": "Utility", "uas": "UAS",
+                       "fixed_wing": "Fixed Wing", "helo": "Helicopter"}
+        combo_options["icon_key"] = [
+            (key, icon_labels.get(key, key.replace("_", " ").title())) for key in TEAM_TYPE_ICON_KEYS
+        ]
+        combo_options["capability_ids"] = sorted(
+            [
+                (str(row.get("id")), f'{row.get("name")} — {row.get("category")}')
+                for row in resource_types_router.list_capabilities(include_inactive=True, category="All")
+                if row.get("id") is not None and row.get("name")
+            ],
+            key=lambda item: item[1].lower(),
+        )
     if spec.key == "hospitals":
         combo_options["state"] = [(value, value) for value in _STATE_CODES]
         combo_options["trauma_level"] = [
@@ -3213,6 +3242,15 @@ def _parse_form_body(spec: CollectionSpec, form: dict[str, str]) -> dict[str, An
         else:
             body[field.name] = form.get(field.name, "")
     return body
+
+
+def _form_items(form_data: Any) -> dict[str, Any]:
+    """Preserve repeated values from HTML multi-select controls."""
+    result = dict(form_data.items())
+    values = [str(value) for value in form_data.getlist("capability_ids")]
+    if values:
+        result["capability_ids"] = ",".join(values)
+    return result
 
 
 def _coerce_import_payload(spec: CollectionSpec, row: dict[str, str]) -> dict[str, Any]:
@@ -3742,7 +3780,7 @@ def create_master_gui_router() -> APIRouter:
         spec = specs.get(collection_key)
         if spec is None:
             raise HTTPException(status_code=404, detail="Unknown collection")
-        form = dict((await request.form()).items())
+        form = _form_items(await request.form())
         body = _parse_form_body(spec, form)
         spec.create_fn(body)
         root_path = request.scope.get("root_path") or ""
@@ -3874,7 +3912,7 @@ def create_master_gui_router() -> APIRouter:
             _require_session(settings, request)
         except HTTPException:
             return _redirect_login(request)
-        form = dict((await request.form()).items())
+        form = _form_items(await request.form())
         _parse_rank_rows(record_id, form)
         root_path = request.scope.get("root_path") or ""
         return RedirectResponse(f"{root_path}/gui/rank-structures", status_code=303)
@@ -3892,7 +3930,7 @@ def create_master_gui_router() -> APIRouter:
         qualification = get_qualification_type(record_id)
         match_tags = _qualification_match_tags(qualification)
         if match_tags:
-            form = dict((await request.form()).items())
+            form = _form_items(await request.form())
             checked_ids = {
                 int(part) for part in str(form.get("cert_ids") or "").split(",") if part.strip().isdigit()
             }
@@ -3921,7 +3959,7 @@ def create_master_gui_router() -> APIRouter:
         if field is None:
             return JSONResponse({"error": "unknown field"}, status_code=404)
 
-        form = dict((await request.form()).items())
+        form = _form_items(await request.form())
         raw = str(form.get("value", "")).strip()
         if field.input_type == "checkbox":
             value: Any = 1 if raw.lower() in {"1", "true", "yes", "y", "on"} else 0
@@ -3965,7 +4003,7 @@ def create_master_gui_router() -> APIRouter:
         spec = specs.get(collection_key)
         if spec is None or spec.delete_fn is None:
             raise HTTPException(status_code=404, detail="Unknown collection")
-        form = dict((await request.form()).items())
+        form = _form_items(await request.form())
         ids = [part.strip() for part in str(form.get("ids") or "").split(",") if part.strip()]
         for record_id in ids:
             try:
@@ -3992,7 +4030,7 @@ def create_master_gui_router() -> APIRouter:
         # the submitted field name — the bulk toolbar only ever offers
         # _bulk_editable_fields(spec), same restriction enforced here.
         eligible = {f.name: f for f in _bulk_editable_fields(spec)}
-        form = dict((await request.form()).items())
+        form = _form_items(await request.form())
         ids = [part.strip() for part in str(form.get("ids") or "").split(",") if part.strip()]
         field = eligible.get(str(form.get("field") or "").strip())
         if not ids or field is None:
@@ -4024,7 +4062,7 @@ def create_master_gui_router() -> APIRouter:
         spec = specs.get(collection_key)
         if spec is None:
             raise HTTPException(status_code=404, detail="Unknown collection")
-        form = dict((await request.form()).items())
+        form = _form_items(await request.form())
         body = _parse_form_body(spec, form)
         spec.update_fn(_record_route_arg(spec, record_id), body)
         root_path = request.scope.get("root_path") or ""

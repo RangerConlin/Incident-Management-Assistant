@@ -79,16 +79,34 @@ def _type(
     is_drone: bool = False,
     is_aviation: bool = False,
 ) -> dict[str, Any]:
+    background_colors = {
+        "team_type_search_rescue": "#228b22",
+        "team_type_fire": "#c62828",
+        "team_type_ems": "#00838f",
+        "team_type_law_enforcement": "#1565c0",
+        "team_type_aviation": "#00a8ff",
+        "team_type_emergency_management": "#8e24aa",
+        "team_type_public_works": "#ef6c00",
+        "team_type_planned_event": "#008f6a",
+        "team_type_general": "#7a7a7a",
+    }
+    icon_aliases = {
+        "direction_finding": "df", "fixed_wing": "fixed_wing",
+        "helicopter": "helo", "utilities": "util", "support": "util",
+        "engine": "truck", "brush": "pickup", "ambulance": "van",
+        "patrol": "car",
+    }
     return {
         "name": name,
         "type_short": code,
         "category": category,
         "description": f"{name} used as an incident operational team.",
-        "scope": "system",
-        "organization_id": None,
-        "color_key": color_key,
-        "text_color_key": "team_text_auto",
-        "icon_key": icon_key,
+        "background_color": background_colors.get(color_key, "#7a7a7a"),
+        "text_color": "#ffffff",
+        "icon_key": icon_aliases.get(icon_key, icon_key if icon_key in {
+            "team", "df", "car", "pickup", "van", "truck", "util", "k9", "uas",
+            "fixed_wing", "helo",
+        } else "team"),
         "capabilities": capabilities,
         "minimum_personnel": minimum_personnel,
         "required_roles": [],

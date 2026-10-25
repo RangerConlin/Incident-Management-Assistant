@@ -62,7 +62,7 @@ def create_app(server_info_fn=None, request_log_fn=None, mode: str = "full") -> 
     include_incident_routers = mode == "full"
     app = FastAPI(
         title="SARApp API",
-        version="0.1.5",
+        version="0.1.6",
         docs_url="/docs",
         redoc_url=None,
     )

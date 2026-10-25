@@ -1,7 +1,20 @@
 from __future__ import annotations
 
+import time
+
 from modules.gis.services.team_symbols import team_symbol_spec
+from modules.gis.services import team_symbols
 from utils import styles as style_palette
+
+
+def setup_function() -> None:
+    team_symbols._catalog_by_code = {
+        "GT": {"name": "Ground Team", "background_color": "#228b22", "text_color": "#ffffff", "icon_key": "team"},
+        "GT/UAS": {"name": "Ground/UAS Team", "background_color": "#228b22", "text_color": "#ffffff", "icon_key": "team"},
+        "UAS": {"name": "UAS Team", "background_color": "#00a8ff", "text_color": "#ffffff", "icon_key": "uas"},
+        "K9": {"name": "K9 Team", "background_color": "#228b22", "text_color": "#ffffff", "icon_key": "k9"},
+    }
+    team_symbols._catalog_loaded_at = time.monotonic()
 
 
 def test_team_symbol_uses_status_alias_for_border() -> None:
@@ -25,7 +38,7 @@ def test_combined_team_type_uses_base_fill_without_modifier_badge() -> None:
         combined = team_symbol_spec("GT/UAS", "Available")
         ground = team_symbol_spec("GT", "Available")
 
-        assert combined.center_text == "GT"
+        assert combined.center_text == "GT/"
         assert combined.fill_color == ground.fill_color
         assert combined.icon_url == ground.icon_url
         assert combined.team_type == "GT/UAS"

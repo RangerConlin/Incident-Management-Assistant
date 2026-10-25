@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/team.dart';
+import '../models/team_type_definition.dart';
 import '../theme/app_theme.dart';
 import 'section_card.dart';
 
@@ -14,12 +15,14 @@ class TeamOverviewList extends StatelessWidget {
     super.key,
     required this.teams,
     required this.taskTitleById,
+    required this.teamTypes,
     this.ownTeamId,
     this.onViewAll,
   });
 
   final List<Team> teams;
   final Map<int, String> taskTitleById;
+  final Map<String, TeamTypeDefinition> teamTypes;
 
   /// The viewer's own team's `int_id`, when they have one — shows a YOU
   /// marker on that row.
@@ -51,6 +54,7 @@ class TeamOverviewList extends StatelessWidget {
                         ? null
                         : taskTitleById[teams[i].currentTaskId],
                     isOwnTeam: teams[i].intId == ownTeamId,
+                    teamType: teamTypes[teams[i].teamType],
                   ),
                 ],
               ],
@@ -64,11 +68,13 @@ class _TeamRow extends StatelessWidget {
     required this.team,
     required this.taskTitle,
     required this.isOwnTeam,
+    required this.teamType,
   });
 
   final Team team;
   final String? taskTitle;
   final bool isOwnTeam;
+  final TeamTypeDefinition? teamType;
 
   @override
   Widget build(BuildContext context) {
@@ -124,6 +130,19 @@ class _TeamRow extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                if (teamType != null)
+                  Container(
+                    margin: const EdgeInsets.only(top: 3),
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: teamType!.backgroundColor,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      teamType!.code,
+                      style: TextStyle(color: teamType!.textColor, fontSize: 10, fontWeight: FontWeight.w700),
                     ),
                   ),
               ],

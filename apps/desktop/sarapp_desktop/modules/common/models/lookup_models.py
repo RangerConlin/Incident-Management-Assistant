@@ -148,8 +148,8 @@ class ApiTaskTypesRepository(ApiBaseLookupRepository):
 class ApiTeamTypesRepository(ApiBaseLookupRepository):
     _endpoint = "/api/lookup/team-types"
     export_headers = [
-        "name", "type_short", "category", "description", "color_key",
-        "text_color_key", "icon_key", "is_active", "created_at", "updated_at",
+        "name", "type_short", "category", "description", "background_color",
+        "text_color", "icon_key", "is_active", "created_at", "updated_at",
     ]
 
     def _map_csv_row(self, row: dict) -> dict:
@@ -164,8 +164,8 @@ class ApiTeamTypesRepository(ApiBaseLookupRepository):
             "type_short": (norm.get("type_short") or norm.get("code") or "").strip(),
             "category": norm.get("category", "").strip(),
             "description": norm.get("description", "").strip(),
-            "color_key": (norm.get("color_key") or "team_type_default").strip(),
-            "text_color_key": (norm.get("text_color_key") or "team_text_auto").strip(),
+            "background_color": (norm.get("background_color") or "#7a7a7a").strip(),
+            "text_color": (norm.get("text_color") or "#ffffff").strip(),
             "icon_key": (norm.get("icon_key") or "team").strip(),
             "is_active": is_active,
         }

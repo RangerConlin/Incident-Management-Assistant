@@ -6,7 +6,15 @@ import StatusPill from "../../../components/table/StatusPill";
 import { useSession } from "../../../auth/SessionContext";
 import PlanningTab from "./PlanningTab";
 import TeamsTab from "./TeamsTab";
-import { TASK_STATUS_OPTIONS, useSetTaskStatus, useTaskDetail, useUpdateTask } from "./hooks";
+import {
+  TASK_CATEGORIES,
+  TASK_PRIORITIES,
+  TASK_STATUS_OPTIONS,
+  TASK_TYPES_BY_CATEGORY,
+  useSetTaskStatus,
+  useTaskDetail,
+  useUpdateTask,
+} from "./hooks";
 
 type Tab =
   | "overview"
@@ -106,15 +114,52 @@ export default function TaskDetailPage() {
           <div className="detail-header">
             <div className="field">
               <label>Category</label>
-              <input defaultValue={task.category ?? ""} onBlur={(e) => save({ category: e.target.value })} />
+              <select
+                value={task.category ?? ""}
+                onChange={(e) => save({ category: e.target.value, task_type: null })}
+              >
+                <option value="">Select a category…</option>
+                {task.category && !TASK_CATEGORIES.includes(task.category) && (
+                  <option value={task.category}>{task.category}</option>
+                )}
+                {TASK_CATEGORIES.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="field">
               <label>Type</label>
-              <input defaultValue={task.task_type ?? ""} onBlur={(e) => save({ task_type: e.target.value })} />
+              <select
+                value={task.task_type ?? ""}
+                disabled={!task.category}
+                onChange={(e) => save({ task_type: e.target.value })}
+              >
+                <option value="">{task.category ? "Select a type…" : "Select a category first"}</option>
+                {task.task_type && !(TASK_TYPES_BY_CATEGORY[task.category ?? ""] ?? []).includes(task.task_type) && (
+                  <option value={task.task_type}>{task.task_type}</option>
+                )}
+                {(TASK_TYPES_BY_CATEGORY[task.category ?? ""] ?? []).map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="field">
               <label>Priority</label>
-              <input defaultValue={task.priority ?? ""} onBlur={(e) => save({ priority: e.target.value })} />
+              <select value={task.priority ?? ""} onChange={(e) => save({ priority: e.target.value })}>
+                <option value="">Select a priority…</option>
+                {task.priority && !TASK_PRIORITIES.includes(task.priority) && (
+                  <option value={task.priority}>{task.priority}</option>
+                )}
+                {TASK_PRIORITIES.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="field">
               <label>Status</label>

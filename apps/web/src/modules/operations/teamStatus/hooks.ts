@@ -11,6 +11,14 @@ export function useTeamRows(incidentId: string) {
   });
 }
 
+export function useTeamTypes() {
+  return useQuery({
+    queryKey: ["catalog", "team_types"],
+    queryFn: api.listTeamTypes,
+    refetchInterval: POLL_FLOOR_MS,
+  });
+}
+
 export function useTeamDetail(incidentId: string, teamId: number) {
   return useQuery({
     queryKey: ["incident", incidentId, "teams", teamId],
@@ -85,14 +93,12 @@ export const STATUSES_REQUIRING_TASK = new Set([
   "enroute",
   "arrival",
   "find",
-  "complete",
-  "returning",
 ]);
 
 export const TEAM_STATUS_OTHER: { key: string; label: string }[] = [
   { key: "available", label: "Available" },
-  { key: "at other location", label: "At Other Location" },
-  { key: "to other location", label: "To Other Location" },
+  { key: "aol", label: "At Other Location" },
+  { key: "tol", label: "To Other Location" },
   { key: "out of service", label: "Out of Service" },
   { key: "break", label: "Break" },
   { key: "crew rest", label: "Crew Rest" },

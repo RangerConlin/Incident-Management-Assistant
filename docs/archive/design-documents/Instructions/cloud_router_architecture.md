@@ -218,17 +218,19 @@ reads. Its definition is intentionally separate from the FEMA Resource Type
 Library: a team type may reference a resource type, but the link is optional.
 Team-type records carry a stable Mongo `_id`, a local display/order `int_id`,
 a server-managed definition version, identity/presentation fields, capability
-references, minimum requirements, and configurable detail sections. Catalog
-colors and icons are semantic keys interpreted by each client rather than raw
-widget styling values. Background (`color_key`) and foreground
-(`text_color_key`) are independent: the Team Status Board uses the former for
-the type-cell fill and the latter for its code text. `team_text_auto` selects a
-contrast color; administrators may instead select one of the theme-defined
-text-color keys.
+references, minimum requirements, and configurable detail sections. The
+canonical presentation fields are direct six-digit hex `background_color` and
+`text_color` values plus an `icon_key` selected from the GIS team-symbol
+catalog. Categories, icons, and capabilities are catalog-backed selectors in
+the central editor; raw foreign-key ids are not exposed to administrators.
+Team types are catalog-wide and do not have organization scope.
 `server/sarapp_db/sarapp_db/migrations/seed_team_types.py` idempotently seeds
 the initial cross-discipline system catalog and its reusable capabilities; it
 fills missing canonical fields on matching legacy rows without overwriting
 administrator edits.
+`server/sarapp_db/sarapp_db/migrations/migrate_team_type_presentation.py`
+converts the earlier theme-key/scope shape to this canonical form and removes
+the retired fields.
 
 **Still to be designed/built** (tracked in `backlog.md`):
 - Generalizing the web GUI from 2 collections to the full ~40-collection

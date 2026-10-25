@@ -5,6 +5,7 @@ import '../models/mobile_incident_context.dart';
 import '../models/narrative_entry.dart';
 import '../models/task.dart';
 import '../models/team.dart';
+import '../models/team_type_definition.dart';
 import '../services/app_presence_service.dart';
 import '../services/chat_presence_service.dart';
 import '../services/incident_context_poller.dart';
@@ -64,6 +65,7 @@ class _IncidentStaffDashboardScreenState
 
   MobileIncidentContext? _mobileContext;
   List<Team> _teams = const [];
+  Map<String, TeamTypeDefinition> _teamTypes = const {};
   Map<int, String> _taskTitleById = const {};
   List<Map<String, dynamic>> _objectives = const [];
   List<NarrativeEntry> _narratives = const [];
@@ -173,6 +175,7 @@ class _IncidentStaffDashboardScreenState
         _apiClient.fetchHazards(widget.incidentId, opPeriod: opPeriod),
         _apiClient.fetchObjectives(widget.incidentId),
         _apiClient.fetchNarratives(widget.incidentId),
+        _apiClient.fetchTeamTypes(),
       ]);
 
       final mobileContext = results[0] as MobileIncidentContext;
@@ -202,6 +205,11 @@ class _IncidentStaffDashboardScreenState
               .map((e) => NarrativeEntry.fromJson(Map<String, dynamic>.from(e)))
               .toList()
             ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      final teamTypes = <String, TeamTypeDefinition>{};
+      for (final raw in (results[7] as List).whereType<Map>()) {
+        final definition = TeamTypeDefinition.fromJson(Map<String, dynamic>.from(raw));
+        if (definition.code.isNotEmpty) teamTypes[definition.code] = definition;
+      }
 
       final taskTitleById = <int, String>{
         for (final task in tasks)
@@ -215,6 +223,7 @@ class _IncidentStaffDashboardScreenState
       setState(() {
         _mobileContext = mobileContext;
         _teams = teams;
+        _teamTypes = teamTypes;
         _taskTitleById = taskTitleById;
         _objectives = objectives;
         _narratives = narratives;
@@ -494,6 +503,7 @@ class _IncidentStaffDashboardScreenState
           ),
           TeamOverviewList(
             teams: _teams,
+            teamTypes: _teamTypes,
             taskTitleById: _taskTitleById,
             ownTeamId: ownTeamId,
             onViewAll: () => Navigator.of(context).push(

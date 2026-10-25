@@ -11,6 +11,7 @@ void main() {
         'status_updated': '2026-07-10T09:41:00Z',
         'current_task_id': 15,
         'leader_name': 'John Smith',
+        'team_type': 'gt',
       });
 
       expect(team.intId, 4);
@@ -18,6 +19,7 @@ void main() {
       expect(team.status, 'Searching');
       expect(team.currentTaskId, 15);
       expect(team.leaderName, 'John Smith');
+      expect(team.teamType, 'GT');
     });
 
     test('missing current_task_id parses as null (no active task)', () {

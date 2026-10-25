@@ -50,6 +50,7 @@ def test_team_detail_window_includes_logistics_tab(qt_app: QApplication) -> None
             "Equipment",
             "Logistics",
             "Logs",
+            "Safety",
         ]
     finally:
         window.close()

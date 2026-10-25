@@ -225,13 +225,12 @@ Cost Summary
 
 **************************************************************************************************************
 [Tech Debt / Infrastructure]
-    - Team Type Catalog integration: the central catalog schema, GUI CRUD,
-      server pull sync, and idempotent cross-discipline system seed are in
-      place. Migrate incident teams from free-text `team_type` to stable catalog ids
-      with incident-owned version snapshots. Replace code-driven AIR/role/tab/
-      GIS behavior with catalog properties in coordinated server, desktop, and
-      web changes; remove the old constants and string field once all callers
-      are migrated. Do not add fallback reads or a compatibility layer.
+    - Team Type Catalog follow-up: migrate incident teams from free-text
+      `team_type` to stable catalog ids with incident-owned version snapshots;
+      then remove the remaining code-keyed operational field. Catalog definitions
+      are already consumed across desktop, web, and mobile; desktop GIS also uses
+      the catalog icon and aviation fields. Do not add fallback reads or a
+      compatibility layer.
     - Web client (`apps/web/`): full-CRUD browser clone of the desktop app, built module by module — see
       `apps/web/AGENTS.md` for conventions and `src/shell/moduleRegistry.ts` for the full module list and
       which are live.
@@ -346,7 +345,7 @@ Cost Summary
 [Logs]
   - Logs need to be able to write to multiple streams at once.  Would like to be able to generate a log for each individual person, but i dont think writing a separate stream is a good idea.  perhaps something that generates from a lookup of everything that person has done?
 
-
+**************************************************************************************************************
 [Web Logistics follow-up]
 - Shared request API hardening: enforce terminal/edit locks on item and fulfillment endpoints,
   not just header PATCH; item replacement currently does not advance version or append an
@@ -365,7 +364,7 @@ Cost Summary
   this is purely front-end parity work for `apps/web/` (and mobile, lower priority) following the
   per-module pattern in `apps/web/AGENTS.md`.
 
-
+**************************************************************************************************************
 [Forms — server export migration]
 - ICS 203 production exports now use the shared server for FEMA/ICS Canada/USCG.
   Migrate the remaining desktop form exports incrementally through their existing
@@ -375,3 +374,6 @@ Cost Summary
   current eligible local incidents have no saved positions. Populated roles and
   continuation pages have fixture coverage. See form_builder_inventory.md for
   unresolved template fields and the binding audit.
+**************************************************************************************************************
+[New Features]
+- Create new initial response module that can handle non SAR activities.  Ex. severe storm response allows for rapid creation and standup of an EOC during the initial response (specifically teams and tasks)

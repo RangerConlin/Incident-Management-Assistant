@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sarapp-db"
-version = "0.1.5"
+version = "0.1.6"
 description = "Shared MongoDB database framework for SARApp servers"
 requires-python = ">=3.11"
 dependencies = [

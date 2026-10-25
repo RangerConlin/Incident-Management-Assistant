@@ -17,6 +17,7 @@ import {
   teamStatusVar,
   approvalStatusVar,
   approvalStepStatusVar,
+  intelPriorityVar,
 } from "../../styles/statusColors";
 
 type Domain =
@@ -37,7 +38,8 @@ type Domain =
   | "logistics-priority"
   | "facility"
   | "approval"
-  | "approval-step";
+  | "approval-step"
+  | "intel-priority";
 
 interface StatusPillProps {
   domain?: Domain;
@@ -64,6 +66,7 @@ const RESOLVERS: Record<Domain, (key: string) => { bg: string; fg: string }> = {
   sitrep: sitrepStatusVar,
   approval: approvalStatusVar,
   "approval-step": approvalStepStatusVar,
+  "intel-priority": intelPriorityVar,
 };
 
 export default function StatusPill({ domain, statusKey, label }: StatusPillProps) {

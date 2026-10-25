@@ -32,6 +32,7 @@ import {
   useResetCommPing,
   useSetTeamStatus,
   useTeamRows,
+  useTeamTypes,
 } from "./hooks";
 
 export default function TeamStatusBoardPage() {
@@ -43,6 +44,11 @@ export default function TeamStatusBoardPage() {
   const [pendingStatus, setPendingStatus] = useState<{ row: TeamAssignmentRow; statusKey: string } | null>(null);
 
   const { data: rows = [], isLoading, error } = useTeamRows(incidentId!);
+  const { data: teamTypes = [] } = useTeamTypes();
+  const teamTypeByCode = useMemo(
+    () => new Map(teamTypes.map((type) => [type.type_short.toUpperCase(), type])),
+    [teamTypes],
+  );
   const setStatus = useSetTeamStatus(incidentId!);
   const createTeam = useCreateTeam(incidentId!);
   const resetCommPing = useResetCommPing(incidentId!);
@@ -105,7 +111,21 @@ export default function TeamStatusBoardPage() {
   const columns: ColumnDef<TeamAssignmentRow>[] = [
     { key: "sortie", header: "Sortie #", defaultWidth: 90 },
     { key: "name", header: "Team Name", sortable: true, sortValue: (r) => r.name, defaultWidth: 160 },
-    { key: "team_type", header: "Team Type", defaultWidth: 100 },
+    {
+      key: "team_type",
+      header: "Team Type",
+      render: (row) => {
+        const definition = teamTypeByCode.get(row.team_type.toUpperCase());
+        return (
+          <span style={{
+            display: "inline-block", padding: "2px 8px", borderRadius: 3,
+            backgroundColor: definition?.background_color,
+            color: definition?.text_color,
+          }} title={definition?.name}>{row.team_type}</span>
+        );
+      },
+      defaultWidth: 100,
+    },
     { key: "leader", header: "Team Leader", defaultWidth: 150 },
     { key: "contact", header: "Contact #", defaultWidth: 130 },
     {
