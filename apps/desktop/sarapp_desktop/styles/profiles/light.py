@@ -305,6 +305,19 @@ TEAM_TYPE_COLORS: Dict[str, str] = {
     "UTIL":     "#7a7a7a",
 }
 
+TEAM_TYPE_TEXT_COLORS: Dict[str, str] = {
+    "team_text_white":   "#ffffff",
+    "team_text_black":   "#000000",
+    "team_text_light":   "#f5f5f5",
+    "team_text_dark":    "#1a1a1a",
+    "team_text_red":     "#b71c1c",
+    "team_text_blue":    "#0d47a1",
+    "team_text_green":   "#1b5e20",
+    "team_text_amber":   "#8d5b00",
+    "team_text_cyan":    "#006064",
+    "team_text_magenta": "#6a1b9a",
+}
+
 # Intel module — subject/assessment/item/lead row tints and entity/priority/
 # trend accents. "bg" is a semi-transparent row-tint overlay (ARGB hex);
 # "fg" is the solid accent used for legend dots and status text.
@@ -536,6 +549,7 @@ __all__ = [
     "CHAT_BUBBLE",
     "WEATHER_SEVERITY",
     "TEAM_TYPE_COLORS",
+    "TEAM_TYPE_TEXT_COLORS",
     "INTEL_SUBJECT_STATUS",
     "INTEL_ASSESSMENT_STATUS",
     "INTEL_ITEM_STATUS",

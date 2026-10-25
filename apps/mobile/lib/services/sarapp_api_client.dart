@@ -177,9 +177,6 @@ class SarAppApiClient {
   Future<List<dynamic>> fetchCheckinRoles(String incidentId) =>
       _getJsonList('/api/incidents/$incidentId/checkin/roles');
 
-  Future<List<dynamic>> fetchCheckinTeams(String incidentId) =>
-      _getJsonList('/api/incidents/$incidentId/checkin/teams');
-
   Future<List<dynamic>> fetchCheckinRoster(String incidentId) =>
       _getJsonList('/api/incidents/$incidentId/checkin/roster');
 

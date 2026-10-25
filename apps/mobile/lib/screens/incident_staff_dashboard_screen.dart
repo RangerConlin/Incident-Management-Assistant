@@ -362,38 +362,12 @@ class _IncidentStaffDashboardScreenState
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Row(
-                children: [
-                  Flexible(
-                    child: Text(
-                      widget.incidentName,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 7,
-                      vertical: 1,
-                    ),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: theme.colorScheme.secondary),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      'Staff View',
-                      style: TextStyle(
-                        color: theme.colorScheme.secondary,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.4,
-                      ),
-                    ),
-                  ),
-                ],
+              Text(
+                widget.incidentName,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 2),
               Text(

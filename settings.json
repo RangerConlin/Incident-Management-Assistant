@@ -121,7 +121,7 @@
     "statusboard.team.columns.hidden": [
         "vehicle"
     ],
-    "lastIncidentNumber": "INC-456",
+    "lastIncidentNumber": "5af1a964-e810-4978-87ef-e25ac55095fa",
     "statusboard.task.textSize": "large",
     "statusboard.team.refreshMs": 15000,
     "statusboard.team.columns.widths": {
@@ -132,14 +132,14 @@
         "contact": 87,
         "status": 93,
         "assignment": 270,
-        "location": 94,
+        "location": 252,
         "last_updated": 57,
         "vehicle": 24
     },
     "statusboard.task.columns.widths": {
         "assigned_teams": 116,
         "number": 156,
-        "name": 131,
+        "name": 269,
         "category": 24,
         "task_type": 24,
         "due_datetime": 24,
@@ -162,15 +162,15 @@
             "connect_code": "DEMO-0001",
             "server_url": "",
             "last_status": "online",
-            "last_checked": "2026-10-25T05:17:42.133152+00:00"
+            "last_checked": "2026-10-25T05:42:35.098693+00:00"
         },
         {
             "id": "fb8918a91ed446ccae626706c6d0a762",
             "name": "Test 1",
             "connect_code": "OURS-9165",
             "server_url": "",
-            "last_status": "offline",
-            "last_checked": "2026-10-25T05:17:42.090737+00:00"
+            "last_status": "online",
+            "last_checked": "2026-10-25T05:42:35.756807+00:00"
         }
     ],
     "lastConnectionId": "9f574424680e47e5b19f1d417523f8f8",

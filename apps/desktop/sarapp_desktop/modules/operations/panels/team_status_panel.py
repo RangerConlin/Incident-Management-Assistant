@@ -19,7 +19,7 @@ from PySide6.QtCore import Qt, QTimer, QRect, QRectF, QEvent, QByteArray
 from PySide6.QtGui import QPainter, QPixmap, QColor, QBrush, QImage, QFont, QFontMetrics
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import QStyleOptionViewItem, QToolTip
-from utils.styles import team_status_colors, subscribe_theme, get_palette
+from utils.styles import team_status_colors, team_type_text_colors, subscribe_theme, get_palette
 from utils.itemview_delegates import RowOutlineSelectionDelegate, IconWithOutlineDelegate, RowOutlineTableWidget
 from utils.audit import write_audit
 from datetime import datetime, timezone
@@ -393,6 +393,8 @@ class TeamStatusPanel(QWidget):
         self._filters: list[dict] = []
         self._match_all: bool = True
         self._load_filters()
+        self._team_type_styles: dict[str, dict[str, Any]] = {}
+        self._load_team_type_styles()
         # The board is "dumb": it holds no fetch/join logic of its own. It
         # renders whatever rows the Team/Task Newsroom Desk hands it, and
         # re-renders whenever the desk says something changed.
@@ -557,21 +559,41 @@ class TeamStatusPanel(QWidget):
         self.set_row_color_by_status(row, status_key)
         self._apply_team_type_color(row, data.get("team_type", ""))
 
+    def _load_team_type_styles(self) -> None:
+        try:
+            from modules.common.models.lookup_models import ApiTeamTypesRepository
+
+            rows = ApiTeamTypesRepository().list(include_inactive=False)
+            self._team_type_styles = {
+                str(record.get("type_short") or "").strip().upper(): record
+                for record in rows
+                if str(record.get("type_short") or "").strip()
+            }
+        except Exception:
+            logger.exception("Unable to load Team Type Catalog styles")
+            self._team_type_styles = {}
+
     def _apply_team_type_color(self, row: int, team_type: str) -> None:
-        """Color the Team Type cell using the same rule as the team detail
-        window's background (TEAM_TYPE_COLORS, lightened by 30%)."""
+        """Apply independently configured background and text colors."""
         item = self.table.item(row, 3)
         if not item:
             return
         try:
             from utils.styles import TEAM_TYPE_COLORS
             code = str(team_type or "").strip().upper()
-            color = TEAM_TYPE_COLORS.get(code)
+            definition = self._team_type_styles.get(code, {})
+            background_key = str(definition.get("color_key") or code)
+            color = TEAM_TYPE_COLORS.get(background_key) or TEAM_TYPE_COLORS.get(code)
             if not color:
                 return
             base = QColor(color).lighter(130)
             item.setBackground(QBrush(base))
-            item.setForeground(QBrush(QColor("#000000") if base.lightness() > 128 else QColor("#ffffff")))
+            text_key = str(definition.get("text_color_key") or "team_text_auto")
+            text_color = team_type_text_colors().get(text_key)
+            if text_color is None:
+                palette = get_palette()
+                text_color = palette["fg"] if base.lightness() > 128 else palette["bg"]
+            item.setForeground(QBrush(text_color))
         except Exception:
             pass
 
@@ -954,6 +976,7 @@ class TeamStatusPanel(QWidget):
 
     def reload(self) -> None:
         """Re-render from the desk's current rows (no fetch of our own)."""
+        self._load_team_type_styles()
         self._render_rows(self._desk.team_rows())
 
     def _render_rows(self, rows: list[dict]) -> None:

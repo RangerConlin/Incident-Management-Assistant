@@ -1,15 +1,19 @@
 import 'package:flutter/material.dart';
 
+import '../models/mobile_incident_context.dart';
 import '../services/incident_session_starter.dart';
 import '../services/local_profile_store.dart';
+import '../services/profile_sync.dart';
 import '../services/sarapp_api_client.dart';
-import '../utils/natural_sort.dart';
 import 'field_dashboard_screen.dart';
 import 'incident_staff_dashboard_screen.dart';
 
-/// Choose an incident and team on the connected server, then join as the
-/// saved profile. There is no sign-in here: the profile already identifies
-/// the user, and the server is told about it automatically.
+/// Choose an incident on the connected server, then join as the saved
+/// profile. There is no sign-in here: the profile already identifies the
+/// user, and the server is told about it automatically. Team assignment is
+/// never chosen here — it's whatever the server already has for this person
+/// on this incident (shown read-only once an incident is picked), and it
+/// alone decides whether entry lands on Team View or Staff View.
 class IncidentPickerScreen extends StatefulWidget {
   const IncidentPickerScreen({
     super.key,
@@ -29,14 +33,14 @@ class _IncidentPickerScreenState extends State<IncidentPickerScreen> {
 
   List<Map<String, dynamic>> _incidents = const [];
   Map<String, dynamic>? _selectedIncident;
-  List<Map<String, dynamic>> _teams = const [];
-  Map<String, dynamic>? _selectedTeam;
   bool _loadingIncidents = false;
-  bool _loadingTeams = false;
   bool _joining = false;
   String? _errorMessage;
   String? _incidentsErrorMessage;
-  String? _teamsErrorMessage;
+
+  bool _loadingPreview = false;
+  MobileIncidentContext? _previewContext;
+  String? _previewErrorMessage;
 
   @override
   void initState() {
@@ -83,46 +87,50 @@ class _IncidentPickerScreenState extends State<IncidentPickerScreen> {
     } finally {
       if (mounted) setState(() => _loadingIncidents = false);
     }
-    await _loadTeams();
+    await _loadPreview();
   }
 
-  Future<void> _loadTeams() async {
+  /// Best-effort, read-only look at what the server already has for this
+  /// person on the selected incident — their team (if any) or staff
+  /// position(s) — shown before they commit by tapping Enter Incident.
+  /// Never blocks entry: a failure here just leaves the preview blank.
+  Future<void> _loadPreview() async {
     final incident = _selectedIncident;
     if (incident == null) {
       setState(() {
-        _teams = const [];
-        _selectedTeam = null;
+        _previewContext = null;
+        _previewErrorMessage = null;
       });
       return;
     }
 
     setState(() {
-      _loadingTeams = true;
-      _teamsErrorMessage = null;
+      _loadingPreview = true;
+      _previewErrorMessage = null;
+      _previewContext = null;
     });
     try {
-      final teams = await _apiClient.fetchCheckinTeams(_incidentId(incident));
-      if (!mounted) return;
-      setState(() {
-        _teams =
-            teams
-                .map(
-                  (e) => Map<String, dynamic>.from(e as Map<dynamic, dynamic>),
-                )
-                .toList()
-              ..sort((a, b) => naturalCompare(_teamName(a), _teamName(b)));
-        if (!_teams.contains(_selectedTeam)) _selectedTeam = null;
-      });
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _teams = const [];
-          _selectedTeam = null;
-          _teamsErrorMessage = 'Failed to load teams: ${_describe(e)}';
-        });
+      await ProfileSync(_apiClient).sync(widget.profile);
+      final session = await _apiClient.startSession(
+        personId: widget.profile.personId,
+        incidentId: _incidentId(incident),
+      );
+      final personRecord = session['person_record'];
+      if (personRecord == null) {
+        throw SarAppApiException(
+          'The server session did not identify a personnel record.',
+        );
       }
+      final context = await _apiClient.fetchMobileIncidentContext(
+        incidentId: _incidentId(incident),
+        personRecord: int.parse('$personRecord'),
+      );
+      if (!mounted) return;
+      setState(() => _previewContext = context);
+    } catch (e) {
+      if (mounted) setState(() => _previewErrorMessage = _describe(e));
     } finally {
-      if (mounted) setState(() => _loadingTeams = false);
+      if (mounted) setState(() => _loadingPreview = false);
     }
   }
 
@@ -135,14 +143,8 @@ class _IncidentPickerScreenState extends State<IncidentPickerScreen> {
   String _incidentNumber(Map<String, dynamic> incident) =>
       '${incident['number'] ?? incident['incident_number'] ?? _incidentId(incident)}';
 
-  String _teamId(Map<String, dynamic> team) => '${team['team_id']}';
-
-  String _teamName(Map<String, dynamic> team) =>
-      '${team['team_name'] ?? _teamId(team)}';
-
-  Future<void> _join({bool withoutTeam = false}) async {
+  Future<void> _join() async {
     final incident = _selectedIncident;
-    final team = withoutTeam ? null : _selectedTeam;
     if (incident == null) {
       setState(() => _errorMessage = 'Select an incident.');
       return;
@@ -156,8 +158,6 @@ class _IncidentPickerScreenState extends State<IncidentPickerScreen> {
         profile: widget.profile,
         incidentId: _incidentId(incident),
         incidentName: _incidentName(incident),
-        teamId: team == null ? null : _teamId(team),
-        teamName: team == null ? null : _teamName(team),
       );
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
@@ -199,11 +199,47 @@ class _IncidentPickerScreenState extends State<IncidentPickerScreen> {
     ),
   );
 
+  Widget _previewRow(BuildContext context) {
+    final theme = Theme.of(context);
+    final preview = _previewContext;
+    IconData icon;
+    String text;
+    if (preview == null) {
+      return const SizedBox.shrink();
+    } else if (preview.hasTeam) {
+      icon = Icons.groups_outlined;
+      text = 'Team: ${preview.teamName}';
+    } else if (preview.staffAssignments.isNotEmpty) {
+      icon = Icons.badge_outlined;
+      text = 'Position: ${preview.staffAssignments.first['title'] ?? ''}';
+    } else {
+      icon = Icons.person_outline;
+      text = 'No assignment yet';
+    }
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: theme.colorScheme.onSurfaceVariant),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Load incident')),
+      appBar: AppBar(title: const Text('Enter Incident')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -249,7 +285,7 @@ class _IncidentPickerScreenState extends State<IncidentPickerScreen> {
                   .toList(),
               onChanged: (value) {
                 setState(() => _selectedIncident = value);
-                _loadTeams();
+                _loadPreview();
               },
             ),
           Align(
@@ -260,40 +296,17 @@ class _IncidentPickerScreenState extends State<IncidentPickerScreen> {
               label: const Text('Refresh'),
             ),
           ),
-          const SizedBox(height: 16),
-          Text('Team', style: theme.textTheme.titleMedium),
-          const SizedBox(height: 8),
-          if (_loadingTeams)
+          if (_loadingPreview)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 8),
               child: LinearProgressIndicator(),
             )
-          else if (_teamsErrorMessage != null)
-            _errorText(_teamsErrorMessage!)
-          else if (_teams.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 8),
-              child: Text('No teams found for this incident.'),
-            )
-          else
-            DropdownButtonFormField<Map<String, dynamic>>(
-              initialValue: _selectedTeam,
-              isExpanded: true,
-              items: _teams
-                  .map(
-                    (team) => DropdownMenuItem(
-                      value: team,
-                      child: Text(_teamName(team)),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (value) => setState(() => _selectedTeam = value),
-            ),
-          const SizedBox(height: 16),
+          else if (_previewErrorMessage == null)
+            _previewRow(context),
+          const SizedBox(height: 8),
           if (_errorMessage != null) _errorText(_errorMessage!),
           FilledButton(
-            onPressed:
-                (_joining || _selectedIncident == null || _selectedTeam == null)
+            onPressed: (_joining || _selectedIncident == null)
                 ? null
                 : () => _join(),
             child: _joining
@@ -302,14 +315,7 @@ class _IncidentPickerScreenState extends State<IncidentPickerScreen> {
                     height: 20,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Text('Load incident'),
-          ),
-          const SizedBox(height: 8),
-          OutlinedButton(
-            onPressed: (_joining || _selectedIncident == null)
-                ? null
-                : () => _join(withoutTeam: true),
-            child: const Text('Enter without a field team'),
+                : const Text('Enter Incident'),
           ),
         ],
       ),

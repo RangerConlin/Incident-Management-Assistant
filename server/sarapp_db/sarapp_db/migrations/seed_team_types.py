@@ -87,6 +87,7 @@ def _type(
         "scope": "system",
         "organization_id": None,
         "color_key": color_key,
+        "text_color_key": "team_text_auto",
         "icon_key": icon_key,
         "capabilities": capabilities,
         "minimum_personnel": minimum_personnel,

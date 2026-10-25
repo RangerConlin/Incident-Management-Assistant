@@ -18,7 +18,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject, QTimer, Signal
 
 from utils.incident_cache import incident_cache
 
@@ -109,6 +109,17 @@ class TeamTaskDesk(QObject):
         super().__init__(parent)
         self._team_rows: list[dict[str, Any]] = []
         self._task_rows: list[dict[str, Any]] = []
+        # One user action (e.g. assigning a team to a task) writes several
+        # collections in sequence (team status, task's task_teams, narrative
+        # entries, audit log) and this client sees its own writes echoed back
+        # over the WebSocket — each would otherwise trigger its own _rebuild(),
+        # and _build_task_rows() does a blocking network call per task lacking
+        # task_links. Coalesce bursts into one rebuild, same pattern as
+        # WorkAssignmentDesk's _live_update_timer.
+        self._rebuild_timer = QTimer(self)
+        self._rebuild_timer.setSingleShot(True)
+        self._rebuild_timer.setInterval(200)
+        self._rebuild_timer.timeout.connect(self._rebuild)
         incident_cache.changed.connect(self._on_cache_changed)
         incident_cache.snapshotLoaded.connect(self._on_snapshot_loaded)
         self._rebuild()
@@ -128,11 +139,11 @@ class TeamTaskDesk(QObject):
     # ------------------------------------------------------------------
 
     def _on_snapshot_loaded(self) -> None:
-        self._rebuild()
+        self._rebuild_timer.start()
 
     def _on_cache_changed(self, collection: str, op: str, doc_id: str) -> None:
         if collection in _WATCHED_COLLECTIONS:
-            self._rebuild()
+            self._rebuild_timer.start()
 
     # ------------------------------------------------------------------
     # Join logic — ported from operations.py's team-assignment-rows /

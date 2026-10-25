@@ -147,7 +147,10 @@ class ApiTaskTypesRepository(ApiBaseLookupRepository):
 
 class ApiTeamTypesRepository(ApiBaseLookupRepository):
     _endpoint = "/api/lookup/team-types"
-    export_headers = ["name", "category", "description", "is_active", "created_at", "updated_at"]
+    export_headers = [
+        "name", "type_short", "category", "description", "color_key",
+        "text_color_key", "icon_key", "is_active", "created_at", "updated_at",
+    ]
 
     def _map_csv_row(self, row: dict) -> dict:
         norm = {k.lower().strip(): v for k, v in row.items()}
@@ -158,7 +161,11 @@ class ApiTeamTypesRepository(ApiBaseLookupRepository):
             is_active = 1
         return {
             "name": norm.get("name", "").strip(),
+            "type_short": (norm.get("type_short") or norm.get("code") or "").strip(),
             "category": norm.get("category", "").strip(),
             "description": norm.get("description", "").strip(),
+            "color_key": (norm.get("color_key") or "team_type_default").strip(),
+            "text_color_key": (norm.get("text_color_key") or "team_text_auto").strip(),
+            "icon_key": (norm.get("icon_key") or "team").strip(),
             "is_active": is_active,
         }

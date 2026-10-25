@@ -119,6 +119,7 @@ def test_team_type_write_rejected_locally_allowed_centrally(lockdown_env, monkey
             type_short="ENG",
             category="Fire & Rescue",
             color_key="team_type_fire",
+            text_color_key="team_text_white",
             icon_key="engine",
             capability_ids=["fire-suppression", "water-supply"],
             minimum_personnel=3,
@@ -131,6 +132,7 @@ def test_team_type_write_rejected_locally_allowed_centrally(lockdown_env, monkey
     saved = lookup_types.get_team_type(created["id"])
     assert saved["catalog_id"]
     assert saved["type_short"] == "ENG"
+    assert saved["text_color_key"] == "team_text_white"
     assert saved["capability_ids"] == ["fire-suppression", "water-supply"]
     assert saved["minimum_personnel"] == 3
     assert saved["version"] == 1

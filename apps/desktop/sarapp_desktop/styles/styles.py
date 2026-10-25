@@ -149,6 +149,10 @@ def _build_team_types(profile_module) -> Dict[str, QColor]:
     return _build_flat_colors(profile_module, "TEAM_TYPE_COLORS")
 
 
+def _build_team_type_text_colors(profile_module) -> Dict[str, QColor]:
+    return _build_flat_colors(profile_module, "TEAM_TYPE_TEXT_COLORS")
+
+
 _LIGHT_PROFILE = load_profile("light")
 _DARK_PROFILE = load_profile("dark")
 
@@ -266,6 +270,15 @@ _TEAM_TYPE_COLOR_TABLE: Dict[str, Dict[str, QColor]] = {
 }
 
 TEAM_TYPE_COLORS: Dict[str, QColor] = _TEAM_TYPE_COLOR_TABLE.get(THEME_NAME, _light_team_types)
+
+_TEAM_TYPE_TEXT_COLOR_TABLE: Dict[str, Dict[str, QColor]] = {
+    "light": _build_team_type_text_colors(_LIGHT_PROFILE),
+    "dark": _build_team_type_text_colors(_DARK_PROFILE),
+}
+
+
+def team_type_text_colors() -> Dict[str, QColor]:
+    return _TEAM_TYPE_TEXT_COLOR_TABLE.get(THEME_NAME, {})
 
 
 _MAP_SYMBOL_COLORS_LIGHT: Dict[str, QColor] = _build_flat_colors(_LIGHT_PROFILE, "MAP_SYMBOL_COLORS")
@@ -638,6 +651,7 @@ __all__ = [
     "resource_status_colors",
     "validation_status_colors",
     "TEAM_TYPE_COLORS",
+    "team_type_text_colors",
     "intel_subject_status_colors",
     "intel_assessment_status_colors",
     "intel_item_status_colors",

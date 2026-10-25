@@ -186,6 +186,7 @@ class UpsertTeamTypeRequest(BaseModel):
     scope: str = "system"
     organization_id: Optional[int] = None
     color_key: str = "team_type_default"
+    text_color_key: str = "team_text_auto"
     icon_key: str = "team"
     capability_ids: list[str] = Field(default_factory=list)
     minimum_personnel: int = Field(default=0, ge=0)
@@ -274,6 +275,7 @@ _TEAM_EXTRA = (
     "scope",
     "organization_id",
     "color_key",
+    "text_color_key",
     "icon_key",
     "capability_ids",
     "minimum_personnel",
@@ -297,6 +299,7 @@ def _team_type_payload(body: UpsertTeamTypeRequest) -> dict[str, Any]:
     data["description"] = data["description"].strip()
     data["scope"] = data["scope"].strip().lower() or "system"
     data["color_key"] = data["color_key"].strip() or "team_type_default"
+    data["text_color_key"] = data["text_color_key"].strip() or "team_text_auto"
     data["icon_key"] = data["icon_key"].strip() or "team"
     data["capability_ids"] = [
         str(value).strip() for value in data["capability_ids"] if str(value).strip()
