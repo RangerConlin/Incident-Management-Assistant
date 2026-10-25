@@ -975,6 +975,7 @@ def _resource_type_combo_options() -> list[tuple[str, str]]:
         search_text="",
         category="All",
         source="All",
+        kind="All",
         active_filter="Active",
         include_inactive=False,
     ):
@@ -1658,7 +1659,12 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
             record_field="id",
             fields=resource_type_fields,
             list_fn=lambda: resource_types_router.list_resource_types(
-                search_text="", category="All", source="All", active_filter="All", include_inactive=True
+                search_text="",
+                category="All",
+                source="All",
+                kind="All",
+                active_filter="All",
+                include_inactive=True,
             ),
             get_fn=lambda record_id: resource_types_router.get_resource_type(str(record_id)),
             create_fn=lambda body: resource_types_router.create_resource_type(
