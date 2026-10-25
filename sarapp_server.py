@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import threading
 from pathlib import Path
 import signal
 import sys
@@ -34,7 +35,7 @@ def _ensure_repo_packages_on_path() -> None:
 _ensure_repo_packages_on_path()
 
 from core.networking.server_info import DEFAULT_LOCAL_SERVER_NAME, DEFAULT_SERVER_PORT
-from services.lan_server.legacy_server.server_manager import SARAppServerManager
+from services.lan_server.server_manager import SARAppServerManager
 
 DEFAULT_SERVER_HOST = "0.0.0.0"
 
@@ -47,9 +48,13 @@ def main() -> None:
     args = parser.parse_args()
 
     manager = SARAppServerManager(host=args.host, port=args.port, server_name=args.name)
+    manager.start()
+    print(f"SARApp Server running at http://{args.host}:{manager.port}")
+
+    stop_event = threading.Event()
 
     def _handle_signal(sig, frame):
-        manager.shutdown()
+        stop_event.set()
 
     signal.signal(signal.SIGINT, _handle_signal)
     try:
@@ -57,7 +62,8 @@ def main() -> None:
     except (OSError, ValueError):
         pass  # SIGTERM not supported on Windows
 
-    manager.serve_forever()
+    stop_event.wait()
+    manager.stop()
 
 
 if __name__ == "__main__":

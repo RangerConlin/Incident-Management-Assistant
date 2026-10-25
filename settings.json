@@ -162,7 +162,7 @@
             "connect_code": "DEMO-0001",
             "server_url": "",
             "last_status": "online",
-            "last_checked": "2026-10-14T13:52:11.068267+00:00"
+            "last_checked": "2026-10-25T05:17:42.133152+00:00"
         },
         {
             "id": "fb8918a91ed446ccae626706c6d0a762",
@@ -170,7 +170,7 @@
             "connect_code": "OURS-9165",
             "server_url": "",
             "last_status": "offline",
-            "last_checked": "2026-10-14T13:52:11.038541+00:00"
+            "last_checked": "2026-10-25T05:17:42.090737+00:00"
         }
     ],
     "lastConnectionId": "9f574424680e47e5b19f1d417523f8f8",

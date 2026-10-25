@@ -107,14 +107,46 @@ def test_task_type_write_rejected_locally_allowed_centrally(lockdown_env, monkey
 
 def test_team_type_write_rejected_locally_allowed_centrally(lockdown_env, monkeypatch):
     _as_local(monkeypatch)
-    body = lookup_types.UpsertLookupRequest(name="Local Attempt")
+    body = lookup_types.UpsertTeamTypeRequest(name="Local Attempt", type_short="LOCAL")
     with pytest.raises(HTTPException) as exc_info:
         lookup_types.create_team_type(body)
     assert exc_info.value.status_code == 403
 
     _as_central(monkeypatch)
-    created = lookup_types.create_team_type(lookup_types.UpsertLookupRequest(name="Central Create"))
+    created = lookup_types.create_team_type(
+        lookup_types.UpsertTeamTypeRequest(
+            name="Central Create",
+            type_short="ENG",
+            category="Fire & Rescue",
+            color_key="team_type_fire",
+            icon_key="engine",
+            capability_ids=["fire-suppression", "water-supply"],
+            minimum_personnel=3,
+            required_roles=["Officer", "Operator"],
+            minimum_vehicles=1,
+            detail_sections=["personnel", "vehicles", "equipment", "logs"],
+        )
+    )
     assert created["id"] == 1
+    saved = lookup_types.get_team_type(created["id"])
+    assert saved["catalog_id"]
+    assert saved["type_short"] == "ENG"
+    assert saved["capability_ids"] == ["fire-suppression", "water-supply"]
+    assert saved["minimum_personnel"] == 3
+    assert saved["version"] == 1
+
+    lookup_types.update_team_type(
+        created["id"],
+        lookup_types.UpsertTeamTypeRequest(
+            name="Engine Company",
+            type_short="ENG",
+            category="Fire & Rescue",
+            minimum_personnel=4,
+        ),
+    )
+    updated = lookup_types.get_team_type(created["id"])
+    assert updated["minimum_personnel"] == 4
+    assert updated["version"] == 2
 
 
 def test_certification_type_write_rejected_locally_allowed_centrally(lockdown_env, monkeypatch):

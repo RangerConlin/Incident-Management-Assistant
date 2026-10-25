@@ -93,13 +93,21 @@ class SARAppServerManager:
         derived_central_master_url = derive_central_master_url(effective_cloud_router_url)
         if derived_central_master_url:
             os.environ["SARAPP_CENTRAL_MASTER_URL"] = derived_central_master_url
+        effective_cloud_router_token = get_cloud_router_token()
+        # sarapp_db.sync.config.sync_token() reads this same env var directly
+        # (it has no dev-default fallback of its own, unlike
+        # get_cloud_router_token() above) — without this, central-master
+        # sync would send an empty token and get rejected even though the
+        # tunnel itself authenticated fine with the dev-default.
+        if effective_cloud_router_token and not os.environ.get("SARAPP_CLOUD_ROUTER_TOKEN"):
+            os.environ["SARAPP_CLOUD_ROUTER_TOKEN"] = effective_cloud_router_token
         self._central_sync_loop = CentralSyncLoop()
         self._tunnel_client = CloudTunnelClient(
             local_port=self.port,
             server_id=self.server_info.server_id,
             server_name=self.server_info.server_name,
             cloud_router_url=effective_cloud_router_url,
-            token=get_cloud_router_token(),
+            token=effective_cloud_router_token,
             connect_code=connect_code or get_connect_code(),
         )
 

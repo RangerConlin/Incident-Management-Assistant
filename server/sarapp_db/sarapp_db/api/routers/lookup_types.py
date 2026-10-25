@@ -1,10 +1,11 @@
 """FastAPI router — task_types and team_types lookup table CRUD."""
 from __future__ import annotations
 
+import re
 from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from sarapp_db.mongo.database_manager import get_master_db, is_central_master_db
 from sarapp_db.mongo.collection_names import MasterCollections
@@ -71,6 +72,7 @@ def _ensure_int_ids(repo: BaseRepository) -> None:
 def _doc_to_row(doc: dict, extra_fields: tuple[str, ...] = ()) -> dict[str, Any]:
     row: dict[str, Any] = {
         "id": doc.get("int_id"),
+        "catalog_id": str(doc.get("_id") or ""),
         "name": doc.get("name", ""),
         "category": doc.get("category", ""),
         "description": doc.get("description", ""),
@@ -169,6 +171,37 @@ class UpsertLookupRequest(BaseModel):
     is_active: Optional[int] = 1
 
 
+class UpsertTeamTypeRequest(BaseModel):
+    """Canonical central-catalog definition for an operational team type.
+
+    Team types identify and present incident teams.  They deliberately do not
+    duplicate the formal FEMA Resource Type Library.  ``resource_type_id`` is
+    only an optional link to that separate catalog.
+    """
+
+    name: str
+    type_short: str
+    category: str = "General"
+    description: str = ""
+    scope: str = "system"
+    organization_id: Optional[int] = None
+    color_key: str = "team_type_default"
+    icon_key: str = "team"
+    capability_ids: list[str] = Field(default_factory=list)
+    minimum_personnel: int = Field(default=0, ge=0)
+    required_roles: list[str] = Field(default_factory=list)
+    minimum_vehicles: int = Field(default=0, ge=0)
+    minimum_aircraft: int = Field(default=0, ge=0)
+    minimum_equipment: int = Field(default=0, ge=0)
+    detail_sections: list[str] = Field(
+        default_factory=lambda: ["personnel", "vehicles", "equipment", "logs"]
+    )
+    resource_type_id: Optional[str] = None
+    is_drone: bool = False
+    is_aviation: bool = False
+    is_active: bool = True
+
+
 # ---------------------------------------------------------------------------
 # /api/lookup/task-types
 # ---------------------------------------------------------------------------
@@ -236,11 +269,81 @@ def restore_task_type(int_id: int) -> dict[str, Any]:
 # /api/lookup/team-types
 # ---------------------------------------------------------------------------
 
-_TEAM_EXTRA = ("type_short", "organization", "is_drone", "is_aviation")
+_TEAM_EXTRA = (
+    "type_short",
+    "scope",
+    "organization_id",
+    "color_key",
+    "icon_key",
+    "capability_ids",
+    "minimum_personnel",
+    "required_roles",
+    "minimum_vehicles",
+    "minimum_aircraft",
+    "minimum_equipment",
+    "detail_sections",
+    "resource_type_id",
+    "is_drone",
+    "is_aviation",
+    "version",
+)
+
+
+def _team_type_payload(body: UpsertTeamTypeRequest) -> dict[str, Any]:
+    data = body.model_dump()
+    data["name"] = data["name"].strip()
+    data["type_short"] = data["type_short"].strip().upper()
+    data["category"] = data["category"].strip() or "General"
+    data["description"] = data["description"].strip()
+    data["scope"] = data["scope"].strip().lower() or "system"
+    data["color_key"] = data["color_key"].strip() or "team_type_default"
+    data["icon_key"] = data["icon_key"].strip() or "team"
+    data["capability_ids"] = [
+        str(value).strip() for value in data["capability_ids"] if str(value).strip()
+    ]
+    data["required_roles"] = [
+        str(value).strip() for value in data["required_roles"] if str(value).strip()
+    ]
+    data["detail_sections"] = [
+        str(value).strip().lower() for value in data["detail_sections"] if str(value).strip()
+    ]
+    if not data["name"]:
+        raise HTTPException(status_code=422, detail="Team type name is required")
+    if not data["type_short"]:
+        raise HTTPException(status_code=422, detail="Team type code is required")
+    if data["scope"] not in {"system", "organization"}:
+        raise HTTPException(status_code=422, detail="Team type scope must be system or organization")
+    if data["scope"] == "organization" and data["organization_id"] is None:
+        raise HTTPException(status_code=422, detail="Organization-scoped team types require organization_id")
+    return data
+
+
+def _ensure_unique_team_type(
+    repo: BaseRepository,
+    data: dict[str, Any],
+    *,
+    exclude_id: int | None = None,
+) -> None:
+    for field, label in (("name", "name"), ("type_short", "code")):
+        filt: dict[str, Any] = {
+            field: {"$regex": f"^{re.escape(data[field])}$", "$options": "i"},
+            "scope": data["scope"],
+            "organization_id": data.get("organization_id"),
+        }
+        if exclude_id is not None:
+            filt["int_id"] = {"$ne": exclude_id}
+        if repo.find_one(filt):
+            raise HTTPException(
+                status_code=409,
+                detail=f"A team type with that {label} already exists in this scope",
+            )
 
 
 @router.get("/team-types")
 def list_team_types(filter_text: str = "", include_inactive: bool = False) -> list[dict[str, Any]]:
+    from sarapp_db.sync.readthrough import refresh_collection_before_read
+
+    refresh_collection_before_read(MasterCollections.TEAM_TYPES)
     repo = _team_types_repo()
     docs = _list_repo(repo, filter_text, include_inactive)
     return [_doc_to_row(d, _TEAM_EXTRA) for d in docs]
@@ -254,6 +357,9 @@ def team_type_exists(name: str, exclude_id: Optional[int] = None) -> dict[str, b
 
 @router.get("/team-types/{int_id}")
 def get_team_type(int_id: int) -> dict[str, Any]:
+    from sarapp_db.sync.readthrough import refresh_collection_before_read
+
+    refresh_collection_before_read(MasterCollections.TEAM_TYPES)
     repo = _team_types_repo()
     doc = _get_repo(repo, int_id)
     if not doc:
@@ -262,20 +368,27 @@ def get_team_type(int_id: int) -> dict[str, Any]:
 
 
 @router.post("/team-types", status_code=201)
-def create_team_type(body: UpsertLookupRequest) -> dict[str, Any]:
+def create_team_type(body: UpsertTeamTypeRequest) -> dict[str, Any]:
     repo = _team_types_repo()
     _require_central(repo)
-    int_id = _create_repo(repo, body.model_dump())
+    data = _team_type_payload(body)
+    _ensure_unique_team_type(repo, data)
+    data["version"] = 1
+    int_id = _create_repo(repo, data)
     return {"id": int_id}
 
 
 @router.put("/team-types/{int_id}")
-def update_team_type(int_id: int, body: UpsertLookupRequest) -> dict[str, Any]:
+def update_team_type(int_id: int, body: UpsertTeamTypeRequest) -> dict[str, Any]:
     repo = _team_types_repo()
     _require_central(repo)
-    if not _get_repo(repo, int_id):
+    existing = _get_repo(repo, int_id)
+    if not existing:
         raise HTTPException(404, f"Team type {int_id} not found")
-    _update_repo(repo, int_id, body.model_dump())
+    data = _team_type_payload(body)
+    _ensure_unique_team_type(repo, data, exclude_id=int_id)
+    data["version"] = int(existing.get("version") or 1) + 1
+    repo.update_one(existing["_id"], data)
     return {"ok": True}
 
 

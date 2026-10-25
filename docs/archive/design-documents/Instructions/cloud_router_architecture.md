@@ -156,7 +156,7 @@ first. See the "Server ↔ central sync" section in
 `realtime_architecture_roadmap.md` for the full design and why. In brief:
 `BaseRepository.insert_one`/`update_one`/`apply_update` call
 `sync.relay.relay_local_write()` for any write to a collection in
-`sync.config.SYNCABLE_MASTER_COLLECTIONS` (currently just `personnel`) on a
+`sync.config.SYNCABLE_MASTER_COLLECTIONS` on a
 server's *local* `sarapp_master` (never on `sarapp_central_master` itself,
 so cloud_router's own writes don't loop back into "relay to central") —
 this attempts an immediate HTTP push to `/api/sync/push` on the central
@@ -211,10 +211,25 @@ of this work added exactly that kind of continuous reconciliation; it was
 deliberately removed as inconsistent with this model — see
 `mongodb_schema_decisions.md` "Master-Incident Record Linking.")
 
+Team types use this same catalog path. `MasterCollections.TEAM_TYPES` is
+central-authoritative for writes, is edited through the central catalog GUI,
+and is pulled into each connected server's local `sarapp_master` for offline
+reads. Its definition is intentionally separate from the FEMA Resource Type
+Library: a team type may reference a resource type, but the link is optional.
+Team-type records carry a stable Mongo `_id`, a local display/order `int_id`,
+a server-managed definition version, identity/presentation fields, capability
+references, minimum requirements, and configurable detail sections. Catalog
+colors and icons are semantic keys interpreted by each client rather than raw
+widget styling values.
+`server/sarapp_db/sarapp_db/migrations/seed_team_types.py` idempotently seeds
+the initial cross-discipline system catalog and its reusable capabilities; it
+fills missing canonical fields on matching legacy rows without overwriting
+administrator edits.
+
 **Still to be designed/built** (tracked in `backlog.md`):
 - Generalizing the web GUI from 2 collections to the full ~40-collection
   inventory, and per-operator accounts/an audit trail (MVP is one shared
   admin login).
-- Extending the sync relay beyond `personnel`/`equipment` to the other
-  syncable master collections.
+- Migrating incident team records from their free-text `team_type` code to a
+  stable team-type catalog id plus an incident-owned definition snapshot.
 

@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from services.lan_server import firebase_credentials
-from services.lan_server.legacy_server.server_manager import SARAppServerManager
+from services.lan_server.server_manager import SARAppServerManager
 
 from .api_traffic import ApiTrafficLog
 from .settings import ServerConsoleSettings

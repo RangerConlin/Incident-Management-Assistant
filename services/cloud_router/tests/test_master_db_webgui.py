@@ -81,6 +81,15 @@ def _clear_resource_types():
     )
 
 
+def _clear_team_types():
+    from sarapp_db.mongo.collection_names import MasterCollections
+    from sarapp_db.mongo.database_manager import get_client
+
+    get_client()["sarapp_central_master"][MasterCollections.TEAM_TYPES].delete_many(
+        {"name": {"$regex": "^GUI Test"}}
+    )
+
+
 def _clear_organization_catalog():
     from sarapp_db.mongo.collection_names import MasterCollections
     from sarapp_db.mongo.database_manager import get_client
@@ -176,9 +185,54 @@ def test_login_then_index_lists_collections(monkeypatch) -> None:
     assert "Rank Structures" in response.text
     assert "Resource Types" in response.text
     assert "Resource Capabilities" in response.text
+    assert "Team Types" in response.text
     assert "Organizations" in response.text
     assert 'href="/central-master/gui/ranks"' not in response.text
     assert "Console Users" in response.text
+
+
+def test_team_type_catalog_create_and_edit(monkeypatch) -> None:
+    client = _client(monkeypatch)
+    _login(client)
+    _clear_team_types()
+    try:
+        created = client.post(
+            "/central-master/gui/team-types/new",
+            data={
+                "name": "GUI Test Engine Company",
+                "type_short": "eng",
+                "category": "Fire & Rescue",
+                "scope": "system",
+                "color_key": "team_type_fire",
+                "icon_key": "engine",
+                "capability_ids": "fire-suppression, water-supply",
+                "minimum_personnel": "3",
+                "required_roles": "Officer, Operator",
+                "minimum_vehicles": "1",
+                "detail_sections": "personnel, vehicles, equipment, logs",
+                "is_active": "on",
+            },
+        )
+        assert created.status_code == 303
+
+        from sarapp_db.api.routers import lookup_types
+
+        row = next(
+            item
+            for item in lookup_types.list_team_types(include_inactive=True)
+            if item["name"] == "GUI Test Engine Company"
+        )
+        assert row["type_short"] == "ENG"
+        assert row["capability_ids"] == ["fire-suppression", "water-supply"]
+        assert row["minimum_personnel"] == 3
+        assert row["version"] == 1
+
+        page = client.get(f"/central-master/gui/team-types/{row['id']}")
+        assert page.status_code == 200
+        assert "Theme Color Key" in page.text
+        assert "Detail Sections" in page.text
+    finally:
+        _clear_team_types()
 
 
 def test_create_and_edit_personnel_record(monkeypatch) -> None:

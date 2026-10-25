@@ -219,6 +219,76 @@ def test_pull_and_apply_downloads_central_resource_types(sync_env):
     assert checkpoint.get_last_pulled_at(_system_db(), "resource_capabilities") == "2026-01-05T00:00:00"
 
 
+def test_pull_and_apply_downloads_central_team_types(sync_env):
+    _central_db()["team_types"].insert_one(
+        {
+            "_id": "central-team-type-1",
+            "int_id": 1,
+            "name": "Engine Company",
+            "type_short": "ENG",
+            "category": "Fire & Rescue",
+            "scope": "system",
+            "color_key": "team_type_fire",
+            "icon_key": "engine",
+            "capability_ids": ["fire-suppression"],
+            "minimum_personnel": 3,
+            "required_roles": ["Officer", "Operator"],
+            "minimum_vehicles": 1,
+            "minimum_aircraft": 0,
+            "minimum_equipment": 0,
+            "detail_sections": ["personnel", "vehicles", "equipment", "logs"],
+            "version": 1,
+            "is_active": True,
+            "updated_at": "2026-01-06T00:00:00",
+        }
+    )
+
+    assert pull_and_apply("team_types", local_master_db=_local_db()) is True
+
+    team_type = _local_db()["team_types"].find_one({"_id": "central-team-type-1"})
+    assert team_type is not None
+    assert team_type["type_short"] == "ENG"
+    assert team_type["minimum_personnel"] == 3
+    assert checkpoint.get_last_pulled_at(_system_db(), "team_types") == "2026-01-06T00:00:00"
+
+
+def test_pull_and_apply_skips_a_poisoned_doc_without_blocking_the_rest(sync_env):
+    """A locally pre-existing record that collides with an incoming central
+    doc on a secondary unique index (e.g. `radio_channels.channel_name` —
+    see `sarapp_db/mongo/indexes.py::_create_radio_channels_indexes`) must
+    not raise out of `pull_and_apply` and block every other doc in the same
+    pull batch, nor leave the checkpoint stuck re-fetching it forever."""
+    _local_db()["radio_channels"].create_index("channel_name", unique=True)
+    _local_db()["radio_channels"].insert_one(
+        {"_id": "local-only-1", "channel_name": "CC-1 P", "updated_at": "2026-01-01T00:00:00"}
+    )
+
+    # Central has two docs this tick: one that collides with the local-only
+    # record above (different _id, same channel_name), and one unrelated
+    # healthy record with a later updated_at.
+    _central_db()["radio_channels"].insert_one(
+        {"_id": "central-conflict-1", "channel_name": "CC-1 P", "updated_at": "2026-01-02T00:00:00"}
+    )
+    _central_db()["radio_channels"].insert_one(
+        {"_id": "central-healthy-1", "channel_name": "TAC-1", "updated_at": "2026-01-03T00:00:00"}
+    )
+
+    assert pull_and_apply("radio_channels", local_master_db=_local_db()) is True
+
+    # The healthy doc still applied even though it was pulled alongside a
+    # poisoned one.
+    healthy = _local_db()["radio_channels"].find_one({"_id": "central-healthy-1"})
+    assert healthy is not None
+    assert healthy["channel_name"] == "TAC-1"
+
+    # The conflicting doc was skipped, not inserted under its own _id.
+    assert _local_db()["radio_channels"].find_one({"_id": "central-conflict-1"}) is None
+
+    # Checkpoint advanced to the latest updated_at in the batch rather than
+    # getting stuck behind the poisoned doc and re-fetching it every tick.
+    assert checkpoint.get_last_pulled_at(_system_db(), "radio_channels") == "2026-01-03T00:00:00"
+
+
 def test_local_write_relays_for_a_slug_keyed_collection(sync_env):
     """meeting_templates has no dual key — it's keyed by a user-chosen slug
     with upsert semantics, not an auto-incrementing id (see

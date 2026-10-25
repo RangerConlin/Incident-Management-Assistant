@@ -225,6 +225,13 @@ Cost Summary
 
 **************************************************************************************************************
 [Tech Debt / Infrastructure]
+    - Team Type Catalog integration: the central catalog schema, GUI CRUD,
+      server pull sync, and idempotent cross-discipline system seed are in
+      place. Migrate incident teams from free-text `team_type` to stable catalog ids
+      with incident-owned version snapshots. Replace code-driven AIR/role/tab/
+      GIS behavior with catalog properties in coordinated server, desktop, and
+      web changes; remove the old constants and string field once all callers
+      are migrated. Do not add fallback reads or a compatibility layer.
     - Web client (`apps/web/`): full-CRUD browser clone of the desktop app, built module by module — see
       `apps/web/AGENTS.md` for conventions and `src/shell/moduleRegistry.ts` for the full module list and
       which are live.

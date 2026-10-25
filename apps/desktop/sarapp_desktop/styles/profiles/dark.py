@@ -290,6 +290,16 @@ CHAT_BUBBLE: Dict[str, Dict[str, str]] = {
 }
 
 TEAM_TYPE_COLORS: Dict[str, str] = {
+    "team_type_search_rescue":       "#2f6d34",
+    "team_type_fire":                "#a03a3a",
+    "team_type_ems":                 "#1f7a83",
+    "team_type_law_enforcement":     "#3583c4",
+    "team_type_aviation":            "#3583c4",
+    "team_type_emergency_management": "#785b8f",
+    "team_type_public_works":        "#b2700d",
+    "team_type_planned_event":       "#2d8f6d",
+    "team_type_general":             "#5a5a5a",
+    "team_type_default":             "#5a5a5a",
     "GT":       "#2f6d34",
     "UDF":      "#bfa523",
     "LSAR":     "#2f6d34",

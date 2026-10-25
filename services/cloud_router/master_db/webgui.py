@@ -263,6 +263,38 @@ def _resource_type_update_payload(resource_type_body_cls: type, body: dict[str, 
     return resource_type_body_cls(**payload)
 
 
+def _team_type_form_row(doc: dict[str, Any]) -> dict[str, Any]:
+    row = dict(doc)
+    for field in ("capability_ids", "required_roles", "detail_sections"):
+        row[field] = _list_to_csv(row.get(field))
+    return row
+
+
+def _team_type_form_payload(form: dict[str, Any]) -> dict[str, Any]:
+    organization_id = str(form.get("organization_id") or "").strip()
+    return {
+        "name": str(form.get("name") or "").strip(),
+        "type_short": str(form.get("type_short") or "").strip(),
+        "category": str(form.get("category") or "").strip(),
+        "description": str(form.get("description") or "").strip(),
+        "scope": str(form.get("scope") or "system").strip(),
+        "organization_id": int(organization_id) if organization_id else None,
+        "color_key": str(form.get("color_key") or "team_type_default").strip(),
+        "icon_key": str(form.get("icon_key") or "team").strip(),
+        "capability_ids": _csv_to_list(form.get("capability_ids")),
+        "minimum_personnel": int(form.get("minimum_personnel") or 0),
+        "required_roles": _csv_to_list(form.get("required_roles")),
+        "minimum_vehicles": int(form.get("minimum_vehicles") or 0),
+        "minimum_aircraft": int(form.get("minimum_aircraft") or 0),
+        "minimum_equipment": int(form.get("minimum_equipment") or 0),
+        "detail_sections": _csv_to_list(form.get("detail_sections")),
+        "resource_type_id": str(form.get("resource_type_id") or "").strip() or None,
+        "is_drone": bool(form.get("is_drone")),
+        "is_aviation": bool(form.get("is_aviation")),
+        "is_active": bool(form.get("is_active")),
+    }
+
+
 def _get_resource_capability(capability_id: int) -> dict[str, Any]:
     from sarapp_db.api.routers import resource_types as resource_types_router
 
@@ -984,6 +1016,7 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
     from sarapp_db.api.routers import vehicles as vehicles_router
     from sarapp_db.api.routers import aircraft as aircraft_router
     from sarapp_db.api.routers import resource_types as resource_types_router
+    from sarapp_db.api.routers import lookup_types as lookup_types_router
     from sarapp_db.api.routers import hazard_types as hazard_types_router
     from sarapp_db.api.routers import hospitals as hospitals_router
     from sarapp_db.api.routers import master_facilities as master_facilities_router
@@ -1100,6 +1133,27 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
         FieldSpec("description", "Description", input_type="textarea"),
         FieldSpec("is_active", "Active", input_type="checkbox", value_type="bool"),
         FieldSpec("notes", "Notes", input_type="textarea"),
+    ]
+    team_type_fields = [
+        FieldSpec("name", "Name"),
+        FieldSpec("type_short", "Code"),
+        FieldSpec("category", "Category"),
+        FieldSpec("description", "Description", input_type="textarea"),
+        FieldSpec("scope", "Scope"),
+        FieldSpec("organization_id", "Organization ID", input_type="number", value_type="int"),
+        FieldSpec("color_key", "Theme Color Key"),
+        FieldSpec("icon_key", "Icon Key"),
+        FieldSpec("capability_ids", "Capability IDs", input_type="list"),
+        FieldSpec("minimum_personnel", "Minimum Personnel", input_type="number", value_type="int"),
+        FieldSpec("required_roles", "Required Roles", input_type="list"),
+        FieldSpec("minimum_vehicles", "Minimum Vehicles", input_type="number", value_type="int"),
+        FieldSpec("minimum_aircraft", "Minimum Aircraft", input_type="number", value_type="int"),
+        FieldSpec("minimum_equipment", "Minimum Equipment", input_type="number", value_type="int"),
+        FieldSpec("detail_sections", "Detail Sections", input_type="list"),
+        FieldSpec("resource_type_id", "Linked Resource Type ID"),
+        FieldSpec("is_drone", "Drone Team", input_type="checkbox", value_type="bool"),
+        FieldSpec("is_aviation", "Aviation Team", input_type="checkbox", value_type="bool"),
+        FieldSpec("is_active", "Active", input_type="checkbox", value_type="bool"),
     ]
     hospital_fields = [
         FieldSpec("name", "Name"),
@@ -1626,6 +1680,24 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
             update_fn=_update_resource_capability,
             delete_fn=None,
             list_fields=["name", "category", "description", "is_active"],
+        ),
+        CollectionSpec(
+            key="team-types",
+            title="Team Types",
+            record_field="id",
+            fields=team_type_fields,
+            list_fn=lambda: lookup_types_router.list_team_types(include_inactive=True),
+            get_fn=lookup_types_router.get_team_type,
+            create_fn=lambda body: lookup_types_router.create_team_type(
+                lookup_types_router.UpsertTeamTypeRequest(**body)
+            ),
+            update_fn=lambda record_id, body: lookup_types_router.update_team_type(
+                int(record_id), lookup_types_router.UpsertTeamTypeRequest(**body)
+            ),
+            delete_fn=lookup_types_router.delete_team_type,
+            form_row_fn=_team_type_form_row,
+            form_payload_fn=_team_type_form_payload,
+            list_fields=["name", "type_short", "category", "scope", "is_aviation", "is_active"],
         ),
         CollectionSpec(
             key="certification-types",

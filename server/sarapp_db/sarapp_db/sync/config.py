@@ -22,6 +22,7 @@ SYNCABLE_MASTER_COLLECTIONS = (
     "objective_templates", "strategy_templates", "radio_channels",
     "safety_analysis_templates", "meeting_templates",
     "resource_types", "resource_capabilities",
+    "team_types",
 )
 
 # Collections with a server-local sequential id plus a central agency-wide

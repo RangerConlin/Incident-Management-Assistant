@@ -283,6 +283,16 @@ WEATHER_SEVERITY: Dict[str, Dict[str, str]] = {
 }
 
 TEAM_TYPE_COLORS: Dict[str, str] = {
+    "team_type_search_rescue":       "#228b22",
+    "team_type_fire":                "#c62828",
+    "team_type_ems":                 "#00838f",
+    "team_type_law_enforcement":     "#1565c0",
+    "team_type_aviation":            "#00a8ff",
+    "team_type_emergency_management": "#8e24aa",
+    "team_type_public_works":        "#ef6c00",
+    "team_type_planned_event":       "#008f6a",
+    "team_type_general":             "#7a7a7a",
+    "team_type_default":             "#7a7a7a",
     "GT":       "#228b22",
     "UDF":      "#ffeb3b",
     "LSAR":     "#228b22",

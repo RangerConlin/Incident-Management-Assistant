@@ -142,7 +142,20 @@ def pull_and_apply(collection: str, *, local_master_db=None) -> bool:
     latest = since
     master_db = local_master_db if local_master_db is not None else get_master_db()
     for doc in docs:
-        apply_incoming(master_db, collection, doc)
+        try:
+            apply_incoming(master_db, collection, doc)
+        except Exception:
+            # A single unresolvable document (e.g. a duplicate-key conflict
+            # against a pre-existing local record — see
+            # mongodb_schema_decisions.md "Accepted tradeoff") must never
+            # poison the whole batch: without this, raising here would skip
+            # every later doc in `docs` this tick *and* leave the checkpoint
+            # un-advanced, so the same failing doc would be re-pulled and
+            # re-raised on every future tick forever. Logged once per
+            # occurrence and skipped instead.
+            logger.exception(
+                "Central sync apply failed for %s/%s; skipping.", collection, doc.get("_id")
+            )
         updated_at = str(doc.get("updated_at") or "")
         if latest is None or updated_at > latest:
             latest = updated_at
