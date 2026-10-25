@@ -5,6 +5,7 @@ import '../models/home_nav_args.dart';
 import '../models/incident_category.dart';
 import '../screens/alerts_center_screen.dart';
 import '../screens/field_dashboard_screen.dart';
+import '../screens/incident_staff_dashboard_screen.dart';
 import '../screens/map_screen.dart';
 import '../screens/message_inbox_screen.dart';
 
@@ -28,14 +29,21 @@ class AppBottomNav extends StatelessWidget {
   static Widget _screenFor(AppTab tab, HomeNavArgs args) {
     switch (tab) {
       case AppTab.dashboard:
-        return FieldDashboardScreen(
-          incidentId: args.incidentId,
-          incidentName: args.incidentName,
-          incidentType: args.incidentType,
-          teamId: args.teamId,
-          teamName: args.teamName,
-          session: args.session,
-        );
+        return args.teamId.isEmpty
+            ? IncidentStaffDashboardScreen(
+                incidentId: args.incidentId,
+                incidentName: args.incidentName,
+                incidentType: args.incidentType,
+                session: args.session,
+              )
+            : FieldDashboardScreen(
+                incidentId: args.incidentId,
+                incidentName: args.incidentName,
+                incidentType: args.incidentType,
+                teamId: args.teamId,
+                teamName: args.teamName,
+                session: args.session,
+              );
       case AppTab.tasks:
         final category = categoryForIncidentType(args.incidentType);
         return configFor(category).taskTabBuilder(args);

@@ -267,7 +267,7 @@ class TaskingsBridge(QObject):
         try:
             from utils.audit import write_audit
             d = get_debrief(int(debrief_id))
-            write_audit("debrief.submitted", {"debrief_id": int(debrief_id), "task_id": d.get("task_id")}, prefer_mission=True)
+            write_audit("debrief.submitted", {"debrief_id": int(debrief_id), "task_id": d.get("task_id")})
         except Exception:
             pass
         return _to_variant(get_debrief(int(debrief_id)))
@@ -286,7 +286,7 @@ class TaskingsBridge(QObject):
         try:
             from utils.audit import write_audit
             d = get_debrief(int(debrief_id))
-            write_audit("debrief.reviewed", {"debrief_id": int(debrief_id), "task_id": d.get("task_id")}, prefer_mission=True)
+            write_audit("debrief.reviewed", {"debrief_id": int(debrief_id), "task_id": d.get("task_id")})
         except Exception:
             pass
         return _to_variant(get_debrief(int(debrief_id)))

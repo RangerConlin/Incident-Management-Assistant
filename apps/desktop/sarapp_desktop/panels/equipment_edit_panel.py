@@ -426,15 +426,21 @@ class EquipmentEditPanel(QWidget):
 
     # ----- Data loading -----------------------------------------------------
     def refresh(self) -> None:
-        try:
-            rows = _api().get(_BASE) or []
-        except Exception as exc:
-            log.warning("Failed to load equipment: %s", exc)
-            self._show_error(f"Unable to load equipment: {exc}")
-            return
-        self._hide_error()
-        self._all_rows = rows
-        self._apply_filters()
+        from utils.edit_window_kit import run_async
+
+        def _task() -> List[Dict[str, Any]]:
+            return _api().get(_BASE) or []
+
+        def _on_done(rows: List[Dict[str, Any]]) -> None:
+            self._hide_error()
+            self._all_rows = rows
+            self._apply_filters()
+
+        def _on_error(message: str) -> None:
+            log.warning("Failed to load equipment: %s", message)
+            self._show_error(f"Unable to load equipment: {message}")
+
+        run_async(self, _task, _on_done, _on_error)
 
     def _apply_filters(self) -> None:
         needle = self._search_text.strip().lower()

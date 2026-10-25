@@ -5,6 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:ics_mobile_app/screens/field_dashboard_screen.dart';
+import 'package:ics_mobile_app/services/app_presence_service.dart';
+import 'package:ics_mobile_app/services/chat_presence_service.dart';
+import 'package:ics_mobile_app/services/incident_context_poller.dart';
 import 'package:ics_mobile_app/services/sarapp_api_client.dart';
 import 'package:ics_mobile_app/widgets/assignment_reference_panel.dart';
 import 'package:ics_mobile_app/widgets/narrative_feed.dart';
@@ -107,6 +110,20 @@ SarAppApiClient _buildClient({
 
 Widget _wrap(Widget child) => MaterialApp(home: child);
 
+// FieldDashboardScreen starts these as static/global heartbeat timers in
+// initState and relies on an explicit stop() (normally from AppDrawer's
+// logout/switch-incident actions) rather than its own dispose() — see the
+// lifecycle note on ChatPresenceService. Each test below calls this inline,
+// as its last statement, rather than via `addTearDown` or the package:test
+// `tearDown` — both of those run after flutter_test's pending-timer
+// invariant check for the test's own zone has already run, too late to
+// cancel it.
+void _stopPresenceServices() {
+  AppPresenceService.stop();
+  ChatPresenceService.stop();
+  IncidentContextPoller.stop();
+}
+
 void main() {
   testWidgets('renders task metadata and location for an active task', (tester) async {
     await tester.pumpWidget(
@@ -125,6 +142,7 @@ void main() {
     expect(find.text('Grid Search Charlie-7'), findsOneWidget);
     expect(find.text('HIGH'), findsOneWidget); // priority 3 -> High, rendered uppercase in the chip
     expect(find.text('Charlie-7 Grid / Access via Forest Road 212'), findsOneWidget);
+    _stopPresenceServices();
   });
 
   testWidgets('narrative entries render newest-first', (tester) async {
@@ -143,6 +161,7 @@ void main() {
     final newest = tester.getTopLeft(find.textContaining('Possible wreckage sighted')).dy;
     final oldest = tester.getTopLeft(find.textContaining('Search Grid Charlie-7 for clues')).dy;
     expect(newest, lessThan(oldest));
+    _stopPresenceServices();
   });
 
   testWidgets('empty narrative state renders without fabricating entries', (tester) async {
@@ -159,6 +178,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('No narrative entries yet for this task.'), findsOneWidget);
+    _stopPresenceServices();
   });
 
   testWidgets('narrative feed is framed so its scroll region is clearly defined', (
@@ -182,6 +202,7 @@ void main() {
     expect(find.descendant(of: find.byKey(const Key('dashboard_narrative_panel')), matching: find.byType(NarrativeFeed)), findsOneWidget);
     expect(decoration.border, isNotNull);
     expect(decoration.borderRadius, BorderRadius.circular(12));
+    _stopPresenceServices();
   });
 
   testWidgets('no active task shows an honest empty state, not a fabricated task', (tester) async {
@@ -199,6 +220,7 @@ void main() {
 
     expect(find.text('Your team has no active task assigned.'), findsOneWidget);
     expect(find.textContaining('T-15'), findsNothing);
+    _stopPresenceServices();
   });
 
   testWidgets('current team status is visually selected in the status grid', (tester) async {
@@ -226,6 +248,7 @@ void main() {
     );
     expect(onSceneText.style?.fontWeight, FontWeight.w800);
     expect(availableText.style?.fontWeight, FontWeight.w600);
+    _stopPresenceServices();
   });
 
   testWidgets('tapping a status button calls the PATCH status endpoint', (tester) async {
@@ -252,6 +275,7 @@ void main() {
     expect(patchedUrl?.path, '/api/incidents/$_incidentId/operations/teams/4/status');
     expect(patchedBody, contains('"status_key":"available"'));
     expect(find.text('Status updated to Available'), findsOneWidget);
+    _stopPresenceServices();
   });
 
   testWidgets('status update failure shows an error, never fails silently', (tester) async {
@@ -292,6 +316,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('Failed to update status'), findsOneWidget);
+    _stopPresenceServices();
   });
 
   testWidgets('phone-width layout has no assignment reference panel', (tester) async {
@@ -313,6 +338,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(AssignmentReferencePanel), findsNothing);
+    _stopPresenceServices();
   });
 
   testWidgets('wide/tablet layout shows the assignment reference panel', (tester) async {
@@ -335,5 +361,6 @@ void main() {
 
     expect(find.byType(AssignmentReferencePanel), findsOneWidget);
     expect(find.text('No assignment reference attached.'), findsOneWidget);
+    _stopPresenceServices();
   });
 }

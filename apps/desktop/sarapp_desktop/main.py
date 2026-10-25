@@ -5,15 +5,7 @@ import re
 import sys
 import logging
 from functools import lru_cache
-from pathlib import Path
 from typing import Optional, Callable
-
-# Desktop packages (core, utils, bridge, ui, etc.) now live under
-# apps/desktop/sarapp_desktop while this entry point stays at the repo root
-# during the staged migration; expose them on sys.path by their bare names.
-_SARAPP_DESKTOP_DIR = Path(__file__).resolve().parent / "apps" / "desktop" / "sarapp_desktop"
-if str(_SARAPP_DESKTOP_DIR) not in sys.path:
-    sys.path.insert(0, str(_SARAPP_DESKTOP_DIR))
 
 from PySide6.QtWidgets import (
     QApplication,
@@ -63,7 +55,6 @@ DEBUG_ROLE = "Incident Commander"
 from utils.state import AppState
 from bridge.settings_bridge import SettingsBridge
 from utils.settingsmanager import SettingsManager
-# 'os' imported earlier for env setup
 from utils.theme_manager import ThemeManager
 from bridge.theme_bridge import ThemeBridge
 from styles.qss_helpers import global_qss, ads_qss
@@ -325,7 +316,7 @@ class MainWindow(QMainWindow):
             except Exception as exc:
                 logger.warning("Failed to apply customized theme: %s", exc)
 
-        # Prepare a Mission Status label (will live inside a dock, not fixed)
+        # Prepare an Incident Status label (will live inside a dock, not fixed)
         self.active_incident_label = QLabel()
         self.update_active_incident_label()
         try:
@@ -334,7 +325,7 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
 
-        # Connection status line — sits below the incident label in Mission Status dock
+        # Connection status line — sits below the incident label in Incident Status dock
         self.connection_status_label = QLabel()
         self._wire_connection_status_label()
 
@@ -1034,8 +1025,6 @@ class MainWindow(QMainWindow):
         act_reset.triggered.connect(self._reset_layout)
         self.menuDebug.addAction(act_reset)
 
-        # legacy UI debug openers removed to allow running without legacy UI assets
-
         act_audit = QAction("Audit Console", self)
         def _show_audit():
             try:
@@ -1287,7 +1276,7 @@ class MainWindow(QMainWindow):
         dlg.show()
 
     def _on_incident_created(self, meta, incident_id: str) -> None:
-        """Handle mission creation from the New Incident dialog."""
+        """Handle incident creation from the New Incident dialog."""
         # Set as the active incident immediately
         try:
             from utils import incident_context
@@ -1299,18 +1288,9 @@ class MainWindow(QMainWindow):
 
         QMessageBox.information(
             self,
-            "Mission Created",
-            f"Mission '{meta.name}' created and activated.",
+            "Incident Created",
+            f"Incident '{meta.name}' created and activated.",
         )
-
-        # 4) If the incident selection window is open, refresh it and select
-        if hasattr(self, "incident_selection_window") and hasattr(
-            self.incident_selection_window, "reload_missions"
-        ):
-            try:
-                self.incident_selection_window.reload_missions(select_slug=meta.slug())
-            except Exception:
-                logger.exception("Failed to refresh incident selection window")
 
         # --- 4.1 Menu ------------------------------------------------------------
     def open_menu_open_incident(self) -> None:
@@ -1379,14 +1359,6 @@ class MainWindow(QMainWindow):
             f"Incident '{imported.name}' ({imported.number}) imported. "
             "Use Open Incident to switch to it.",
         )
-        if hasattr(self, "incident_selection_window") and hasattr(
-            self.incident_selection_window, "reload_missions"
-        ):
-            try:
-                self.incident_selection_window.reload_missions()
-            except Exception:
-                logger.exception("Failed to refresh incident selection window")
-
     def open_menu_settings(self) -> None:
         """Open the widget-based Settings window."""
         window = getattr(self, "_settings_window", None)
@@ -1701,20 +1673,20 @@ class MainWindow(QMainWindow):
         self._open_panel(panel, title="Incident Command Dashboard", preferred_size=(900, 700))
 
     def open_command_incident_overview(self) -> None:
-        # Replace placeholder with real Incident Overview panel (widgets only)
-        try:
-            from modules.command.panels.incident_overview import (
-                IncidentOverviewPanel,
-                create_command_incident_overview_panel,
-            )
-            widget = create_command_incident_overview_panel(self.dock_manager, getattr(self, "app_context", None))
-            self._open_panel(widget, title=IncidentOverviewPanel.panel_title, preferred_size=(600, 480))
-        except Exception:
-            # Fallback to legacy placeholder if import fails
-            from modules import command
-            incident_id = AppState.get_active_incident()
-            panel = command.get_incident_overview_panel(incident_id)
-            self._open_panel(panel, title="Incident Overview", preferred_size=(600, 480))
+        from modules.command.panels.incident_overview import (
+            IncidentOverviewPanel,
+            create_command_incident_overview_panel,
+        )
+
+        widget = create_command_incident_overview_panel(
+            self.dock_manager,
+            getattr(self, "app_context", None),
+        )
+        self._open_panel(
+            widget,
+            title=IncidentOverviewPanel.panel_title,
+            preferred_size=(600, 480),
+        )
 
     def open_command_iap(self) -> None:
         from modules import command
@@ -2198,8 +2170,6 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "Narrative", "Narrative is managed within each Task's detail window.")
         except Exception:
             print("[info] Narrative is managed within each Task's detail window.")
-
-    # legacy UI debug helpers removed to allow running without legacy UI assets
 
 # --- 4.6 Logistics -------------------------------------------------------
     def open_logistics_unit_log(self) -> None:
@@ -3128,53 +3098,33 @@ class MainWindow(QMainWindow):
         super().closeEvent(event)
 
     def _create_default_docks(self) -> None:
-        """Create a few sample docks (Mission Status, Team Status, Task Status)."""
-        # Use full-featured panels for default docks
-        try:
-            from modules.operations.panels.team_status_panel import TeamStatusPanel
-        except Exception:
-            TeamStatusPanel = None  # type: ignore
-        try:
-            from modules.operations.panels.task_status_panel import TaskStatusPanel
-        except Exception:
-            TaskStatusPanel = None  # type: ignore
+        """Create the default Incident Status, Team Status, and Task Status docks."""
+        from modules.operations.panels.task_status_panel import TaskStatusPanel
+        from modules.operations.panels.team_status_panel import TeamStatusPanel
 
-        # Mission Status dock uses the active_incident_label prepared in __init__
+        # Incident Status uses the labels prepared in __init__.
         status_container = QWidget()
         status_layout = QVBoxLayout(status_container)
         status_layout.setContentsMargins(8, 8, 8, 8)
         status_layout.addWidget(self.active_incident_label)
         status_layout.addWidget(self.connection_status_label)
-        # Make Mission Status the central area so other docks can dock around the window
-        status_dock = CDockWidget(self.dock_manager, "Mission Status")
+        # Make Incident Status central so other docks can dock around it.
+        status_dock = CDockWidget(self.dock_manager, "Incident Status")
         status_dock.setWidget(status_container)
         self.dock_manager.addDockWidget(CenterDockWidgetArea, status_dock)
         status_dock.show()
 
-        # Optional sample boards: prefer QWidget panels; fallback to legacy UI
-        if TeamStatusPanel:
-            try:
-                team_panel = TeamStatusPanel(self)
-                team_dock = CDockWidget(self.dock_manager, "Team Status")
-                team_dock.setWidget(team_panel)
-                self.dock_manager.addDockWidget(LeftDockWidgetArea, team_dock)
-                team_dock.show()
-            except Exception:
-                pass
-        else:
-            QMessageBox.warning(self, "Team Status", "Team Status is unavailable in this build.")
+        team_panel = TeamStatusPanel(self)
+        team_dock = CDockWidget(self.dock_manager, "Team Status")
+        team_dock.setWidget(team_panel)
+        self.dock_manager.addDockWidget(LeftDockWidgetArea, team_dock)
+        team_dock.show()
 
-        if TaskStatusPanel:
-            try:
-                task_panel = TaskStatusPanel(self)
-                task_dock = CDockWidget(self.dock_manager, "Task Status")
-                task_dock.setWidget(task_panel)
-                self.dock_manager.addDockWidget(BottomDockWidgetArea, task_dock)
-                task_dock.show()
-            except Exception:
-                pass
-        else:
-            QMessageBox.warning(self, "Task Status", "Task Status is unavailable in this build.")
+        task_panel = TaskStatusPanel(self)
+        task_dock = CDockWidget(self.dock_manager, "Task Status")
+        task_dock.setWidget(task_panel)
+        self.dock_manager.addDockWidget(BottomDockWidgetArea, task_dock)
+        task_dock.show()
 
     # Maps a dock's title to the bound method that creates it, for every panel
     # that can be opened into an ADS dock via _open_dock_widget with a static
@@ -3848,32 +3798,6 @@ class MainWindow(QMainWindow):
 
         self._open_dock_widget(comp, title=spec.title, float_on_open=False)
 
-    def _count_open_tasks(self) -> int:
-        """Best-effort count of tasks not complete. Uses sample data fallback."""
-        try:
-            from data.sample_data import sample_tasks
-            return sum(1 for t in sample_tasks if str(getattr(t, 'status', '')).lower() not in {"complete", "completed"})
-        except Exception:
-            try:
-                from data.sample_data import TASK_ROWS, TASK_HEADERS
-                si = TASK_HEADERS.index("Status") if "Status" in TASK_HEADERS else 2
-                return sum(1 for row in TASK_ROWS if str(row[si]).lower() not in {"complete", "completed"})
-            except Exception:
-                return 0
-
-    def _count_active_teams(self) -> int:
-        """Best-effort count of teams considered active (not Out of Service)."""
-        try:
-            from data.sample_data import sample_teams
-            return sum(1 for t in sample_teams if str(getattr(t, 'status', '')).lower() not in {"out of service", "offline"})
-        except Exception:
-            try:
-                from data.sample_data import TEAM_ROWS, TEAM_HEADERS
-                si = TEAM_HEADERS.index("Status") if "Status" in TEAM_HEADERS else 4
-                return sum(1 for row in TEAM_ROWS if str(row[si]).lower() not in {"out of service", "offline"})
-            except Exception:
-                return 0
-
     def update_title_with_active_incident(self) -> None:
         """Refresh window title and incident label when active incident changes."""
         incident_number = AppState.get_active_incident()
@@ -3931,48 +3855,6 @@ class MainWindow(QMainWindow):
             return api_client.get(f"/api/master/personnel/{int(person_record)}") or {}
         except Exception:
             return {}
-
-
-# Lightweight widget used by the Widgets submenu for simple metrics
-class MetricWidget(QWidget):
-    """Deprecated simple widget (kept to avoid breaking imports)."""
-    def __init__(self, *args, **kwargs):  # pragma: no cover
-        super().__init__()
-        lab = QLabel("Deprecated widget. Use Home Dashboard.")
-        lay = QVBoxLayout(self)
-        lay.addWidget(lab)
-
-
-
-    # (Deprecated widget openers removed in favor of Home Dashboard)
-
-    def _count_open_tasks(self) -> int:
-        """Best-effort count of tasks not complete. Uses sample data fallback."""
-        try:
-            from data.sample_data import sample_tasks
-            return sum(1 for t in sample_tasks if str(getattr(t, 'status', '')).lower() not in {"complete", "completed"})
-        except Exception:
-            try:
-                from data.sample_data import TASK_ROWS, TASK_HEADERS
-                si = TASK_HEADERS.index("Status") if "Status" in TASK_HEADERS else 2
-                return sum(1 for row in TASK_ROWS if str(row[si]).lower() not in {"complete", "completed"})
-            except Exception:
-                return 0
-
-    def _count_active_teams(self) -> int:
-        """Best-effort count of teams considered active (not Out of Service)."""
-        try:
-            from data.sample_data import sample_teams
-            return sum(1 for t in sample_teams if str(getattr(t, 'status', '')).lower() not in {"out of service", "offline"})
-        except Exception:
-            try:
-                from data.sample_data import TEAM_ROWS, TEAM_HEADERS
-                si = TEAM_HEADERS.index("Status") if "Status" in TEAM_HEADERS else 4
-                return sum(1 for row in TEAM_ROWS if str(row[si]).lower() not in {"out of service", "offline"})
-            except Exception:
-                return 0
-
-
 
 def _show_connection_fallback_dialog() -> str:
     """Ask the user how SARApp should continue when no server is reachable."""
@@ -4198,7 +4080,7 @@ if __name__ == "__main__":
             sid = AppState.get_active_api_session_id()
             if sid is not None:
                 end_session()
-                write_audit("session.end", {"session_id": sid}, prefer_mission=False)
+                write_audit("session.end", {"session_id": sid}, incident_scoped=False)
         except Exception:
             pass
     app.aboutToQuit.connect(_on_quit)

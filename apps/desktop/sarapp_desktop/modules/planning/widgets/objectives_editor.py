@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import csv
 from dataclasses import replace
-from pathlib import Path
 import re
 from typing import Iterable, List, Optional
 
@@ -990,34 +989,3 @@ def show_objectives_editor(app_state=None) -> ObjectivesEditor:
     return editor
 
 
-if __name__ == "__main__":
-    import sys
-    import tempfile
-
-    from PySide6.QtWidgets import QApplication
-
-    class DummyState:
-        def __init__(self, data_dir: str) -> None:
-            self.data_dir = data_dir
-
-    temp_dir = Path(tempfile.mkdtemp())
-    db_file = temp_dir / "master.db"
-    dao = ObjectivesDAO(db_file)
-    # Seed sample data
-    if not dao.list_templates():
-        sample = ObjectiveTemplate(
-            code="OBJ-OPS-01",
-            title="Maintain operational communications",
-            description="Ensure radios and satellite phones remain operational",
-            default_section="Operations",
-            priority="High",
-            active=True,
-            tags=["Communications", "Ops"],
-        )
-        dao.create_template(sample)
-
-    app = QApplication(sys.argv)
-    state = DummyState(str(temp_dir))
-    editor = show_objectives_editor(state)
-    editor.raise_()
-    sys.exit(app.exec())

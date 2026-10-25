@@ -1103,14 +1103,20 @@ class PersonnelInventoryWindow(QtWidgets.QWidget):
     # ----- Data loading ----------------------------------------------------
     def refresh(self) -> None:
         from utils.api_client import api_client
-        try:
-            records = api_client.get("/api/master/personnel") or []
-        except Exception as exc:
-            self._show_error(f"Unable to load personnel: {exc}")
-            return
-        self._hide_error()
-        self._all_records = records
-        self._apply_filters()
+        from utils.edit_window_kit import run_async
+
+        def _task() -> list[dict[str, Any]]:
+            return api_client.get("/api/master/personnel") or []
+
+        def _on_done(records: list[dict[str, Any]]) -> None:
+            self._hide_error()
+            self._all_records = records
+            self._apply_filters()
+
+        def _on_error(message: str) -> None:
+            self._show_error(f"Unable to load personnel: {message}")
+
+        run_async(self, _task, _on_done, _on_error)
 
     def _apply_filters(self) -> None:
         self._debounce.stop()

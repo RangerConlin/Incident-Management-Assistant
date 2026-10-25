@@ -37,7 +37,7 @@ def test_list_task_personnel_reads_from_incident_cache(monkeypatch):
                     "_id": "team-doc-1",
                     "int_id": 7,
                     "name": "Ground 7",
-                    "members_json": "[42, 43]",
+                    "member_person_records": [42, 43],
                 }
             ],
             "incident_personnel": [

@@ -4,13 +4,13 @@
 This document is the long-form roadmap and design archive for Incident Management Assistant/SARApp. The current desktop application is PySide6 widget-first and ADS-docked. Do not add new QML, NiceGUI, Tkinter, or Electron UI surfaces when extending the program. Some older bridge/model names and comments still reference QML because they support legacy compatibility or were not renamed during migration.
 
 Current implementation highlights:
-  - `main.py` builds the PySide6 `QMainWindow`, ADS dock manager, menu tree, default docks, layout template management, profile switching, theme wiring, and module launch handlers.
+  - `apps/desktop/sarapp_desktop/main.py` builds the PySide6 `QMainWindow`, ADS dock manager, menu tree, default docks, layout template management, profile switching, theme wiring, and module launch handlers.
   - `AppState` in `utils/state.py` is the UI/session source of truth for active incident, user, role, and operational period. `AppState.set_active_incident()` synchronizes `utils.incident_context` and emits `app_signals.incidentChanged`.
   - The build is now API-first and Mongo-backed for core app data: widgets call `utils/api_client.py`, the shared FastAPI surface lives in `server/sarapp_db/sarapp_db/api/app.py`, and incident/master data is routed through MongoDB repositories.
   - Legacy SQLite still exists in a few narrow places for compatibility, tests, or transitional storage, but it is no longer the primary architecture target.
   - The current file scaffold is module-centric: `modules/<area>/panels`, `widgets`, `services`, `repository` or `data`, `api`, plus shared app layers in `utils/`, `bridge/`, `ui/`, `styles/`, and `server/sarapp_db/sarapp_db/`.
   - Active module surface includes Command, Planning, Operations, Logistics, Communications, Forms, Forms Creator, Intel, Weather, GIS/spatial services, Medical, Safety/CAP ORM, Liaison, Public Information, Finance/Admin, admin catalogs, Reference Library, Notifications, UI Customization, SAR Toolkit, Disaster Toolkit, Planned Event Toolkit, Initial Response, and related cross-module utilities.
-  - ADS layouts persist in `settings/ads_perspectives.ini`; `FORCE_DEFAULT_LAYOUT` in `main.py` should only be used temporarily to troubleshoot layout state.
+  - ADS layouts persist in `settings/ads_perspectives.ini`; `FORCE_DEFAULT_LAYOUT` in the desktop entry point should only be used temporarily to troubleshoot layout state.
   - Text files must remain UTF-8 without BOM and LF line endings. Run `python tools/scripts/encoding_audit.py --summary` before committing broad doc/template changes.
 
 ## Table of Contents
@@ -1773,7 +1773,6 @@ CAPF 106
   - Derived fields (e.g., 306 score bands) recalculated on save.
   - PDF exports maintain agency layout; header auto injected from mission context.
   - No evidence chain of custody in this module (clue handling only, per project scope).
-  - Shared sample data at data/sample_data.py for UI prototypes.
 
 
 ## Module 8: Liaison

@@ -1,12 +1,12 @@
 # UI Desktop Patterns
 
 ## Runtime And Layout
-- Run the desktop app with `QT_QPA_PLATFORM=xcb python main.py`.
+- Run the desktop app with `QT_QPA_PLATFORM=xcb python apps/desktop/sarapp_desktop/main.py`.
 - Use `QT_QPA_PLATFORM=offscreen` for CI or headless runs.
 - Settings persist via `SettingsManager`.
-- Docks/widgets register through `main.py`, `ui/docks.py`, `ui/widgets/`, module `windows.py` factories, and panel factory functions.
+- Docks/widgets register through `apps/desktop/sarapp_desktop/main.py`, `ui/widgets/`, module `windows.py` factories, and panel factory functions.
 - ADS layout templates persist to `settings/ads_perspectives.ini`.
-- Use `FORCE_DEFAULT_LAYOUT = True` in `main.py` only as a temporary troubleshooting toggle.
+- Use `FORCE_DEFAULT_LAYOUT = True` in the desktop entry point only as a temporary troubleshooting toggle.
 
 ## UI Implementation Rules
 - Prefer PySide6 widgets and repository/service boundaries.

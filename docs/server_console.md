@@ -7,12 +7,12 @@ The SARApp Server Console is a lightweight PySide6 / Qt Widgets control panel fo
 SARApp now has separate launch paths:
 
 ```bash
-python main.py
+python apps/desktop/sarapp_desktop/main.py
 python sarapp_server.py --host 0.0.0.0 --port 8765 --name "Incident Server"
 python sarapp_server_console.py
 ```
 
-Use `main.py` for the desktop client. Use `sarapp_server.py` for a terminal-driven server. Use `sarapp_server_console.py` when a machine should behave like a server control panel without requiring terminal interaction.
+Use `apps/desktop/sarapp_desktop/main.py` for the desktop client. Use `sarapp_server.py` for a terminal-driven server. Use `sarapp_server_console.py` when a machine should behave like a server control panel without requiring terminal interaction.
 
 ## What the console controls
 

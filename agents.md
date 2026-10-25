@@ -3,7 +3,7 @@
 ## Overview
 - Incident-Management-Assistant is a desktop-first incident management suite built with **PySide6**.
 - Python modules in `modules/` provide UI panels, FastAPI routers, and repository-based persistence.
-- `main.py` boots the Qt app, builds the menu tree, and loads ADS docks/widgets.
+- `apps/desktop/sarapp_desktop/main.py` boots the Qt app, builds the menu tree, and loads ADS docks/widgets.
 - Domain data lives in `data/`. Active backend is **MongoDB** via the `sarapp_db` package in `server/sarapp_db/sarapp_db/`.
 - The shared FastAPI app lives in `server/sarapp_db/sarapp_db/api/app.py` and is served by the LAN server, cloud server, and built-in offline server runtimes.
 - Legacy SQLite files and repositories still exist for modules and utilities that have not fully cut over yet; if you encounter any of these, flag them for migration and deletion.
@@ -58,7 +58,8 @@
 
 ## Instruction Index
 - Backlog / queued follow-up work: `backlog.md`
-- Legacy compatibility inventory: `docs/archive/design-documents/legacycode.md`
+- Legacy compatibility candidates (unverified, may be dead): `docs/archive/design-documents/legacycode.md`
+- Active compatibility shims (confirmed still live, pending caller migration): `docs/archive/design-documents/activeshims.md`
 - Table UI standards: `docs/archive/design-documents/Instructions/tabledesign.md`
 - Database architecture and incident context: `docs/archive/design-documents/Instructions/database_architecture.md`
 - API/router rules and mirroring requirements: `docs/archive/design-documents/Instructions/api_router_rules.md`
@@ -78,7 +79,7 @@
 ## Updating Instructions
 - `AGENTS.md` is the repo-wide entry point. Keep it short, stable, and limited to universal rules plus pointers to focused instruction docs.
 - `backlog.md` is the repo backlog/reference list for pending work. Consult it when orienting on open follow-ups, and update it when durable backlog items are added, completed, or materially re-scoped.  If you complete an item, remove it from the list, do not just make a comment.
-- `docs/archive/design-documents/legacycode.md` is the authoritative inventory for code kept only for legacy compatibility with outdated persisted data or migration gaps. Update it when such code is added, re-scoped, verified, or removed.
+- `docs/archive/design-documents/legacycode.md` is the inventory for *unverified* legacy-compatibility candidates — code suspected of being dead but not yet confirmed. `docs/archive/design-documents/activeshims.md` is the companion inventory for shims *confirmed* to still have live callers, kept intentionally until those callers migrate off them. An entry lives in exactly one of the two: investigate a `legacycode.md` candidate and find it has zero callers -> delete the code and remove the entry; find it still has callers -> move the entry to `activeshims.md` instead of leaving it on the candidate list. Update either file when such code is added, re-scoped, verified, or removed.
 - When architecture, workflow, migration status, coding standards, or UI conventions change, update the relevant file under `docs/archive/design-documents/Instructions/` in the same work when practical.
 - If you add a new durable rule that future agents must follow, either add it to `AGENTS.md` if it is truly repo-wide and mandatory, or add it to the appropriate instruction doc and reference it here.
 - Add nested `AGENTS.md` files only when a specific subtree needs extra local rules.

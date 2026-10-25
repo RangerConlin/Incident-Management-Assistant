@@ -34,7 +34,7 @@ exit /b 1
 
 :run_app
 cd /d "%APP_DIR%"
-"%PYTHON_EXE%" %PYTHON_ARGS% "%APP_DIR%main.py"
+"%PYTHON_EXE%" %PYTHON_ARGS% "%APP_DIR%apps\desktop\sarapp_desktop\main.py"
 set "EXIT_CODE=%ERRORLEVEL%"
 if not "%EXIT_CODE%"=="0" (
     echo.

@@ -898,7 +898,7 @@ class TeamDetailBridge(QObject):
                 self._equipment = []
                 self._aircraft = []
                 return
-            # Personnel from members_json (see earlier enrichment)
+            # Personnel from member_person_records (see earlier enrichment)
             members_ids: list[int] = []
             try:
                 members_ids = [int(x) for x in (self._team.members or [])]

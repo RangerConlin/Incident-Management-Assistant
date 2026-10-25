@@ -1,23 +1,44 @@
 # Legacy Code Inventory
 
-This file is the authoritative inventory for legacy compatibility code that remains in the repo only to bridge gaps between current application behavior and older persisted data shapes, migration states, or outdated database entries.
+This file is the authoritative inventory for **unverified** legacy-compatibility
+candidates — code suspected of being dead, superseded, or no-longer-needed, but
+not yet confirmed either way. It is a to-do list for investigation, not a
+permanent record.
 
-Use this file to track code that is intentionally retained for compatibility and may become removable during pre-release cleanup after verification.
+See `docs/archive/design-documents/activeshims.md` for the companion list: shims
+**confirmed** to still have live callers, kept intentionally until those callers
+migrate off them. An entry only belongs in one of these two files at a time:
+
+- Investigate an entry here and find it has **zero remaining callers** -> delete
+  the code, then remove the entry outright (git history records what was removed).
+- Investigate an entry here and find it **still has live callers** -> move the
+  entry to `activeshims.md` instead of leaving it here; a candidate list should
+  only ever contain things still waiting on investigation.
 
 ## What Belongs Here
-- Code paths kept only to read, translate, ignore, or tolerate outdated database entries or pre-cutover persisted state.
-- Temporary compatibility shims between legacy repositories/data models and the current API/repository architecture.
-- Legacy fallbacks that should be reviewed before release because they are not part of the intended steady-state product.
+- Code paths suspected of being kept only to read, translate, ignore, or tolerate
+  outdated database entries or pre-cutover persisted state, not yet confirmed to
+  still be reachable.
+- Temporary compatibility shims between legacy repositories/data models and the
+  current API/repository architecture, not yet confirmed to still have callers.
+- Legacy fallbacks that should be reviewed before release because they are not
+  part of the intended steady-state product.
 
 ## What Does Not Belong Here
+- Confirmed-live shims — those go in `activeshims.md`.
 - Active migration status snapshots that belong in `docs/archive/design-documents/Instructions/mongo_cutover_status.md`.
 - General future work or product ideas that belong in `backlog.md`.
 - Permanent architectural adapters that are expected to remain after release.
 
 ## Inventory Rules
-- Add an entry when code is intentionally preserved for legacy compatibility instead of current product behavior.
-- Keep entries specific and evidence-based; do not mark code as removable unless the removal condition is clear.
-- Update or remove an entry when the compatibility path is verified unnecessary or is deleted.
+- Add an entry when code is suspected of being legacy/dead but hasn't been
+  verified yet.
+- Keep entries specific and evidence-based; do not mark code as removable unless
+  the removal condition is clear.
+- Once investigated: delete-and-remove the entry (if dead) or move it to
+  `activeshims.md` (if still live). Either way, remove it from this file — do not
+  leave a struck-through "DELETED"/"REMOVED" stub; git history is the record of
+  what was removed and when.
 - Treat this file as the pre-release review list for legacy compatibility cleanup.
 
 ## Entry Template
@@ -26,12 +47,11 @@ Copy this section for each tracked item.
 
 ```md
 ### Short Name
-- Status: `legacy-compat-active` | `legacy-compat-candidate`
 - Location: `path/to/file.py`
 - Purpose: brief description of the compatibility behavior
 - Legacy Source: what old data shape, persisted field, SQLite-era behavior, or migration gap this supports
 - Removal Condition: exact condition that must be true before deletion is safe
-- Verification: how to confirm the removal condition
+- Verification: how to confirm the removal condition (and whether it's been run yet)
 ```
 
 ## Inventory
@@ -39,237 +59,44 @@ Copy this section for each tracked item.
 Add entries below this line.
 
 ### Hardcoded certification catalog (cert_catalog.py)
-- Status: `legacy-compat-candidate`
 - Location: `modules/personnel/models/cert_catalog.py` (`CATALOG`, `CertType`, `CATALOG_VERSION`)
 - Purpose: was "authoritative in production" per its own former docstring — every certification type (id, code, name, category, tags, is_medical) was a hardcoded Python list, editable only via a DEV_MODE-only tool that rewrote this file's source and required a rebuild/redeploy to ship. Replaced 2026-10-10 by a real Mongo-backed catalog (`MasterCollections.CERTIFICATION_TYPES`, `server/sarapp_db/sarapp_db/api/routers/certification_types.py`, central-catalog-authoritative "lockdown" collection like `organizations`/`resource_types`), editable from the central dashboard. `cert_api.py`/`catalog_io.py` now call the API/router instead of importing `CATALOG`; `modules/operations/taskings/repository.py`'s own separate hardcoded `CAPF109_CERT_TYPE_CODES` dict (a duplicate of 5 of these ids) was replaced by a cached lookup against the same catalog.
 - Legacy Source: pre-cutover, when there was no Mongo-backed way to store this catalog at all.
 - Removal Condition: this module is kept only as the seed source for `server/sarapp_db/sarapp_db/migrations/seed_certification_types_from_hardcoded_catalog.py` (a one-time migration, already run against this installation's local catalog). Safe to delete — along with that migration script and the dev-only `modules/devtools/panels/dev_cert_catalog_editor.py` (already removed) — once every server that needs the seed has run it and no one needs to re-derive it from this file again.
-- Verification: `rg -n "from modules.personnel.models.cert_catalog import|models\.cert_catalog" --glob '!*/migrations/*'` shows no remaining application-code imports, only the migration script.
+- Verification: `rg -n "from modules.personnel.models.cert_catalog import|models\.cert_catalog" --glob '!*/migrations/*'` confirmed 2026-10-21 that the only remaining import is the already-run migration script. **Not yet verified**: whether every deployed server (not just this local install) has run that migration — confirm before deleting.
 
 ### Legacy `certification_types`/`certification_tags` pre-cutover data
-- Status: `legacy-compat-candidate`
 - Location: `sarapp_master.certification_types` / `sarapp_master.certification_tags` documents that predate the 2026-10-10 seed (identifiable by `certification_type_id` being a plain numeric *string* like `"1"`, `"2"`, `"7"` — an independent, unrelated sequential scheme, not the catalog's bucketed integer `id` field like `1001`/`2001`/`6004`).
 - Purpose: an older, differently-sourced CAP certification list (e.g. `"ADIS"`, `"AOBD"` under id `"2"`) that predates the current hardcoded-then-migrated catalog and was never read by any current code path.
 - Legacy Source: unknown prior data-entry/import pass; not traceable to any current importer.
 - Removal Condition: safe to delete (`db.certification_types.delete_many({"certification_type_id": {"$type": "string"}})` and the analogous `certification_tags` rows) once confirmed no historical/audit reason to keep them. Not deleted automatically by the seed migration, which only inserts alongside them.
-- Verification: `server/sarapp_db/sarapp_db/migrations/seed_certification_types_from_hardcoded_catalog.py`'s docstring and the research that found this during the certification-catalog migration.
+- Verification: `server/sarapp_db/sarapp_db/migrations/seed_certification_types_from_hardcoded_catalog.py`'s docstring and the research that found this during the certification-catalog migration. **Not yet verified**: this requires a live Mongo connection to inspect `sarapp_master`; not actionable from a session without `SARAPP_MONGO_URI` configured.
 
 ### Hardcoded validation profiles (validation_profiles.py)
-- Status: `legacy-compat-candidate`
 - Location: `modules/personnel/models/validation_profiles.py` (`PROFILES`, `QualProfile`, `PROFILES_VERSION`, `get_profile`)
 - Purpose: was the live source for qualification profile checks until the 2026-10-10 migration to a real Mongo-backed `qualification_types` catalog, now read via `cert_api.list_qualifications()`/`qualifications_met()`.
 - Legacy Source: pre-cutover, when there was no Mongo-backed way to store this catalog at all.
 - Removal Condition: this module is kept only as the seed source for `server/sarapp_db/sarapp_db/migrations/seed_qualification_types_from_hardcoded_profiles.py` (a one-time migration, already run against this installation's local catalog). Safe to delete, along with that migration script, once every server that needs the seed has run it and no one needs to re-derive it from this file again.
-- Verification: `rg -n "from modules.personnel.models.validation_profiles import|models\.validation_profiles" --glob '!*/migrations/*'` shows no remaining application-code imports, only the migration script.
+- Verification: `rg -n "from modules.personnel.models.validation_profiles import|models\.validation_profiles" --glob '!*/migrations/*'` confirmed 2026-10-21 that the only remaining import is the already-run migration script. **Not yet verified**: whether every deployed server has run that migration — confirm before deleting.
 
 ### Finance Attachments Use Filesystem Paths Instead Of GridFS
-- Status: `legacy-compat-candidate`
 - Location: `server/sarapp_db/sarapp_db/api/routers/finance.py` (`AttachmentBody.file_path`, `create_attachment`)
 - Purpose: Finance/admin attachments (fuel receipts, expense backup, etc.) store a local filesystem `file_path` string on the `finance_attachments` document instead of storing the file's bytes in GridFS like every other incident attachment (`IncidentCollections.ATTACHMENTS`, via `server/sarapp_db/sarapp_db/api/routers/attachments.py`).
 - Legacy Source: Predates the GridFS attachment convention adopted for the main `attachments` collection; never migrated to match.
-- Removal Condition: `finance_attachments` uploads go through the same GridFS pattern as `attachments` (store bytes in `attachment_files`, reference by `gridfs_file_id`), and existing `finance_attachments` rows with a bare `file_path` are migrated or backfilled.
+- Removal Condition: `finance_attachments` uploads go through the same GridFS pattern as `attachments` (store bytes in `attachment_files`, reference by `gridfs_file_id`), and existing `finance_attachments` rows with a bare `file_path` are migrated or backfilled. This is feature work (a rewrite), not a dead-code deletion.
 - Verification: Confirmed while building the universal incident export/import format (`server/sarapp_db/sarapp_db/export_import/`) — exporting an incident bundles every GridFS attachment, but a finance attachment's actual file lives outside Mongo entirely and does not travel with the export, only its metadata row does.
 
-### Forms Creator legacy template registry and renderer
-- Status: `legacy-compat-candidate`
-- Location: `modules/forms_creator/templating.py`, `modules/forms_creator/render.py`, `data/templates/registry.json`, `data/templates/**`
-- Purpose: preserves the old registry-plus-YAML rendering path used before the current `forms/sets/<set_id>/<form_id>/template.pdf` plus `mapping.json` pipeline.
-- Legacy Source: pre-form-set template records in `data/templates/registry.json` and `data/templates/**` mapping files.
-- Removal Condition: no runtime or developer tooling calls `modules.forms_creator.templating.resolve_template()` or `modules.forms_creator.render.render_form()`, and all old `data/templates` entries have either been migrated into `forms/sets/**` or intentionally discarded.
-- Verification: `rg -n "modules\.forms_creator\.(templating|render)|resolve_template|render_form|data/templates" modules data tests` shows no production callers except this inventory or removed tests/docs.
-
-### Devtools Template Debug panel
-- Status: `legacy-compat-candidate`
-- Location: `modules/devtools/panels/template_debug_panel.py`, `modules/devtools/services/template_registry.py`, `modules/devtools/services/renderer_bridge.py`
-- Purpose: developer-only UI and services for inspecting the old `data/templates/registry.json` template system.
-- Legacy Source: the deprecated `data/templates` registry/render path, separate from Developer -> Forms Creator.
-- Removal Condition: the Developer menu no longer exposes Template Debug, or the panel is rewritten to inspect the canonical `forms/sets/**/mapping.json` registry instead.
-- Verification: `rg -n "TemplateDebugPanel|template_debug_panel|Template Debug|template_registry|renderer_bridge" modules main.py` confirms no live menu registration or imports remain.
-
-### Legacy `personnel_certifications` collection read-fallback
-- Status: `legacy-compat-active`
-- Location: `server/sarapp_db/sarapp_db/api/routers/certifications.py` (`LegacyPersonnelCertificationsRepository`, `_legacy_rows`, called from `list_personnel_certs`)
-- Purpose: certifications are now stored embedded on each `personnel` document (`PersonnelDocument.certifications`, see `server/sarapp_db/sarapp_db/schemas/personnel_schema.py`). `list_personnel_certs` only reads the separate `personnel_certifications` collection when a person's embedded list is empty, and if it finds rows there, copies them into the embedded list and self-heals (never writes to the legacy collection again). `set_personnel_cert`/`delete_personnel_cert` never touch the legacy collection at all.
-- Legacy Source: a pre-embedding data shape where a person's certifications lived in their own `personnel_certifications` collection row per assignment instead of embedded on the personnel document.
-- Removal Condition: every personnel record with certification data has had its embedded `certifications` list backfilled (e.g. via a one-time migration script that runs the same copy-and-set logic for every person instead of lazily on first read), after which `LegacyPersonnelCertificationsRepository`/`_legacy_rows`/the fallback branch in `list_personnel_certs` can be deleted along with the `personnel_certifications` collection itself.
-- Verification: `rg -n "personnel_certifications|LegacyPersonnelCertifications" server/sarapp_db/sarapp_db` shows no writers, only this read-fallback.
-
-### Legacy data/forms catalog and map-generator assets
-- Status: `legacy-compat-candidate`
-- Location: `data/forms/**`, `modules/devtools/services/form_catalog.py`, `modules/devtools/services/fema_fetch.py`, `modules/devtools/services/pdf_mapgen.py`, `modules/devtools/services/form_identify.py`
-- Purpose: older developer/import tooling and PDF/map assets for a `data/forms/catalog.json` layout.
-- Legacy Source: pre-`forms/sets` form catalog and `.map.yaml` storage model.
-- Removal Condition: any useful ingestion/scanning functionality has been ported to write `forms/catalog.json`, `forms/sets/<set_id>/<form_id>/template.pdf`, and `mapping.json`; otherwise the old catalog/assets are confirmed unused.
-- Verification: `rg -n "data/forms|FormCatalog|fema_fetch|pdf_mapgen|form_identify" modules data tests` shows no production dependency.
-
-### Profile-scoped form template pipeline
-- Status: `legacy-compat-candidate`
-- Location: `modules/forms_creator/form_registry.py`, `modules/forms_creator/session.py`, `modules/forms_creator/export.py`, `profiles/ics_base/templates/**`
-- Purpose: deterministic profile template export pipeline using `profiles/<profile_id>/templates/**`, `FormRegistry`, `FormSession`, and per-profile binding definitions.
-- Legacy Source: profile-era template model that is separate from the current `forms/sets/**/mapping.json` system used by `engine.generate()`.
-- Removal Condition: all production exports use `modules.forms_creator.engine.generate()` directly or `modules.forms_creator.exporting.ExportService`, and no active profile/template selection workflow depends on `profiles/<id>/templates/**`.
-- Verification: `rg -n "FormRegistry|FormSession|export_form\\(|profiles/.*/templates|profiles\\\\.*\\\\templates" modules profiles tests` shows no runtime callers, and profile manager UI no longer references template checksums from this pipeline.
-
-### Unified form export bridge
-- Status: `legacy-compat-active`
-- Location: `modules/forms_creator/api.py`
-- Purpose: compatibility export facade that tries the profile-scoped pipeline first, then falls back to the legacy `data/templates` renderer.
-- Legacy Source: callers that still request form output through `export_form_unified()` instead of the canonical `engine.generate()` or `ExportService` path.
-- Removal Condition: every production caller of `export_form_unified()` has been migrated to `modules.forms_creator.exporting.ExportService` or a direct `engine.generate()` call using `forms/sets/**/mapping.json`.
-- Verification: `rg -n "export_form_unified" modules tests` shows no production callers.
-- Known Callers: `modules/command/widgets/objective_detail_dialog.py`, `modules/command/panels/incident_objectives_panel.py`, `modules/safety/print_ics_206.py`, `modules/operations/taskings/repository.py`.
-- Update 2026-10-19: the incident-organization ICS 203 export uses the existing
-  export service with shared-server rendering for FEMA/ICS Canada/USCG. It does
-  not use this bridge or add a fallback to it. Local `engine.generate()` remains
-  in Mapper Window for template-authoring previews; the bridge's remaining callers
-  listed above still need migration before deletion.
-- Update 2026-09-13: `modules/logistics/print_ics_213_rr.py` (a prior known caller, already dead — nothing imported it) was removed. ICS 213RR now exports via `modules.forms_creator.exporting.builders.resource_requests.ResourceRequestFormBuilder` / `modules.logistics.resource_requests.export_service.generate_ics213rr`, not this bridge.
-
-### Forms Creator database template service
-- Status: `legacy-compat-active`
-- Location: `modules/forms_creator/services/templates.py`, `modules/forms_creator/services/template_importer.py`, `modules/forms_creator/ui/dialogs/NewTemplateWizard.py`, `modules/forms_creator/ui/dialogs/BindingDialog.py`, `modules/forms_creator/scripts/dev_seed.py`, `server/sarapp_db/sarapp_db/api/routers/forms.py`
-- Purpose: API-backed form template and instance workflow based on `FormService`, template configs, and instance export endpoints.
-- Legacy Source: database-stored template/instance model that is separate from the current filesystem-backed `forms/sets/**/mapping.json` authoring and export pipeline.
-- Removal Condition: user-visible forms workflows, especially Intel -> Forms, either migrate to the canonical form-set registry/export service or are intentionally retired.
-- Verification: `rg -n "FormService|NewTemplateWizard|BindingDialog|template_importer|/api/forms|routers.forms" modules data tests` shows no runtime callers and `server/sarapp_db/sarapp_db/api/app.py` no longer includes the forms router.
-- Known Callers: `modules/intel/tabs/forms_tab.py`, `modules/forms_creator/__init__.py`, `modules/forms_creator/services/__init__.py`.
-
-### Standalone PDF filler discovery UI
-- Status: `legacy-compat-candidate`
-- Location: `modules/forms_creator/pdf_filler/mapping_discovery.py`, `modules/forms_creator/pdf_filler/pdf_filler_widget.py`, `modules/forms_creator/mappings/**`
-- Purpose: standalone PDF filler widget and mapping discovery helper for `*.mapping.json` files outside the canonical `forms/sets/**/mapping.json` location.
-- Legacy Source: earlier PDF filler workflow that predates the Forms Creator Hub and MapperWindow form-set registry.
-- Removal Condition: no standalone UI entry point uses `pdf_filler_widget.py`, and any useful discovery behavior is either removed or rewritten to use `FormSetRegistry`.
-- Verification: `rg -n "pdf_filler_widget|mapping_discovery|modules/forms_creator/mappings|\\.mapping\\.json" modules tests` shows no production callers outside intentional import/scanning tools.
-
-### Legacy SQLAlchemy logistics models
-- Status: ~~`legacy-compat-candidate`~~ **DELETED 2026-10-13**
-- Removed the unused `modules/logistics/models/` SQLAlchemy package (`resource_request.py`, `vehicles.py`, `aircraft.py`, `schemas.py`, and package exports), plus the SQLite-era Resource Request demo seeder and migration under `modules/logistics/resource_requests/data/`. Runtime Logistics now uses API-backed services and shared `sarapp_db` Mongo routers.
-- Verification: `rg -n "modules\.logistics\.models|LogisticsResourceRequest|VehicleCheckTransaction|AircraftCheckTransaction|ResourceRequestCreate|seed_demo" apps/desktop/sarapp_desktop server data` showed no runtime callers before deletion; remaining `seed_demo` references were documentation and legacy inventory notes.
-
 ### Outdated forms guidance
-- Status: `legacy-compat-candidate`
-- Location: `data/library/README.md`, `modules/forms_creator/BINDING_PIPELINE.md`
-- Purpose: documentation still references older form systems or labels them as current guidance in places.
-- Legacy Source: accumulated guidance from the `data/templates`, profile template, and current `forms/sets` eras.
-- Removal Condition: documentation clearly states that `forms/sets/**/mapping.json` is the canonical per-form binding source and that profile or `data/templates` flows are legacy only.
-- Verification: review docs for `data/templates`, `FormRegistry`, `FormSession`, `profiles/<id>/templates`, and `modules/forms.FormRegistry` references after code cleanup.
-
-### checkins, check_in_out, checkin_history collections
-- Status: ~~`legacy-compat-active`~~ **REMOVED 2026-07-12**
-- Runtime collection constants, indexes, and router/service reads were removed. Personnel check-in CRUD/history now uses `resource_status`; status history is embedded in `resource_status.status_log`.
-
-### logistics_resource_status_items collection
-- Status: ~~`legacy-compat-active`~~ **REMOVED 2026-07-12**
-- Old `/logistics/resource-status` router and collection constant removed. Initial Response resource picture writes `resource_status` rows with `entity_type="initial_response"`.
+- Location: `README.md` (repo root)
+- Purpose: the root README's "Repository layout"/"Working with data" sections describe a pre-Mongo, pre-reorg architecture — a SQLite `data/master.db`/`data/incidents/<id>.db` layer, `main.py`/`modules/` at the repo root, `modules/forms.FormRegistry`/`FormSession` as current guidance, and no mention of `sarapp_db`/MongoDB, `apps/desktop/sarapp_desktop/`, or `apps/web/`. Not specific to forms — the whole document is stale. This is a documentation-accuracy task, not a dead-code deletion.
+- Legacy Source: predates the Mongo cutover and the `apps/desktop/sarapp_desktop` reorg; never updated afterward.
+- Removal Condition: README rewritten to describe the current architecture (MongoDB via `sarapp_db`, `apps/desktop/sarapp_desktop/` as the desktop app root, `apps/web/`, the shared FastAPI app) and to mark `forms/sets/**/mapping.json` as canonical with profile/`data/templates` flows called out as legacy only.
+- Verification: diff README.md against `agents.md`'s Overview/Directory Orientation sections for architecture drift.
+- Note 2026-10-21: an exact duplicate copy at `data/library/README.md` (inside the Reference Library module's runtime storage, left over from a repo reorg commit) was deleted — that was a stray artifact, not real reference-library content. `modules/forms_creator/BINDING_PIPELINE.md`'s incorrect "`bindings.py` is dead code" claim was also corrected in the same pass; that file is otherwise actively maintained and accurate, and `bindings.py` itself is tracked as a confirmed-live shim in `activeshims.md` now, not part of this entry.
 
 ### logistics_resource_requests collection
-- Status: `legacy-compat-candidate`
 - Location: `server/sarapp_db/sarapp_db/migrations/migrate_logistics_resource_requests_to_resource_requests.py`
 - Purpose: duplicate Mongo collection name used briefly by the Logistics Resource Request / ICS-213RR router. Runtime code now writes the canonical `resource_requests` collection only.
 - Legacy Source: Mongo-era naming drift from module/table name `logistics_resource_requests` while incident overview and mobile planning already expected `resource_requests`
 - Removal Condition: all deployed incident databases have run the one-time migration with `--drop-legacy`, or inspection confirms no `logistics_resource_requests` collection exists in any incident database
-- Verification: run `python -m sarapp_db.migrations.migrate_logistics_resource_requests_to_resource_requests --dry-run` and confirm zero legacy docs remain before deleting this entry
-
-### Personnel legacy-id migration scripts
-- Status: `legacy-compat-candidate`
-- Location: `server/sarapp_db/seed_loaders/seed_master_from_sqlite.py`, `server/sarapp_db/seed_loaders/seed_incidents_from_sqlite.py`, `server/sarapp_db/seed_loaders/rebuild_demo_personnel.py`
-- Purpose: one-time SQLite-to-Mongo migration helpers that still write `personnel_id`, `badge_number`, and other old roster shapes during data conversion
-- Legacy Source: pre-Mongo demo/seed data and one-off cutover backfills
-- Removal Condition: the repo no longer needs to migrate SQLite-era personnel data or remap demo incidents
-- Verification: no code paths or tests import these scripts for normal runtime behavior
-- Notes: keep only as offline scripts; do not add new runtime compatibility logic around them
-
-### Demo check-in seeder
-- Status: `legacy-compat-active`
-- Location: `server/sarapp_db/seed_loaders/seed_demo_checkins.py`
-- Purpose: one-off/demo-only Mongo seeder that backfills personnel check-ins and `resource_status` rows from existing incident team rosters
-- Legacy Source: temporary demo data population for the Mongo cutover and board validation
-- Removal Condition: demo incidents no longer need scripted backfill of check-ins/resource-status rows
-- Verification: the seeder is not imported by runtime code and is only used as an offline utility
-
-### models/database.py — raw master catalog reads
-- Status: ~~`legacy-compat-active`~~ **DELETED 2026-07-03**
-- Had zero callers at time of deletion. All functions were dead code superseded by the API layer.
-
-### models/master_catalog.py — generic SQLite CRUD service
-- Status: ~~`legacy-compat-active`~~ **DELETED 2026-07-03**
-- Only caller was `bridge/catalog_bridge.py`, which was itself deleted (see below).
-
-### bridge/incident_bridge.py — task narrative CRUD in SQLite
-- Status: ~~`legacy-compat-active`~~ **REMOVED 2026-07-03**
-- SQLite removed. `IncidentBridge` now calls `POST/PATCH/DELETE /api/incidents/{id}/narratives`.
-- Router: `server/sarapp_db/sarapp_db/api/routers/task_narratives.py`; narrative entries are embedded in `tasks.narrative` and written through a task `BaseRepository` subclass.
-- Dead import removed from `main.py`.
-
-### bridge/catalog_bridge.py — SQLite-backed catalog bridge
-- Status: ~~`legacy-compat-active`~~ **DELETED 2026-07-03**
-- `CatalogBridge` class was imported in `main.py` but never instantiated anywhere in the codebase. Dead import removed from `main.py`, then file deleted along with `models/master_catalog.py`.
-
-### utils/audit.py — SQLite audit log
-- Status: ~~`legacy-compat-active`~~ **REMOVED 2026-07-03**
-- `write_audit()` and `fetch_last_audit_rows()` now call `POST /api/audit` and `GET /api/audit`.
-- New router: `server/sarapp_db/sarapp_db/api/routers/audit.py` (prefix `/api/audit`).
-- Global events → `SystemCollections.AUDIT_GLOBAL`; incident-scoped → `IncidentCollections.AUDIT_LOGS` via `AuditLogRepository(BaseRepository)`.
-
-### utils/session.py — redundant SQLite user_sessions write
-- Status: ~~`legacy-compat-active`~~ **REMOVED 2026-07-03**
-- SQLite `user_sessions` writes removed. `start_session()` is now a thin wrapper around `_start_api_session()`. `end_session()` only calls the API logout endpoint.
-- `main.py` quit handler now gates on `AppState.get_active_api_session_id()`.
-
-### utils/incident_meta.py — ICP location in SQLite
-- Status: ~~`legacy-compat-active`~~ **REMOVED 2026-07-03**
-- `get_icp_location()` now calls `GET /api/incidents/{id}/profile`.
-- Profile PATCH extended to accept direct `latitude`/`longitude` fields (not facility-only).
-- Profile GET extended to return `latitude` and `longitude` fields.
-
-### models/sqlite_table_model.py — QML-era table model
-- Status: ~~`legacy-compat-active`~~ **DELETED 2026-07-03**
-- `SqliteTableModel` was imported in `main.py` but never instantiated anywhere. Dead import removed, file deleted.
-
-### modules/_infra/repository.py + modules/_infra/base.py — SQLAlchemy/SQLite layer
-- Status: ~~`legacy-compat-active`~~ **DELETED 2026-07-03**
-- `get_incident_engine()` and `with_incident_session()` had zero callers. `base.py` (3 lines, just `declarative_base()`) was only imported by `repository.py`. Both deleted.
-
-### cloud_server/sarapp_db/** — mirrored Mongo/router tree
-- Status: ~~`legacy-compat-candidate`~~ **DELETED 2026-07-12**
-- Was: `cloud_server/sarapp_db/**` (routers, mongo client, schemas) — a full mirrored copy of `server/sarapp_db/sarapp_db/` from a pre-router cloud-server design where `cloud_server/` ran as a second, self-hosted MongoDB-backed backend. This mirror was deleted 2026-07-12 and must not be recreated. The current hosted `cloud_server/` imports the shared app from `server/sarapp_db/sarapp_db/api/app.py` instead.
-- Also removed the tooling that existed only to keep the mirror in sync: `tools/scripts/validate-cloud-server-mirror.sh`, its pre-commit hook in `.claude/settings.json`, and the auto-mirror step in the `new-router`/`new-module` skills. `docs/archive/design-documents/Instructions/api_router_rules.md` says mirroring is not required.
-
-### CAP ORM router endpoints and collections — superseded by Safety Risk Manager
-- Status: ~~`legacy-compat-active`~~ **REMOVED 2026-07-12**
-- CAP ORM collection constants, indexes, summary endpoint, and SQLAlchemy model were removed. Compatibility `/safety/orm/form` and `/safety/orm/hazards` endpoints now synthesize/read/write CAPF-160-shaped data from canonical `hazards` documents.
-
-### intel_clues collection and endpoints
-- Status: ~~`legacy-compat-active`~~ **REMOVED 2026-07-12**
-- Communications clue capture now writes canonical `intel_items` records with `item_type="Clue"`. Task-detail clue linking and form-context clue summaries were already using `IntelItemsRepository`.
-
-### app/modules/planning/iap/models/repository.py — IAP CRUD in SQLite
-- Status: ~~`legacy-compat-active`~~ **REMOVED 2026-07-03**
-- SQLite removed. `IAPRepository` now calls `GET/PUT/DELETE /api/incidents/{id}/iap/packages`.
-- Router: `server/sarapp_db/sarapp_db/api/routers/iap.py` (`IAPPackagesRepository(BaseRepository)`); forms embedded in package doc.
-- `IAPService._build_repository()` simplified — no longer resolves SQLite file paths.
-- Tests rewritten to use FastAPI TestClient against the new router.
-
-## Liaison runtime ID repair and parallel request models
-
-- Location: `server/sarapp_db/sarapp_db/api/routers/liaison.py` (`_ensure_int_ids`),
-  `liaison_requests.py`, and desktop Liaison repository/tests.
-- Existing compatibility: reads repair missing `int_id` values with raw collection writes.
-  Older agency requests, resource offers and feedback records coexist with the current
-  `liaison_requests` records and narrative thread; the request router explicitly retains
-  the older API for existing desktop consumers.
-- Web behavior: new requests use `liaison_requests` only. Agency detail displays existing
-  older records separately without copying them or falling back to them for current requests.
-- Removal condition: perform and verify a one-time identifier/data conversion, update remaining
-  desktop consumers and SQLite-era Liaison tests, then remove runtime repairs and retired APIs.
-
-## Facilities field aliases retained on the shared API
-
-- Locations: `server/sarapp_db/sarapp_db/api/routers/facilities.py` (`_serialize`, create/PUT)
-  and `apps/desktop/sarapp_desktop/modules/logistics/facilities/models.py` (`from_api`).
-- Existing compatibility: falls back from `function_tags` to `capabilities` and from
-  `served_sections` to `served_modules`, and server writes both shapes. The web Facilities
-  UI reads/writes only canonical `function_tags`/`served_sections`; no new fallback is added.
-- Removal condition: migrate existing facility documents once and update remaining consumers,
-  then remove server alias reads/writes and desktop compatibility reads together.
+- Verification: run `python -m sarapp_db.migrations.migrate_logistics_resource_requests_to_resource_requests --dry-run` and confirm zero legacy docs remain before deleting this entry. **Not yet verified**: requires a live Mongo connection; not actionable from a session without `SARAPP_MONGO_URI` configured.

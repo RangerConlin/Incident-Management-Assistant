@@ -166,6 +166,7 @@ class _IncidentPickerScreenState extends State<IncidentPickerScreen> {
               ? IncidentStaffDashboardScreen(
                   incidentId: started.incidentId,
                   incidentName: started.incidentName,
+                  incidentType: started.incidentType,
                   session: started.session,
                 )
               : FieldDashboardScreen(

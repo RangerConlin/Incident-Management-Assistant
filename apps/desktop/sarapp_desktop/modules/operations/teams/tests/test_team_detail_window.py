@@ -101,7 +101,7 @@ def test_team_repository_round_trips_attention_and_asset_lists(monkeypatch: pyte
     team_repo.save_team(team)
 
     payload = client.patch_calls[-1][1]
-    assert json.loads(payload["members_json"]) == [101, 102]
+    assert payload["member_person_records"] == [101, 102]
     assert json.loads(payload["vehicles_json"]) == ["11"]
     assert json.loads(payload["equipment_json"]) == ["22"]
     assert json.loads(payload["aircraft_json"]) == ["33"]
@@ -111,7 +111,7 @@ def test_team_repository_round_trips_attention_and_asset_lists(monkeypatch: pyte
         {
             "int_id": 7,
             "name": "Alpha",
-            "members_json": "[101, 102]",
+            "member_person_records": [101, 102],
             "vehicles_json": '["11"]',
             "equipment_json": '["22"]',
             "aircraft_json": '["33"]',

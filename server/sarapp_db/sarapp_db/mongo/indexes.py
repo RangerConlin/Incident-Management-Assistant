@@ -63,6 +63,7 @@ def create_incident_indexes(incident_db: Database) -> None:
     _create_weather_indexes(incident_db)
     _create_facilities_indexes(incident_db)
     _create_resource_status_indexes(incident_db)
+    _create_incident_personnel_indexes(incident_db)
     _create_iap_indexes(incident_db)
     _create_sitrep_indexes(incident_db)
     _create_package_activations_indexes(incident_db)
@@ -89,6 +90,16 @@ def _create_teams_indexes(incident_db: Database) -> None:
     _ensure_index(teams, [("name", ASCENDING)])
     _ensure_index(teams, [("status", ASCENDING)])
     _ensure_index(teams, [("member_person_records", ASCENDING)])
+
+
+def _create_incident_personnel_indexes(incident_db: Database) -> None:
+    personnel = incident_db[IncidentCollections.INCIDENT_PERSONNEL]
+    _ensure_index(
+        personnel,
+        [("person_record", ASCENDING)],
+        unique=True,
+        sparse=True,
+    )
 
 
 def _create_tasks_indexes(incident_db: Database) -> None:
@@ -252,6 +263,7 @@ def _create_org_indexes(incident_db: Database) -> None:
     _ensure_index(org, [("position_id", ASCENDING)], unique=True)
     _ensure_index(org, [("parent_position_id", ASCENDING)])
     _ensure_index(org, [("classification", ASCENDING)])
+    _ensure_index(org, [("title", ASCENDING)])
     _ensure_index(org, [("primary.person_record", ASCENDING)])
     _ensure_index(org, [("deputies.person_record", ASCENDING)])
     _ensure_index(org, [("staff_assistants.person_record", ASCENDING)])

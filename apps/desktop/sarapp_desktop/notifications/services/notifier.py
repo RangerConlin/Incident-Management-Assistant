@@ -126,9 +126,4 @@ class Notifier(QObject):
     def _emit_badge(self) -> None:
         self.badgeCountChanged.emit(self.unread_count())
 
-    # Backwards-compat alias — old call sites expect "clear the badge"
-    def clear_badge(self) -> None:
-        self.mark_all_read()
-
-
 get_notifier = Notifier.instance

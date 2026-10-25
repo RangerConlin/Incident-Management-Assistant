@@ -2,13 +2,16 @@ import 'package:flutter/material.dart';
 
 import '../models/home_nav_args.dart';
 import '../models/incident_context.dart';
+import '../models/mobile_incident_context.dart';
 import '../models/narrative_entry.dart';
 import '../models/task.dart';
 import '../models/team.dart';
 import '../services/app_presence_service.dart';
 import '../services/chat_presence_service.dart';
+import '../services/incident_context_poller.dart';
 import '../services/push_notification_service.dart';
 import '../services/sarapp_api_client.dart';
+import '../services/session_store.dart';
 import '../services/tracking_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/session_identity.dart';
@@ -24,6 +27,7 @@ import '../widgets/task_metadata_card.dart';
 import '../widgets/team_status_grid.dart';
 import 'add_narrative_sheet.dart';
 import 'coming_soon_screen.dart';
+import 'incident_staff_dashboard_screen.dart';
 import 'notification_permission_prompt.dart';
 import 'report_hazard_screen.dart';
 
@@ -123,13 +127,49 @@ class _FieldDashboardScreenState extends State<FieldDashboardScreen> {
         personId: _displayName,
         personRecord: personRecord == null ? null : '$personRecord',
       );
+      if (!mounted) return;
+      final record = int.tryParse('$personRecord');
+      if (record != null) {
+        IncidentContextPoller.start(
+          incidentId: widget.incidentId,
+          personRecord: record,
+          initialHasTeam: true,
+          onUpdate: _onPollUpdate,
+        );
+      }
     });
   }
 
   @override
   void dispose() {
+    IncidentContextPoller.stop();
     if (_ownsApiClient) _apiClient.dispose();
     super.dispose();
+  }
+
+  /// A team assignment removed while this screen is open has no field view
+  /// left to show — reload straight into Staff View, no confirmation.
+  void _onPollUpdate(MobileIncidentContext mobileContext, TeamTransition transition) {
+    if (!mounted || transition != TeamTransition.lost) return;
+    SessionStore.save(
+      incidentId: widget.incidentId,
+      incidentName: widget.incidentName,
+      incidentType: widget.incidentType,
+      teamId: '',
+      teamName: '',
+      session: widget.session,
+    );
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(
+        builder: (_) => IncidentStaffDashboardScreen(
+          incidentId: widget.incidentId,
+          incidentName: widget.incidentName,
+          incidentType: widget.incidentType,
+          session: widget.session,
+        ),
+      ),
+      (route) => false,
+    );
   }
 
   Future<void> _load() async {

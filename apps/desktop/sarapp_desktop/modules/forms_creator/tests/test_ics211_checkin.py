@@ -65,7 +65,7 @@ def test_build_checkin_list_splits_resource_types(monkeypatch):
                 {
                     "name": "Team 1",
                     "team_leader": 1,
-                    "members_json": "[1, 2]",
+                    "member_person_records": [1, 2],
                     "checked_in_at": "2026-07-03T08:00:00+00:00",
                     "assignment": "GT Bravo",
                 }

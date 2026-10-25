@@ -6,4 +6,6 @@ The desktop application should eventually own PySide UI code, desktop modules,
 panels, bridge code, desktop models, notifications, styles, settings, assets,
 profiles, and desktop utilities.
 
-Current implementation is still being migrated from the repository root.
+The desktop source and entry point now live under `apps/desktop/sarapp_desktop/`.
+Launch from the repository root with
+`python apps/desktop/sarapp_desktop/main.py` or `Start SARApp Desktop.bat`.

@@ -279,10 +279,16 @@ confuse them - they don't share an implementation:
    for this when you mean #1.
 3. **`modules/forms_creator/bindings.py` / `form_registry.py`** (the
    `ALLOWED_BINDING_SOURCES` set with `"mission"`/`"personnel"`/`"env"`/
-   `"computed"`) - this is dead code. No other file in the repo imports
-   `bindings.py`. It predates (or was an abandoned parallel to) the
-   current `context.py` + `binding_catalog.json` pipeline. Ignore it;
-   don't try to wire a new computed value into it.
+   `"computed"`) - a separate, older binding-resolution mechanism for the
+   profile-scoped `FormRegistry`/`FormSession`/`export_form()` pipeline
+   (`export.py` calls `bindings.render_values()` at export time;
+   `form_registry.py` validates template bindings against
+   `ALLOWED_BINDING_SOURCES`). Still live - reachable via
+   `export_form_unified()` in `api.py` whenever its profile-scoped path
+   runs - but it predates and is unrelated to the current `context.py` +
+   `binding_catalog.json` pipeline documented here. Don't try to wire a
+   new computed value into it; it is tracked separately as part of the
+   "Profile-scoped form template pipeline" legacy-compat entry.
 
 **To add a real computed value**, decide which of these two applies:
 

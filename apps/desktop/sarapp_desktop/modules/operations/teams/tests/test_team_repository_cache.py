@@ -33,7 +33,7 @@ def test_get_team_reads_from_incident_cache(monkeypatch):
                     "callsign": "GT-3",
                     "team_leader": 42,
                     "status": "available",
-                    "members_json": "[42, 43]",
+                    "member_person_records": [42, 43],
                 }
             ]
         },

@@ -94,7 +94,7 @@ Use this procedure to confirm the desktop client can discover and connect to the
 1. Start `dist\SARAppServerConsole\SARAppServerConsole.exe`.
 2. In the Server Console, leave discovery enabled and click **Start Server**.
 3. Verify `http://127.0.0.1:8765/health` responds successfully.
-4. Launch the main SARApp desktop app separately, either from source with `python main.py` or from its own existing desktop executable.
+4. Launch the main SARApp desktop app separately, either from source with `python apps/desktop/sarapp_desktop/main.py` or from its own existing desktop executable.
 5. Confirm the desktop app discovers the Server Console server on the LAN.
 6. Confirm the desktop app connects to the discovered server and does not fall back to offline mode while the server is running.
 7. Stop the server from the Server Console after testing.

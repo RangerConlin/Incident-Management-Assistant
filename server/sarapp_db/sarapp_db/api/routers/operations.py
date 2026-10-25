@@ -504,6 +504,8 @@ def list_teams(incident_id: str) -> list[dict]:
 
 @router.post("/incidents/{incident_id}/operations/teams", status_code=201)
 def create_team(incident_id: str, body: dict[str, Any]) -> dict:
+    if "members_json" in body:
+        raise HTTPException(422, "Use member_person_records for team personnel")
     repo = _teams_repo(incident_id)
     int_id = _next_int_id(repo._col)
     operational_unit_id = body.get("operational_unit_id")
@@ -533,7 +535,9 @@ def create_team(incident_id: str, body: dict[str, Any]) -> dict:
         "last_checkin_at": None,
         "checkin_reference_at": None,
         "last_comm_ping": None,
-        "member_person_records": list(body.get("member_person_records") or []),
+        "member_person_records": [
+            int(value) for value in (body.get("member_person_records") or [])
+        ],
         "vehicles_json": body.get("vehicles_json", "[]"),
         "equipment_json": body.get("equipment_json", "[]"),
         "aircraft_json": body.get("aircraft_json", "[]"),
@@ -564,6 +568,12 @@ def update_team(incident_id: str, team_id: int, body: dict[str, Any]) -> dict:
     if not doc:
         raise HTTPException(404, f"Team {team_id} not found")
     body.pop("int_id", None)
+    if "members_json" in body:
+        raise HTTPException(422, "Use member_person_records for team personnel")
+    if "member_person_records" in body:
+        body["member_person_records"] = [
+            int(value) for value in (body.get("member_person_records") or [])
+        ]
     if "team_type" in body and "operational_unit_id" not in body:
         # If this edit is changing the team to an aircraft type and isn't
         # also explicitly picking a unit, auto-slot under the Air

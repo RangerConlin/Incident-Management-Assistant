@@ -347,8 +347,8 @@ def _finish_session(
             incident_id=str(incident_id),
             mode="cloud",
         )
-        write_audit("session.start", {"session_id": sid}, prefer_mission=False)
-        write_audit("login.success", {"role": role, "person_id": username}, prefer_mission=False)
+        write_audit("session.start", {"session_id": sid}, incident_scoped=False)
+        write_audit("login.success", {"role": role, "person_id": username}, incident_scoped=False)
         write_audit("incident.select", {"id": incident_id, "number": incident_number})
     except Exception:
         pass

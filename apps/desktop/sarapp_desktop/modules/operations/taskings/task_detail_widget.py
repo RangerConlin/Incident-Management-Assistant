@@ -992,13 +992,10 @@ class TaskDetailWindow(QWidget):
         self._btn_team_primary.clicked.connect(self._teams_set_primary)
         for b in [self._btn_team_add, self._btn_team_edit, self._btn_team_status, self._btn_team_primary]:
             tbar.addWidget(b)
-        # Dev-only hard delete button: visible when DEV_MODE (main.py:7) or uiDebugTools is true
-        _dev_enabled = False
-        try:
-            from main import DEV_MODE as _DEV
-            _dev_enabled = bool(_DEV)
-        except Exception:
-            _dev_enabled = False
+        # Dev-only hard delete button: visible when DEV_MODE or uiDebugTools is true.
+        from utils.app_settings import DEV_MODE
+
+        _dev_enabled = DEV_MODE
         if not _dev_enabled:
             try:
                 from utils.settingsmanager import SettingsManager

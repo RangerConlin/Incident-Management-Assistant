@@ -208,13 +208,17 @@ class SarAppApiClient {
     return MobileIncidentContext.fromJson(
       await _postJson(
         '/api/incidents/$incidentId/mobile/entry',
-        body: {
-          'person_record': personRecord,
-          if (parsedTeamId != null) 'team_id': parsedTeamId,
-        },
+        body: {'person_record': personRecord, 'team_id': ?parsedTeamId},
       ),
     );
   }
+
+  Future<MobileIncidentContext> fetchMobileIncidentContext({
+    required String incidentId,
+    required int personRecord,
+  }) async => MobileIncidentContext.fromJson(
+    await _getJson('/api/incidents/$incidentId/mobile/context/$personRecord'),
+  );
 
   /// Checks a login ID against the personnel roster. The result's status says
   /// whether the ID matched exactly one record, none (offer to create one) or
@@ -521,6 +525,27 @@ class SarAppApiClient {
   /// callers should treat `max(result)` as an approximation.
   Future<List<dynamic>> fetchOpPeriods(String incidentId) =>
       _getJsonList('/api/incidents/$incidentId/op-periods');
+
+  /// Active hazards for the Incident Staff dashboard's safety-issue count.
+  /// [opPeriod] is the plain operational-period number (matching
+  /// [fetchOpPeriods]), not an internal document id.
+  Future<List<dynamic>> fetchHazards(String incidentId, {int? opPeriod}) =>
+      _getJsonList('/api/incidents/$incidentId/safety/hazards', {
+        'op_period': ?opPeriod,
+      });
+
+  /// IC objectives for the Incident Staff dashboard. Deliberately not
+  /// filtered by operational period here — the objectives router's
+  /// `op_period_id` expects an internal planning-period id, not the plain
+  /// period number [fetchOpPeriods] returns, so callers that only have the
+  /// latter should leave this unset rather than filter on the wrong value.
+  Future<List<dynamic>> fetchObjectives(
+    String incidentId, {
+    String? opPeriodId,
+  }) => _getJsonList('/api/objectives', {
+    'incident_id': incidentId,
+    'op_period_id': ?opPeriodId,
+  });
 
   Future<Ics205Plan> fetchIcs205Plan(String incidentId, {int? opPeriod}) async {
     final query = {'op_period_id': ?opPeriod};

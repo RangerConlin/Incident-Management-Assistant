@@ -12,13 +12,13 @@ def write_audit(
     action: str,
     detail: Optional[Dict[str, Any]] = None,
     *,
-    prefer_mission: bool = True,
+    incident_scoped: bool = True,
 ) -> None:
     from utils.api_client import api_client
     from utils.state import AppState
 
     user = AppState.get_active_user_id()
-    incident = AppState.get_active_incident() if prefer_mission else None
+    incident = AppState.get_active_incident() if incident_scoped else None
     payload: Dict[str, Any] = {
         "action": action,
         "detail": detail,
@@ -32,16 +32,16 @@ def write_audit(
         pass
 
 
-def audit_action(action: str, *, prefer_mission: bool = True) -> Callable:
+def audit_action(action: str, *, incident_scoped: bool = True) -> Callable:
     def decorator(func: Callable) -> Callable:
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             try:
                 result = func(*args, **kwargs)
             except Exception as e:
-                write_audit(action, {"result": "error", "error": repr(e)}, prefer_mission=prefer_mission)
+                write_audit(action, {"result": "error", "error": repr(e)}, incident_scoped=incident_scoped)
                 raise
             else:
-                write_audit(action, {"result": "ok"}, prefer_mission=prefer_mission)
+                write_audit(action, {"result": "ok"}, incident_scoped=incident_scoped)
                 return result
         return wrapper
     return decorator

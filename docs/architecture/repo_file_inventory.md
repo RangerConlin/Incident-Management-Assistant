@@ -11,7 +11,7 @@ When a file's migration decision has been completed and no further action is nee
 - Files inventoried: 0
 - Migration rows completed and removed.
 - Desktop source, assets, forms, styles, profiles, modules, panels, utilities, and bridge code now live under `apps/desktop/sarapp_desktop/`.
-- Root entry/config files (`main.py`, `sarapp_server.py`, `conftest.py`, `pyproject.toml`, `pytest.ini`, `requirements.txt`, `settings.json`, `Start SARApp Desktop.bat`, `.claude/settings.json`, `.vscode/settings.json`) are intentionally kept at repository root for the staged migration because current launch/test tooling and cwd-relative runtime config still depend on them.
+- The desktop entry point has moved to `apps/desktop/sarapp_desktop/main.py`; the root launcher invokes it directly. Shared repository configuration and server entry points remain at the repository root.
 - Root `settings/` is intentionally kept at repository root for now because desktop and server-side code still read those files via cwd-relative `settings/...` paths, including shared geocoding config.
 
 ### Suggested disposition

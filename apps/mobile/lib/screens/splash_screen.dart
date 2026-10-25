@@ -52,6 +52,7 @@ class _SplashScreenState extends State<SplashScreen> {
         ? IncidentStaffDashboardScreen(
             incidentId: saved.incidentId,
             incidentName: saved.incidentName,
+            incidentType: saved.incidentType,
             session: saved.session,
           )
         : FieldDashboardScreen(

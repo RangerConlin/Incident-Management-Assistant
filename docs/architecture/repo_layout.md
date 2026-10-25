@@ -27,7 +27,7 @@ Incident-Management-Assistant/
         settings/
         styles/
         utils/
-      main.py
+        main.py
       requirements.txt
       pyproject.toml
 

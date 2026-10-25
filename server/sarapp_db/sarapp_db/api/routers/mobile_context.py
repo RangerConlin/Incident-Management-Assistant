@@ -179,12 +179,16 @@ def enter_incident(
     )
 
     if existing is None:
+        current_team = _find_team(incident_id, body.person_record)
+        entry_team_id = body.team_id
+        if entry_team_id is None and current_team is not None:
+            entry_team_id = current_team.get("int_id")
         checkin.save_checkin(
             incident_id,
             body.person_record,
             {
                 "status": "Checked In",
-                "team_id": body.team_id,
+                "team_id": entry_team_id,
             },
         )
     if body.team_id is not None:

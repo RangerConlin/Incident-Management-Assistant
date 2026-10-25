@@ -37,7 +37,7 @@ SITREP Window
   typo can't silently break role-based approval resolution. Custom org-chart nodes (branches,
   divisions, groups, units) stay freeform as today — this only applies to the fixed set of
   command/general-staff roles the approval engine looks up by name.
-
+  - Positions should be referenced by FK int, not strings.  Names may change but FKs will not
 **************************************************************************************************************
 [Planning]
 Planning Dashboard

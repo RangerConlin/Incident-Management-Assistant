@@ -82,7 +82,7 @@ def _start_api_session(
             _start_heartbeat(str(session_id))
             return str(session_id)
     except Exception as exc:
-        write_audit("presence.session_start_failed", {"error": str(exc)}, prefer_mission=False)
+        write_audit("presence.session_start_failed", {"error": str(exc)}, incident_scoped=False)
     return None
 
 
@@ -93,7 +93,6 @@ def start_session(
     display_name: str | None = None,
     role: str | None = None,
     person_record: int | None = None,
-    personnel_id: str | None = None,  # legacy param, unused
     incident_id: str | None = None,
     mode: str | None = None,
 ) -> str | None:
@@ -118,7 +117,7 @@ def end_session() -> None:
 
         api_client.post(f"/api/auth/sessions/{api_session_id}/logout")
     except Exception as exc:
-        write_audit("presence.session_end_failed", {"error": str(exc)}, prefer_mission=False)
+        write_audit("presence.session_end_failed", {"error": str(exc)}, incident_scoped=False)
     finally:
         AppState.set_active_api_session_id(None)
 

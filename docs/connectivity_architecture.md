@@ -4,7 +4,7 @@ SARApp and ICS Command Assistant are the same desktop-first PySide6 project. Thi
 
 ## Launch Connection Workflow
 
-When SARApp starts, `main.py` creates a centralized `ConnectionManager` and runs the startup connection flow before the main workspace is shown:
+When SARApp starts, `apps/desktop/sarapp_desktop/main.py` creates a centralized `ConnectionManager` and runs the startup connection flow before the main workspace is shown:
 
 1. Search the local LAN for SARApp Server announcements.
 2. If a server is discovered, connect to that LAN server automatically.

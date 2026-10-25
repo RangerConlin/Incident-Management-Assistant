@@ -4,7 +4,7 @@ Incident Management Assistant ("SARApp") is a desktop-first toolkit for emergenc
 
 ## Key capabilities
 
-- **Dockable PySide6 workspace.** `main.py` boots a Qt `QMainWindow` with Qt Advanced Docking System (ADS) so panels from each section (Command, Planning, Operations, Logistics, Communications, Intel, Medical/Safety, Public Information, Finance/Admin and Toolkits) can be opened, rearranged and saved as perspectives.
+- **Dockable PySide6 workspace.** `apps/desktop/sarapp_desktop/main.py` boots a Qt `QMainWindow` with Qt Advanced Docking System (ADS) so panels from each section (Command, Planning, Operations, Logistics, Communications, Intel, Medical/Safety, Public Information, Finance/Admin and Toolkits) can be opened, rearranged and saved as perspectives.
 - **Offline-first data storage.** Utilities in `utils.db` and `utils.incident_context` manage a shared `data/master.db` file plus per-incident databases under `data/incidents/<id>.db`, with the `CHECKIN_DATA_DIR` environment variable allowing tests or deployments to override the storage root.
 - **Incident operations workflows.** Command, Planning, Operations, Logistics, Communications, Safety, Medical, Liaison, Public Information and Finance/Admin modules now provide widget panels, repositories, and FastAPI routers for common ICS workflows.
 - **Logistics resource lifecycle.** Logistics includes ICS-211 check-in/check-out, resource status boards, ICS-213RR requests, vehicle and aircraft inventory, fulfillment tracking and printable/exportable request artifacts.
@@ -18,7 +18,7 @@ Incident Management Assistant ("SARApp") is a desktop-first toolkit for emergenc
 
 | Path | Purpose |
 | --- | --- |
-| `main.py` | Application entry point, menu wiring and dock manager bootstrap. |
+| `apps/desktop/sarapp_desktop/main.py` | Application entry point, menu wiring and dock manager bootstrap. |
 | `modules/` | Feature modules covering ICS sections (operations, logistics, communications, public info, safety, medical, etc.). |
 | `notifications/` | Toast, banner and scheduled alert services. |
 | `profiles/` | Deployable configuration profiles with manifests, templates and assets. |
@@ -46,7 +46,7 @@ pip install -r requirements.txt
 ### Running the desktop app
 
 ```bash
-python main.py
+python apps/desktop/sarapp_desktop/main.py
 ```
 
 The first run creates `data/master.db` plus any incident databases referenced by utilities. Set `CHECKIN_DATA_DIR=/custom/path` before launching to store data outside the repository (useful for tests or production deployments).
@@ -69,8 +69,8 @@ Several modules expose FastAPI routers backed by the same data layer. Routers ar
 
 1. Activate an incident for development with `AppState.set_active_incident("demo")` or via the UI. This ensures operations repositories, notifications and check-in services point at `data/incidents/demo.db`.
 2. Seed or import sample data as needed (`data/examples`, module-specific seed scripts, or manual imports via SQLite tools).
-3. Launch the Qt app (`python main.py`) to develop ADS dock panels, or run module entry points for FastAPI services and CLI utilities.
-4. Persisted ADS layouts live in `settings/ads_perspectives.ini`; delete this file or temporarily set `FORCE_DEFAULT_LAYOUT = True` in `main.py` only when troubleshooting dock layout state.
+3. Launch the Qt app (`python apps/desktop/sarapp_desktop/main.py`) to develop ADS dock panels, or run module entry points for FastAPI services and CLI utilities.
+4. Persisted ADS layouts live in `settings/ads_perspectives.ini`; delete this file or temporarily set `FORCE_DEFAULT_LAYOUT = True` in the desktop entry point only when troubleshooting dock layout state.
 5. Keep new UI work in PySide6 widgets. Legacy QML compatibility code still exists in a few bridge/model docstrings, but new QML should not be added.
 
 ## Testing

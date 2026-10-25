@@ -7,6 +7,7 @@ import '../models/home_nav_args.dart';
 import '../models/incident_category.dart';
 import '../screens/comms_plan_screen.dart';
 import '../screens/field_dashboard_screen.dart';
+import '../screens/incident_staff_dashboard_screen.dart';
 import '../screens/main_menu_screen.dart';
 import '../screens/logbook_screen.dart';
 import '../screens/med_plan_screen.dart';
@@ -102,14 +103,21 @@ class AppDrawer extends StatelessWidget {
     Navigator.of(context).pop();
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(
-        builder: (_) => FieldDashboardScreen(
-          incidentId: args.incidentId,
-          incidentName: args.incidentName,
-          incidentType: args.incidentType,
-          teamId: args.teamId,
-          teamName: args.teamName,
-          session: args.session,
-        ),
+        builder: (_) => args.teamId.isEmpty
+            ? IncidentStaffDashboardScreen(
+                incidentId: args.incidentId,
+                incidentName: args.incidentName,
+                incidentType: args.incidentType,
+                session: args.session,
+              )
+            : FieldDashboardScreen(
+                incidentId: args.incidentId,
+                incidentName: args.incidentName,
+                incidentType: args.incidentType,
+                teamId: args.teamId,
+                teamName: args.teamName,
+                session: args.session,
+              ),
       ),
       (route) => false,
     );
