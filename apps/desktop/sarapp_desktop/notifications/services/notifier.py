@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+import logging
 import time
 import uuid
 from typing import List, Dict, Any, Optional
@@ -22,6 +23,7 @@ _DEFAULT_TOAST_MODE = "auto"
 _DEFAULT_DURATION_MS = 4500
 _THROTTLE_WINDOW_S = 2
 _RECENT_CAP = 500
+logger = logging.getLogger(__name__)
 
 
 class Notifier(QObject):
@@ -73,6 +75,11 @@ class Notifier(QObject):
         below_threshold = SEVERITY_RANK.get(severity, 0) < SEVERITY_RANK.get(threshold, 0)
         show_toast = not below_threshold and merged.get("show_toast", True)
         play_sound = show_toast and merged.get("sound", cat_defaults.get("sound", True))
+        logger.info(
+            "Notifier received title=%r source=%s category=%s severity=%s threshold=%s show_toast=%s play_sound=%s",
+            payload.get("title"), payload.get("source"), category, severity,
+            threshold, show_toast, play_sound,
+        )
 
         if payload.get("toast_mode") is None:
             payload["toast_mode"] = merged.get("toast_mode", _DEFAULT_TOAST_MODE)
@@ -82,6 +89,10 @@ class Notifier(QObject):
         key = (payload["title"], payload["message"])
         now = time.time()
         if key in self._throttle and now - self._throttle[key] < _THROTTLE_WINDOW_S:
+            logger.warning(
+                "Notifier throttled duplicate title=%r age_seconds=%.3f",
+                payload.get("title"), now - self._throttle[key],
+            )
             return
         self._throttle[key] = now
 
@@ -89,16 +100,27 @@ class Notifier(QObject):
         if len(self._recent) > _RECENT_CAP:
             self._recent = self._recent[-_RECENT_CAP:]
 
+        logger.debug("Notifier emitting notificationCreated id=%s", payload["id"])
         self.notificationCreated.emit(payload)
         if show_toast:
+            logger.debug("Notifier emitting showToast id=%s", payload["id"])
             self.showToast.emit(payload)
+            logger.debug("Notifier showToast emit returned id=%s", payload["id"])
+        else:
+            logger.info(
+                "Notifier stored notification without toast id=%s below_threshold=%s",
+                payload["id"], below_threshold,
+            )
         self._emit_badge()
 
         if play_sound:
             try:
                 SoundPlayer.instance().play(category, severity)
             except Exception:
-                pass
+                logger.exception(
+                    "Notifier sound playback failed id=%s category=%s severity=%s",
+                    payload["id"], category, severity,
+                )
 
     def recent(self, limit: int = 50) -> List[Dict[str, Any]]:
         return list(reversed(self._recent[-limit:]))

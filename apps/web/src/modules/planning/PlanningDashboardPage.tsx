@@ -4,7 +4,7 @@ import KpiStrip from "../../components/KpiStrip";
 import StatusPill from "../../components/table/StatusPill";
 import { objectiveStatusVar } from "../../styles/statusColors";
 import { useSession } from "../../auth/SessionContext";
-import { useObjectiveRows } from "./objectives/hooks";
+import { useObjectiveRows } from "../command/objectives/hooks";
 
 export default function PlanningDashboardPage() {
   const { incidentId } = useSession();
@@ -47,8 +47,8 @@ export default function PlanningDashboardPage() {
           <KpiStrip tiles={kpiTiles} />
 
           <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
-            <button style={{ width: "auto" }} onClick={() => navigate("/planning/objectives")}>
-              Open Strategic Objectives
+            <button style={{ width: "auto" }} onClick={() => navigate("/command/objectives")}>
+              Open Incident Objectives
             </button>
           </div>
 
@@ -60,7 +60,7 @@ export default function PlanningDashboardPage() {
               <div
                 key={o._id}
                 className="list-item"
-                onClick={() => navigate(`/planning/objectives/${o._id}`)}
+                onClick={() => navigate(`/command/objectives/${o._id}`)}
               >
                 <div>
                   <div style={{ fontWeight: 600 }}>

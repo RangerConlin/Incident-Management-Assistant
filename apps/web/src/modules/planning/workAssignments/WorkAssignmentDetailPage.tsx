@@ -1,4 +1,3 @@
-import FormExportControls from "../../forms/FormExportControls";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import StatusPill from "../../../components/table/StatusPill";
@@ -50,7 +49,6 @@ export default function WorkAssignmentDetailPage() {
 
   return (
     <div className="detail-page">
-      <FormExportControls formIds={["ics_204", "ics_215", "ics_215a"]} sourceId={waId} />
       <button
         className="secondary"
         style={{ width: "auto", marginBottom: 12 }}

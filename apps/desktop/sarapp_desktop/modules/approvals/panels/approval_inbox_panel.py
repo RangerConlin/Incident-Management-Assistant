@@ -42,7 +42,7 @@ class ApprovalInboxPanel(QtWidgets.QWidget):
 
         self._empty_label = QtWidgets.QLabel("No pending approvals.")
         self._empty_label.setAlignment(QtCore.Qt.AlignCenter)
-        self._empty_label.setStyleSheet("color: #888888;")
+        self._empty_label.setStyleSheet("color: palette(mid);")
         layout.addWidget(self._empty_label)
         self._empty_label.hide()
 
@@ -64,8 +64,8 @@ class ApprovalInboxPanel(QtWidgets.QWidget):
         self._empty_label.hide()
         self._list.show()
         for item in items:
-            doc_type = item.get("document_type", "")
-            doc_id = item.get("document_id", "")
+            doc_type = item.get("entity_type", "")
+            doc_id = item.get("entity_id", "")
             step_label = item.get("label", item.get("step_id", ""))
             role = item.get("role", "")
             row = QtWidgets.QTreeWidgetItem([

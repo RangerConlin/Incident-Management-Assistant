@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import logging
 from typing import Dict, Any, Optional
 
-from PySide6.QtCore import Qt, QTimer, QEasingCurve, Property
+from PySide6.QtCore import Qt, QTimer, QEasingCurve, Property, Signal
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QWidget,
@@ -13,76 +14,66 @@ from PySide6.QtWidgets import (
     QFrame,
     QGraphicsOpacityEffect,
 )
+from utils.styles import notification_colors, subscribe_theme
+
+logger = logging.getLogger(__name__)
 
 
 class _ToastItem(QFrame):
+    clicked = Signal(str)
+
     def __init__(self, payload: Dict[str, Any], *, default_duration: int = 4500, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self.setObjectName("ToastItem")
         self.setAttribute(Qt.WA_StyledBackground, True)
         self.setFrameShape(QFrame.StyledPanel)
         self.setFrameShadow(QFrame.Raised)
+        self.setMinimumHeight(120)
 
         title = str(payload.get("title") or "")
         message = str(payload.get("message") or "")
-        severity = str(payload.get("severity") or "info")
-        category = str(payload.get("category") or "operational")
+        severity = str(payload.get("severity") or "routine")
+        category = str(payload.get("category") or "operations")
         mode = str(payload.get("toast_mode") or "auto")
         duration = int(payload.get("toast_duration_ms") or default_duration)
-
-        _SEVERITY_BG = {
-            "informational": "rgba(40, 40, 40, 0.08)",
-            "routine":       "rgba(80, 80, 80, 0.10)",
-            "priority":      "rgba(217, 169, 56, 0.16)",
-            "emergency":     "rgba(217, 56, 56, 0.14)",
-        }
-        _SEVERITY_ACCENT = {
-            "informational": "#444444",
-            "routine":       "#888888",
-            "priority":      "#D9A938",
-            "emergency":     "#D93838",
-        }
-        _CATEGORY_LABEL = {
-            "operations":     ("OPS",   "#3879D9"),
-            "communications": ("COMMS", "#38A8D9"),
-            "safety":         ("SAFETY","#D9A938"),
-            "logistics":      ("LOG",   "#8A38D9"),
-            "planning":       ("PLAN",  "#38D978"),
-            "administrative": ("ADMIN", "#888888"),
-            "system":         ("SYS",   "#888888"),
-        }
-
-        bg = _SEVERITY_BG.get(severity, _SEVERITY_BG["info"])
-        accent = _SEVERITY_ACCENT.get(severity, _SEVERITY_ACCENT["info"])
-        cat_text, cat_color = _CATEGORY_LABEL.get(category, ("", "#888"))
-
-        self.setStyleSheet(
-            f"QFrame#ToastItem {{ border-radius: 6px; border-left: 3px solid {accent};"
-            f" border-top: 1px solid palette(dark); border-right: 1px solid palette(dark);"
-            f" border-bottom: 1px solid palette(dark); background: {bg}; }}"
-            " QPushButton#toastClose { border: none; background: transparent; }"
-            " QPushButton#toastClose:hover { background: rgba(0,0,0,0.10); }"
+        logger.debug(
+            "Constructing toast id=%s title=%r category=%s severity=%s mode=%s duration_ms=%d",
+            payload.get("id"), title, category, severity, mode, duration,
         )
 
+        severity_colors, category_colors = notification_colors()
+        category_style = category_colors.get(category, category_colors["system"])
+        cat_text = category_style["label"]
+        cat_color = category_style["accent"]
+        self._severity = severity
+        self._category = category
+        self._category_label: QLabel | None = None
+        self._apply_theme()
+        subscribe_theme(self, lambda _name: self._apply_theme())
+
         vbox = QVBoxLayout(self)
-        vbox.setContentsMargins(12, 8, 8, 8)
-        vbox.setSpacing(4)
+        vbox.setContentsMargins(18, 14, 14, 14)
+        vbox.setSpacing(8)
 
         row = QHBoxLayout()
         row.setSpacing(6)
 
         if cat_text and category != "operations":
             cat_lbl = QLabel(cat_text)
+            cat_lbl.setAttribute(Qt.WA_TransparentForMouseEvents, True)
             cat_lbl.setStyleSheet(
                 f"color: {cat_color}; font-size: 10px; font-weight: 700;"
                 " padding: 1px 4px; border-radius: 3px;"
                 f" border: 1px solid {cat_color};"
             )
+            self._category_label = cat_lbl
             row.addWidget(cat_lbl, 0)
 
         title_lbl = QLabel(title)
+        title_lbl.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         f = QFont()
         f.setBold(True)
+        f.setPointSize(max(f.pointSize() + 2, 12))
         title_lbl.setFont(f)
         title_lbl.setObjectName("toastTitle")
         row.addWidget(title_lbl, 1)
@@ -97,8 +88,12 @@ class _ToastItem(QFrame):
 
         if message:
             msg_lbl = QLabel(message)
+            msg_lbl.setAttribute(Qt.WA_TransparentForMouseEvents, True)
             msg_lbl.setWordWrap(True)
             msg_lbl.setObjectName("toastMessage")
+            message_font = msg_lbl.font()
+            message_font.setPointSize(max(message_font.pointSize() + 1, 11))
+            msg_lbl.setFont(message_font)
             vbox.addWidget(msg_lbl)
 
         # Opacity effect for fade in/out
@@ -131,6 +126,31 @@ class _ToastItem(QFrame):
     def _on_close_clicked(self) -> None:
         self.dismiss()
 
+    def mousePressEvent(self, event) -> None:  # noqa: N802
+        notification_id = str(self.property("notification_id") or "")
+        if notification_id:
+            self.clicked.emit(notification_id)
+        super().mousePressEvent(event)
+
+    def _apply_theme(self) -> None:
+        severity_colors, category_colors = notification_colors()
+        style = severity_colors.get(self._severity, severity_colors["routine"])
+        self.setStyleSheet(
+            f"QFrame#ToastItem {{ border-radius: 6px; border-left: 3px solid {style['accent']};"
+            " border-top: 1px solid palette(dark); border-right: 1px solid palette(dark);"
+            f" border-bottom: 1px solid palette(dark); background: {style['background']}; }}"
+            " QPushButton#toastClose { border: none; background: transparent; }"
+            " QPushButton#toastClose:hover { background: palette(midlight); }"
+        )
+        if self._category_label is not None:
+            category_style = category_colors.get(self._category, category_colors["system"])
+            color = category_style["accent"]
+            self._category_label.setStyleSheet(
+                f"color: {color}; font-size: 10px; font-weight: 700;"
+                " padding: 1px 4px; border-radius: 3px;"
+                f" border: 1px solid {color};"
+            )
+
     def dismiss(self) -> None:
         # Fade out then remove
         self._animate(to=0.0, duration=160, finished_cb=lambda: self.deleteLater())
@@ -149,10 +169,12 @@ class _ToastItem(QFrame):
 
 
 class ToastManager(QWidget):
-    """Overlay container anchored top-right that stacks toast items.
+    """Overlay container anchored bottom-right that stacks toast items.
 
     Call `enqueue(payload: dict)` to show a toast.
     """
+
+    toastClicked = Signal(str)
 
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
@@ -161,8 +183,8 @@ class ToastManager(QWidget):
         self.setAttribute(Qt.WA_TransparentForMouseEvents, False)
         self.setWindowFlags(Qt.SubWindow)
 
-        self._margin = 8
-        self._max_width = 360
+        self._margin = 18
+        self._max_width = 420
         self._max_items = 4
 
         self._layout = QVBoxLayout(self)
@@ -175,15 +197,37 @@ class ToastManager(QWidget):
 
     # Public API -------------------------------------------------------------
     def enqueue(self, payload: Dict[str, Any]) -> None:
+        logger.info(
+            "ToastManager enqueue id=%s title=%r visible=%s parent=%s size=%sx%s",
+            payload.get("id"), payload.get("title"), self.isVisible(),
+            type(self.parentWidget()).__name__ if self.parentWidget() else None,
+            self.width(), self.height(),
+        )
         # Enforce a cap on visible toasts
         self._prune_to_max()
-
-        item = _ToastItem(payload, parent=self)
+        try:
+            item = _ToastItem(payload, parent=self)
+        except Exception:
+            logger.exception("ToastManager failed to construct toast payload=%s", payload)
+            raise
+        item.setProperty("notification_id", str(payload.get("id") or ""))
+        item.clicked.connect(self._on_toast_clicked)
         # Insert above the stretch so newest appear at the top
         idx = max(0, self._layout.count() - 1)
         self._layout.insertWidget(idx, item)
         item.destroyed.connect(lambda *_: self._reflow())  # type: ignore[arg-type]
         self._reflow()
+        logger.info(
+            "ToastManager displayed id=%s geometry=%s visible=%s",
+            payload.get("id"), self.geometry().getRect(), self.isVisible(),
+        )
+
+    def _on_toast_clicked(self, notification_id: str) -> None:
+        logger.info("ToastManager clicked id=%s", notification_id)
+        self.toastClicked.emit(notification_id)
+        sender = self.sender()
+        if isinstance(sender, _ToastItem):
+            sender.dismiss()
 
     def reflow(self) -> None:
         self._reflow()
@@ -192,6 +236,7 @@ class ToastManager(QWidget):
     def _reflow(self) -> None:
         parent = self.parentWidget()
         if not parent:
+            logger.warning("ToastManager cannot reflow because it has no parent widget")
             return
         # Compute total height from children
         total_h = self._margin
@@ -208,13 +253,17 @@ class ToastManager(QWidget):
         total_h += self._margin
 
         if visible_count == 0:
+            logger.debug("ToastManager hiding because no toast items remain")
             self.hide()
             return
 
-        # Position at top-right of parent
+        # Position at bottom-right of parent. New items sit nearest the
+        # corner and older notifications grow upward.
         x = parent.width() - max_w - self._margin
-        y = self._margin
-        self.setGeometry(max(x, 0), y, max_w, min(total_h, parent.height()))
+        height = min(total_h, max(1, parent.height() - (self._margin * 2)))
+        y = parent.height() - height - self._margin
+        self.setGeometry(max(x, 0), max(y, 0), max_w, height)
+        self.show()
         self.raise_()
 
     def _prune_to_max(self) -> None:

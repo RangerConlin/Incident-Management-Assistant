@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { useCreateObjective } from "../planning/objectives/hooks";
+import { useCreateObjective } from "../command/objectives/hooks";
 import { useCreateTask } from "../operations/taskStatus/hooks";
 import { useLiaisonWrites } from "./hooks";
 import { addWorkLink } from "./model";
@@ -21,7 +21,7 @@ export default function RequestConversion({ incidentId, requestId, values, disab
     try {
       const body = { text: title.trim(), title: title.trim(), priority: ({ Low: "low", Medium: "normal", High: "high", Critical: "urgent" } as Record<string,string>)[String(values.priority)] ?? "normal", created_by: author, origin_module: "liaison", origin_id: String(requestId) };
       let item: NonNullable<typeof created>;
-      if (kind === "objective_ids") { const result = await objective.mutateAsync(body); item = { kind, id: result._id, path: `/planning/objectives/${result._id}` }; }
+      if (kind === "objective_ids") { const result = await objective.mutateAsync(body); item = { kind, id: result._id, path: `/command/objectives/${result._id}` }; }
       else { const result = await task.mutateAsync({ ...body, priority: String(values.priority || "Medium") }); item = { kind, id: String(result.int_id), path: `/ops/tasks/${result.int_id}` }; }
       setCreated(item);
       await attach(item);

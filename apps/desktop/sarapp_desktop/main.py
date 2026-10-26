@@ -81,14 +81,17 @@ except Exception:  # pragma: no cover - customization optional at runtime
     get_dashboard_designer_panel = None  # type: ignore[assignment]
     get_theme_editor_panel = None  # type: ignore[assignment]
 
-# Configure basic logging early
+# Keep the desktop console focused on actionable failures. Developers can opt
+# back into verbose diagnostics with SARAPP_DESKTOP_LOG_LEVEL=DEBUG (or INFO).
+_desktop_log_level_name = os.getenv("SARAPP_DESKTOP_LOG_LEVEL", "ERROR").upper()
+_desktop_log_level = getattr(logging, _desktop_log_level_name, logging.ERROR)
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=_desktop_log_level,
     format="%(asctime)s %(levelname)s [%(name)s] %(message)s"
 )
-logging.getLogger("httpx").setLevel(logging.WARNING)
-logging.getLogger("httpcore").setLevel(logging.WARNING)
-logging.getLogger("pymongo").setLevel(logging.WARNING)
+logging.getLogger("httpx").setLevel(max(_desktop_log_level, logging.ERROR))
+logging.getLogger("httpcore").setLevel(max(_desktop_log_level, logging.ERROR))
+logging.getLogger("pymongo").setLevel(max(_desktop_log_level, logging.ERROR))
 logger = logging.getLogger(__name__)
 
 try:
@@ -2381,24 +2384,45 @@ class MainWindow(QMainWindow):
 
     def open_notification_center(self, tab: str | None = None) -> None:
         panel = getattr(self, "_notification_center_panel", None)
-        if panel is None:
+        if panel is None or not _qobject_is_alive(panel):
             from notifications.panels.notification_center_panel import get_notification_center_panel
             panel = get_notification_center_panel(parent=self)
             self._notification_center_panel = panel
             panel.destroyed.connect(lambda: setattr(self, "_notification_center_panel", None))
+            logger.info("Opening new Notification Center tab=%s", tab or "activity")
             self._open_dock_widget(panel, title="Notification Center", preferred_size=(520, 650))
         else:
             try:
-                window = panel.window()
-                window.raise_()
-                window.activateWindow()
+                logger.info("Focusing existing Notification Center tab=%s", tab or "activity")
+                self._reveal_dock_widget("Notification Center")
             except Exception:
-                pass
+                logger.exception("Failed to focus existing Notification Center")
         if tab:
             try:
                 panel.jump_to_tab(tab)
             except Exception:
-                pass
+                logger.exception("Failed to select Notification Center tab=%s", tab)
+
+    def _reveal_dock_widget(self, title: str) -> bool:
+        """Show and focus an existing ADS dock, including restored hidden docks."""
+        dock = self.dock_manager.findDockWidget(title)
+        if dock is None:
+            logger.warning("Cannot reveal missing dock title=%s", title)
+            return False
+        dock.toggleView(True)
+        dock.show()
+        dock.setAsCurrentTab()
+        self.dock_manager.setDockWidgetFocused(dock)
+        try:
+            container = dock.floatingDockContainer()
+            if container is not None:
+                container.show()
+                container.raise_()
+                container.activateWindow()
+        except Exception:
+            pass
+        logger.info("Revealed dock title=%s visible=%s", title, dock.isVisible())
+        return True
 
     def open_notifications_panel(self) -> None:
         from notifications.panels.notifications_panel import get_notifications_panel
@@ -3702,6 +3726,11 @@ class MainWindow(QMainWindow):
 
         notifier = get_notifier()
         notifier.showToast.connect(toast.enqueue)
+        toast.toastClicked.connect(self._on_toast_notification_clicked)
+        logger.info(
+            "Desktop notification UI initialized notifier_id=%s toast_manager_id=%s parent=%s visible=%s",
+            id(notifier), id(toast), type(toast.parentWidget()).__name__, toast.isVisible(),
+        )
 
         # Apply persisted sound and threshold settings
         player = SoundPlayer.instance()
@@ -3720,6 +3749,34 @@ class MainWindow(QMainWindow):
                 player.set_volume(int(sm.get("volume", 75) or 75))
             except Exception:
                 pass
+
+    def _on_toast_notification_clicked(self, notification_id: str) -> None:
+        logger.info("Desktop toast clicked id=%s; marking read and opening Activity", notification_id)
+        get_notifier().mark_read(notification_id)
+        self.open_notification_center(tab="activity")
+
+    def open_notification_drawer(self) -> None:
+        from PySide6.QtCore import QPoint
+        from notifications.widgets.notification_drawer import NotificationDrawer
+
+        drawer = getattr(self, "_notification_drawer", None)
+        if drawer is None or not _qobject_is_alive(drawer):
+            drawer = NotificationDrawer(self)
+            drawer.openCenterRequested.connect(self._open_center_from_drawer)
+            self._notification_drawer = drawer
+        drawer.show_list()
+        button = self._app_status_bar.notification_button
+        drawer.adjustSize()
+        anchor = button.mapToGlobal(QPoint(button.width() - drawer.width(), -drawer.height() - 8))
+        drawer.move(anchor)
+        drawer.show()
+        drawer.raise_()
+
+    def _open_center_from_drawer(self) -> None:
+        drawer = getattr(self, "_notification_drawer", None)
+        if drawer is not None and _qobject_is_alive(drawer):
+            drawer.hide()
+        self.open_notification_center(tab="activity")
 
     def _on_approval_item_activated(self, entity_type: str, entity_id: str) -> None:
         """Route an inbox click to the relevant module panel."""
@@ -3754,7 +3811,7 @@ class MainWindow(QMainWindow):
         # All three indicators open the unified Notification Center, jumped to the relevant tab
         bar.approval_indicator_clicked.connect(lambda: self.open_notification_center(tab="approvals"))
         bar.messages_indicator_clicked.connect(lambda: self.open_notification_center(tab="messages"))
-        bar.notifications_indicator_clicked.connect(lambda: self.open_notification_center(tab="activity"))
+        bar.notifications_indicator_clicked.connect(self.open_notification_drawer)
 
         # Notification badge count is event-driven, not polled
         notifier = get_notifier()
@@ -4041,13 +4098,13 @@ def _initialize_connectivity(app: QApplication, *, prompt_on_failure: bool = Tru
 def _activate_debug_bypass(app: QApplication) -> object | None:
     """Start local API services before selecting the debug incident."""
     if not _start_local_offline_mode(app):
-        print("[debug] Local offline startup failed; API calls may be unavailable.")
+        logger.error("Local offline startup failed; API calls may be unavailable")
 
     connection_manager = app.property("sarapp_connection_manager")
     AppState.set_active_incident(DEBUG_INCIDENT_ID)
     AppState.set_active_user_id(DEBUG_USER_ID)
     AppState.set_active_user_role(DEBUG_ROLE)
-    print("[debug] Login bypass enabled: loaded test credentials.")
+    logger.debug("Login bypass enabled: loaded test credentials")
     return connection_manager
 
 
@@ -4146,8 +4203,7 @@ if __name__ == "__main__":
         )
 
         # Always show the themed login screen, even for a remembered sign-in —
-        # "Remember me" only pre-fills username/role/incident (see
-        # LoginDialog._prefill_remembered_login) so returning users still get
+        # "Remember me" pre-fills the login form so returning users still get
         # one consistent screen and a chance to switch connections before
         # continuing, instead of being dropped straight into incident
         # selection on a server they can't change.

@@ -155,3 +155,44 @@ def test_unread_count_tracks_read_state_per_channel():
         assert res.status_code in (400, 422)
 
     _clear(db)
+
+
+def test_chat_summary_reports_per_channel_unread_and_last_message():
+    db = get_incident_db(INCIDENT_ID)
+    _clear(db)
+
+    app = create_app()
+    with TestClient(app) as client:
+        channels = client.get(
+            f"/api/incidents/{INCIDENT_ID}/chat/channels", params={"user_id": "u1"}
+        ).json()["items"]
+        general = next(c for c in channels if c["name"] == "General")
+        command = next(c for c in channels if c["name"] == "Command")
+
+        res = client.get(f"/api/incidents/{INCIDENT_ID}/chat/summary", params={"user_id": "u1"})
+        assert res.status_code == 200, res.text
+        by_id = {item["channel_id"]: item for item in res.json()["items"]}
+        assert by_id[general["id"]]["unread_count"] == 0
+        assert by_id[general["id"]]["last_message"] is None
+
+        client.post(
+            f"/api/incidents/{INCIDENT_ID}/chat/channels/{general['id']}/messages",
+            json={"sender_id": "u2", "sender_name": "U2", "text": "hello"},
+        )
+        client.post(
+            f"/api/incidents/{INCIDENT_ID}/chat/channels/{command['id']}/messages",
+            json={"sender_id": "u1", "text": "self-sent, not unread for u1"},
+        )
+
+        res = client.get(f"/api/incidents/{INCIDENT_ID}/chat/summary", params={"user_id": "u1"})
+        by_id = {item["channel_id"]: item for item in res.json()["items"]}
+        assert by_id[general["id"]]["unread_count"] == 1
+        assert by_id[general["id"]]["last_message"]["text"] == "hello"
+        assert by_id[general["id"]]["last_message"]["sender_name"] == "U2"
+        assert by_id[command["id"]]["unread_count"] == 0
+        assert by_id[command["id"]]["last_message"]["text"] == "self-sent, not unread for u1"
+
+        res = client.get(f"/api/incidents/{INCIDENT_ID}/chat/summary", params={"user_id": ""})
+        assert res.status_code in (400, 422)
+
+    _clear(db)

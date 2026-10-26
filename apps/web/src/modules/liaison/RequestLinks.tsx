@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { useObjectiveRows } from "../planning/objectives/hooks";
+import { useObjectiveRows } from "../command/objectives/hooks";
 import { useTaskRows } from "../operations/taskStatus/hooks";
 import { addWorkLink } from "./model";
 import { useLiaisonResourceLinks } from "./hooks";
@@ -11,7 +11,7 @@ export default function RequestLinks({ incidentId, values, update, disabled }: {
   const objectives = useObjectiveRows(incidentId); const tasks = useTaskRows(incidentId); const resources = useLiaisonResourceLinks(incidentId);
   const [kind, setKind] = useState("objective_ids"); const [selection, setSelection] = useState("");
   const lists = {
-    objective_ids: (objectives.data ?? []).map(o => ({ id: o._id, label: `${o.code} — ${o.text}`, path: `/planning/objectives/${o._id}` })),
+    objective_ids: (objectives.data ?? []).map(o => ({ id: o._id, label: `${o.code} — ${o.text}`, path: `/command/objectives/${o._id}` })),
     task_ids: (tasks.data ?? []).map(t => ({ id: String(t.id), label: `${t.number} — ${t.name}`, path: `/ops/tasks/${t.id}` })),
     resource_request_ids: (resources.data ?? []).map(r => ({ id: r.id, label: `${r.request_number || r.id} — ${r.title}`, path: "" })),
   };
@@ -24,7 +24,7 @@ export default function RequestLinks({ incidentId, values, update, disabled }: {
     </div>{query.isError && <p className="error">Could not load available items. <button type="button" onClick={() => void query.refetch()}>Retry</button></p>}
     {(Object.keys(lists) as (keyof typeof lists)[]).map(key => <ul className="liaison-link-list" key={key}>{((values[key] ?? []) as (string | number)[]).map(value => {
       const item = lists[key].find(o => o.id === String(value));
-      const path = key === "objective_ids" ? `/planning/objectives/${value}` : key === "task_ids" ? `/ops/tasks/${value}` : "";
+      const path = key === "objective_ids" ? `/command/objectives/${value}` : key === "task_ids" ? `/ops/tasks/${value}` : "";
       return <li key={value}>{path ? <Link to={path}>{item?.label || `${key === "task_ids" ? "Task" : "Objective"} #${value}`}</Link> : <span>{item?.label || `Resource request #${value}`}</span>} <button type="button" className="secondary" disabled={disabled} aria-label={`Remove link ${value}`} onClick={() => update(key, ((values[key] ?? []) as (string | number)[]).filter(v => String(v) !== String(value)))}>Remove</button></li>;
     })}</ul>)}<p>Save the request to apply link changes.</p>
   </section>;

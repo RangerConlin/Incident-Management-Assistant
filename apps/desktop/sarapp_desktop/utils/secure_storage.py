@@ -9,16 +9,56 @@ is accidentally committed.
 from __future__ import annotations
 
 import base64
+import ctypes
 import logging
+import os
+from ctypes import wintypes
 
 logger = logging.getLogger(__name__)
 
 try:
     import win32crypt
-
-    _DPAPI_AVAILABLE = True
 except ImportError:
-    _DPAPI_AVAILABLE = False
+    win32crypt = None
+
+
+_DPAPI_AVAILABLE = win32crypt is not None or os.name == "nt"
+
+
+class _DataBlob(ctypes.Structure):
+    _fields_ = [("cbData", wintypes.DWORD), ("pbData", ctypes.POINTER(ctypes.c_byte))]
+
+
+def _blob_from_bytes(value: bytes) -> tuple[_DataBlob, ctypes.Array]:
+    buffer = ctypes.create_string_buffer(value)
+    blob = _DataBlob(len(value), ctypes.cast(buffer, ctypes.POINTER(ctypes.c_byte)))
+    return blob, buffer
+
+
+def _protect_with_ctypes(value: bytes) -> bytes:
+    source, source_buffer = _blob_from_bytes(value)
+    protected = _DataBlob()
+    if not ctypes.windll.crypt32.CryptProtectData(
+        ctypes.byref(source), None, None, None, None, 0, ctypes.byref(protected)
+    ):
+        raise ctypes.WinError()
+    try:
+        return ctypes.string_at(protected.pbData, protected.cbData)
+    finally:
+        ctypes.windll.kernel32.LocalFree(protected.pbData)
+
+
+def _unprotect_with_ctypes(value: bytes) -> bytes:
+    source, source_buffer = _blob_from_bytes(value)
+    decrypted = _DataBlob()
+    if not ctypes.windll.crypt32.CryptUnprotectData(
+        ctypes.byref(source), None, None, None, None, 0, ctypes.byref(decrypted)
+    ):
+        raise ctypes.WinError()
+    try:
+        return ctypes.string_at(decrypted.pbData, decrypted.cbData)
+    finally:
+        ctypes.windll.kernel32.LocalFree(decrypted.pbData)
 
 
 def dpapi_available() -> bool:
@@ -33,7 +73,12 @@ def encrypt_secret(value: str) -> str | None:
     if not value or not _DPAPI_AVAILABLE:
         return None
     try:
-        encrypted = win32crypt.CryptProtectData(value.encode("utf-8"), None, None, None, None, 0)
+        if win32crypt is not None:
+            encrypted = win32crypt.CryptProtectData(
+                value.encode("utf-8"), None, None, None, None, 0
+            )
+        else:
+            encrypted = _protect_with_ctypes(value.encode("utf-8"))
         return base64.b64encode(encrypted).decode("ascii")
     except Exception:
         logger.exception("Failed to encrypt secret with DPAPI")
@@ -49,7 +94,10 @@ def decrypt_secret(encoded: str) -> str | None:
         return None
     try:
         raw = base64.b64decode(encoded)
-        _, decrypted = win32crypt.CryptUnprotectData(raw, None, None, None, 0)
+        if win32crypt is not None:
+            _, decrypted = win32crypt.CryptUnprotectData(raw, None, None, None, 0)
+        else:
+            decrypted = _unprotect_with_ctypes(raw)
         return decrypted.decode("utf-8")
     except Exception:
         logger.exception("Failed to decrypt secret with DPAPI")

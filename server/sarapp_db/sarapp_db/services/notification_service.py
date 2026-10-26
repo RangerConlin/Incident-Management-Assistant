@@ -141,6 +141,13 @@ def emit_notification(
     _ensure_int_ids(repo._col, "notification_id")
     notification_id = next_int_id(repo._col, "notification_id")
 
+    recipients = _resolve_audience(
+        incident_id,
+        audience_role=audience_role,
+        audience_user_id=audience_user_id,
+        audience_team_id=audience_team_id,
+    )
+
     doc = repo.insert_one(
         {
             "notification_id": notification_id,
@@ -156,15 +163,11 @@ def emit_notification(
             "audience_user_id": audience_user_id,
             "audience_team_id": audience_team_id,
             "requires_acknowledgement": requires_acknowledgement,
-            "read": False,
+            "recipient_states": [
+                {"person_record": record, "read": False}
+                for record in recipients
+            ],
         }
-    )
-
-    recipients = _resolve_audience(
-        incident_id,
-        audience_role=audience_role,
-        audience_user_id=audience_user_id,
-        audience_team_id=audience_team_id,
     )
     delivery: Dict[str, Any] = {"recipients": recipients, "push_sent": 0, "push_attempted": 0}
     for person_record in recipients:
@@ -192,22 +195,42 @@ def emit_notification(
     return doc
 
 
-def acknowledge_notification(incident_id: str, notification_id: int, *, by: str) -> Optional[Dict[str, Any]]:
+def _set_recipient_state(
+    incident_id: str,
+    notification_id: int,
+    person_record: int,
+    *,
+    acknowledged: bool = False,
+    dismissed: bool = False,
+) -> Optional[Dict[str, Any]]:
     repo = _repo(incident_id)
     doc = repo.find_one({"notification_id": notification_id})
     if doc is None:
         return None
-    repo.update_one(doc["_id"], {"acknowledged_at": _utcnow(), "acknowledged_by": by, "read": True})
-    return repo.find_one({"notification_id": notification_id})
-
-
-def dismiss_notification(incident_id: str, notification_id: int, *, by: str) -> Optional[Dict[str, Any]]:
-    repo = _repo(incident_id)
-    doc = repo.find_one({"notification_id": notification_id})
-    if doc is None:
+    recipients = (doc.get("delivery") or {}).get("recipients") or []
+    if recipients and person_record not in recipients:
         return None
-    repo.update_one(doc["_id"], {"dismissed_at": _utcnow(), "dismissed_by": by, "read": True})
+    states = list(doc.get("recipient_states") or [])
+    state = next((row for row in states if row.get("person_record") == person_record), None)
+    if state is None:
+        state = {"person_record": person_record}
+        states.append(state)
+    state["read"] = True
+    now = _utcnow()
+    if acknowledged:
+        state["acknowledged_at"] = now
+    if dismissed:
+        state["dismissed_at"] = now
+    repo.update_one(doc["_id"], {"recipient_states": states})
     return repo.find_one({"notification_id": notification_id})
+
+
+def acknowledge_notification(incident_id: str, notification_id: int, *, person_record: int) -> Optional[Dict[str, Any]]:
+    return _set_recipient_state(incident_id, notification_id, person_record, acknowledged=True)
+
+
+def dismiss_notification(incident_id: str, notification_id: int, *, person_record: int) -> Optional[Dict[str, Any]]:
+    return _set_recipient_state(incident_id, notification_id, person_record, dismissed=True)
 
 
 def list_notifications(
@@ -215,6 +238,7 @@ def list_notifications(
     *,
     audience_role: Optional[str] = None,
     audience_user_id: Optional[int] = None,
+    person_record: Optional[int] = None,
     unread_only: bool = False,
     source_type: Optional[str] = None,
     source_id: Optional[str] = None,
@@ -225,10 +249,26 @@ def list_notifications(
         query["audience_role"] = audience_role
     if audience_user_id is not None:
         query["audience_user_id"] = int(audience_user_id)
-    if unread_only:
-        query["read"] = False
     if source_type:
         query["source_type"] = source_type
     if source_id:
         query["source_id"] = source_id
-    return repo.find_many(query, sort=[("created_at", -1)])
+    docs = repo.find_many(query, sort=[("created_at", -1)])
+    if person_record is None:
+        return docs
+    visible: List[Dict[str, Any]] = []
+    for doc in docs:
+        recipients = (doc.get("delivery") or {}).get("recipients") or []
+        if recipients and person_record not in recipients:
+            continue
+        state = next(
+            (row for row in doc.get("recipient_states", []) if row.get("person_record") == person_record),
+            {"person_record": person_record, "read": False},
+        )
+        if unread_only and state.get("read", False):
+            continue
+        item = dict(doc)
+        item["recipient_state"] = dict(state)
+        item["read"] = bool(state.get("read", False))
+        visible.append(item)
+    return visible

@@ -177,7 +177,7 @@ def create_reflex_action(data: ReflexActionCreate) -> ReflexActionRead:
         alert_id = _emit_notification(
             title="Reflex tasking ready",
             message=f"Trigger: {saved.trigger}",
-            severity="warning",
+            severity="priority",
             entity_type="initial_reflex",
             entity_id=str(saved.id) if saved.id else None,
         )

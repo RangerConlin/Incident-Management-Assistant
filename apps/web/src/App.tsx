@@ -13,8 +13,8 @@ import TeamDetailPage from "./modules/operations/teamStatus/TeamDetailPage";
 import TaskStatusBoardPage from "./modules/operations/taskStatus/TaskStatusBoardPage";
 import TaskDetailPage from "./modules/operations/taskStatus/TaskDetailPage";
 import PlanningDashboardPage from "./modules/planning/PlanningDashboardPage";
-import ObjectivesBoardPage from "./modules/planning/objectives/ObjectivesBoardPage";
-import ObjectiveDetailPage from "./modules/planning/objectives/ObjectiveDetailPage";
+import ObjectivesBoardPage from "./modules/command/objectives/ObjectivesBoardPage";
+import ObjectiveDetailPage from "./modules/command/objectives/ObjectiveDetailPage";
 import OperationalPeriodsBoardPage from "./modules/planning/operationalPeriods/OperationalPeriodsBoardPage";
 import OperationalPeriodDetailPage from "./modules/planning/operationalPeriods/OperationalPeriodDetailPage";
 import MeetingsBoardPage from "./modules/planning/meetings/MeetingsBoardPage";
@@ -58,6 +58,7 @@ import CommsLogPage from "./modules/communications/log/CommsLogPage";
 
 import FormExportsPage from "./modules/forms/FormExportsPage";
 import ApprovalsPage from "./modules/workspaces/ApprovalsPage";
+import NotificationsPage from "./modules/workspaces/NotificationsPage";
 import CertificationsPage from "./modules/workspaces/CertificationsPage";
 import WeatherPage from "./modules/workspaces/WeatherPage";
 import DemobilizationPage from "./modules/workspaces/DemobilizationPage";
@@ -123,6 +124,7 @@ export default function App() {
         <Route path="settings" element={<SettingsScreen />} />
         <Route path="forms" element={<RequireIncident><FormExportsPage /></RequireIncident>} />
         <Route path="planning/approvals" element={<RequireIncident><ApprovalsPage /></RequireIncident>} />
+        <Route path="notifications" element={<RequireIncident><NotificationsPage /></RequireIncident>} />
         <Route path="planning/demobilization" element={<RequireIncident><DemobilizationPage /></RequireIncident>} />
         <Route path="personnel/certifications" element={<RequireIncident><CertificationsPage /></RequireIncident>} />
         <Route path="weather" element={<RequireIncident><WeatherPage /></RequireIncident>} />
@@ -219,7 +221,7 @@ export default function App() {
           }
         />
         <Route
-          path="planning/objectives"
+          path="command/objectives"
           element={
             <RequireIncident>
               <ObjectivesBoardPage />
@@ -227,7 +229,7 @@ export default function App() {
           }
         />
         <Route
-          path="planning/objectives/:objectiveId"
+          path="command/objectives/:objectiveId"
           element={
             <RequireIncident>
               <ObjectiveDetailPage />

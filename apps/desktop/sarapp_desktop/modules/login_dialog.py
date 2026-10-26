@@ -432,6 +432,14 @@ class LoginDialog(QDialog):
 
         self.chk_remember = QCheckBox("Remember me on this device")
         self.chk_remember.setObjectName("rememberCheck")
+        # Remembering credentials is the normal desktop workflow.  An
+        # explicitly saved False still acts as the user's opt-out, while a
+        # missing setting (including upgrades from older installs) defaults
+        # to remembering the next successful login.
+        remember_login = True
+        if self._settings_manager is not None:
+            remember_login = bool(self._settings_manager.get("rememberLogin", True))
+        self.chk_remember.setChecked(remember_login)
 
         self.stack = QStackedWidget()
         self.stack.addWidget(self._build_login_page())

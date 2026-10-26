@@ -1,4 +1,3 @@
-import FormExportControls from "../../forms/FormExportControls";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import DataTable, { type ColumnDef } from "../../../components/table/DataTable";
@@ -58,7 +57,6 @@ export default function MeetingsBoardPage() {
 
   return (
     <div>
-      <FormExportControls formIds={["ics_230"]} />
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
         <h2 style={{ margin: 0 }}>Meetings</h2>
         <button style={{ width: "auto" }} onClick={() => setShowNew(true)}>

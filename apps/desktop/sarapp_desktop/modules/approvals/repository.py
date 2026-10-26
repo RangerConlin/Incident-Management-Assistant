@@ -55,9 +55,12 @@ class ApprovalRepository:
         notes: Optional[str] = None,
         assign_actors: Optional[dict[str, int]] = None,
     ) -> ApprovalInstance:
+        from utils.state import AppState
+
         doc = self._post(f"/{entity_type}/{entity_id}/sign", {
             "step_id": step_id,
             "actor_id": actor_id,
+            "session_id": AppState.get_active_api_session_id(),
             "action": action,
             "notes": notes,
             "assign_actors": assign_actors or {},

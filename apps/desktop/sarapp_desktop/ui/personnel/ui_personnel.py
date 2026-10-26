@@ -1233,11 +1233,11 @@ class PersonnelInventoryWindow(QtWidgets.QWidget):
         if result == QtWidgets.QDialog.DialogCode.Accepted and (created or errors):
             self.refresh()
             if created and errors:
-                self._show_toast("Import complete", f"{len(created)} personnel imported with {errors} errors.", severity="warning")
+                self._show_toast("Import complete", f"{len(created)} personnel imported with {errors} errors.", severity="priority")
             elif created:
                 self._show_toast("Import complete", f"Imported {len(created)} personnel.")
             elif errors:
-                self._show_toast("Import issues", "No rows were imported. Check the error report.", severity="warning")
+                self._show_toast("Import issues", "No rows were imported. Check the error report.", severity="priority")
 
     def _on_export(self) -> None:
         selection_model = self.table.selectionModel()
@@ -1300,7 +1300,7 @@ class PersonnelInventoryWindow(QtWidgets.QWidget):
 
     def _on_export_failed(self, message: str) -> None:
         self.export_button.setEnabled(True)
-        self._show_toast("Export failed", message, severity="error")
+        self._show_toast("Export failed", message, severity="emergency")
         QtWidgets.QMessageBox.critical(self, "Export failed", message)
 
     # ----- Resync ------------------------------------------------------
@@ -1326,24 +1326,24 @@ class PersonnelInventoryWindow(QtWidgets.QWidget):
             refresh_sync_status_label(self, self.sync_status_label, "personnel")
         else:
             reason = result.get("reason") or "Central sync is not configured on this server."
-            self._show_toast("Resync unavailable", reason, severity="warning")
+            self._show_toast("Resync unavailable", reason, severity="priority")
             refresh_sync_status_label(self, self.sync_status_label, "personnel")
             QtWidgets.QMessageBox.warning(self, "Resync unavailable", reason)
 
     def _on_resync_failed(self, message: str) -> None:
         self.resync_button.setEnabled(True)
         self.resync_button.setText("Resync")
-        self._show_toast("Resync failed", message, severity="error")
+        self._show_toast("Resync failed", message, severity="emergency")
         QtWidgets.QMessageBox.critical(self, "Resync failed", message)
 
     # ----- Toast helper ----------------------------------------------------
-    def _show_toast(self, title: str, message: str, *, severity: str = "success") -> None:
+    def _show_toast(self, title: str, message: str, *, severity: str = "routine") -> None:
         try:
             self._notifier.notify(
                 Notification(
                     title=title,
                     message=message,
-                    severity=severity if severity in {"info", "success", "warning", "error"} else "info",
+                    severity=severity if severity in {"informational", "routine", "priority", "emergency"} else "routine",
                     source="Personnel",
                 )
             )

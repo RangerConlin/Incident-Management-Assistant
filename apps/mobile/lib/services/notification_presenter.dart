@@ -138,8 +138,11 @@ class NotificationPresenter {
     if (notificationId == null || incidentId == null) return;
 
     final saved = await SessionStore.load();
-    final by =
-        '${saved?.session['person_id'] ?? saved?.session['username'] ?? ''}';
+    final rawPersonRecord = saved?.session['person_record'];
+    final personRecord = rawPersonRecord is int
+        ? rawPersonRecord
+        : int.tryParse('$rawPersonRecord');
+    if (personRecord == null) return;
 
     final client = SarAppApiClient();
     try {
@@ -147,17 +150,19 @@ class NotificationPresenter {
         await client.acknowledgeNotification(
           incidentId: incidentId,
           notificationId: notificationId,
-          acknowledgedBy: by,
+          personRecord: personRecord,
         );
       } else {
         await client.dismissNotification(
           incidentId: incidentId,
           notificationId: notificationId,
-          dismissedBy: by,
+          personRecord: personRecord,
         );
       }
     } catch (e) {
-      debugPrint('NotificationPresenter: ${acknowledge ? 'acknowledge' : 'dismiss'} failed: $e');
+      debugPrint(
+        'NotificationPresenter: ${acknowledge ? 'acknowledge' : 'dismiss'} failed: $e',
+      );
     } finally {
       client.dispose();
     }
@@ -254,8 +259,7 @@ class _BannerWithAutoDismiss extends StatefulWidget {
   final VoidCallback onTap;
 
   @override
-  State<_BannerWithAutoDismiss> createState() =>
-      _BannerWithAutoDismissState();
+  State<_BannerWithAutoDismiss> createState() => _BannerWithAutoDismissState();
 }
 
 class _BannerWithAutoDismissState extends State<_BannerWithAutoDismiss> {

@@ -474,6 +474,11 @@ def weather_severity_colors() -> Dict[str, Dict[str, QBrush]]:
     return _WEATHER_SEVERITY_LIGHT if THEME_NAME == "light" else _WEATHER_SEVERITY_DARK
 
 
+def notification_colors() -> tuple[dict, dict]:
+    profile = _LIGHT_PROFILE if THEME_NAME == "light" else _DARK_PROFILE
+    return dict(profile.NOTIFICATION_SEVERITY), dict(profile.NOTIFICATION_CATEGORY)
+
+
 def form_dialog_stylesheet(object_name: str) -> str:
     """Shared QSS for the app's styled form dialogs (login, new incident, ...).
 
@@ -671,4 +676,5 @@ __all__ = [
     "wa_safety_status_colors",
     "wa_priority_colors",
     "weather_severity_colors",
+    "notification_colors",
 ]

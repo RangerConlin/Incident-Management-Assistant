@@ -334,10 +334,10 @@ class SarAppApiClient {
   Future<Map<String, dynamic>> acknowledgeNotification({
     required String incidentId,
     required int notificationId,
-    required String acknowledgedBy,
+    required int personRecord,
   }) => _postJson(
     '/api/incidents/$incidentId/notifications/$notificationId/acknowledge',
-    body: {'acknowledged_by': acknowledgedBy},
+    body: {'person_record': personRecord},
   );
 
   /// Dismisses a notification without acknowledging it — used for the
@@ -346,10 +346,10 @@ class SarAppApiClient {
   Future<Map<String, dynamic>> dismissNotification({
     required String incidentId,
     required int notificationId,
-    required String dismissedBy,
+    required int personRecord,
   }) => _postJson(
     '/api/incidents/$incidentId/notifications/$notificationId/dismiss',
-    body: {'dismissed_by': dismissedBy},
+    body: {'person_record': personRecord},
   );
 
   Future<List<IncidentAlert>> fetchAlerts(String incidentId) async {

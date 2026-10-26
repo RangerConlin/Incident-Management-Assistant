@@ -9,7 +9,7 @@ import StatusPill from "../../components/table/StatusPill";
 import type { TaskRow, TeamAssignmentRow } from "../../api/types";
 import { useTeamRows } from "../operations/teamStatus/hooks";
 import { useTaskRows } from "../operations/taskStatus/hooks";
-import { useObjectiveRows } from "../planning/objectives/hooks";
+import { useObjectiveRows } from "./objectives/hooks";
 import { useOperationalPeriods } from "../planning/operationalPeriods/hooks";
 import { useSitreps } from "../planning/sitreps/hooks";
 import { formatCommandTime, tasksDueSoon } from "./dashboardModel";
@@ -65,7 +65,7 @@ export default function CommandDashboardPage() {
       <button className="secondary" disabled={queries.some(q => q.isFetching)} onClick={() => { void Promise.all(queries.map(q => q.refetch())); }}>Refresh</button>
     </div></header>
     <nav className="command-actions" aria-label="Command workspaces">
-      <Link to="/planning/objectives">Manage objectives</Link><Link to="/command/sitreps">Situation reports</Link>
+      <Link to="/command/objectives">Manage objectives</Link><Link to="/command/sitreps">Situation reports</Link>
       <Link to="/planning/operational-periods">Operational periods</Link><Link to="/ops/teams">Team board</Link><Link to="/ops/tasks">Task board</Link>
     </nav>
     <KpiStrip tiles={[
@@ -98,7 +98,7 @@ export default function CommandDashboardPage() {
       </Panel>
       <Panel title="Active objectives" loading={objectives.isPending} error={objectives.isError}>
         {activeObjectives.length === 0 ? <p>No active objectives recorded.</p> : activeObjectives.map(o => <article key={o._id} className="command-record">
-          <Link to={`/planning/objectives/${o._id}`}>{o.code} — {o.text}</Link>
+          <Link to={`/command/objectives/${o._id}`}>{o.code} — {o.text}</Link>
           <p>{o.owner_section || "No owner section"} · Due {formatCommandTime(o.due_time)}</p>
         </article>)}
       </Panel>

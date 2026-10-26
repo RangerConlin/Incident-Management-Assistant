@@ -46,6 +46,10 @@ export const MODULE_REGISTRY: ModuleSection[] = [
       { key: "command-dashboard", label: "Command Dashboard", path: "/command", status: "live" },
       { key: "incident-overview", label: "Incident Overview", path: "/command/overview", status: "live" },
       { key: "incident-organization", label: "Incident Organization", path: "/command/organization", status: "live" },
+      // Filed under Command, not Planning, to match desktop's actual module
+      // placement (modules/command/panels/incident_objectives_panel.py) —
+      // web had this miscategorized under Planning.
+      { key: "strategic-objectives", label: "Incident Objectives", path: "/command/objectives", status: "live" },
       { key: "situation-reports", label: "Situation Reports", path: "/command/sitreps", status: "live" },
       { key: "iap-builder", label: "IAP Builder", path: "/command/iap", status: "live" },
     ],
@@ -55,7 +59,6 @@ export const MODULE_REGISTRY: ModuleSection[] = [
     icon: ClipboardList,
     modules: [
       { key: "planning-dashboard", label: "Planning Dashboard", path: "/planning", status: "live" },
-      { key: "strategic-objectives", label: "Strategic Objectives", path: "/planning/objectives", status: "live" },
       { key: "operational-periods", label: "Operational Periods", path: "/planning/operational-periods", status: "live" },
       { key: "meetings", label: "Meetings", path: "/planning/meetings", status: "live" },
       { key: "work-assignments", label: "Work Assignments", path: "/planning/work-assignments", status: "live" },

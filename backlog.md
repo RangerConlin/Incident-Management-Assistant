@@ -11,10 +11,10 @@ SITREP Window
 - Command Dashboard redesign (modules/command/widgets/ic_overview_widget.py, 2026-07-21) has four
   panels still shipped as empty states because none of them have a backing data model yet. Each
   needs a real repository/schema/API route before it can show real data instead of a placeholder:
-  - Pending Approvals panel — no approval/workflow data model exists (resource request approvals,
-    task extension approvals, comms channel change requests, etc. aren't tracked as a queue
-    anywhere). Needs a schema for an approvable "request" concept plus approve/deny actions wired
-    to whatever module originated the request.
+  - Pending Approvals panel now has a shared approval instance/record model and a cross-module
+    queue for ICS-205, ICS-206, IWI reports, IAPs, and interviews. Remaining dashboard work is to
+    include intentionally separate domain workflows (resource requests, Finance, and PIO) through
+    explicit adapters rather than duplicating or silently merging their audit models.
   - Section Health panel — no per-section (Operations/Planning/Logistics/Communications/Safety/
     Intel/Liaison/Finance) status tracking exists. Needs a data model for section-level status
     (e.g. good/caution/critical) plus a note field, and a way for each section lead to update it.
@@ -268,6 +268,15 @@ Cost Summary
         `equipment_json` arrays as plain strings (add/remove a name or ID), not against the
         Personnel/Logistics master catalogs — those aren't wired up to the web client yet. Revisit once
         those modules get their own web pass.
+      - GIS/map: `moduleRegistry.ts` lists GIS as `status: "live"` (sidebar nav shows it as clickable),
+        but there is no `apps/web/src/modules/gis/` directory, no map library dependency in
+        `package.json`, and no `/gis` route in `App.tsx` — clicking it just redirects back to the
+        incident home today. Surfaced while mocking a Map Snapshot panel for the Command Dashboard
+        redesign (2026-10-26), which is a placeholder graphic, not a preview of real functionality.
+        Desktop's `modules/gis/` embeds Leaflet (bundled `leaflet.js`/`leaflet.css`) in a
+        `QWebEngineView` — a real stack to port from, not a from-scratch build. Until this is built,
+        either flip the registry entry to `"planned"` or build the module; either way the nav
+        shouldn't claim a page exists that doesn't.
       - The app's own bundle can't be reached through a `/r/<code>/app/...` connect-code URL yet:
         `apps/web/vite.config.ts`'s `base: "/app/"` bakes absolute asset paths into `index.html`, which
         lose the `/r/<code>` prefix when a browser resolves them (`cloud_router` strips that prefix on the

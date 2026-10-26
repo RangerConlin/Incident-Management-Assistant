@@ -16,6 +16,7 @@ from sarapp_db.api.app import create_app
 from sarapp_db.mongo.collection_names import IncidentCollections
 from sarapp_db.mongo.database_manager import get_incident_db
 from sarapp_db.services import notification_service, trigger_engine
+from sarapp_db.api.routers.auth_sessions import _issue_jwt
 
 INCIDENT_ID = "TESTCACHE_NOTIFICATIONS"
 
@@ -59,6 +60,57 @@ def test_emit_notification_persists_and_resolves_role_audience():
     assert listed[0]["title"] == "Briefing starting"
 
 
+def test_recipient_read_state_is_independent():
+    _reset_db()
+    doc = notification_service.emit_notification(
+        INCIDENT_ID,
+        title="Broadcast",
+        message="Read independently",
+        source_type="test",
+        source_id="recipient-state",
+    )
+    notification_service.acknowledge_notification(
+        INCIDENT_ID, doc["notification_id"], person_record=501
+    )
+
+    first = notification_service.list_notifications(INCIDENT_ID, person_record=501)
+    second = notification_service.list_notifications(INCIDENT_ID, person_record=502)
+    assert first[0]["read"] is True
+    assert second[0]["read"] is False
+    assert notification_service.list_notifications(
+        INCIDENT_ID, person_record=501, unread_only=True
+    ) == []
+
+
+def test_bearer_identity_controls_notification_actions():
+    _reset_db()
+    doc = notification_service.emit_notification(
+        INCIDENT_ID,
+        title="Private",
+        message="Only the intended recipient can act",
+        source_type="test",
+        source_id="identity",
+        audience_user_id=501,
+    )
+    app = create_app()
+    with TestClient(app) as client:
+        token = _issue_jwt({"sub": "user-501", "person_record": 501})
+        response = client.post(
+            f"/api/incidents/{INCIDENT_ID}/notifications/{doc['notification_id']}/acknowledge",
+            headers={"Authorization": f"Bearer {token}"},
+            json={},
+        )
+        assert response.status_code == 200
+
+        other_token = _issue_jwt({"sub": "user-502", "person_record": 502})
+        response = client.post(
+            f"/api/incidents/{INCIDENT_ID}/notifications/{doc['notification_id']}/dismiss",
+            headers={"Authorization": f"Bearer {other_token}"},
+            json={"person_record": 501},
+        )
+        assert response.status_code == 403
+
+
 def test_acknowledge_and_dismiss_endpoints():
     _reset_db()
     doc = notification_service.emit_notification(
@@ -74,22 +126,25 @@ def test_acknowledge_and_dismiss_endpoints():
     with TestClient(app) as client:
         res = client.post(
             f"/api/incidents/{INCIDENT_ID}/notifications/{notification_id}/acknowledge",
-            json={"acknowledged_by": "user-1"},
+            json={"person_record": 501},
         )
         assert res.status_code == 200
-        assert res.json()["acknowledged_by"] == "user-1"
-        assert res.json()["read"] is True
+        state = res.json()["recipient_states"][0]
+        assert state["person_record"] == 501
+        assert state["read"] is True
+        assert state["acknowledged_at"]
 
         res = client.post(
             f"/api/incidents/{INCIDENT_ID}/notifications/{notification_id}/dismiss",
-            json={"dismissed_by": "user-2"},
+            json={"person_record": 502},
         )
         assert res.status_code == 200
-        assert res.json()["dismissed_by"] == "user-2"
+        states = res.json()["recipient_states"]
+        assert next(row for row in states if row["person_record"] == 502)["dismissed_at"]
 
         res = client.post(
             f"/api/incidents/{INCIDENT_ID}/notifications/999999/acknowledge",
-            json={"acknowledged_by": "user-1"},
+            json={"person_record": 501},
         )
         assert res.status_code == 404
 

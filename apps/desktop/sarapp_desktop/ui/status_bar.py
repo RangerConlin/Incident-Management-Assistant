@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import logging
+
 from PySide6 import QtCore, QtWidgets
+
+logger = logging.getLogger(__name__)
 
 try:
     from core.networking.server_info import ConnectionState
@@ -54,7 +58,7 @@ class AppStatusBar(QtWidgets.QStatusBar):
         self._notifications_btn.setFlat(True)
         self._notifications_btn.setStyleSheet("color: #888888; padding: 0 8px; border: none;")
         self._notifications_btn.setToolTip("Notifications")
-        self._notifications_btn.clicked.connect(self.notifications_indicator_clicked)
+        self._notifications_btn.clicked.connect(self._emit_notifications_clicked)
         self.addPermanentWidget(self._notifications_btn)
 
         # Pending approvals — permanent right-side
@@ -62,7 +66,7 @@ class AppStatusBar(QtWidgets.QStatusBar):
         self._approvals_btn.setFlat(True)
         self._approvals_btn.setStyleSheet("color: #888888; padding: 0 8px; border: none;")
         self._approvals_btn.setToolTip("Pending approvals")
-        self._approvals_btn.clicked.connect(self.approval_indicator_clicked)
+        self._approvals_btn.clicked.connect(self.approval_indicator_clicked.emit)
         self.addPermanentWidget(self._approvals_btn)
 
         # Unread messages — permanent right-side
@@ -70,7 +74,7 @@ class AppStatusBar(QtWidgets.QStatusBar):
         self._messages_btn.setFlat(True)
         self._messages_btn.setStyleSheet("color: #888888; padding: 0 8px; border: none;")
         self._messages_btn.setToolTip("Unread messages")
-        self._messages_btn.clicked.connect(self.messages_indicator_clicked)
+        self._messages_btn.clicked.connect(self.messages_indicator_clicked.emit)
         self.addPermanentWidget(self._messages_btn)
 
         # Poll timer for approvals and messages counts
@@ -85,6 +89,14 @@ class AppStatusBar(QtWidgets.QStatusBar):
         """Begin polling. Call after the main window is fully initialised."""
         self._poll_timer.start()
         QtCore.QTimer.singleShot(_INITIAL_POLL_DELAY_MS, self._poll_counts)
+
+    def _emit_notifications_clicked(self) -> None:
+        logger.info("Status-bar notification indicator clicked")
+        self.notifications_indicator_clicked.emit()
+
+    @property
+    def notification_button(self) -> QtWidgets.QPushButton:
+        return self._notifications_btn
 
     def stop(self) -> None:
         self._poll_timer.stop()

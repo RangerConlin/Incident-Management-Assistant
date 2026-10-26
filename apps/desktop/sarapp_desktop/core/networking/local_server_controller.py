@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 import socket
 import subprocess
@@ -20,6 +21,8 @@ from .server_info import (
     build_base_url,
     is_sarapp_health_payload,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class LocalServerError(RuntimeError):
@@ -74,9 +77,9 @@ class LocalServerController:
 
     def start(self) -> None:
         """Start the local server unless one is already available."""
-        print(f"[LocalServerController] start() called — checking {self.base_url}{HEALTH_PATH}")
+        logger.debug("Checking for local server at %s%s", self.base_url, HEALTH_PATH)
         if self.is_running():
-            print("[LocalServerController] server already running — reusing")
+            logger.info("Reusing the local server already running at %s", self.base_url)
             self.started_by_this_app = False
             return
 
@@ -87,7 +90,7 @@ class LocalServerController:
             )
 
         script = self._server_script()
-        print(f"[LocalServerController] script path: {script} exists={script.exists()}")
+        logger.debug("Local server script path: %s exists=%s", script, script.exists())
         if not script.exists():
             raise LocalServerError(f"Local server script was not found: {script}")
 
@@ -98,7 +101,7 @@ class LocalServerController:
             "--port", str(self.port),
             "--name", self.server_name,
         ]
-        print(f"[LocalServerController] spawning: {' '.join(command)}")
+        logger.debug("Starting local server: %s", " ".join(command))
         log_dir = script.parent / "logs"
         log_dir.mkdir(exist_ok=True)
         log_path = log_dir / "local_server.log"
@@ -126,23 +129,28 @@ class LocalServerController:
         except OSError as exc:
             raise LocalServerError(f"Unable to start local SARApp server: {exc}") from exc
         self.started_by_this_app = True
-        print(f"[LocalServerController] spawned PID {self.process.pid}")
+        logger.info("Local server started with PID %s", self.process.pid)
 
     def wait_until_ready(self, timeout_seconds: float = 10.0) -> bool:
         """Poll /health until the server is ready or the timeout expires."""
-        print(f"[LocalServerController] waiting up to {timeout_seconds}s for {self.base_url}{HEALTH_PATH}")
+        logger.debug(
+            "Waiting up to %.1f seconds for %s%s",
+            timeout_seconds,
+            self.base_url,
+            HEALTH_PATH,
+        )
         deadline = time.monotonic() + timeout_seconds
         while time.monotonic() < deadline:
             if self.process is not None and self.process.poll() is not None:
-                print(f"[LocalServerController] server process exited (rc={self.process.returncode})")
+                logger.error("Local server process exited with code %s", self.process.returncode)
                 if self._log_file is not None:
-                    print(f"[LocalServerController] see log: {self._log_file.name}")
+                    logger.error("Local server log: %s", self._log_file.name)
                 return False
             if self.is_running():
-                print("[LocalServerController] /health responded — server ready")
+                logger.info("Local server is ready at %s", self.base_url)
                 return True
             time.sleep(0.15)
-        print("[LocalServerController] timed out waiting for server")
+        logger.error("Timed out waiting for local server at %s", self.base_url)
         return False
 
     def stop(self) -> None:

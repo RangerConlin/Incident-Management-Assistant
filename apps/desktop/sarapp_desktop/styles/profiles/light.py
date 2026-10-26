@@ -518,6 +518,21 @@ LOGISTICS_REQUEST_PRIORITY = {
     "HIGH": dict(OBJECTIVE_PRIORITY["high"]),
     "IMMEDIATE": dict(OBJECTIVE_PRIORITY["urgent"]),
 }
+NOTIFICATION_SEVERITY = {
+    "informational": {"accent": "#555555", "background": "#F2F2F2"},
+    "routine": {"accent": "#707070", "background": "#F7F7F7"},
+    "priority": {"accent": "#9A6B00", "background": "#FFF4D6"},
+    "emergency": {"accent": "#B42318", "background": "#FDE7E5"},
+}
+NOTIFICATION_CATEGORY = {
+    "operations": {"label": "OPS", "accent": "#245EAF"},
+    "communications": {"label": "COMMS", "accent": "#087EA4"},
+    "safety": {"label": "SAFETY", "accent": "#8A6200"},
+    "logistics": {"label": "LOG", "accent": "#6F42A6"},
+    "planning": {"label": "PLAN", "accent": "#147A45"},
+    "administrative": {"label": "ADMIN", "accent": "#606060"},
+    "system": {"label": "SYS", "accent": "#606060"},
+}
 FACILITY_STATUS = {
     "active": dict(OBJECTIVE_STATUS["active"]),
     "planned": dict(OBJECTIVE_STATUS["draft"]),
@@ -564,6 +579,8 @@ __all__ = [
     "APPROVAL_STATUS",
     "APPROVAL_STEP_STATUS",
     "APPROVAL_AWAITING_ME_COLOR",
+    "NOTIFICATION_SEVERITY",
+    "NOTIFICATION_CATEGORY",
     "LIAISON_REQUEST_STATUS",
     "WA_PLANNING_STATUS",
     "WA_SAFETY_STATUS",

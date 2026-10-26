@@ -1,4 +1,3 @@
-import FormExportControls from "../../forms/FormExportControls";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import StatusPill from "../../../components/table/StatusPill";
@@ -51,7 +50,6 @@ export default function MeetingDetailPage() {
 
   return (
     <div className="detail-page">
-      <FormExportControls formIds={["ics_230"]} sourceId={meetingId} />
       <button className="secondary" style={{ width: "auto", marginBottom: 12 }} onClick={() => navigate("/planning/meetings")}>
         ← Meetings
       </button>

@@ -124,6 +124,12 @@ def _approve_through_workflow(bridge, monkeypatch, app):
     monkeypatch.setattr(
         approvals_router, "_resolve_actor", lambda incident_id, role: (people[role][0], role)
     )
+    import sarapp_db.api.routers.auth_sessions as auth_sessions
+    monkeypatch.setattr(
+        auth_sessions,
+        "resolve_request_person",
+        lambda **kwargs: int(kwargs["claimed_person_record"]),
+    )
     incident_id, plan_id = bridge.approval_target()
     service = ApprovalService(incident_id)
     instance = service.start("ics_206", plan_id)

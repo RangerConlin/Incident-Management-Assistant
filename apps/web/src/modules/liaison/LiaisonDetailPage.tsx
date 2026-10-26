@@ -60,7 +60,7 @@ function Editor({ section, recordId }: { section: string; recordId: string }) {
     {failure && <p className="error" role="alert">{failure}</p>}{notice && <p role="status">{notice}</p>}
     {!isNew && section === "requests" && <p>Code: <strong>{String(values.code)}</strong> · {String(values.request_type)} · <Link to={`/liaison/agencies/${values.agency_id}`}>{String(agencies.data?.find(a => a.int_id === values.agency_id)?.name ?? `Agency #${values.agency_id}`)}</Link></p>}
     {!isNew && section === "reporting" && <section className="liaison-panel"><h3>Internal source note</h3><p className="liaison-record-text">{String(values.raw_note ?? "")}</p><p>Submitted by {String(values.submitted_by || "Not recorded")} · {formatDateTime(String(values.created_at ?? ""))}</p>
-      {values.source_type === "task" || values.source_type === "objective" ? <Link to={values.source_type === "task" ? `/ops/tasks/${values.source_id}` : `/planning/objectives/${values.source_id}`}>{String(values.source_title || "Open source")}</Link> : <p>Standalone entry</p>}<p>Readiness: {reportState(values)}</p></section>}
+      {values.source_type === "task" || values.source_type === "objective" ? <Link to={values.source_type === "task" ? `/ops/tasks/${values.source_id}` : `/command/objectives/${values.source_id}`}>{String(values.source_title || "Open source")}</Link> : <p>Standalone entry</p>}<p>Readiness: {reportState(values)}</p></section>}
     <form onSubmit={e => { e.preventDefault(); void run(save); }}><fieldset className="liaison-form liaison-panel" disabled={busy || readOnly}>
       <legend>{config.singular}</legend>
       <Fields fields={config.fields.filter(f => isNew ? !f.editOnly : !f.createOnly)} values={values} agencies={agencies.data ?? []} update={update} />

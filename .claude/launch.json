@@ -2,10 +2,10 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "web_client",
+      "name": "web-client",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "apps/web", "run", "dev"],
-      "port": 5173
+      "runtimeArgs": ["--prefix", "apps/web", "run", "dev", "--", "--port", "5174"],
+      "port": 5174
     }
   ]
 }

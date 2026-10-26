@@ -12,7 +12,7 @@ desktop-toast bridge needs no translation layer.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -49,7 +49,7 @@ class NotificationDocument(BaseModel):
     audience_team_id: Optional[int] = None
 
     requires_acknowledgement: bool = False
-    read: bool = False
+    recipient_states: List[Dict[str, Any]] = Field(default_factory=list)
 
     created_at: Optional[str] = None
     updated_at: Optional[str] = None

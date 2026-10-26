@@ -14,6 +14,6 @@ export default function FormExportsPage() {
       {needsSource && <div className="field"><label htmlFor="export-source">Saved source record</label><select id="export-source" value={sourceId} onChange={e => setSourceId(e.target.value)}><option value="">Select a record</option>{sources.data?.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}</select>{sources.isPending && <p role="status">Loading saved records…</p>}{sources.isError && <p className="error">Sources could not be loaded. <button onClick={() => void sources.refetch()}>Retry</button></p>}</div>}
       <FormExportControls key={`${formId}:${sourceId}`} formIds={[formId]} sourceId={sourceId || undefined} />
     </>}
-    <p><Link to="/planning/objectives">Objectives</Link> · <Link to="/planning/work-assignments">Work assignments</Link> · <Link to="/planning/sitreps">SITREPs</Link> · <Link to="/logistics/resource-requests">Resource requests</Link></p>
+    <p><Link to="/command/objectives">Objectives</Link> · <Link to="/planning/work-assignments">Work assignments</Link> · <Link to="/planning/sitreps">SITREPs</Link> · <Link to="/logistics/resource-requests">Resource requests</Link></p>
   </div>;
 }

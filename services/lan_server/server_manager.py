@@ -31,7 +31,7 @@ from services.lan_server.cloud_tunnel_client import (
 )
 from sarapp_db.sync.config import derive_central_master_url
 from services.lan_server.networking.discovery import DiscoveryBroadcaster
-from services.lan_server.notification_trigger_loop import NotificationTriggerLoop
+from sarapp_db.services.notification_trigger_loop import NotificationTriggerLoop
 from sarapp_db.sync.loop import CentralSyncLoop
 from services.lan_server.networking.server_info import (
     DEFAULT_DISCOVERY_PORT,

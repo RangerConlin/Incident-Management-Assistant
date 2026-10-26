@@ -81,6 +81,10 @@
 - The old SQLite `vendors` master table had zero readers/writers and was dropped rather than migrated.
 - `dashboard`, `fuel-report`, and `pending-approvals` are Python-side aggregation in the router rather than Mongo-side equivalents of the old SQL queries.
 - `finance_approvals` is its own collection, not the generic `APPROVAL_INSTANCES` / `APPROVAL_RECORDS` system in `approvals.py`.
+- Generic approval signing derives the acting person from a validated web JWT or active desktop
+  API session; a client-supplied `actor_id` is only a consistency check. Domain-specific Finance,
+  Logistics, and PIO approval histories remain separate canonical models and require explicit
+  queue adapters if they are to appear in the cross-module pending-approvals view.
 - `modules/finance/approvals.py` and `modules/finance/rates.py` were deleted during migration because they had zero callers and referenced tables that did not exist.
 - Finance remains scaffold-heavy and UI-incomplete; the migration reflects the old SQLite schema and `services.py`, not a feature-complete redesign.
 
@@ -141,6 +145,11 @@
 - Deleting an attachment soft-deletes metadata by default; `purge_file=true` also removes the GridFS bytes.
 
 ## Push Notifications (FCM)
+
+Notification acknowledgement/read state is stored per person in the canonical
+`recipient_states` array. Deployments upgrading from the former document-wide
+`read`/`acknowledged_by`/`dismissed_by` fields must run
+`python -m sarapp_db.migrations.migrate_notification_recipient_state` once.
 - File: `server/sarapp_db/sarapp_db/api/routers/push_tokens.py`, collection `MasterCollections.PUSH_TOKENS` ("push_tokens") in `sarapp_master`.
 - Master-scoped, not incident-scoped: a device's FCM token isn't tied to one incident, and field devices get shared across shifts (handoff tablets), so the collection tracks token -> current person, not token -> incident.
 - Keyed and upserted by `token` (unique index), not by `person_record`. Re-registering an existing token — e.g. a different responder logging into a shared device — overwrites the existing document's `person_record`/`person_id`/`incident_id` in place rather than inserting a duplicate. This is the mechanism, not an incidental detail: it's what makes shared-device handoff work without manual cleanup.

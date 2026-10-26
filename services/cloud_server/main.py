@@ -24,6 +24,7 @@ from services.cloud_server.tunnel_client import (
 from sarapp_db.api.app import create_app
 from sarapp_db.sync.config import derive_central_master_url
 from sarapp_db.sync.loop import CentralSyncLoop
+from sarapp_db.services.notification_trigger_loop import NotificationTriggerLoop
 
 
 def create_cloud_app():
@@ -67,17 +68,20 @@ def create_cloud_app():
     if derived_central_master_url:
         os.environ["SARAPP_CENTRAL_MASTER_URL"] = derived_central_master_url
     central_sync_loop = CentralSyncLoop()
+    notification_trigger_loop = NotificationTriggerLoop()
     app.state.central_sync_loop = central_sync_loop
 
     @app.on_event("startup")
     def _start_cloud_router_tunnel() -> None:
         tunnel_client.start()
         central_sync_loop.start()
+        notification_trigger_loop.start()
 
     @app.on_event("shutdown")
     def _stop_cloud_router_tunnel() -> None:
         tunnel_client.stop()
         central_sync_loop.stop()
+        notification_trigger_loop.stop()
         logging.getLogger().removeHandler(log_handler)
 
     return app

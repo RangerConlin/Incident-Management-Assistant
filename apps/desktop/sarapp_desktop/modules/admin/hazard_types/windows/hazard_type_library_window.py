@@ -431,13 +431,13 @@ class HazardTypeLibraryWindow(QWidget):
         self.raise_()
         self.activateWindow()
 
-    def _show_toast(self, title: str, message: str, *, severity: str = "success") -> None:
+    def _show_toast(self, title: str, message: str, *, severity: str = "routine") -> None:
         try:
             self._notifier.notify(
                 Notification(
                     title=title,
                     message=message,
-                    severity=severity if severity in {"info", "success", "warning", "error"} else "info",
+                    severity=severity if severity in {"informational", "routine", "priority", "emergency"} else "routine",
                     source="Hazard Type Library",
                 )
             )

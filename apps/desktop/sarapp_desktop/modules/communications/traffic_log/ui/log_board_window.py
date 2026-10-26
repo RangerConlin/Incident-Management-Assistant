@@ -163,7 +163,7 @@ class CommunicationsLogBoardPanel(QWidget):
             Notification(
                 title=title,
                 message=msg,
-                severity="warning" if severity != "error" else "error",
+                severity="priority" if severity != "error" else "emergency",
                 source="Communications Log",
                 entity_type="comms_entry",
                 entity_id=str(entry_id),

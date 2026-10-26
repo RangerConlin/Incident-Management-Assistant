@@ -1858,11 +1858,11 @@ class VehicleInventoryPanel(QWidget):
                 self._selected_vehicle_id = str(created[-1].get("id")) if created[-1].get("id") is not None else None
             self.refresh(reset_page=True)
             if created and errors:
-                self._show_toast("Import complete", f"{len(created)} vehicles imported with {errors} errors.", severity="warning")
+                self._show_toast("Import complete", f"{len(created)} vehicles imported with {errors} errors.", severity="priority")
             elif created:
                 self._show_toast("Import complete", f"Imported {len(created)} vehicles.")
             elif errors:
-                self._show_toast("Import issues", "No rows were imported. Check the error report.", severity="warning")
+                self._show_toast("Import issues", "No rows were imported. Check the error report.", severity="priority")
 
     def _on_export_clicked(self) -> None:
         selection_model = self.table_view.selectionModel()
@@ -2045,7 +2045,7 @@ class VehicleInventoryPanel(QWidget):
             try:
                 result = result_or_watcher.result()
             except Exception as exc:  # pragma: no cover - runtime dependent
-                self._show_toast("Export failed", str(exc), severity="error")
+                self._show_toast("Export failed", str(exc), severity="emergency")
                 return
         else:
             result = result_or_watcher
@@ -2054,7 +2054,7 @@ class VehicleInventoryPanel(QWidget):
 
     def _on_export_failed(self, message: str) -> None:
         self.export_button.setEnabled(True)
-        self._show_toast("Export failed", message, severity="error")
+        self._show_toast("Export failed", message, severity="emergency")
 
     def _on_export_worker_finished(self, worker: _ExportWorkerThread) -> None:
         if self._export_worker is worker:
@@ -2085,13 +2085,13 @@ class VehicleInventoryPanel(QWidget):
             self.export_button.setEnabled(export)
 
     # ----- Toast helper ---------------------------------------------------
-    def _show_toast(self, title: str, message: str, *, severity: str = "success") -> None:
+    def _show_toast(self, title: str, message: str, *, severity: str = "routine") -> None:
         try:
             self._notifier.notify(
                 Notification(
                     title=title,
                     message=message,
-                    severity=severity if severity in {"info", "success", "warning", "error"} else "info",
+                    severity=severity if severity in {"informational", "routine", "priority", "emergency"} else "routine",
                     source="Vehicle Inventory",
                 )
             )

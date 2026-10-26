@@ -1,4 +1,4 @@
-import { useObjectiveRows } from "../planning/objectives/hooks";
+import { useObjectiveRows } from "../command/objectives/hooks";
 import { useTaskRows } from "../operations/taskStatus/hooks";
 export default function ReportingSource({ incidentId, values, update }: { incidentId: string; values: Record<string, unknown>; update: (key: string, value: unknown) => void }) {
   const objectives = useObjectiveRows(incidentId); const tasks = useTaskRows(incidentId);

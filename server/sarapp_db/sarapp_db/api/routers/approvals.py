@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Callable, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel
 
 from sarapp_db.mongo.collection_names import IncidentCollections
@@ -33,20 +33,19 @@ _ENTITY_LABELS: dict[str, str] = {
     "ics_206": "the ICS-206 Medical Plan",
     "iwi_report": "an IWI report",
     "iap": "the IAP",
-    "interview": "an interview record",
 }
 
 _VALID_ACTIONS = {"approved", "rejected", "acknowledged"}
 
-# Maps entity_type -> (collection_name, id_field) so the service can write
+# Maps entity_type -> (collection_name, id_field, status_field) so the service can write
 # approval_status back to the entity's own record when the chain completes.
 # Extend this as new approvable entity types are wired up.
-_ENTITY_COLLECTIONS: dict[str, tuple[str, str]] = {
-    "ics_205": (IncidentCollections.COMMUNICATIONS_PLAN, "plan_id"),
+_ENTITY_COLLECTIONS: dict[str, tuple[str, str, str]] = {
+    "ics_205": (IncidentCollections.COMMUNICATIONS_PLAN, "plan_id", "approval_status"),
     # One approval chain per ICS-206 version; entity_id is the medical_plan `plan_id`.
-    "ics_206": (IncidentCollections.MEDICAL_PLAN, "plan_id"),
-    "iwi_report": (IncidentCollections.IWI_REPORTS, "id"),
-    "iap": (IncidentCollections.FORMS, "id"),
+    "ics_206": (IncidentCollections.MEDICAL_PLAN, "plan_id", "approval_status"),
+    "iwi_report": (IncidentCollections.IWI_REPORTS, "id", "approval_status"),
+    "iap": (IncidentCollections.IAP_PACKAGES, "op_number", "status"),
 }
 
 
@@ -72,10 +71,20 @@ class ApprovalSpec:
     precondition: Optional[Callable[[str, str], bool]] = None
 
 
-def _iap_precondition(_incident_id: str, _entity_id: str) -> bool:
-    # IAP sign-off requires every constituent document to be approved first.
-    # Not wired up yet (no readiness aggregation exists) — fail closed.
-    return False
+def _iap_precondition(incident_id: str, entity_id: str) -> bool:
+    class _IAPRepository(BaseRepository):
+        collection_name = IncidentCollections.IAP_PACKAGES
+        soft_deletes = False
+
+    try:
+        op_number = int(entity_id)
+    except ValueError:
+        return False
+    package = _IAPRepository(get_incident_db(incident_id)).find_one(
+        {"incident_id": incident_id, "op_number": op_number}
+    )
+    forms = (package or {}).get("forms") or []
+    return bool(forms) and all(str(form.get("status") or "").lower() == "approved" for form in forms)
 
 
 _SPECS: dict[str, ApprovalSpec] = {
@@ -148,20 +157,6 @@ _SPECS: dict[str, ApprovalSpec] = {
             ),
         ),
         precondition=_iap_precondition,
-    ),
-    "interview": ApprovalSpec(
-        entity_type="interview",
-        # Acknowledgment-only: confirms the interview was conducted/documented.
-        steps=(
-            ApprovalStepSpec(
-                step_id="interviewer_ack",
-                label="Interviewer",
-                role="",
-                kind="ack",
-                acceptable_types=(),
-                order=0,
-            ),
-        ),
     ),
 }
 
@@ -290,7 +285,8 @@ class StartRequest(BaseModel):
 
 class SignRequest(BaseModel):
     step_id: str
-    actor_id: int
+    actor_id: Optional[int] = None
+    session_id: Optional[str] = None
     action: str
     notes: Optional[str] = None
     # Same idea as StartRequest.assign_actors, for whatever step(s) activate
@@ -326,13 +322,8 @@ def _save_instance(incident_id: str, instance: dict[str, Any]) -> None:
         "entity_type": instance["entity_type"],
         "entity_id": instance["entity_id"],
     }
-    # Atomic upsert by compound key (not by `_id`) — not expressible via
-    # BaseRepository's generic methods, so we drop to the raw collection
-    # and broadcast the change ourselves, mirroring update_one's pattern.
-    repo._col.replace_one(query, {**instance, **query}, upsert=True)
-    doc = repo._col.find_one(query)
-    if doc:
-        repo._broadcast("updated", doc["_id"], doc)
+    payload = {key: value for key, value in instance.items() if key != "_id"}
+    repo.upsert_one(query, {**payload, **query})
 
 
 # ---------------------------------------------------------------------------
@@ -454,7 +445,7 @@ def _write_status_to_entity(incident_id: str, instance: dict[str, Any]) -> None:
     entry = _ENTITY_COLLECTIONS.get(instance["entity_type"])
     if entry is None:
         return
-    collection_name, id_field = entry
+    collection_name, id_field, status_field = entry
 
     class _EntityRepository(BaseRepository):
         pass
@@ -462,9 +453,12 @@ def _write_status_to_entity(incident_id: str, instance: dict[str, Any]) -> None:
     _EntityRepository.collection_name = collection_name
     _EntityRepository.soft_deletes = False
     repo = _EntityRepository(get_incident_db(incident_id))
-    existing = repo.find_one({"incident_id": incident_id, id_field: instance["entity_id"]})
+    entity_id: Any = instance["entity_id"]
+    if instance["entity_type"] == "iap":
+        entity_id = int(entity_id)
+    existing = repo.find_one({"incident_id": incident_id, id_field: entity_id})
     if existing is not None:
-        repo.update_one(existing["_id"], {"approval_status": instance["status"]})
+        repo.update_one(existing["_id"], {status_field: instance["status"]})
 
 
 @router.get("/{incident_id}/approvals/{entity_type}/{entity_id}/start/preview")
@@ -494,6 +488,11 @@ def _preview_row(incident_id: str, step: dict[str, Any]) -> dict[str, Any]:
 @router.post("/{incident_id}/approvals/{entity_type}/{entity_id}/start")
 def start_instance(incident_id: str, entity_type: str, entity_id: str, body: StartRequest = StartRequest()) -> dict[str, Any]:
     spec = _get_spec(entity_type)
+    existing = _instances_repo(incident_id).find_one(
+        {"incident_id": incident_id, "entity_type": entity_type, "entity_id": entity_id}
+    )
+    if existing is not None:
+        raise HTTPException(409, "Approval workflow already exists for this record")
     if spec.precondition and not spec.precondition(incident_id, entity_id):
         raise HTTPException(
             400, "Preconditions not met — not all required approvals are complete."
@@ -538,8 +537,19 @@ def preview_sign(incident_id: str, entity_type: str, entity_id: str, step_id: st
 
 @router.post("/{incident_id}/approvals/{entity_type}/{entity_id}/sign")
 def sign_instance(
-    incident_id: str, entity_type: str, entity_id: str, body: SignRequest
+    incident_id: str,
+    entity_type: str,
+    entity_id: str,
+    body: SignRequest,
+    authorization: Optional[str] = Header(None),
 ) -> dict[str, Any]:
+    from sarapp_db.api.routers.auth_sessions import resolve_request_person
+
+    actor_id = resolve_request_person(
+        authorization=authorization,
+        session_id=body.session_id,
+        claimed_person_record=body.actor_id,
+    )
     if body.action not in _VALID_ACTIONS:
         raise HTTPException(400, f"Invalid action: {body.action}")
     repo = _instances_repo(incident_id)
@@ -554,13 +564,13 @@ def sign_instance(
     if step["status"] != "active":
         raise HTTPException(400, f"Step is not active: {body.step_id} ({step['status']})")
 
-    assignment_type = _assignment_type_for(incident_id, body.actor_id)
+    assignment_type = _assignment_type_for(incident_id, actor_id)
     if step["kind"] != "ack":
         if step.get("resolved_actor_id") is None:
             raise HTTPException(
                 400, "Nobody is assigned to this step yet — assign someone before signing."
             )
-        if step["resolved_actor_id"] != body.actor_id:
+        if step["resolved_actor_id"] != actor_id:
             raise HTTPException(403, "You are not able to act on this approval step.")
         spec = _SPECS.get(entity_type)
         spec_step = next((s for s in (spec.steps if spec else ()) if s.step_id == body.step_id), None)
@@ -577,7 +587,7 @@ def sign_instance(
         "entity_type": entity_type,
         "entity_id": entity_id,
         "step_id": body.step_id,
-        "actor_id": str(body.actor_id),
+        "actor_id": str(actor_id),
         "role_at_time": step.get("resolved_role") or step.get("role", ""),
         "assignment_type_at_time": assignment_type,
         "action": body.action,
@@ -640,7 +650,7 @@ def update_entity_status(
     entry = _ENTITY_COLLECTIONS.get(entity_type)
     if entry is None:
         raise HTTPException(400, f"Unknown entity type: {entity_type}")
-    collection_name, id_field = entry
+    collection_name, id_field, status_field = entry
 
     class _EntityRepository(BaseRepository):
         pass
@@ -648,10 +658,11 @@ def update_entity_status(
     _EntityRepository.collection_name = collection_name
     _EntityRepository.soft_deletes = False
     repo = _EntityRepository(get_incident_db(incident_id))
-    existing = repo.find_one({"incident_id": incident_id, id_field: entity_id})
+    lookup_id: Any = int(entity_id) if entity_type == "iap" else entity_id
+    existing = repo.find_one({"incident_id": incident_id, id_field: lookup_id})
     if existing is None:
         raise HTTPException(404, f"{entity_type} {entity_id} not found")
-    repo.update_one(existing["_id"], {"approval_status": body.approval_status})
+    repo.update_one(existing["_id"], {status_field: body.approval_status})
     return {"ok": True}
 
 

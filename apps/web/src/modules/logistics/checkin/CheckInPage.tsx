@@ -1,4 +1,3 @@
-import FormExportControls from "../../forms/FormExportControls";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
@@ -27,7 +26,6 @@ export default function CheckInPage() {
 
   return (
     <div>
-      <FormExportControls formIds={["ics_211"]} />
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
         <h2 style={{ margin: 0 }}>Check-In</h2>
         <button className="secondary" style={{ width: "auto" }} onClick={() => navigate("/logistics/resources")}>

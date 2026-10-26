@@ -25,6 +25,8 @@ import type {
   ApprovalInstance,
   ApprovalPreviewRow,
   Incident,
+  IncidentNotification,
+  ChatChannelSummary,
   FormExportDefinition,
   FormExportRequest,
   IncidentChannel,
@@ -806,3 +808,15 @@ export const listCommsContacts = (id: string) => api.get<CommsContact[]>(`${comm
 
 export const listFormExports = (incidentId: string) => api.get<FormExportDefinition[]>(`/api/incidents/${encodeURIComponent(incidentId)}/form-exports`);
 export const downloadFormExport = (incidentId: string, body: FormExportRequest) => api.download(`/api/incidents/${encodeURIComponent(incidentId)}/form-exports`, body);
+
+export const listNotifications = (incidentId: string, personRecord: number, unreadOnly = false) =>
+  api.get<IncidentNotification[]>(`/api/incidents/${encodeURIComponent(incidentId)}/notifications?person_record=${personRecord}&unread_only=${unreadOnly}`);
+export const acknowledgeNotification = (incidentId: string, notificationId: number) =>
+  api.post<IncidentNotification>(`/api/incidents/${encodeURIComponent(incidentId)}/notifications/${notificationId}/acknowledge`);
+export const dismissNotification = (incidentId: string, notificationId: number) =>
+  api.post<IncidentNotification>(`/api/incidents/${encodeURIComponent(incidentId)}/notifications/${notificationId}/dismiss`);
+
+export const chatSummary = (incidentId: string, userId: string) =>
+  api.get<{ items: ChatChannelSummary[] }>(`/api/incidents/${encodeURIComponent(incidentId)}/chat/summary?user_id=${encodeURIComponent(userId)}`);
+export const markChatChannelRead = (incidentId: string, channelId: string, userId: string) =>
+  api.post<{ id: string }>(`/api/incidents/${encodeURIComponent(incidentId)}/chat/channels/${encodeURIComponent(channelId)}/read`, { user_id: userId });

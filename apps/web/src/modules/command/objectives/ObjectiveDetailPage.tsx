@@ -1,4 +1,3 @@
-import FormExportControls from "../../forms/FormExportControls";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import StatusPill from "../../../components/table/StatusPill";
@@ -41,13 +40,12 @@ export default function ObjectiveDetailPage() {
 
   return (
     <div className="detail-page">
-      <FormExportControls formIds={["ics_202"]} sourceId={objectiveId} />
       <button
         className="secondary"
         style={{ width: "auto", marginBottom: 12 }}
-        onClick={() => navigate("/planning/objectives")}
+        onClick={() => navigate("/command/objectives")}
       >
-        ← Strategic Objectives
+        ← Incident Objectives
       </button>
       <h2>
         {objective.code} — {objective.text}

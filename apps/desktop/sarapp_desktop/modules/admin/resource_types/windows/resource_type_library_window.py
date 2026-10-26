@@ -537,12 +537,12 @@ class ResourceTypeLibraryWindow(QWidget):
             self.refresh()
             if created and errors:
                 self._show_toast(
-                    "Import complete", f"{len(created)} resource types imported with {errors} errors.", severity="warning"
+                    "Import complete", f"{len(created)} resource types imported with {errors} errors.", severity="priority"
                 )
             elif created:
                 self._show_toast("Import complete", f"Imported {len(created)} resource types.")
             elif errors:
-                self._show_toast("Import issues", "No rows were imported. Check the error report.", severity="warning")
+                self._show_toast("Import issues", "No rows were imported. Check the error report.", severity="priority")
 
     # ----- Export ------------------------------------------------------------
     def _export(self) -> None:
@@ -589,17 +589,17 @@ class ResourceTypeLibraryWindow(QWidget):
 
     def _on_export_failed(self, message: str) -> None:
         self.export_button.setEnabled(True)
-        self._show_toast("Export failed", message, severity="error")
+        self._show_toast("Export failed", message, severity="emergency")
         QMessageBox.critical(self, "Export failed", message)
 
     # ----- Toast helper ------------------------------------------------------
-    def _show_toast(self, title: str, message: str, *, severity: str = "success") -> None:
+    def _show_toast(self, title: str, message: str, *, severity: str = "routine") -> None:
         try:
             self._notifier.notify(
                 Notification(
                     title=title,
                     message=message,
-                    severity=severity if severity in {"info", "success", "warning", "error"} else "info",
+                    severity=severity if severity in {"informational", "routine", "priority", "emergency"} else "routine",
                     source="Resource Type Library",
                 )
             )

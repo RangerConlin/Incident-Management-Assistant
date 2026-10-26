@@ -1,18 +1,59 @@
-import FormExportControls from "../../forms/FormExportControls";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import DataTable, { type ColumnDef } from "../../../components/table/DataTable";
+import ExportButton from "../../forms/ExportButton";
 import FilterBar from "../../../components/table/FilterBar";
 import KpiStrip from "../../../components/KpiStrip";
 import StatusPill from "../../../components/table/StatusPill";
 import { OBJECTIVE_PRIORITIES, OBJECTIVE_STATUSES } from "../../../api/endpoints";
 import type { Objective } from "../../../api/types";
-import { objectiveStatusVar } from "../../../styles/statusColors";
+import { objectivePriorityVar, objectiveStatusVar } from "../../../styles/statusColors";
 import { useSession } from "../../../auth/SessionContext";
 import NewObjectiveDialog from "./NewObjectiveDialog";
 import { useCreateObjective, useObjectiveRows } from "./hooks";
 
 const QUICK_CHIPS = [{ key: "", label: "All" }, ...OBJECTIVE_STATUSES];
+
+// Left-border color: same priority as desktop's _ObjectiveCard._apply_style —
+// a completed/cancelled objective's status wins (it's done, that's the
+// headline fact), then urgent/high priority, then an active objective gets
+// the accent, everything else stays a plain border.
+function leftBorderColor(o: Objective): string {
+  if (o.status === "completed" || o.status === "cancelled") return objectiveStatusVar(o.status).bg;
+  if (o.priority === "urgent" || o.priority === "high") return objectivePriorityVar(o.priority).bg;
+  if (o.status === "active") return objectiveStatusVar(o.status).bg;
+  return "#2a2d33";
+}
+
+function ObjectiveCard({ objective, onOpen }: { objective: Objective; onOpen: () => void }) {
+  return (
+    <div
+      className="objective-card"
+      style={{ borderLeftColor: leftBorderColor(objective) }}
+      onClick={onOpen}
+    >
+      <div className="objective-card-header">
+        <span className="objective-card-title">
+          <b>{objective.code}</b> {objective.text || "(Untitled Objective)"}
+        </span>
+        <StatusPill domain="objective-priority" statusKey={objective.priority} />
+        <StatusPill domain="objective" statusKey={objective.status} />
+      </div>
+      <div className="objective-card-meta">
+        <span>{objective.owner_section || "No owner assigned"}</span>
+        <span>{objective.op_period_id ? `OP ${objective.op_period_id}` : "No OP"}</span>
+        {objective.due_time && <span>Due {new Date(objective.due_time).toLocaleString()}</span>}
+      </div>
+      <div className="objective-card-footer">
+        <span className={objective.open_tasks > 0 ? "objective-card-alert" : undefined}>
+          Tasks: {objective.open_tasks} open / {objective.total_tasks} total
+        </span>
+        {objective.tags.length > 0 && (
+          <span className="objective-card-tags">{objective.tags.slice(0, 4).map((t) => `#${t}`).join("  ")}</span>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function ObjectivesBoardPage() {
   const { incidentId, user } = useSession();
@@ -26,15 +67,17 @@ export default function ObjectivesBoardPage() {
   const createObjective = useCreateObjective(incidentId!);
 
   const filteredRows = useMemo(() => {
-    return rows.filter((o) => {
-      if (statusFilter && o.status !== statusFilter) return false;
-      if (priorityFilter && o.priority !== priorityFilter) return false;
-      if (search) {
-        const haystack = `${o.code} ${o.text} ${o.owner_section ?? ""}`.toLowerCase();
-        if (!haystack.includes(search.toLowerCase())) return false;
-      }
-      return true;
-    });
+    return rows
+      .filter((o) => {
+        if (statusFilter && o.status !== statusFilter) return false;
+        if (priorityFilter && o.priority !== priorityFilter) return false;
+        if (search) {
+          const haystack = `${o.code} ${o.text} ${o.owner_section ?? ""}`.toLowerCase();
+          if (!haystack.includes(search.toLowerCase())) return false;
+        }
+        return true;
+      })
+      .sort((a, b) => a.display_order - b.display_order);
   }, [rows, search, statusFilter, priorityFilter]);
 
   const kpiTiles = useMemo(() => {
@@ -75,50 +118,18 @@ export default function ObjectivesBoardPage() {
     ];
   }, [rows]);
 
-  const columns: ColumnDef<Objective>[] = [
-    { key: "code", header: "Code", defaultWidth: 90 },
-    { key: "text", header: "Objective", sortable: true, sortValue: (o) => o.text, defaultWidth: 320 },
-    {
-      key: "priority",
-      header: "Priority",
-      sortable: true,
-      sortValue: (o) => o.priority,
-      render: (o) => <StatusPill domain="objective-priority" statusKey={o.priority} />,
-      defaultWidth: 100,
-    },
-    {
-      key: "status",
-      header: "Status",
-      sortable: true,
-      sortValue: (o) => o.status,
-      render: (o) => <StatusPill domain="objective" statusKey={o.status} />,
-      defaultWidth: 110,
-    },
-    { key: "owner_section", header: "Owner Section", render: (o) => o.owner_section ?? "—", defaultWidth: 140 },
-    {
-      key: "tasks",
-      header: "Tasks",
-      render: (o) => `${o.open_tasks}/${o.total_tasks}`,
-      defaultWidth: 80,
-    },
-    {
-      key: "due_time",
-      header: "Due",
-      render: (o) => (o.due_time ? new Date(o.due_time).toLocaleString() : "—"),
-      defaultWidth: 160,
-    },
-  ];
-
   if (!incidentId) return null;
 
   return (
     <div>
-      <FormExportControls formIds={["ics_202"]} />
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-        <h2 style={{ margin: 0 }}>Strategic Objectives</h2>
-        <button style={{ width: "auto" }} onClick={() => setShowNew(true)}>
-          New Objective
-        </button>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, gap: 8, flexWrap: "wrap" }}>
+        <h2 style={{ margin: 0 }}>Incident Objectives</h2>
+        <div style={{ display: "flex", gap: 8 }}>
+          <ExportButton formId="ics_202" label="Export ICS-202" />
+          <button style={{ width: "auto" }} onClick={() => setShowNew(true)}>
+            New Objective
+          </button>
+        </div>
       </div>
 
       <KpiStrip tiles={kpiTiles} />
@@ -162,15 +173,14 @@ export default function ObjectivesBoardPage() {
       {error && <p className="error">Could not load objectives.</p>}
       {isLoading ? (
         <p>Loading…</p>
+      ) : filteredRows.length === 0 ? (
+        <p className="objective-card-empty">No objectives yet. Click New Objective to create one.</p>
       ) : (
-        <DataTable
-          tableId="planning-objectives-board"
-          columns={columns}
-          rows={filteredRows}
-          rowKey={(o) => o._id}
-          onRowActivate={(o) => navigate(`/planning/objectives/${o._id}`)}
-          emptyMessage="No objectives yet. Click New Objective to create one."
-        />
+        <div className="objective-card-list">
+          {filteredRows.map((o) => (
+            <ObjectiveCard key={o._id} objective={o} onOpen={() => navigate(`/command/objectives/${o._id}`)} />
+          ))}
+        </div>
       )}
 
       {showNew && (

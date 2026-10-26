@@ -56,6 +56,37 @@ def _issue_jwt(claims: dict[str, Any]) -> str:
     payload = {**claims, "iat": now, "exp": now + _JWT_TTL_SECONDS}
     return jwt.encode(payload, _JWT_SECRET, algorithm=_JWT_ALGORITHM)
 
+
+def decode_access_token(token: str) -> dict[str, Any]:
+    """Validate an API bearer token and return its claims."""
+    try:
+        return dict(jwt.decode(token, _JWT_SECRET, algorithms=[_JWT_ALGORITHM]))
+    except jwt.PyJWTError as exc:
+        raise HTTPException(status_code=401, detail="Invalid or expired access token") from exc
+
+
+def resolve_request_person(
+    *, authorization: str | None, session_id: str | None,
+    claimed_person_record: int | None,
+) -> int:
+    """Resolve a person from a signed web token or active desktop session."""
+    person_record: Any = None
+    if authorization:
+        scheme, _, token = authorization.partition(" ")
+        if scheme.lower() != "bearer" or not token:
+            raise HTTPException(status_code=401, detail="Invalid authorization header")
+        person_record = decode_access_token(token).get("person_record")
+    elif session_id:
+        session = _sessions_col().find_one({"session_id": session_id, "ended_at": None})
+        if session:
+            person_record = session.get("person_record")
+    if person_record is None:
+        raise HTTPException(status_code=401, detail="An active signed-in session is required")
+    person_record = int(person_record)
+    if claimed_person_record is not None and person_record != claimed_person_record:
+        raise HTTPException(status_code=403, detail="Actor does not match the signed-in person")
+    return person_record
+
 _ACTIVE_STATUSES = {"online", "available", "busy", "away", "offline"}
 
 # Sessions whose last_seen_at is older than this are treated as abandoned

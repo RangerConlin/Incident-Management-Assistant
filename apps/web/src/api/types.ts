@@ -751,3 +751,35 @@ export interface CommsLogEntry {
 
 export interface FormExportDefinition { form_id: string; label: string; source: string; set: string; }
 export interface FormExportRequest { form_id: string; source_id?: string; operational_period_id?: number; prepared_by: string; }
+
+export interface IncidentNotification {
+  notification_id: number;
+  title: string;
+  message: string;
+  severity: "informational" | "routine" | "priority" | "emergency";
+  category: string;
+  source_type: string;
+  source_id: string;
+  source_label: string | null;
+  requires_acknowledgement: boolean;
+  read: boolean;
+  created_at: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  channel_id: string;
+  sender_id: string;
+  sender_name: string | null;
+  text: string;
+  created_at: string;
+}
+
+export interface ChatChannelSummary {
+  channel_id: string;
+  name: string | null;
+  type: "group" | "dm";
+  participant_ids: string[];
+  unread_count: number;
+  last_message: ChatMessage | null;
+}

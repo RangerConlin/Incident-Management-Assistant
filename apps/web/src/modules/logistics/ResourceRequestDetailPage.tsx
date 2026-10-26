@@ -1,4 +1,3 @@
-import FormExportControls from "../forms/FormExportControls";
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useSession } from "../../auth/SessionContext";
@@ -44,7 +43,6 @@ function Editor({ incidentId,requestId }: { incidentId: string; requestId: strin
   if (!isNew && (query.isError || !query.data)) return <p className="error" role="alert">Could not load this request. <button onClick={() => void query.refetch()}>Retry</button> <Link to="/logistics/resource-requests">Requests</Link></p>;
   const setTab = (value: string) => { if (itemsDirty && value !== "items") { setError("Save or discard item edits before switching sections."); return; } setParams(old => { const next = new URLSearchParams(old); next.set("tab",value); return next; },{ replace: true }); };
   return <div className="logistics-page"><Link to="/logistics/resource-requests">Back to Resource Requests</Link><div className="logistics-toolbar"><h2>{isNew ? "New resource request" : String(values.title)}</h2><StatusPill domain="logistics-request" statusKey={status} label={label(status)} />{dirty && <span>Unsaved header changes</span>}</div>
-    {!isNew && <FormExportControls formIds={["ics_213rr"]} sourceId={requestId} disabled={dirty || itemsDirty} />}
     {error && <p className="error" role="alert">{error}</p>}{notice && <p role="status">{notice}</p>}
     {!isNew && <nav className="logistics-tabs" aria-label="Request sections">{["details","items","fulfillment","history","print"].map(t => <button key={t} className={tab === t ? "" : "secondary"} onClick={() => setTab(t)}>{label(t)}</button>)}</nav>}
     {(isNew || tab === "details") && <form onSubmit={e => { e.preventDefault(); void run(save); }}><fieldset className="logistics-form logistics-panel" disabled={terminal || busy}><legend>Request details</legend>

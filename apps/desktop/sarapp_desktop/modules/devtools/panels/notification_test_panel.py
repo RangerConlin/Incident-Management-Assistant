@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import logging
 from typing import Any
 
 from PySide6.QtCore import Qt
@@ -32,6 +33,7 @@ from utils.styles import get_palette, subscribe_theme
 
 
 LOCAL_DESKTOP_TARGET = "local_desktop"
+logger = logging.getLogger(__name__)
 
 NOTIFICATION_PRESETS: tuple[dict[str, object], ...] = (
     {
@@ -227,16 +229,28 @@ class NotificationTestPanel(QWidget):
 
     def refresh_connections(self) -> None:
         self.incident_label.setText(self._incident_text())
+        logger.info(
+            "Notification tester refreshing targets incident_id=%s active_person_record=%s",
+            AppState.get_active_incident(),
+            AppState.get_active_user_id(),
+        )
         try:
             rows = api_client.get("/api/client-connections") or []
         except APIError as exc:
+            logger.exception("Notification tester could not load client connections: %s", exc)
             QMessageBox.warning(self, "Notification Tester", f"Unable to load connections: {exc}")
             return
         except Exception as exc:
+            logger.exception("Notification tester connection refresh failed: %s", exc)
             QMessageBox.warning(self, "Notification Tester", f"Unable to load connections: {exc}")
             return
         self._connections = [self._current_desktop_connection()]
         self._connections.extend(row for row in rows if isinstance(row, dict))
+        logger.info(
+            "Notification tester loaded %d targets (%d remote)",
+            len(self._connections),
+            len(self._connections) - 1,
+        )
         self._populate_connections()
 
     def _current_desktop_connection(self) -> dict[str, Any]:
@@ -289,14 +303,23 @@ class NotificationTestPanel(QWidget):
         incident_id = AppState.get_active_incident()
         connection = self._selected_connection()
         if not connection:
+            logger.warning("Notification tester send stopped: no target selected")
             QMessageBox.warning(self, "Notification Tester", "Select a notification target first.")
             return
         title = self.title_edit.text().strip()
         message = self.message_edit.toPlainText().strip()
         if not title or not message:
+            logger.warning("Notification tester send stopped: title or message is empty")
             QMessageBox.warning(self, "Notification Tester", "Title and message are required.")
             return
         if connection.get("target_type") == LOCAL_DESKTOP_TARGET:
+            logger.info(
+                "Notification tester dispatching locally person_record=%s category=%s severity=%s title=%r",
+                connection.get("person_record"),
+                self.category_combo.currentText(),
+                self.severity_combo.currentText(),
+                title,
+            )
             self._send_local_desktop_notification(
                 {
                     "title": title,
@@ -311,6 +334,7 @@ class NotificationTestPanel(QWidget):
             )
             return
         if not incident_id:
+            logger.warning("Notification tester remote send stopped: no active incident")
             QMessageBox.warning(self, "Notification Tester", "Select an active incident before sending to a connected client.")
             return
         try:
@@ -325,18 +349,32 @@ class NotificationTestPanel(QWidget):
                 requires_acknowledgement=self.ack_check.isChecked(),
             )
         except ValueError as exc:
+            logger.warning("Notification tester rejected payload: %s", exc)
             QMessageBox.warning(self, "Notification Tester", str(exc))
             return
         try:
+            logger.info(
+                "Notification tester posting incident_id=%s target=%s payload=%s",
+                incident_id,
+                connection_display_name(connection),
+                payload,
+            )
             result = api_client.post(f"/api/incidents/{incident_id}/notifications", json=payload)
         except APIError as exc:
+            logger.exception("Notification tester API send failed: %s", exc)
             QMessageBox.critical(self, "Notification Tester", f"Send failed: {exc}")
             return
         except Exception as exc:
+            logger.exception("Notification tester unexpected send failure: %s", exc)
             QMessageBox.critical(self, "Notification Tester", f"Send failed: {exc}")
             return
         delivery = (result or {}).get("delivery") if isinstance(result, dict) else {}
         notification_id = (result or {}).get("notification_id") if isinstance(result, dict) else None
+        logger.info(
+            "Notification tester server send completed notification_id=%s delivery=%s",
+            notification_id,
+            delivery,
+        )
         self.result_text.setPlainText(
             "\n".join(
                 [
@@ -350,16 +388,33 @@ class NotificationTestPanel(QWidget):
         )
 
     def _send_local_desktop_notification(self, payload: dict[str, Any], connection: dict[str, Any]) -> None:
-        get_notifier().notify(
-            Notification(
-                title=payload["title"],
-                message=payload["message"],
-                severity=payload["severity"],
-                category=payload["category"],
-                source=payload["source_label"],
-                entity_type=payload["source_type"],
-                entity_id=payload["source_id"],
+        notifier = get_notifier()
+        unread_before = notifier.unread_count()
+        try:
+            notifier.notify(
+                Notification(
+                    title=payload["title"],
+                    message=payload["message"],
+                    severity=payload["severity"],
+                    category=payload["category"],
+                    source=payload["source_label"],
+                    entity_type=payload["source_type"],
+                    entity_id=payload["source_id"],
+                )
             )
+        except Exception:
+            logger.exception(
+                "Notification tester local dispatch raised source_id=%s payload=%s",
+                payload.get("source_id"),
+                payload,
+            )
+            raise
+        logger.info(
+            "Notification tester local dispatch returned source_id=%s unread_before=%d unread_after=%d recent_count=%d",
+            payload.get("source_id"),
+            unread_before,
+            notifier.unread_count(),
+            len(notifier.recent(limit=500)),
         )
         self.result_text.setPlainText(
             "\n".join(

@@ -256,6 +256,46 @@ def unread_count(incident_id: str, user_id: str = Query(...)) -> dict[str, Any]:
     return {"count": total}
 
 
+@router.get("/incidents/{incident_id}/chat/summary")
+def chat_summary(incident_id: str, user_id: str = Query(...)) -> dict[str, Any]:
+    """Per-channel unread count and last message, for a header chat dropdown."""
+    if not user_id.strip():
+        raise HTTPException(status_code=400, detail="user_id is required")
+
+    channel_repo = _channel_repo(incident_id)
+    _ensure_default_channels(channel_repo)
+    channels = channel_repo.find_many(
+        {"$or": [{"type": "group"}, {"type": "dm", "participant_ids": user_id}]}
+    )
+
+    read_state_repo = _read_state_repo(incident_id)
+    message_repo = _message_repo(incident_id)
+    items = []
+    for channel in channels:
+        read_state = read_state_repo.find_one({"user_id": user_id, "channel_id": channel["_id"]})
+        unread_query: dict[str, Any] = {"channel_id": channel["_id"], "sender_id": {"$ne": user_id}}
+        if read_state is not None:
+            unread_query["created_at"] = {"$gt": read_state["last_read_at"]}
+        unread_count = message_repo.count(unread_query)
+
+        last = message_repo.find_many({"channel_id": channel["_id"]}, sort=[("created_at", -1)], limit=1)
+        last_message = _clean(last[0]) if last else None
+
+        items.append(
+            {
+                "channel_id": channel["_id"],
+                "name": channel.get("name"),
+                "type": channel["type"],
+                "participant_ids": channel.get("participant_ids", []),
+                "unread_count": unread_count,
+                "last_message": last_message,
+            }
+        )
+
+    items.sort(key=lambda c: (c["last_message"] or {}).get("created_at") or "", reverse=True)
+    return {"items": items}
+
+
 @router.post("/incidents/{incident_id}/presence/heartbeat", status_code=200)
 def presence_heartbeat(incident_id: str, body: dict[str, Any] = Body(...)) -> dict[str, Any]:
     user_id = str(body.get("user_id") or "").strip()

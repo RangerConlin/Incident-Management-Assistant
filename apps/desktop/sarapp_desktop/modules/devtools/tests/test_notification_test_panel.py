@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+import logging
 
 from modules.devtools.panels.notification_test_panel import (
     LOCAL_DESKTOP_TARGET,
@@ -61,3 +62,22 @@ def test_build_notification_payload_requires_person_record() -> None:
             source_label="Dev Tester",
             requires_acknowledgement=False,
         )
+
+
+def test_local_notification_dispatch_logs_delivery(caplog, monkeypatch) -> None:
+    from modules.devtools.panels.notification_test_panel import NotificationTestPanel
+    from notifications.services import get_notifier
+    from PySide6.QtWidgets import QApplication
+
+    monkeypatch.setattr("modules.devtools.panels.notification_test_panel.api_client.get", lambda *_args, **_kwargs: [])
+    app = QApplication.instance() or QApplication([])
+    panel = NotificationTestPanel()
+    notifier = get_notifier()
+    before = notifier.unread_count()
+    with caplog.at_level(logging.INFO):
+        panel.send_notification()
+    assert notifier.unread_count() == before + 1
+    assert "Notification tester local dispatch returned" in caplog.text
+    assert "Notifier received" in caplog.text
+    panel.deleteLater()
+    app.processEvents()
