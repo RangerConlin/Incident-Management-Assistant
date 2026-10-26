@@ -7,6 +7,7 @@ import AccountSetupScreen from "./screens/AccountSetupScreen";
 import ConnectionSettingsScreen from "./screens/ConnectionSettingsScreen";
 import SelectIncidentScreen from "./screens/SelectIncidentScreen";
 import ChangePasswordScreen from "./screens/ChangePasswordScreen";
+import SettingsScreen from "./screens/SettingsScreen";
 import TeamStatusBoardPage from "./modules/operations/teamStatus/TeamStatusBoardPage";
 import TeamDetailPage from "./modules/operations/teamStatus/TeamDetailPage";
 import TaskStatusBoardPage from "./modules/operations/taskStatus/TaskStatusBoardPage";
@@ -119,6 +120,7 @@ export default function App() {
         }
       >
         <Route index element={<IndexContent />} />
+        <Route path="settings" element={<SettingsScreen />} />
         <Route path="forms" element={<RequireIncident><FormExportsPage /></RequireIncident>} />
         <Route path="planning/approvals" element={<RequireIncident><ApprovalsPage /></RequireIncident>} />
         <Route path="planning/demobilization" element={<RequireIncident><DemobilizationPage /></RequireIncident>} />

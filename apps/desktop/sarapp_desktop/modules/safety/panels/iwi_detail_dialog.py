@@ -1100,8 +1100,16 @@ class IWIDetailDialog(QDialog):
             return
         try:
             from modules.approvals.service import ApprovalService
+            from modules.approvals.panels.submit_approval_dialog import SubmitApprovalDialog
             svc = ApprovalService(self._incident_id)
-            instance = svc.start("iwi_report", self._report_id)
+            rows = svc.preview_start("iwi_report", self._report_id)
+            assign_actors = {}
+            if rows:
+                dlg = SubmitApprovalDialog("Submit for Approval", rows, self)
+                if not dlg.exec():
+                    return
+                assign_actors = dlg.chosen_actors()
+            instance = svc.start("iwi_report", self._report_id, assign_actors)
             uid_ = AppState.get_active_user_id()
             person_record = int(uid_) if uid_ and str(uid_).isdigit() else 0
             assignment_type = self._resolve_assignment_type()
@@ -1122,11 +1130,20 @@ class IWIDetailDialog(QDialog):
             uid_ = AppState.get_active_user_id()
             person_record = int(uid_) if uid_ and str(uid_).isdigit() else 0
             assignment_type = self._resolve_assignment_type()
+            from modules.approvals.panels.submit_approval_dialog import SubmitApprovalDialog
+            rows = svc.preview_sign(instance, step_id)
+            assign_actors = {}
+            if rows:
+                dlg = SubmitApprovalDialog("Sign — next step", rows, self)
+                if not dlg.exec():
+                    return
+                assign_actors = dlg.chosen_actors()
             updated = svc.sign(
                 instance,
                 step_id=step_id,
                 actor_id=person_record,
                 action="approved",
+                assign_actors=assign_actors,
             )
             self._approval_timeline.set_state(updated, person_record, assignment_type)
             if updated.status in ("approved", "rejected"):

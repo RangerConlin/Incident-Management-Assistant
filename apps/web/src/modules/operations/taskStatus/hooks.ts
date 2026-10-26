@@ -148,3 +148,12 @@ export const TASK_STATUS_OPTIONS: { key: string; label: string }[] = [
   { key: "complete", label: "Complete" },
   { key: "cancelled", label: "Cancelled" },
 ];
+
+const TASK_STATUS_LABELS = new Map(TASK_STATUS_OPTIONS.map((s) => [s.key, s.label]));
+
+// Status pills always show a human-readable, capitalized label — the raw
+// status_key is only for color lookup/storage.
+export function taskStatusLabel(key: string): string {
+  const k = (key ?? "").trim().toLowerCase();
+  return TASK_STATUS_LABELS.get(k) ?? k.replace(/\b\w/g, (c) => c.toUpperCase());
+}

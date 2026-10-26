@@ -9,6 +9,7 @@ import TeamAssetsEditor from "./TeamAssetsEditor";
 import TaskPickerDialog from "./TaskPickerDialog";
 import {
   TEAM_STATUS_OTHER,
+  teamStatusLabel,
   useAssignTeamToTask,
   useSetTeamStatus,
   useTeamDetail,
@@ -115,7 +116,7 @@ export default function TeamDetailPage() {
           <div className="field">
             <label>Status</label>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <StatusPill domain="team" statusKey={team.status} />
+              <StatusPill domain="team" statusKey={team.status} label={teamStatusLabel(team.status)} />
               <select
                 value={currentStatusKey}
                 onChange={(e) => {
@@ -200,6 +201,7 @@ export default function TeamDetailPage() {
 
       {tab === "personnel" && (
         <TeamMembersEditor
+          incidentId={incidentId}
           memberIds={team.member_person_records ?? []}
           leaderId={team.leader_person_record}
           onSave={(next) => save(next)}

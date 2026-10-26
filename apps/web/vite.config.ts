@@ -14,9 +14,11 @@ export default defineConfig({
     proxy: {
       // ws: true so the incident WebSocket (/api/incidents/{id}/ws) proxies
       // too, not just plain HTTP — see realtime/IncidentSocketProvider.tsx.
-      "/api": { target: BACKEND_PROXY_TARGET, ws: true },
-      "/health": BACKEND_PROXY_TARGET,
-      "/server-info": BACKEND_PROXY_TARGET,
+      // changeOrigin so a remote BACKEND_PROXY_TARGET's Host-based router
+      // (e.g. cloud_router's Traefik) sees its own domain, not localhost.
+      "/api": { target: BACKEND_PROXY_TARGET, ws: true, changeOrigin: true },
+      "/health": { target: BACKEND_PROXY_TARGET, changeOrigin: true },
+      "/server-info": { target: BACKEND_PROXY_TARGET, changeOrigin: true },
     },
   },
 });

@@ -40,6 +40,7 @@ from bridge.medical_bridge import (
     MedicalBridge,
 )
 from modules.approvals.panels.approval_timeline import ApprovalTimeline
+from modules.approvals.panels.submit_approval_dialog import SubmitApprovalDialog
 from modules.approvals.service import ApprovalService
 from modules.logistics.facilities.service import FacilitiesService
 from modules.logistics.facilities.widgets.facility_picker import FacilityPicker
@@ -1049,7 +1050,15 @@ class ICS206Panel(QWidget):
             return
         try:
             incident_id, plan_id = self._bridge.approval_target()
-            ApprovalService(incident_id).start("ics_206", plan_id)
+            service = ApprovalService(incident_id)
+            rows = service.preview_start("ics_206", plan_id)
+            assign_actors = {}
+            if rows:
+                dlg = SubmitApprovalDialog("Submit for Approval", rows, self)
+                if not dlg.exec():
+                    return
+                assign_actors = dlg.chosen_actors()
+            service.start("ics_206", plan_id, assign_actors)
             self._bridge.mark_pending()
         except Exception as exc:
             QMessageBox.critical(self, "Submission Failed", str(exc))
@@ -1096,12 +1105,21 @@ class ICS206Panel(QWidget):
             assignment_type = service.assignment_type_for(person_record) if person_record else "primary"
             if not service.can_sign(instance, step_id, person_record, assignment_type):
                 raise RuntimeError("You are not able to act on this approval step.")
+            assign_actors = {}
+            if action == "approved":
+                rows = service.preview_sign(instance, step_id)
+                if rows:
+                    dlg = SubmitApprovalDialog("Sign — next step", rows, self)
+                    if not dlg.exec():
+                        return
+                    assign_actors = dlg.chosen_actors()
             updated = service.sign(
                 instance,
                 step_id=step_id,
                 actor_id=person_record,
                 action=action,
                 notes=notes,
+                assign_actors=assign_actors,
             )
             if updated.status in (APPROVAL_APPROVED, APPROVAL_REJECTED):
                 self._bridge.apply_approval_outcome(updated.status)

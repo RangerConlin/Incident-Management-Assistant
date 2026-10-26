@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as api from "../../../api/endpoints";
+import { TEAM_STATUS_STEPS } from "../../../api/endpoints";
 
 const POLL_FLOOR_MS = 20_000;
 
@@ -106,3 +107,15 @@ export const TEAM_STATUS_OTHER: { key: string; label: string }[] = [
   { key: "post incident", label: "Post Incident Management" },
   { key: "wheels down", label: "Wheels Down" },
 ];
+
+const TEAM_STATUS_LABELS = new Map(
+  [...TEAM_STATUS_STEPS, ...TEAM_STATUS_OTHER].map((s) => [s.key, s.label]),
+);
+
+// Status pills always show a human-readable, capitalized label — the raw
+// status_key (e.g. "aol", "in progress") is only for color lookup/storage,
+// mirroring desktop's _display_label()/TEAM_STATUS_DISPLAY title-casing.
+export function teamStatusLabel(key: string): string {
+  const k = (key ?? "").trim().toLowerCase();
+  return TEAM_STATUS_LABELS.get(k) ?? k.replace(/\b\w/g, (c) => c.toUpperCase());
+}

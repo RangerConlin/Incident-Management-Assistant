@@ -688,6 +688,17 @@ export interface ApprovalInstance {
   completed_at: string | null;
 }
 
+// What `start`/`sign` would do on their own, before anyone confirms or
+// overrides it — used to show "Submit to <name>?" before committing.
+export interface ApprovalPreviewRow {
+  step_id: string;
+  label: string;
+  kind: "sequential" | "parallel" | "ack";
+  resolved_actor_id: number | null;
+  resolved_actor_name: string | null;
+  resolved_role: string | null;
+}
+
 export interface ChannelsPlanValidation {
   messages: { level: "conflict" | "warning"; text: string }[];
   conflicts: number;

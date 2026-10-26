@@ -7,7 +7,7 @@ import StatusPill from "../../../components/table/StatusPill";
 import type { TaskRow } from "../../../api/types";
 import { useSession } from "../../../auth/SessionContext";
 import { formatDateTime } from "../../../utils/formatDateTime";
-import { TASK_STATUS_OPTIONS, useCreateTask, useSetTaskStatus, useTaskRows } from "./hooks";
+import { TASK_STATUS_OPTIONS, taskStatusLabel, useCreateTask, useSetTaskStatus, useTaskRows } from "./hooks";
 
 export default function TaskStatusBoardPage() {
   const { incidentId } = useSession();
@@ -45,7 +45,7 @@ export default function TaskStatusBoardPage() {
       header: "Status",
       sortable: true,
       sortValue: (r) => r.status,
-      render: (r) => <StatusPill domain="task" statusKey={r.status} />,
+      render: (r) => <StatusPill domain="task" statusKey={r.status} label={taskStatusLabel(r.status)} />,
       defaultWidth: 130,
     },
     { key: "priority", header: "Priority", defaultWidth: 100 },

@@ -155,6 +155,21 @@ Incident Report (IWI)
 [Medical]
 Medical Plan ICS 206
 
+- ICS-206 Hospitals "Find Nearby" has no trauma-level or burn-center data source, 2026-09-19.
+  The nearby-hospital search is backed by CMS Hospital General Information (has
+  emergency_services Yes/No, geocoded and cached per state), but CMS carries no trauma
+  level, pediatric trauma level, or burn-center designation, so the preparer must fill
+  those fields in by hand after adding a hospital. No free, queryable, nationally
+  consistent source was found for this (ACS's verified-trauma-center list is a search
+  page with no download; EMNet/findERnow's national database is researcher-access-only
+  or paid; the American Burn Association's verified-burn-center list is a directory page
+  with no bulk download/API found; HIFLD's TRAUMA field is stale and inconsistently
+  formatted). State health department trauma-designation lists (e.g. Michigan MDHHS
+  publishes a PDF) are the most promising free/official route but are state-by-state,
+  manually downloaded, and would need a one-time importer that matches each state list
+  to CMS hospitals by name/city and flags unmatched rows for manual review. Needs a
+  decision on which state(s) to prioritize and whether to build the matching importer.
+
 **************************************************************************************************************
 [Liaison]
   - Web/API gaps: contacts and interactions support creation but no edit/delete endpoints;

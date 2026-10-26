@@ -22,6 +22,24 @@ SNAPSHOT_MAX_COLLECTION_DOCS = 5000
 SNAPSHOT_MAX_HEAVY_COLLECTION_DOCS = 500
 
 
+def _active_op_period_from_cache(incident_id: str) -> Optional[dict]:
+    """Read the active operational period out of the just-loaded snapshot.
+
+    Mirrors OperationalPeriodRepository.get_active_period's cache branch.
+    Returns None (not an error) when the cache holds no "Active" period, so
+    the caller falls back to the server for an incident with no op periods.
+    """
+    if incident_cache.incident_id != incident_id:
+        return None
+    periods = incident_cache.get_all("operational_periods")
+    active = [p for p in periods if p.get("status") == "Active"]
+    if not active:
+        return None
+    active.sort(key=lambda p: str(p.get("updated_at") or ""), reverse=True)
+    top = active[0]
+    return {**top, "id": top.get("id") or top.get("int_id")}
+
+
 def activate_incident(incident_id: Optional[str]) -> None:
     """Tear down the previous incident's cache/WS and bring up the new one."""
     global _ws_client
@@ -63,12 +81,16 @@ def activate_incident(incident_id: Optional[str]) -> None:
         " (truncated)" if telemetry.get("snapshot_truncated") else "",
     )
 
-    # Initialize the active operational period from the server so it is
-    # known program-wide immediately after incident selection.
+    # Initialize the active operational period so it is known program-wide
+    # immediately after incident selection. The snapshot just loaded above
+    # already contains the incident's operational_periods, so read the
+    # active one from there instead of a second round trip to the server.
     try:
-        op_data = api_client.get(
-            f"/api/incidents/{incident_id}/planning/operational-periods/active"
-        )
+        op_data = _active_op_period_from_cache(incident_id)
+        if op_data is None:
+            op_data = api_client.get(
+                f"/api/incidents/{incident_id}/planning/operational-periods/active"
+            )
         if op_data:
             from utils.state import AppState
             AppState.set_active_op_period({

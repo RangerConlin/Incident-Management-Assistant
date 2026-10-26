@@ -249,10 +249,21 @@ class TeamTaskDesk(QObject):
     def _build_task_rows(self, tasks: list[dict[str, Any]], teams: list[dict[str, Any]]) -> list[dict[str, Any]]:
         rows: list[dict[str, Any]] = []
         strategy_cache: dict[Any, str] = {}
-        try:
-            from modules.operations.taskings.repository import list_strategies_for_task
-        except Exception:
-            list_strategies_for_task = None  # type: ignore[assignment]
+        # Tasks don't embed their linked work assignments yet, so any task
+        # missing `task_links` needs them looked up. Do that with a single
+        # request grouping every work assignment's links by task_id, instead
+        # of one request per task (this board can show dozens of tasks).
+        needs_lookup = any(
+            not (doc.get("task_links") or []) and doc.get("int_id") is not None
+            for doc in tasks
+        )
+        strategies_by_task: dict[int, list[dict[str, Any]]] = {}
+        if needs_lookup:
+            try:
+                from modules.operations.taskings.repository import list_strategies_by_task
+                strategies_by_task = list_strategies_by_task()
+            except Exception:
+                strategies_by_task = {}
         for doc in sorted(tasks, key=lambda t: t.get("int_id") or 0):
             task_int_id = doc.get("int_id")
             task_str_id = doc.get("task_id") or str(task_int_id)
@@ -284,13 +295,10 @@ class TeamTaskDesk(QObject):
             except (ValueError, TypeError):
                 pass
             task_links = doc.get("task_links") or []
-            if not task_links and list_strategies_for_task and task_int_id is not None:
+            if not task_links and task_int_id is not None:
                 cache_key = task_int_id
                 if cache_key not in strategy_cache:
-                    try:
-                        linked = list_strategies_for_task(int(task_int_id))
-                    except Exception:
-                        linked = []
+                    linked = strategies_by_task.get(int(task_int_id), [])
                     summary = ""
                     if linked:
                         first = linked[0]

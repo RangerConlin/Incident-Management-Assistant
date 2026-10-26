@@ -122,15 +122,10 @@ class AppStatusBar(QtWidgets.QStatusBar):
                 self._set_approvals(None)
                 return
 
-            # Resolve roles for this person
-            assignments = api_client.get(
-                f"/api/incidents/{incident_id}/org/assignments/by-person/{personnel_id}"
-            ) or []
-            roles = [a.get("position_title", "") for a in assignments if a.get("position_title")]
-
-            result = api_client.post(
-                f"/api/incidents/{incident_id}/approvals/pending",
-                json={"roles": roles, "person_record": int(personnel_id)},
+            # The server resolves this person's held roles itself, so one
+            # GET is enough (no need to fetch role assignments separately).
+            result = api_client.get(
+                f"/api/incidents/{incident_id}/approvals/pending/{int(personnel_id)}"
             ) or []
             self._set_approvals(len(result))
         except Exception:

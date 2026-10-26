@@ -22,7 +22,7 @@ from sarapp_db.mongo.database_manager import get_incident_db
 from sarapp_db.mongo.repository import BaseRepository
 from sarapp_db.services.notification_service import emit_notification
 
-from .incident_org import _assignments_from_position, _org_repo
+from .incident_org import _assignments_from_position, _org_repo, _person_name
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -281,11 +281,21 @@ class SaveRecordRequest(BaseModel):
     notes: Optional[str] = None
 
 
+class StartRequest(BaseModel):
+    # step_id -> person_record the submitter confirmed or chose, for whatever
+    # step(s) are about to activate. Omitting a step_id falls back to normal
+    # role resolution for that step.
+    assign_actors: dict[str, int] = {}
+
+
 class SignRequest(BaseModel):
     step_id: str
     actor_id: int
     action: str
     notes: Optional[str] = None
+    # Same idea as StartRequest.assign_actors, for whatever step(s) activate
+    # as a result of this sign.
+    assign_actors: dict[str, int] = {}
 
 
 class EntityStatusRequest(BaseModel):
@@ -351,19 +361,40 @@ def _new_step(step: ApprovalStepSpec) -> dict[str, Any]:
     }
 
 
-def _activate_step(incident_id: str, entity_type: str, entity_id: str, step: dict[str, Any]) -> None:
+def _resolve_step_actor(incident_id: str, step: dict[str, Any]) -> tuple[Optional[int], Optional[str]]:
+    """What the engine would pick for this step on its own, before any
+    submitter override — the escalation chain's automatic answer."""
+    if step["kind"] in ("ack", "flexible") or not step["role"]:
+        return None, None
+    return _resolve_actor(incident_id, step["role"])
+
+
+def _activate_step(
+    incident_id: str,
+    entity_type: str,
+    entity_id: str,
+    step: dict[str, Any],
+    assign_actors: dict[str, int],
+) -> None:
     step["status"] = "active"
     step["activated_at"] = _utc_now()
-    # "flexible" steps have no role to resolve — they wait for someone to be
-    # picked explicitly via the assign-step endpoint below. A role-based step
-    # that resolves to nobody (role vacant, and so is everything above it up
-    # to the Incident Commander) ends up in the same waiting-for-a-pick state.
-    if step["kind"] not in ("ack", "flexible") and step["role"]:
-        actor_id, resolved_role = _resolve_actor(incident_id, step["role"])
-        step["resolved_actor_id"] = actor_id
-        step["resolved_role"] = resolved_role
-        if actor_id is not None:
-            _notify_step_awaiting(incident_id, entity_type, entity_id, step)
+    if step["kind"] == "ack":
+        return
+
+    actor_id, resolved_role = _resolve_step_actor(incident_id, step)
+    # The submitter can confirm or override the automatic pick — for a
+    # "flexible" step (no role at all) or a role that came up vacant all the
+    # way to the Incident Commander, this is the only way it ever gets
+    # anyone; for a normally-resolved step, it's "submit to X instead?".
+    override = assign_actors.get(step["step_id"])
+    if override is not None and override != actor_id:
+        actor_id = override
+        resolved_role = "Selected by submitter"
+
+    step["resolved_actor_id"] = actor_id
+    step["resolved_role"] = resolved_role
+    if actor_id is not None:
+        _notify_step_awaiting(incident_id, entity_type, entity_id, step)
 
 
 def _notify_step_awaiting(incident_id: str, entity_type: str, entity_id: str, step: dict[str, Any]) -> None:
@@ -390,24 +421,31 @@ def _notify_step_awaiting(incident_id: str, entity_type: str, entity_id: str, st
         )
 
 
-def _activate_next_steps(incident_id: str, instance: dict[str, Any]) -> None:
+def _waiting_at_min_order(instance: dict[str, Any]) -> list[dict[str, Any]]:
     waiting = [s for s in instance["steps"] if s["status"] == "waiting"]
     if not waiting:
-        return
+        return []
     min_order = min(s["order"] for s in waiting)
-    for step in waiting:
-        if step["order"] == min_order:
-            _activate_step(incident_id, instance["entity_type"], instance["entity_id"], step)
+    return [s for s in waiting if s["order"] == min_order]
 
 
-def _advance(incident_id: str, instance: dict[str, Any], now: str) -> None:
+def _activate_next_steps(
+    incident_id: str, instance: dict[str, Any], assign_actors: Optional[dict[str, int]] = None
+) -> None:
+    for step in _waiting_at_min_order(instance):
+        _activate_step(incident_id, instance["entity_type"], instance["entity_id"], step, assign_actors or {})
+
+
+def _advance(
+    incident_id: str, instance: dict[str, Any], now: str, assign_actors: Optional[dict[str, int]] = None
+) -> None:
     active_remaining = [s for s in instance["steps"] if s["status"] == "active"]
     waiting_remaining = [s for s in instance["steps"] if s["status"] == "waiting"]
     if not active_remaining and not waiting_remaining:
         instance["status"] = "approved"
         instance["completed_at"] = now
     elif not active_remaining:
-        _activate_next_steps(incident_id, instance)
+        _activate_next_steps(incident_id, instance, assign_actors)
 
 
 def _write_status_to_entity(incident_id: str, instance: dict[str, Any]) -> None:
@@ -429,8 +467,32 @@ def _write_status_to_entity(incident_id: str, instance: dict[str, Any]) -> None:
         repo.update_one(existing["_id"], {"approval_status": instance["status"]})
 
 
+@router.get("/{incident_id}/approvals/{entity_type}/{entity_id}/start/preview")
+def preview_start(incident_id: str, entity_type: str, entity_id: str) -> list[dict[str, Any]]:
+    """What `start` would do on its own — the step(s) that would activate
+    and who each would resolve to — without creating or saving anything.
+    Lets a client show "Submit to <name>?" before the submitter commits."""
+    spec = _get_spec(entity_type)
+    steps = [_new_step(s) for s in spec.steps]
+    fake_instance = {"entity_type": entity_type, "entity_id": entity_id, "steps": steps}
+    # "ack" steps have nothing to confirm — anyone can acknowledge them.
+    return [_preview_row(incident_id, s) for s in _waiting_at_min_order(fake_instance) if s["kind"] != "ack"]
+
+
+def _preview_row(incident_id: str, step: dict[str, Any]) -> dict[str, Any]:
+    actor_id, resolved_role = _resolve_step_actor(incident_id, step)
+    return {
+        "step_id": step["step_id"],
+        "label": step["label"],
+        "kind": step["kind"],
+        "resolved_actor_id": actor_id,
+        "resolved_actor_name": _person_name(actor_id) if actor_id is not None else None,
+        "resolved_role": resolved_role,
+    }
+
+
 @router.post("/{incident_id}/approvals/{entity_type}/{entity_id}/start")
-def start_instance(incident_id: str, entity_type: str, entity_id: str) -> dict[str, Any]:
+def start_instance(incident_id: str, entity_type: str, entity_id: str, body: StartRequest = StartRequest()) -> dict[str, Any]:
     spec = _get_spec(entity_type)
     if spec.precondition and not spec.precondition(incident_id, entity_id):
         raise HTTPException(
@@ -445,9 +507,33 @@ def start_instance(incident_id: str, entity_type: str, entity_id: str) -> dict[s
         "started_at": _utc_now(),
         "completed_at": None,
     }
-    _activate_next_steps(incident_id, instance)
+    _activate_next_steps(incident_id, instance, body.assign_actors)
     _save_instance(incident_id, instance)
     return instance
+
+
+@router.get("/{incident_id}/approvals/{entity_type}/{entity_id}/sign/preview")
+def preview_sign(incident_id: str, entity_type: str, entity_id: str, step_id: str) -> list[dict[str, Any]]:
+    """What completing `step_id` would activate next, and who each newly
+    active step would resolve to — without saving anything. Lets a client
+    show "this will go to <name> next — change?" before the signer commits."""
+    import copy
+
+    repo = _instances_repo(incident_id)
+    instance = repo.find_one(
+        {"incident_id": incident_id, "entity_type": entity_type, "entity_id": entity_id}
+    )
+    if instance is None:
+        raise HTTPException(404, "Approval instance not found")
+    sim = copy.deepcopy(instance)
+    step = next((s for s in sim["steps"] if s["step_id"] == step_id), None)
+    if step is None:
+        raise HTTPException(404, f"Step not found: {step_id}")
+    step["status"] = "completed"
+    active_remaining = [s for s in sim["steps"] if s["status"] == "active"]
+    if active_remaining:
+        return []  # other steps still pending — nothing new activates yet
+    return [_preview_row(incident_id, s) for s in _waiting_at_min_order(sim) if s["kind"] != "ack"]
 
 
 @router.post("/{incident_id}/approvals/{entity_type}/{entity_id}/sign")
@@ -503,7 +589,7 @@ def sign_instance(
         instance["status"] = "rejected"
         instance["completed_at"] = now
     else:
-        _advance(incident_id, instance, now)
+        _advance(incident_id, instance, now, body.assign_actors)
 
     _save_instance(incident_id, instance)
     _write_status_to_entity(incident_id, instance)
@@ -537,7 +623,7 @@ def assign_step(
     if step.get("resolved_actor_id") is not None:
         raise HTTPException(400, "This step already has someone assigned.")
     step["resolved_actor_id"] = body.actor_id
-    step["resolved_role"] = "Manually assigned"
+    step["resolved_role"] = "Selected by submitter"
     _save_instance(incident_id, instance)
     _notify_step_awaiting(incident_id, entity_type, entity_id, step)
     return _strip_id(instance)

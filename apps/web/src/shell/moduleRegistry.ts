@@ -4,6 +4,26 @@
 // entry here from "planned" to "live" and pointing `path` at its route — no
 // other shell code changes.
 
+import type { LucideIcon } from "lucide-react";
+import {
+  Shield,
+  ClipboardList,
+  Activity,
+  Truck,
+  Radio,
+  HeartPulse,
+  Search,
+  Handshake,
+  Users,
+  BookOpen,
+  FileText,
+  CircleDollarSign,
+  Megaphone,
+  Map,
+  Wrench,
+  Settings as SettingsIcon,
+} from "lucide-react";
+
 export interface ModuleEntry {
   key: string;
   label: string;
@@ -13,15 +33,15 @@ export interface ModuleEntry {
 
 export interface ModuleSection {
   section: string;
-  /** Short glyph for the icon rail (AppShell) — 2-3 chars, no icon font in this app yet. */
-  icon: string;
+  /** Sidebar icon for this section group. */
+  icon: LucideIcon;
   modules: ModuleEntry[];
 }
 
 export const MODULE_REGISTRY: ModuleSection[] = [
   {
     section: "Command",
-    icon: "CM",
+    icon: Shield,
     modules: [
       { key: "command-dashboard", label: "Command Dashboard", path: "/command", status: "live" },
       { key: "incident-overview", label: "Incident Overview", path: "/command/overview", status: "live" },
@@ -32,7 +52,7 @@ export const MODULE_REGISTRY: ModuleSection[] = [
   },
   {
     section: "Planning",
-    icon: "PL",
+    icon: ClipboardList,
     modules: [
       { key: "planning-dashboard", label: "Planning Dashboard", path: "/planning", status: "live" },
       { key: "strategic-objectives", label: "Strategic Objectives", path: "/planning/objectives", status: "live" },
@@ -45,7 +65,7 @@ export const MODULE_REGISTRY: ModuleSection[] = [
   },
   {
     section: "Operations",
-    icon: "OP",
+    icon: Activity,
     modules: [
       { key: "team-status-board", label: "Team Status Board", path: "/ops/teams", status: "live" },
       { key: "task-status-board", label: "Task Status Board", path: "/ops/tasks", status: "live" },
@@ -53,7 +73,7 @@ export const MODULE_REGISTRY: ModuleSection[] = [
   },
   {
     section: "Logistics",
-    icon: "LG",
+    icon: Truck,
     modules: [
       { key: "logistics-dashboard", label: "Logistics", path: "/logistics", status: "live" },
       { key: "resource-status-board", label: "Resource Status Board", path: "/logistics/resources", status: "live" },
@@ -64,7 +84,7 @@ export const MODULE_REGISTRY: ModuleSection[] = [
   },
   {
     section: "Communications",
-    icon: "CO",
+    icon: Radio,
     modules: [
       { key: "comms-plan", label: "Communications Plan", path: "/comms/plan", status: "live" },
       { key: "comms-log", label: "Traffic Log", path: "/comms/log", status: "live" },
@@ -72,7 +92,7 @@ export const MODULE_REGISTRY: ModuleSection[] = [
   },
   {
     section: "Medical & Safety",
-    icon: "MS",
+    icon: HeartPulse,
     modules: [
       { key: "medical", label: "Medical", path: "/medical", status: "live" },
       { key: "safety", label: "Safety / CAP ORM", path: "/safety", status: "live" },
@@ -81,17 +101,17 @@ export const MODULE_REGISTRY: ModuleSection[] = [
   },
   {
     section: "Intel",
-    icon: "IN",
+    icon: Search,
     modules: [{ key: "intel", label: "Intel", path: "/intel", status: "live" }],
   },
   {
     section: "Liaison",
-    icon: "LI",
+    icon: Handshake,
     modules: [{ key: "liaison", label: "Liaison", path: "/liaison", status: "live" }],
   },
   {
     section: "Personnel & Role Management",
-    icon: "PR",
+    icon: Users,
     modules: [
       { key: "personnel", label: "Personnel", path: "/personnel", status: "live" },
       { key: "certifications", label: "Certifications", path: "/personnel/certifications", status: "live" },
@@ -99,32 +119,32 @@ export const MODULE_REGISTRY: ModuleSection[] = [
   },
   {
     section: "Reference Library",
-    icon: "RL",
+    icon: BookOpen,
     modules: [{ key: "reference-library", label: "Reference Library", path: "/reference-library", status: "live" }],
   },
   {
     section: "ICS Forms & Documentation",
-    icon: "FM",
+    icon: FileText,
     modules: [{ key: "forms", label: "Forms", path: "/forms", status: "live" }],
   },
   {
     section: "Finance/Admin",
-    icon: "FA",
+    icon: CircleDollarSign,
     modules: [{ key: "finance", label: "Finance/Admin", path: "/finance", status: "live" }],
   },
   {
     section: "Public Information",
-    icon: "PI",
+    icon: Megaphone,
     modules: [{ key: "pio", label: "Public Information", path: "/pio", status: "live" }],
   },
   {
     section: "GIS",
-    icon: "GS",
+    icon: Map,
     modules: [{ key: "gis", label: "GIS", path: "/gis", status: "live" }],
   },
   {
     section: "Toolkits",
-    icon: "TK",
+    icon: Wrench,
     modules: [
       { key: "sar-toolkit", label: "SAR Toolkit", path: "/toolkits/sar", status: "live" },
       { key: "disaster-toolkit", label: "Disaster Response Toolkit", path: "/toolkits/disaster", status: "live" },
@@ -134,7 +154,7 @@ export const MODULE_REGISTRY: ModuleSection[] = [
   },
   {
     section: "Admin",
-    icon: "AD",
+    icon: SettingsIcon,
     modules: [
       { key: "admin-catalogs", label: "Admin Catalogs", path: "/admin/catalogs", status: "live" },
       { key: "ui-customization", label: "UI Customization", path: "/admin/ui-customization", status: "live" },
@@ -142,8 +162,8 @@ export const MODULE_REGISTRY: ModuleSection[] = [
   },
 ];
 
-/** The section (if any) whose modules include this pathname — drives both
- * the icon rail's active state and the module sub-tab row. */
+/** The section (if any) whose modules include this pathname — drives the
+ * sidebar's expanded-group and active-link state. */
 export function findSectionForPath(pathname: string): ModuleSection | undefined {
   return MODULE_REGISTRY.find((section) => section.modules.some((m) => pathname.startsWith(m.path)));
 }

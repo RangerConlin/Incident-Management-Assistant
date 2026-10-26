@@ -2,7 +2,9 @@ import { useState } from "react";
 import { useSession } from "../../auth/SessionContext";
 import StatusPill from "../table/StatusPill";
 import AssignStepControl from "./AssignStepControl";
-import { useApprovalInstance, useAssignApprovalStep, useSignApprovalStep, useStartApproval } from "./hooks";
+import SubmitApprovalDialog from "./SubmitApprovalDialog";
+import { fetchSignPreview, fetchStartPreview, useApprovalInstance, useAssignApprovalStep, useSignApprovalStep, useStartApproval } from "./hooks";
+import type { ApprovalPreviewRow } from "../../api/types";
 
 const OVERALL_LABELS: Record<string, string> = {
   not_started: "Not Started",
@@ -18,6 +20,8 @@ interface ApprovalPanelProps {
   startLabel?: string;
 }
 
+type PendingConfirm = { kind: "start" } | { kind: "sign"; stepId: string };
+
 export default function ApprovalPanel({ incidentId, entityType, entityId, startLabel = "Submit for Approval" }: ApprovalPanelProps) {
   const { personnel } = useSession();
   const personRecord = personnel?.person_record ?? null;
@@ -26,19 +30,68 @@ export default function ApprovalPanel({ incidentId, entityType, entityId, startL
   const sign = useSignApprovalStep(incidentId, entityType, entityId);
   const assign = useAssignApprovalStep(incidentId, entityType, entityId);
   const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState<PendingConfirm | null>(null);
+  const [previewRows, setPreviewRows] = useState<ApprovalPreviewRow[]>([]);
 
   if (!entityId || isLoading) return null;
 
-  const act = (stepId: string, action: "approved" | "rejected") => {
+  const beginStart = async () => {
+    setError(null);
+    try {
+      const rows = await fetchStartPreview(incidentId, entityType, entityId);
+      if (rows.length === 0) {
+        start.mutate({}, { onError: (err) => setError(err instanceof Error ? err.message : "Submission failed.") });
+        return;
+      }
+      setPreviewRows(rows);
+      setPending({ kind: "start" });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not load submission preview.");
+    }
+  };
+
+  const beginSign = async (stepId: string) => {
     if (!personRecord) {
       setError("You must be signed in as a person record to act on this step.");
       return;
     }
     setError(null);
+    try {
+      const rows = await fetchSignPreview(incidentId, entityType, entityId, stepId);
+      if (rows.length === 0) {
+        sign.mutate(
+          { step_id: stepId, actor_id: personRecord, action: "approved" },
+          { onError: (err) => setError(err instanceof Error ? err.message : "Sign failed.") }
+        );
+        return;
+      }
+      setPreviewRows(rows);
+      setPending({ kind: "sign", stepId });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not load sign preview.");
+    }
+  };
+
+  const reject = (stepId: string) => {
+    if (!personRecord) return;
+    setError(null);
     sign.mutate(
-      { step_id: stepId, actor_id: personRecord, action },
-      { onError: (err) => setError(err instanceof Error ? err.message : "Sign failed.") }
+      { step_id: stepId, actor_id: personRecord, action: "rejected" },
+      { onError: (err) => setError(err instanceof Error ? err.message : "Reject failed.") }
     );
+  };
+
+  const confirmPending = (assignActors: Record<string, number>) => {
+    if (!pending) return;
+    if (pending.kind === "start") {
+      start.mutate(assignActors, { onError: (err) => setError(err instanceof Error ? err.message : "Submission failed.") });
+    } else if (personRecord) {
+      sign.mutate(
+        { step_id: pending.stepId, actor_id: personRecord, action: "approved", assign_actors: assignActors },
+        { onError: (err) => setError(err instanceof Error ? err.message : "Sign failed.") }
+      );
+    }
+    setPending(null);
   };
 
   const assignStep = (stepId: string, personRecordToAssign: number) => {
@@ -53,13 +106,16 @@ export default function ApprovalPanel({ incidentId, entityType, entityId, startL
     <div className="field" style={{ marginTop: 16 }}>
       <h3 style={{ marginBottom: 8 }}>Approval</h3>
       {error && <p className="error">{error}</p>}
+      {pending && (
+        <SubmitApprovalDialog
+          title={pending.kind === "start" ? "Submit for Approval" : "Sign — next step"}
+          rows={previewRows}
+          onConfirm={confirmPending}
+          onCancel={() => setPending(null)}
+        />
+      )}
       {instance === null ? (
-        <button
-          className="secondary"
-          style={{ width: "auto" }}
-          disabled={start.isPending}
-          onClick={() => start.mutate(undefined, { onError: (err) => setError(err instanceof Error ? err.message : "Submission failed.") })}
-        >
+        <button className="secondary" style={{ width: "auto" }} disabled={start.isPending} onClick={beginStart}>
           {startLabel}
         </button>
       ) : instance ? (
@@ -78,23 +134,20 @@ export default function ApprovalPanel({ incidentId, entityType, entityId, startL
                 <StatusPill domain="approval-step" statusKey={step.status} label={step.status} />
                 <span>
                   {step.label}
-                  {step.resolved_role && step.resolved_role !== step.role ? ` (${step.resolved_role.toLowerCase() === "manually assigned" ? "manually assigned" : `escalated to ${step.resolved_role}`})` : ""}
+                  {step.resolved_role && step.resolved_role !== step.role
+                    ? ` (${step.resolved_role === "Selected by submitter" ? "selected by submitter" : `escalated to ${step.resolved_role}`})`
+                    : ""}
                 </span>
                 {needsAssignment && (
                   <AssignStepControl disabled={assign.isPending} onAssign={(personRecordToAssign) => assignStep(step.step_id, personRecordToAssign)} />
                 )}
                 {canSign && (
                   <div style={{ display: "flex", gap: 4 }}>
-                    <button style={{ width: "auto" }} disabled={sign.isPending} onClick={() => act(step.step_id, "approved")}>
+                    <button style={{ width: "auto" }} disabled={sign.isPending} onClick={() => beginSign(step.step_id)}>
                       Sign
                     </button>
                     {step.kind !== "ack" && (
-                      <button
-                        className="secondary"
-                        style={{ width: "auto" }}
-                        disabled={sign.isPending}
-                        onClick={() => act(step.step_id, "rejected")}
-                      >
+                      <button className="secondary" style={{ width: "auto" }} disabled={sign.isPending} onClick={() => reject(step.step_id)}>
                         Reject
                       </button>
                     )}

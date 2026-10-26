@@ -27,6 +27,7 @@ import TaskPickerDialog from "./TaskPickerDialog";
 import {
   STATUSES_REQUIRING_TASK,
   TEAM_STATUS_OTHER,
+  teamStatusLabel,
   useAssignTeamToTask,
   useCreateTeam,
   useResetCommPing,
@@ -133,7 +134,7 @@ export default function TeamStatusBoardPage() {
       header: "Status",
       sortable: true,
       sortValue: (r) => r.status,
-      render: (r) => <StatusPill domain="team" statusKey={r.status} />,
+      render: (r) => <StatusPill domain="team" statusKey={r.status} label={teamStatusLabel(r.status)} />,
       defaultWidth: 120,
     },
     { key: "assignment", header: "Assignment", defaultWidth: 200 },

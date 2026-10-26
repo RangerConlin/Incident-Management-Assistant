@@ -191,6 +191,15 @@ def _get_active_incident_cached() -> dict | None:
     return _get_incident_by_number(AppState.get_active_incident())
 
 
+def _resolve_saved_theme_name(settings_manager: SettingsManager) -> str:
+    """Resolve the saved themeName setting to a concrete "light"/"dark" profile."""
+    saved = str(settings_manager.get("themeName") or "system").lower()
+    if saved == "system":
+        from styles.profiles import get_profile_name
+        return get_profile_name()
+    return saved if saved in {"light", "dark"} else "light"
+
+
 def _qobject_is_alive(obj: object | None) -> bool:
     if obj is None:
         return False
@@ -4098,6 +4107,13 @@ if __name__ == "__main__":
     # Kept outside the branch so debug bypass startup still has settings_manager.
     _early_settings = SettingsManager()
 
+    from styles.profiles import profile_tokens
+    from ui.splash_screen import SplashScreen
+
+    _splash = SplashScreen(profile_tokens(_resolve_saved_theme_name(_early_settings)))
+    _splash.show()
+    _splash.set_status("Connecting...")
+
     if DEBUG_BYPASS_LOGIN:
         _connection_manager = _activate_debug_bypass(app)
     else:
@@ -4149,8 +4165,11 @@ if __name__ == "__main__":
                 login.offline_start_failed()
 
         login.startOfflineRequested.connect(_handle_start_offline)
+        _splash.hide()
         if login.exec() != QDialog.Accepted:
             sys.exit(0)
+        _splash.show()
+        _splash.set_status("Loading incident data...")
 
     # Build main window after session is established
     settings_manager = _early_settings
@@ -4182,19 +4201,13 @@ if __name__ == "__main__":
 
     # Initialize theme manager/bridge at app level as well
     try:
-        saved = settings_bridge.getSetting('themeName') or 'system'
-        saved = str(saved).lower()
-        if saved == 'system':
-            from styles.profiles import get_profile_name
-            saved = get_profile_name()
-        elif saved not in {"light", "dark"}:
-            saved = "light"
-        _theme_manager = ThemeManager(app, initial_theme=saved)
+        _theme_manager = ThemeManager(app, initial_theme=_resolve_saved_theme_name(settings_manager))
         _theme_bridge = ThemeBridge(_theme_manager.tokens())
     except Exception:
         _theme_manager = None  # type: ignore[assignment]
         _theme_bridge = None   # type: ignore[assignment]
 
+    _splash.set_status("Building workspace...")
     win = MainWindow(
         settings_manager=settings_manager,
         settings_bridge=settings_bridge,
@@ -4205,4 +4218,5 @@ if __name__ == "__main__":
     from modules.devtools.dev_menu import attach_dev_menu
     attach_dev_menu(win)
     win.showMaximized()
+    _splash.finish(win)
     sys.exit(app.exec())

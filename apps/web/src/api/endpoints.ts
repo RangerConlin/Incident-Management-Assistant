@@ -23,6 +23,7 @@ import type {
   CommsLogEntry,
   CommunicationsPlan,
   ApprovalInstance,
+  ApprovalPreviewRow,
   Incident,
   FormExportDefinition,
   FormExportRequest,
@@ -760,13 +761,23 @@ export const saveCommunicationsPlan = (id: string, body: Record<string, unknown>
 const approvalsBase = (id: string) => `/api/incidents/${encodeURIComponent(id)}/approvals`;
 export const getApprovalInstance = (id: string, entityType: string, entityId: string) =>
   api.get<ApprovalInstance>(`${approvalsBase(id)}/instances/${entityType}/${encodeURIComponent(entityId)}`);
-export const startApproval = (id: string, entityType: string, entityId: string) =>
-  api.post<ApprovalInstance>(`${approvalsBase(id)}/${entityType}/${encodeURIComponent(entityId)}/start`);
+export const previewStartApproval = (id: string, entityType: string, entityId: string) =>
+  api.get<ApprovalPreviewRow[]>(`${approvalsBase(id)}/${entityType}/${encodeURIComponent(entityId)}/start/preview`);
+export const startApproval = (id: string, entityType: string, entityId: string, assignActors: Record<string, number> = {}) =>
+  api.post<ApprovalInstance>(`${approvalsBase(id)}/${entityType}/${encodeURIComponent(entityId)}/start`, { assign_actors: assignActors });
+export const previewSignApproval = (id: string, entityType: string, entityId: string, stepId: string) =>
+  api.get<ApprovalPreviewRow[]>(`${approvalsBase(id)}/${entityType}/${encodeURIComponent(entityId)}/sign/preview?step_id=${encodeURIComponent(stepId)}`);
 export const signApprovalStep = (
   id: string,
   entityType: string,
   entityId: string,
-  body: { step_id: string; actor_id: number; action: "approved" | "rejected" | "acknowledged"; notes?: string }
+  body: {
+    step_id: string;
+    actor_id: number;
+    action: "approved" | "rejected" | "acknowledged";
+    notes?: string;
+    assign_actors?: Record<string, number>;
+  }
 ) => api.post<ApprovalInstance>(`${approvalsBase(id)}/${entityType}/${encodeURIComponent(entityId)}/sign`, body);
 export const assignApprovalStep = (
   id: string,

@@ -32,7 +32,7 @@ function useInvalidateApprovalInstance(incidentId: string, entityType: string, e
 export function useStartApproval(incidentId: string, entityType: string, entityId: string | null) {
   const invalidate = useInvalidateApprovalInstance(incidentId, entityType, entityId);
   return useMutation({
-    mutationFn: () => api.startApproval(incidentId, entityType, entityId!),
+    mutationFn: (assignActors: Record<string, number> = {}) => api.startApproval(incidentId, entityType, entityId!, assignActors),
     onSuccess: invalidate,
   });
 }
@@ -40,10 +40,23 @@ export function useStartApproval(incidentId: string, entityType: string, entityI
 export function useSignApprovalStep(incidentId: string, entityType: string, entityId: string | null) {
   const invalidate = useInvalidateApprovalInstance(incidentId, entityType, entityId);
   return useMutation({
-    mutationFn: (body: { step_id: string; actor_id: number; action: "approved" | "rejected" | "acknowledged"; notes?: string }) =>
-      api.signApprovalStep(incidentId, entityType, entityId!, body),
+    mutationFn: (body: {
+      step_id: string;
+      actor_id: number;
+      action: "approved" | "rejected" | "acknowledged";
+      notes?: string;
+      assign_actors?: Record<string, number>;
+    }) => api.signApprovalStep(incidentId, entityType, entityId!, body),
     onSuccess: invalidate,
   });
+}
+
+export async function fetchStartPreview(incidentId: string, entityType: string, entityId: string) {
+  return api.previewStartApproval(incidentId, entityType, entityId);
+}
+
+export async function fetchSignPreview(incidentId: string, entityType: string, entityId: string, stepId: string) {
+  return api.previewSignApproval(incidentId, entityType, entityId, stepId);
 }
 
 export function useAssignApprovalStep(incidentId: string, entityType: string, entityId: string | null) {

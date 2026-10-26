@@ -14,8 +14,15 @@ class ApprovalService:
     # ------------------------------------------------------------------
     # Starting the approval process
 
-    def start(self, entity_type: str, entity_id: str) -> ApprovalInstance:
-        instance = self.repo.start(entity_type, entity_id)
+    def preview_start(self, entity_type: str, entity_id: str) -> list[dict]:
+        """Who `start` would send each about-to-activate step to, for a
+        "Submit to X?" confirmation before the submitter commits."""
+        return self.repo.preview_start(entity_type, entity_id)
+
+    def start(
+        self, entity_type: str, entity_id: str, assign_actors: Optional[dict[str, int]] = None
+    ) -> ApprovalInstance:
+        instance = self.repo.start(entity_type, entity_id, assign_actors)
         self._notify_awaiting_me(instance)
         return instance
 
@@ -40,6 +47,11 @@ class ApprovalService:
             return True
         return step.resolved_actor_id == person_record
 
+    def preview_sign(self, instance: ApprovalInstance, step_id: str) -> list[dict]:
+        """Who completing `step_id` would hand the next step(s) to, for a
+        "this will go to X next — change?" confirmation before signing."""
+        return self.repo.preview_sign(instance.entity_type, instance.entity_id, step_id)
+
     def sign(
         self,
         instance: ApprovalInstance,
@@ -47,8 +59,11 @@ class ApprovalService:
         actor_id: int,
         action: Action,
         notes: Optional[str] = None,
+        assign_actors: Optional[dict[str, int]] = None,
     ) -> ApprovalInstance:
-        updated = self.repo.sign(instance.entity_type, instance.entity_id, step_id, actor_id, action, notes)
+        updated = self.repo.sign(
+            instance.entity_type, instance.entity_id, step_id, actor_id, action, notes, assign_actors
+        )
         self._notify_awaiting_me(updated)
         return updated
 

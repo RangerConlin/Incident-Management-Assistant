@@ -39,6 +39,7 @@ from utils.table_view_styles import apply_statusboard_table_behavior
 from modules.approvals.service import ApprovalService
 from modules.approvals.panels.approval_timeline import ApprovalTimeline
 from modules.approvals.panels.assign_step_dialog import AssignStepDialog
+from modules.approvals.panels.submit_approval_dialog import SubmitApprovalDialog
 
 _NON_EDITABLE_KEYS = {"priority", "encryption"}
 
@@ -371,8 +372,16 @@ class ICS205Window(QWidget):
             return
         from PySide6.QtWidgets import QMessageBox
         incident_id = str(AppState.get_active_incident())
+        service = ApprovalService(incident_id)
+        rows = service.preview_start("ics_205", self._plan_id)
+        assign_actors = {}
+        if rows:
+            dlg = SubmitApprovalDialog("Submit for Approval", rows, self)
+            if not dlg.exec():
+                return
+            assign_actors = dlg.chosen_actors()
         try:
-            ApprovalService(incident_id).start("ics_205", self._plan_id)
+            service.start("ics_205", self._plan_id, assign_actors)
         except Exception as exc:
             QMessageBox.critical(self, "Submission Failed", str(exc))
             return
@@ -392,8 +401,15 @@ class ICS205Window(QWidget):
         if not service.can_sign(instance, step_id, person_record, service.assignment_type_for(person_record)):
             QMessageBox.information(self, "Sign", "You are not able to act on this approval step.")
             return
+        rows = service.preview_sign(instance, step_id)
+        assign_actors = {}
+        if rows:
+            dlg = SubmitApprovalDialog("Sign — next step", rows, self)
+            if not dlg.exec():
+                return
+            assign_actors = dlg.chosen_actors()
         try:
-            service.sign(instance, step_id=step_id, actor_id=person_record, action="approved")
+            service.sign(instance, step_id=step_id, actor_id=person_record, action="approved", assign_actors=assign_actors)
         except Exception as exc:
             QMessageBox.critical(self, "Sign Failed", str(exc))
             return

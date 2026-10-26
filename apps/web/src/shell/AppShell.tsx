@@ -1,12 +1,13 @@
 import { version } from "../../package.json";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { ChevronRight, LogOut, Settings as SettingsIcon } from "lucide-react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { listIncidents } from "../api/endpoints";
 import { useSession } from "../auth/SessionContext";
 import { useConnectionStatus } from "../realtime/IncidentSocketProvider";
-import { applyTheme, getStoredTheme } from "../styles/statusColors";
-import { findSectionForPath, MODULE_REGISTRY, type ModuleSection } from "./moduleRegistry";
+import brandMark from "../assets/branding/arc_horizon_mark.png";
+import { findLiveModule, findSectionForPath, MODULE_REGISTRY, type ModuleSection } from "./moduleRegistry";
 
 function ConnectionIndicator() {
   const status = useConnectionStatus();
@@ -20,24 +21,38 @@ function ConnectionIndicator() {
   );
 }
 
-function CurrentIncident() {
+function IncidentChip() {
   const { incidentId } = useSession();
-  const navigate = useNavigate();
   const { data: incidents = [] } = useQuery({
     queryKey: ["incidents"],
     queryFn: listIncidents,
     staleTime: 60_000,
   });
   const current = incidents.find((i) => i.id === incidentId);
-
+  if (!current) return null;
   return (
-    <div className="current-incident">
-      <span className="current-incident-label">
-        {current ? `${current.number} — ${current.name}` : "No incident selected"}
-      </span>
-      <button className="secondary" style={{ width: "auto" }} onClick={() => navigate("/select-incident")}>
-        Switch
-      </button>
+    <div className="app-incident-chip">
+      <div className="eyebrow">Incident</div>
+      <div className="name">
+        {current.number} — {current.name}
+      </div>
+    </div>
+  );
+}
+
+function BrandPill() {
+  return (
+    <div className="app-brand-row">
+      <div className="app-brand-pill">
+        <img className="app-brand-mark" src={brandMark} alt="" />
+        <div className="sb-wordmark">
+          <span className="title">
+            <span className="arc">ARC</span>
+            <span className="horizon">HORIZON</span>
+          </span>
+          <span className="subtitle">Incident Command Assistant</span>
+        </div>
+      </div>
     </div>
   );
 }
@@ -46,100 +61,155 @@ function firstNavigableModule(section: ModuleSection) {
   return section.modules.find((m) => m.status === "live") ?? section.modules[0];
 }
 
-function ModuleRail({ activeSection }: { activeSection: ModuleSection | undefined }) {
-  const navigate = useNavigate();
+function NavGroup({
+  section,
+  isOpen,
+  hasActive,
+  onToggle,
+}: {
+  section: ModuleSection;
+  isOpen: boolean;
+  hasActive: boolean;
+  onToggle: () => void;
+}) {
+  const Icon = section.icon;
   return (
-    <aside className="app-rail">
-      <div className="app-rail-brand">SA</div>
-      {MODULE_REGISTRY.map((section) => {
-        const hasLiveModule = section.modules.some((m) => m.status === "live");
-        const isActive = section.section === activeSection?.section;
-        return (
-          <button
+    <div className={"app-nav-group" + (isOpen ? " open" : "") + (hasActive ? " has-active" : "")}>
+      <button type="button" className="app-nav-group-btn" onClick={onToggle}>
+        <Icon className="icon" />
+        <span className="label">{section.section}</span>
+        <ChevronRight className="chev" />
+      </button>
+      <div className="app-nav-children">
+        {section.modules.map((mod) =>
+          mod.status === "live" ? (
+            <NavLink key={mod.key} to={mod.path} className={({ isActive }) => (isActive ? "active" : "")}>
+              {mod.label}
+            </NavLink>
+          ) : (
+            <a key={mod.key} className="planned" title="Not built yet">
+              {mod.label}
+              <span className="soon">Soon</span>
+            </a>
+          )
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Sidebar({ activeSection }: { activeSection: ModuleSection | undefined }) {
+  const navigate = useNavigate();
+  const [openSection, setOpenSection] = useState<string | undefined>(activeSection?.section);
+
+  useEffect(() => {
+    if (activeSection) setOpenSection(activeSection.section);
+  }, [activeSection?.section]);
+
+  return (
+    <aside className="app-sidebar">
+      <BrandPill />
+      <IncidentChip />
+      <nav className="app-nav">
+        {MODULE_REGISTRY.map((section) => (
+          <NavGroup
             key={section.section}
-            type="button"
-            className={"app-rail-button" + (isActive ? " active" : "") + (hasLiveModule ? "" : " disabled")}
-            title={section.section + (hasLiveModule ? "" : " (not built yet)")}
-            disabled={!hasLiveModule}
-            onClick={() => navigate(firstNavigableModule(section).path)}
-          >
-            {section.icon}
-          </button>
-        );
-      })}
+            section={section}
+            isOpen={openSection === section.section}
+            hasActive={activeSection?.section === section.section}
+            onToggle={() => {
+              const next = openSection === section.section ? undefined : section.section;
+              setOpenSection(next);
+              if (next && !activeSection) {
+                navigate(firstNavigableModule(section).path);
+              }
+            }}
+          />
+        ))}
+      </nav>
     </aside>
   );
 }
 
-function ModuleTabs({ section }: { section: ModuleSection | undefined }) {
-  if (!section) return null;
+function UserMenu() {
+  const { user, logout } = useSession();
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("click", onClick);
+    return () => document.removeEventListener("click", onClick);
+  }, [open]);
+
+  const initials = (user?.display_name ?? "?")
+    .split(" ")
+    .map((p) => p[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+
   return (
-    <div className="app-module-tabs">
-      <span className="app-module-tabs-label">{section.section}</span>
-      {section.modules.map((mod) =>
-        mod.status === "live" ? (
-          <NavLink
-            key={mod.key}
-            to={mod.path}
-            end={section.modules.some(other => other.path !== mod.path && other.path.startsWith(`${mod.path}/`))}
-            className={({ isActive }) => "app-module-tab" + (isActive ? " active" : "")}
-          >
-            {mod.label}
-          </NavLink>
-        ) : (
-          <span key={mod.key} className="app-module-tab planned" title="Not built yet">
-            {mod.label}
-          </span>
-        )
-      )}
+    <div className={"app-usermenu" + (open ? " open" : "")} ref={ref}>
+      <button type="button" className="app-usermenu-trigger" onClick={() => setOpen((o) => !o)}>
+        <span className="app-usermenu-avatar">{initials}</span>
+        <span>{user?.display_name}</span>
+      </button>
+      <div className="app-usermenu-panel">
+        <button
+          type="button"
+          onClick={() => {
+            setOpen(false);
+            navigate("/settings");
+          }}
+        >
+          <SettingsIcon size={15} />
+          Settings
+        </button>
+        <div className="divider" />
+        <button
+          type="button"
+          onClick={() => {
+            logout();
+            navigate("/login");
+          }}
+        >
+          <LogOut size={15} />
+          Sign out
+        </button>
+      </div>
     </div>
   );
 }
 
 export default function AppShell() {
-  const { user, logout } = useSession();
-  const navigate = useNavigate();
   const location = useLocation();
-  const [theme, setTheme] = useState(getStoredTheme());
   const activeSection = findSectionForPath(location.pathname);
-
-  const toggleTheme = () => {
-    const next = theme === "dark" ? "light" : "dark";
-    applyTheme(next);
-    setTheme(next);
-  };
+  const activeModule = findLiveModule(location.pathname);
 
   return (
     <div className="app-shell">
-      <ModuleRail activeSection={activeSection} />
+      <Sidebar activeSection={activeSection} />
       <div className="app-main">
         <header className="app-topbar">
-          <CurrentIncident />
+          <div className="app-crumb">
+            {activeSection ? <b>{activeSection.section}</b> : <b>SARApp</b>}
+            {activeModule && (
+              <>
+                <span className="sep">/</span>
+                {activeModule.label}
+              </>
+            )}
+          </div>
           <div className="app-topbar-right">
             <ConnectionIndicator />
-            <button className="secondary" style={{ width: "auto" }} onClick={toggleTheme}>
-              {theme === "dark" ? "Light mode" : "Dark mode"}
-            </button>
-            <button className="secondary" style={{ width: "auto" }} onClick={() => navigate("/connection")}>
-              Connection
-            </button>
-            <button className="secondary" style={{ width: "auto" }} onClick={() => navigate("/change-password")}>
-              Change Password
-            </button>
-            <span>{user?.display_name}</span>
-            <button
-              className="secondary"
-              style={{ width: "auto" }}
-              onClick={() => {
-                logout();
-                navigate("/login");
-              }}
-            >
-              Sign Out
-            </button>
+            <UserMenu />
           </div>
         </header>
-        <ModuleTabs section={activeSection} />
         <main className="app-content">
           <Outlet />
         </main>

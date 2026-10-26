@@ -1584,6 +1584,36 @@ def list_strategies_for_task(task_id: int) -> List[Dict[str, Any]]:
         return []
 
 
+def list_strategies_by_task() -> Dict[int, List[Dict[str, Any]]]:
+    """Group every work assignment's task links by task_id in one request.
+
+    Same per-task result shape as `list_strategies_for_task`, but built from a
+    single `GET .../planning/work-assignments` call instead of one call per
+    task — callers that need this for every task on a board (e.g. a task
+    status board) should use this instead of looping `list_strategies_for_task`.
+    """
+    grouped: Dict[int, List[Dict[str, Any]]] = {}
+    try:
+        work_assignments = _client().get(f"/api/incidents/{_iid()}/planning/work-assignments") or []
+    except Exception:
+        return grouped
+    for wa in work_assignments:
+        for link in wa.get("task_links") or []:
+            task_id = link.get("task_id")
+            if task_id is None:
+                continue
+            grouped.setdefault(int(task_id), []).append({
+                "id": wa.get("id"),
+                "assignment_number": wa.get("assignment_number", ""),
+                "assignment_name": wa.get("assignment_name", ""),
+                "objective_id": wa.get("objective_id"),
+                "planning_status": wa.get("planning_status", "Draft"),
+                "link_id": link.get("id"),
+                "link_type": link.get("link_type", ""),
+            })
+    return grouped
+
+
 def link_task_to_strategy(task_id: int, work_assignment_id: int) -> None:
     _client().post(
         f"/api/incidents/{_iid()}/planning/work-assignments/{work_assignment_id}/task-links",

@@ -33,9 +33,17 @@ class ApprovalRepository:
         except Exception:
             return None
 
-    def start(self, entity_type: str, entity_id: str) -> ApprovalInstance:
-        doc = self._post(f"/{entity_type}/{entity_id}/start", {})
+    def preview_start(self, entity_type: str, entity_id: str) -> list[dict[str, Any]]:
+        return self._get(f"/{entity_type}/{entity_id}/start/preview")
+
+    def start(
+        self, entity_type: str, entity_id: str, assign_actors: Optional[dict[str, int]] = None
+    ) -> ApprovalInstance:
+        doc = self._post(f"/{entity_type}/{entity_id}/start", {"assign_actors": assign_actors or {}})
         return ApprovalInstance.from_dict(doc)
+
+    def preview_sign(self, entity_type: str, entity_id: str, step_id: str) -> list[dict[str, Any]]:
+        return self._get(f"/{entity_type}/{entity_id}/sign/preview", step_id=step_id)
 
     def sign(
         self,
@@ -45,12 +53,14 @@ class ApprovalRepository:
         actor_id: int,
         action: str,
         notes: Optional[str] = None,
+        assign_actors: Optional[dict[str, int]] = None,
     ) -> ApprovalInstance:
         doc = self._post(f"/{entity_type}/{entity_id}/sign", {
             "step_id": step_id,
             "actor_id": actor_id,
             "action": action,
             "notes": notes,
+            "assign_actors": assign_actors or {},
         })
         return ApprovalInstance.from_dict(doc)
 

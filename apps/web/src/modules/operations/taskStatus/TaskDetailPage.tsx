@@ -11,6 +11,7 @@ import {
   TASK_PRIORITIES,
   TASK_STATUS_OPTIONS,
   TASK_TYPES_BY_CATEGORY,
+  taskStatusLabel,
   useSetTaskStatus,
   useTaskDetail,
   useUpdateTask,
@@ -164,7 +165,7 @@ export default function TaskDetailPage() {
             <div className="field">
               <label>Status</label>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <StatusPill domain="task" statusKey={task.status.toLowerCase()} />
+                <StatusPill domain="task" statusKey={task.status.toLowerCase()} label={taskStatusLabel(task.status)} />
                 <select
                   value=""
                   onChange={(e) => e.target.value && setStatus.mutate({ taskId: id, statusKey: e.target.value })}

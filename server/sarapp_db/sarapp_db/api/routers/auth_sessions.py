@@ -30,6 +30,7 @@ from sarapp_db.mongo.collection_names import MasterCollections
 from sarapp_db.mongo.database_manager import DB_MASTER, get_master_db
 from sarapp_db.mongo.int_id import next_record_id
 from sarapp_db.mongo.mongo_client import get_client
+from sarapp_db.sync.readthrough import refresh_collection_before_read
 
 router = APIRouter()
 
@@ -137,6 +138,7 @@ def _login_person(person: dict[str, Any]) -> dict[str, Any]:
 def _person_id_matches(person_id: str) -> list[dict[str, Any]]:
     """All personnel records whose visible person_id equals ``person_id``."""
 
+    refresh_collection_before_read(MasterCollections.PERSONNEL)
     matches = list(_personnel_col().find({"person_id": person_id}))
     if person_id.isdigit():
         seen = {m.get("person_record") for m in matches}
@@ -152,6 +154,7 @@ def _find_person(identifier: Any) -> dict[str, Any] | None:
     value = str(identifier).strip()
     if not value:
         return None
+    refresh_collection_before_read(MasterCollections.PERSONNEL)
     if value.isdigit():
         doc = _personnel_col().find_one({"person_record": int(value)})
         if doc:
@@ -165,6 +168,7 @@ def _find_unique_person_by_person_id(person_id: Any) -> dict[str, Any] | None:
     value = str(person_id).strip()
     if not value:
         return None
+    refresh_collection_before_read(MasterCollections.PERSONNEL)
     matches = list(_personnel_col().find({"person_id": value}).sort("person_record", 1))
     if value.isdigit():
         numeric_matches = list(
