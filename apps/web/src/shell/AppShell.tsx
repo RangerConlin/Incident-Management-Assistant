@@ -118,11 +118,12 @@ function Sidebar({ activeSection }: { activeSection: ModuleSection | undefined }
             isOpen={openSection === section.section}
             hasActive={activeSection?.section === section.section}
             onToggle={() => {
-              const next = openSection === section.section ? undefined : section.section;
-              setOpenSection(next);
-              if (next && !activeSection) {
-                navigate(firstNavigableModule(section).path);
-              }
+              // Clicking a category opens it and takes the user straight to
+              // its dashboard (first live module) — not just an expand/
+              // collapse toggle with no destination.
+              setOpenSection(section.section);
+              const target = firstNavigableModule(section);
+              if (target) navigate(target.path);
             }}
           />
         ))}

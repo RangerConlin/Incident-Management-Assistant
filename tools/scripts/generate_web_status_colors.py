@@ -55,7 +55,12 @@ STATUS_DICTS = [
 # vocabulary) — generated alongside the derived blocks so the file stays one
 # piece, but these specific lines are not sourced from profiles/*.py.
 SELECTED_OUTLINE = {"dark": "#5b9bd5", "light": "#1565c0"}
-ALERT_ATTENTION = {"dark": "#a88f1a", "light": "#ffc107"}
+# Was {"dark": "#a88f1a", "light": "#ffc107"} — the dark value was, byte for
+# byte, TEAM_STATUS's "assigned" color, so a KPI tile meant to flag urgent
+# problems read identically to a routine "Assigned" count. A rose/crimson
+# distinct from both "assigned" (amber, #a88f1a) and "out of service" (brick
+# red, #8c2f2f dark / #E53935 light) so all three read as separate colors.
+ALERT_ATTENTION = {"dark": "#d6336c", "light": "#c2185b"}
 
 
 def _slug(key: str) -> str:

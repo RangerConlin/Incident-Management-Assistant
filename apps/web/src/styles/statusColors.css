@@ -186,7 +186,7 @@
   --color-selected-outline: #5b9bd5;
 
   /* Cross-cutting alert accent (needs-attention/overdue), not a status value */
-  --status-alert-attention-bg: #a88f1a;
+  --status-alert-attention-bg: #d6336c;
 }
 
 :root[data-theme="light"] {
@@ -365,5 +365,5 @@
   --color-selected-outline: #1565c0;
 
   /* Cross-cutting alert accent (needs-attention/overdue), not a status value */
-  --status-alert-attention-bg: #ffc107;
+  --status-alert-attention-bg: #c2185b;
 }

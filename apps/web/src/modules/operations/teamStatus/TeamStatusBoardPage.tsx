@@ -75,22 +75,25 @@ export default function TeamStatusBoardPage() {
     return [
       { key: "total", value: rows.length, label: "Teams" },
       {
-        key: "assigned",
-        value: count((r) => r.status === "assigned"),
-        label: "Assigned",
-        accent: teamStatusVar("assigned").bg,
-      },
-      {
-        key: "enroute",
-        value: count((r) => r.status === "enroute"),
-        label: "En Route",
-        accent: teamStatusVar("enroute").bg,
-      },
-      {
         key: "available",
         value: count((r) => r.status === "available"),
         label: "Available",
         accent: teamStatusVar("available").bg,
+      },
+      {
+        // A team assigned to a task but, say, enroute or on scene is still
+        // "assigned" in the sense that matters here — go by task_id, not
+        // the literal status === "assigned" step.
+        key: "assigned",
+        value: count((r) => r.task_id != null),
+        label: "Assigned",
+        accent: teamStatusVar("assigned").bg,
+      },
+      {
+        key: "out_of_service",
+        value: count((r) => r.status === "out of service"),
+        label: "Out of Service",
+        accent: teamStatusVar("out of service").bg,
       },
       {
         key: "needs_attention",
@@ -111,21 +114,27 @@ export default function TeamStatusBoardPage() {
 
   const columns: ColumnDef<TeamAssignmentRow>[] = [
     { key: "sortie", header: "Sortie #", defaultWidth: 90 },
-    { key: "name", header: "Team Name", sortable: true, sortValue: (r) => r.name, defaultWidth: 160 },
     {
-      key: "team_type",
-      header: "Team Type",
+      key: "name",
+      header: "Team",
+      sortable: true,
+      sortValue: (r) => r.name,
       render: (row) => {
         const definition = teamTypeByCode.get(row.team_type.toUpperCase());
         return (
-          <span style={{
-            display: "inline-block", padding: "2px 8px", borderRadius: 3,
-            backgroundColor: definition?.background_color,
-            color: definition?.text_color,
-          }} title={definition?.name}>{row.team_type}</span>
+          <div className="team-cell">
+            <div className="team-cell-name">{row.name}</div>
+            <span
+              className="team-cell-type"
+              style={{ backgroundColor: definition?.background_color, color: definition?.text_color }}
+              title={definition?.name}
+            >
+              {row.team_type}
+            </span>
+          </div>
         );
       },
-      defaultWidth: 100,
+      defaultWidth: 190,
     },
     { key: "leader", header: "Team Leader", defaultWidth: 150 },
     { key: "contact", header: "Contact #", defaultWidth: 130 },

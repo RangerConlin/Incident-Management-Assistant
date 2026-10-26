@@ -20,7 +20,7 @@ body {
   color: #e8e8e8;
 }
 
-h1, h2, .app-rail-brand, .sb-wordmark .title {
+h1, h2 {
   font-family: "Space Grotesk", "Inter", system-ui, sans-serif;
 }
 
@@ -179,6 +179,7 @@ button + button {
 }
 
 .sb-wordmark .title {
+  font-family: "Michroma", "Space Grotesk", sans-serif;
   font-size: 0.78rem;
   letter-spacing: 0.03em;
 }
@@ -553,11 +554,21 @@ button + button {
 
 table.data-table {
   width: 100%;
+  /* fixed, not auto: with auto layout the browser treats a resized column's
+   * width as a minimum hint only and won't shrink it below its content's
+   * natural width (a badge, a pill, an unbreakable word) — resize handles
+   * would work only "partway." Fixed layout makes the declared width (set
+   * via col-resize-handle below) authoritative; cell content wraps instead. */
+  table-layout: fixed;
   border-collapse: collapse;
   font-size: 0.88rem;
 }
 
 table.data-table thead th {
+  /* sticky already establishes a positioning context for the absolutely-
+   * positioned .col-resize-handle below — an extra `position: relative`
+   * here previously clobbered the sticky declaration (same property set
+   * twice), silently breaking the sticky header on scroll. */
   position: sticky;
   top: 0;
   background: #17191d;
@@ -566,7 +577,6 @@ table.data-table thead th {
   border-bottom: 1px solid #2a2d33;
   white-space: nowrap;
   user-select: none;
-  position: relative;
 }
 
 table.data-table thead th.sortable {
@@ -587,6 +597,13 @@ table.data-table tbody tr {
   cursor: pointer;
 }
 
+table.data-table tbody tr:last-child td {
+  /* otherwise this border sits flush against .data-table-scroll's own
+   * border directly below it — two 1px lines stacked at the bottom edge
+   * of every table in the app, reading as one thick "double" line. */
+  border-bottom: none;
+}
+
 table.data-table tbody td {
   padding: 8px 12px;
   border-bottom: 1px solid #202327;
@@ -604,6 +621,24 @@ table.data-table tbody tr.selected {
 
 table.data-table tbody tr.row-emergency {
   background: rgba(140, 47, 47, 0.25);
+}
+
+.team-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  align-items: flex-start;
+}
+
+.team-cell-name {
+  font-weight: 600;
+}
+
+.team-cell-type {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 3px;
+  font-size: 0.74rem;
 }
 
 .data-table-empty {
@@ -666,6 +701,17 @@ table.data-table tbody tr.row-emergency {
   border-left: 3px solid #4a5058;
   border-radius: 8px;
   padding: 8px 14px;
+}
+
+/* A non-zero count on an otherwise-quiet tile is worth noticing — fill it
+ * solid with its accent color instead of just tinting the left bar. */
+.kpi-tile-filled {
+  border-color: transparent;
+}
+
+.kpi-tile-filled .kpi-tile-value,
+.kpi-tile-filled .kpi-tile-label {
+  color: #ffffff;
 }
 
 .kpi-tile-value {
