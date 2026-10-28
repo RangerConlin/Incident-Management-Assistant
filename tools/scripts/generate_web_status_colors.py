@@ -62,6 +62,28 @@ SELECTED_OUTLINE = {"dark": "#5b9bd5", "light": "#1565c0"}
 # red, #8c2f2f dark / #E53935 light) so all three read as separate colors.
 ALERT_ATTENTION = {"dark": "#d6336c", "light": "#c2185b"}
 
+# A generic 4-step severity scale for computed, non-enum flags that have no
+# domain status field of their own (a team's emergency/needs-assistance
+# booleans, a task's "overdue" derived from due_time, a safety report's free
+# severity level) — web-only, same reasoning as ALERT_ATTENTION above. Reuses
+# SITREP_STATUS's needs_revision/ready_for_review/distributed/approved tones
+# rather than inventing new hex values, since that dict already is this same
+# critical/warning/info/good scale under sitrep-specific names.
+ALERT_SEVERITY = {
+    "dark": {
+        "critical": {"bg": "#c0392b", "fg": "#f5f5f5"},
+        "warning": {"bg": "#d4a017", "fg": "#1a1a1a"},
+        "info": {"bg": "#2980b9", "fg": "#f5f5f5"},
+        "good": {"bg": "#27ae60", "fg": "#f5f5f5"},
+    },
+    "light": {
+        "critical": {"bg": "#E53935", "fg": "#ffffff"},
+        "warning": {"bg": "#FFC107", "fg": "#1a1a1a"},
+        "info": {"bg": "#1E88E5", "fg": "#ffffff"},
+        "good": {"bg": "#43A047", "fg": "#ffffff"},
+    },
+}
+
 
 def _slug(key: str) -> str:
     return key.strip().lower().replace(" ", "-").replace("/", "-")
@@ -105,6 +127,10 @@ def _theme_block(profile_module, theme: str) -> str:
     lines.append("")
     lines.append("  /* Cross-cutting alert accent (needs-attention/overdue), not a status value */")
     lines.append(f"  --status-alert-attention-bg: {ALERT_ATTENTION[theme]};")
+    lines.append("")
+    lines.append("  /* Generic severity scale for computed flags with no domain status of their own */")
+    for key, colors in ALERT_SEVERITY[theme].items():
+        lines.append(f"  --status-severity-{key}-bg: {_hex(colors['bg'])}; --status-severity-{key}-fg: {_hex(colors['fg'])};")
     lines.append("}")
     return "\n".join(lines)
 

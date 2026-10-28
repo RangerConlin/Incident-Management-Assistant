@@ -187,6 +187,12 @@
 
   /* Cross-cutting alert accent (needs-attention/overdue), not a status value */
   --status-alert-attention-bg: #d6336c;
+
+  /* Generic severity scale for computed flags with no domain status of their own */
+  --status-severity-critical-bg: #c0392b; --status-severity-critical-fg: #f5f5f5;
+  --status-severity-warning-bg: #d4a017; --status-severity-warning-fg: #1a1a1a;
+  --status-severity-info-bg: #2980b9; --status-severity-info-fg: #f5f5f5;
+  --status-severity-good-bg: #27ae60; --status-severity-good-fg: #f5f5f5;
 }
 
 :root[data-theme="light"] {
@@ -366,4 +372,10 @@
 
   /* Cross-cutting alert accent (needs-attention/overdue), not a status value */
   --status-alert-attention-bg: #c2185b;
+
+  /* Generic severity scale for computed flags with no domain status of their own */
+  --status-severity-critical-bg: #e53935; --status-severity-critical-fg: #ffffff;
+  --status-severity-warning-bg: #ffc107; --status-severity-warning-fg: #1a1a1a;
+  --status-severity-info-bg: #1e88e5; --status-severity-info-fg: #ffffff;
+  --status-severity-good-bg: #43a047; --status-severity-good-fg: #ffffff;
 }

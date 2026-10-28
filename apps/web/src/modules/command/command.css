@@ -30,6 +30,80 @@
 @media (max-width: 1000px) { .command-grid { grid-template-columns: 1fr; } }
 @media (max-width: 600px) { .command-dashboard .command-heading { flex-direction: column; } }
 
+/* ---- Quick Entry: a compact row of small action buttons, above the page
+ * title — matches the mockup's qe-row.qe-compact. ---- */
+.command-dashboard .qe-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.command-dashboard .qe-btn {
+  background: #17191d; border: 1px solid #2a2d33; color: inherit;
+  border-radius: 999px; padding: 5px 11px; font: inherit; font-size: 0.74rem; font-weight: 650; cursor: pointer; width: auto;
+}
+.command-dashboard .qe-btn:hover { border-color: #4a5058; }
+
+/* ---- Incident info strip: a plain row (not a card) between the page
+ * header and the KPI tiles. ---- */
+.command-dashboard .info-strip {
+  display: flex; flex-wrap: wrap; gap: 20px 28px;
+  padding-bottom: 16px; margin-bottom: 18px; border-bottom: 1px solid #2a2d33;
+}
+.command-dashboard .info-item { display: flex; flex-direction: column; gap: 2px; }
+.command-dashboard .info-item.right { margin-left: auto; text-align: right; }
+.command-dashboard .info-item .k { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.65; font-weight: 650; }
+.command-dashboard .info-item .v { font-size: 0.86rem; font-weight: 600; }
+
+/* ---- Map Snapshot placeholder — real panel embeds the live incident map
+ * once GIS/map support exists in the web client (see backlog.md). ---- */
+.command-dashboard .map-mock {
+  position: relative; height: 220px; border-radius: 8px; overflow: hidden;
+  border: 1px solid #2a2d33;
+  background:
+    repeating-linear-gradient(0deg, transparent, transparent 27px, #2a2d33 28px),
+    repeating-linear-gradient(90deg, transparent, transparent 27px, #2a2d33 28px),
+    #1d2024;
+}
+.command-dashboard .map-pin {
+  position: absolute; width: 11px; height: 11px; border-radius: 50%;
+  background: #8a8f97; box-shadow: 0 0 0 4px rgba(138, 143, 151, 0.22);
+  transform: translate(-50%, -50%);
+}
+.command-dashboard .map-pin.good { background: var(--status-severity-good-bg); box-shadow: 0 0 0 4px color-mix(in srgb, var(--status-severity-good-bg) 22%, transparent); }
+.command-dashboard .map-pin.critical { background: var(--status-severity-critical-bg); box-shadow: 0 0 0 4px color-mix(in srgb, var(--status-severity-critical-bg) 22%, transparent); }
+.command-dashboard .map-pin.warning { background: var(--status-severity-warning-bg); box-shadow: 0 0 0 4px color-mix(in srgb, var(--status-severity-warning-bg) 22%, transparent); }
+
+/* ---- Entry cards: each list entry is its own card, tinted to its
+ * severity so color reads at a glance across the whole row, not just a
+ * small badge. Click expands it in place (accordion), not a side drawer —
+ * independent per card. ---- */
+.command-dashboard .entry-card {
+  position: relative; display: block; padding: 10px 34px 10px 12px;
+  border: 1px solid #2a2d33; border-radius: 9px;
+  background: #1d2024; margin-bottom: 8px; font-size: 0.84rem; cursor: pointer;
+  transition: border-color .12s ease;
+}
+.command-dashboard .entry-card:last-child { margin-bottom: 0; }
+.command-dashboard .entry-card:hover,
+.command-dashboard .entry-card.expanded { border-color: #4a5058; }
+.command-dashboard .entry-card .who { font-weight: 650; }
+.command-dashboard .entry-card .when { opacity: 0.65; font-size: 0.76rem; float: right; }
+.command-dashboard .entry-card p { margin: 4px 0 0; opacity: 0.75; }
+.command-dashboard .entry-chev {
+  position: absolute; right: 11px; top: 13px; width: 14px; height: 14px;
+  opacity: 0.65; transition: transform .15s ease;
+}
+.command-dashboard .entry-card.expanded .entry-chev { transform: rotate(90deg); }
+.command-dashboard .entry-detail { margin-top: 10px; padding-top: 10px; border-top: 1px solid #2a2d33; }
+.command-dashboard .entry-detail p { margin: 0 0 8px; }
+.command-dashboard .entry-detail a { font-size: 0.82rem; }
+.command-dashboard .entry-empty { opacity: 0.6; font-size: 0.84rem; padding: 10px 0; }
+
+/* Solid-filled flag badge — same convention as the real .pill (StatusPill):
+ * one solid color with white/near-black text per severity, not a tint. */
+.command-dashboard .flag {
+  display: inline-flex; align-items: center; font-size: 0.68rem; font-weight: 700;
+  padding: 2px 9px; border-radius: 999px; margin-right: 7px;
+  text-transform: uppercase; letter-spacing: 0.02em;
+}
+.command-dashboard .flag.neutral { background: #2a2d33; color: #c7cad1; }
+
 .command-page { display: grid; gap: 1rem; }
 .command-page .command-heading,
 .command-actions,

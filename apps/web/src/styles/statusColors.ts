@@ -165,3 +165,12 @@ export function approvalStepStatusVar(key: ApprovalStepStatusKey | string) { ret
 
 export type IntelPriorityKey = "Critical" | "High" | "Medium" | "Low";
 export function intelPriorityVar(key: IntelPriorityKey | string) { return statusVar("intel-priority", key); }
+
+// Generic severity scale for computed flags with no domain status enum of
+// their own (team attention flags, task overdue/due-soon, safety report
+// severity) — see tools/scripts/generate_web_status_colors.py's
+// ALERT_SEVERITY for the source values.
+export type SeverityKey = "critical" | "warning" | "info" | "good";
+export function severityVar(key: SeverityKey) {
+  return { bg: `var(--status-severity-${key}-bg)`, fg: `var(--status-severity-${key}-fg)` };
+}
