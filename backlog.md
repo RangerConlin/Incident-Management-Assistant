@@ -8,6 +8,19 @@ Incident Organization
 
 SITREP Window
 
+- IAP Builder (desktop) is currently broken, not just slim, 2026-10-28:
+  `modules/planning/windows.py::get_iap_builder_panel` imports
+  `app.modules.planning.iap.ui.iap_builder_window`, a module path that doesn't exist anywhere
+  in the tree (no `app/` package). Opening "Incident Action Plan Builder" from the Command menu
+  throws `ImportError` today. The real, fuller-featured implementation
+  (`legacy_app/modules/planning/iap/`: OP picker, New Draft/Publish/Export PDF/Duplicate OP
+  actions, form editor, packet viewer, creation wizard, autofill-preview panel) is unwired and
+  still SQLite-backed, never migrated to `sarapp_db`/Mongo. Needs a decision: fix the import to
+  point at `legacy_app` as a stopgap, or treat this as a from-scratch rebuild against
+  `sarapp_db`/`BaseRepository` (preferred, since the legacy code violates the current
+  UI -> API -> Mongo architecture) carrying over the OP-level actions and autofill-preview concept
+  that `apps/web/src/modules/command/IapPackageDetailPage.tsx` doesn't have yet either.
+
 - Command Dashboard redesign (modules/command/widgets/ic_overview_widget.py, 2026-07-21) has four
   panels still shipped as empty states because none of them have a backing data model yet. Each
   needs a real repository/schema/API route before it can show real data instead of a placeholder:
@@ -277,6 +290,19 @@ Cost Summary
         `QWebEngineView` — a real stack to port from, not a from-scratch build. Until this is built,
         either flip the registry entry to `"planned"` or build the module; either way the nav
         shouldn't claim a page exists that doesn't.
+      - Incident Organization (`IncidentOrganizationPage.tsx`) was rebuilt (2026-10-28) with a real
+        tree/detail split and a client-computed span-of-control warning, matching most of desktop's
+        `incident_organization_panel.py`. A dedicated Operations Section sub-view (desktop's
+        `ops_section_window.py`) was added as a modal (`OperationsSectionModal.tsx`, opened from the
+        Operations Section Chief node), covering the same org/personnel CRUD plus resource assignment
+        (team ↔ unit via the existing generic `updateTeam`, with a new `listResourceTypes()` wrapper for
+        the resource-kind pulldown — the backend route already existed, just wasn't exposed to web).
+        Two things intentionally still dropped, since they need real backend work first, not fake
+        client-side data: (1) qualification-mismatch warnings — `OrgPosition.required_qualifications` is
+        hardcoded to `[]` server-side (`incident_org.py::_pos_to_dict`), so there's no real qualification
+        data to check assignments against yet; (2) "Prepare ICS-207" has a disabled placeholder button
+        (per explicit request) but no `ics_207` form is registered in `sarapp_db.form_exports.builtins`
+        (ICS-203 is, and that one is wired up for real).
       - The app's own bundle can't be reached through a `/r/<code>/app/...` connect-code URL yet:
         `apps/web/vite.config.ts`'s `base: "/app/"` bakes absolute asset paths into `index.html`, which
         lose the `/r/<code>` prefix when a browser resolves them (`cloud_router` strips that prefix on the

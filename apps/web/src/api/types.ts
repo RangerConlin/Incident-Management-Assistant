@@ -133,6 +133,19 @@ export interface TeamDetail {
   aircraft_json: string;
   resource_type_id: number | string | null;
   readiness_status: string | null;
+  // Ad hoc fields written by the Operations Section resource-assignment
+  // form (no dedicated schema server-side, same as desktop's usage).
+  ics_resource_kind?: string | null;
+  resource_kind?: string | null;
+}
+
+// GET /api/resource-types — master resource-type catalog, used for the
+// Operations Section "Resource kind" pulldown.
+export interface ResourceType {
+  id: number | null;
+  name: string;
+  category: string;
+  is_active: boolean;
 }
 
 export interface TaskTeam {

@@ -8,6 +8,7 @@ export const useOrg = (id: string) => useQuery({ queryKey: ["incident",id,"incid
 export function useOrgWrites(id: string) { const c=useQueryClient(); const done=invalidate(c,id,"incident_org"); return {
   position: useMutation({ mutationFn: (body: Record<string,unknown>) => api.saveOrgPosition(id,body), onSuccess: done }),
   remove: useMutation({ mutationFn: (positionId: number) => api.deleteOrgPosition(id,positionId), onSuccess: done }),
+  move: useMutation({ mutationFn: (v: { positionId: number; parentPositionId: number|null }) => api.moveOrgPosition(id,v.positionId,v.parentPositionId), onSuccess: done }),
   apply: useMutation({ mutationFn: (payload: Record<string,unknown>[]) => api.applyOrgTemplate(id,payload), onSuccess: done }),
   assign: useMutation({ mutationFn: (body: Record<string,unknown>) => api.addOrgAssignment(id,body), onSuccess: done }),
   end: useMutation({ mutationFn: (assignmentId: string) => api.endOrgAssignment(id,assignmentId), onSuccess: done }),

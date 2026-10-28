@@ -73,7 +73,7 @@ import type {
   WorkAssignmentResourceRequirement,
   WorkAssignmentTaskLink,
   IncidentProfile, OrgAssignment, OrgPosition, OrgTemplate, IapPackage,
-  TeamTypeDefinition,
+  TeamTypeDefinition, ResourceType,
 } from "./types";
 
 export function lookupPerson(personId: string) {
@@ -88,6 +88,7 @@ export const updateIncidentProfile=(id:string,b:Record<string,unknown>)=>api.pat
 export const listOrgPositions=(id:string)=>api.get<OrgPosition[]>(`${commandBase(id)}/org/positions`);
 export const saveOrgPosition=(id:string,b:Record<string,unknown>)=>api.post<{position_id:number}>(`${commandBase(id)}/org/positions`,b);
 export const deleteOrgPosition=(id:string,p:number)=>api.delete<{ok:boolean}>(`${commandBase(id)}/org/positions/${p}`);
+export const moveOrgPosition=(id:string,p:number,parentPositionId:number|null)=>api.patch<{ok:boolean}>(`${commandBase(id)}/org/positions/${p}/move`,{parent_position_id:parentPositionId});
 export const listOrgAssignments=(id:string)=>api.get<OrgAssignment[]>(`${commandBase(id)}/org/assignments`);
 export const addOrgAssignment=(id:string,b:Record<string,unknown>)=>api.post<{assignment_id:string}>(`${commandBase(id)}/org/assignments`,b);
 export const endOrgAssignment=(id:string,a:string)=>api.patch<{ok:boolean}>(`${commandBase(id)}/org/assignments/${encodeURIComponent(a)}/end`,{});
@@ -141,6 +142,10 @@ export function fetchTeamAssignmentRows(incidentId: string) {
 
 export function listTeamTypes() {
   return api.get<TeamTypeDefinition[]>("/api/lookup/team-types");
+}
+
+export function listResourceTypes() {
+  return api.get<ResourceType[]>("/api/resource-types");
 }
 
 export function getTeam(incidentId: string, teamId: number) {
