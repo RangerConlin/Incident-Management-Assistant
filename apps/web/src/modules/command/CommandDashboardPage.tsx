@@ -98,7 +98,7 @@ export default function CommandDashboardPage() {
       { key: "objectives", label: "Active objectives", value: metric(objectives, activeObjectives.length), accent: objectiveStatusVar("active").bg },
     ]} />
 
-    <div className="panel-grid">
+    <div className="command-grid">
       <section className="command-panel" style={{ gridColumn: "1 / -1" }}>
         <h3>Map Snapshot</h3>
         <div className="map-mock">
