@@ -189,8 +189,15 @@ class _APIClient:
         notices, so the first write on a reused connection can land on an
         already-closed socket with no response. Retrying once with a fresh
         connection resolves it without masking real server-down errors.
+
+        Only safe (GET/HEAD/OPTIONS) methods are retried: a RemoteProtocolError
+        can also mean the server received and processed the request but the
+        connection dropped while the response was being read, so retrying a
+        write (POST/PUT/PATCH/DELETE) risks applying it twice.
         """
         extra = {} if timeout is None else {"timeout": timeout}
+        if method.upper() not in ("GET", "HEAD", "OPTIONS"):
+            return self._client.request(method, url, json=json, params=params or None, **extra)
         try:
             return self._client.request(method, url, json=json, params=params or None, **extra)
         except httpx.RemoteProtocolError:

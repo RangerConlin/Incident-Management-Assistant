@@ -36,7 +36,11 @@ def list_organization_names() -> list[str]:
         return []
 
 
-def make_org_combo(current_value: str = "") -> QComboBox:
+def make_org_combo(
+    current_value: str = "",
+    *,
+    names: list[str] | None = None,
+) -> QComboBox:
     """Build an editable QComboBox populated from Units & Organizations.
 
     `current_value` is preserved as the current text even if it isn't in
@@ -48,7 +52,7 @@ def make_org_combo(current_value: str = "") -> QComboBox:
     combo.setEditable(True)
     combo.setInsertPolicy(QComboBox.NoInsert)
     combo.setMaxVisibleItems(20)
-    names = list_organization_names()
+    names = list_organization_names() if names is None else names
     combo.addItems(names)
     completer = QCompleter(names, combo)
     completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)

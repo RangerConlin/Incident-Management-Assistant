@@ -168,5 +168,10 @@ def _stop_incident_cache_ws_after_test():
     """
     yield
     from utils import incident_cache_loader
+    from utils import incident_context
+    from utils.state import AppState
 
     incident_cache_loader.activate_incident(None)
+    incident_context.set_active_incident(None)
+    AppState._active_incident_number = None
+    AppState._active_op_period_id = None

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import Any, Dict, Optional, List
-from datetime import datetime
+from datetime import datetime, timezone
 
 from PySide6.QtCore import QObject, Property, Signal, Slot, Qt, QTimer, QPoint
 from PySide6.QtGui import QColor, QPalette, QTextOption, QStandardItemModel, QStandardItem
@@ -562,7 +562,7 @@ class TeamDetailBridge(QObject):
                     return
             # Placeholder: if current_task_id set, ensure comms preset exists or warn
             # (future: lookup against master db comms_resources)
-            self._team.last_update_ts = datetime.utcnow()
+            self._team.last_update_ts = datetime.now(timezone.utc)
             team_repo.save_team(self._team)
             # Notify others (refresh Team Status Panel) via incidentChanged
             self._emit_incident_refresh()

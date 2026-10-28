@@ -142,7 +142,18 @@ class TunnelRegistry:
     def register(self, connection: TunnelConnection) -> None:
         self._connections[connection.connect_code] = connection
 
-    def deregister(self, connect_code: str) -> None:
+    def deregister(self, connect_code: str, connection: "TunnelConnection | None" = None) -> None:
+        """Remove `connect_code`'s registration.
+
+        When `connection` is given, only removes it if it is still the
+        currently-registered connection for that code — a server that
+        reconnected (e.g. after a network blip) registers its new
+        connection under the same code before the old one's handler
+        notices it dropped, and that old handler's deferred `deregister`
+        call must not evict the new, live connection.
+        """
+        if connection is not None and self._connections.get(connect_code) is not connection:
+            return
         self._connections.pop(connect_code, None)
 
     def get(self, connect_code: str) -> TunnelConnection | None:

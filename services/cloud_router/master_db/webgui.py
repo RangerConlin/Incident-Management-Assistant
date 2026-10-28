@@ -125,33 +125,9 @@ def _bulk_editable_fields(spec: CollectionSpec) -> list[FieldSpec]:
     return [f for f in spec.fields if f.name in inline_fields and f.name not in _BULK_EDIT_EXCLUDED_FIELDS]
 
 
-# input_types the generic single-cell inline editor can always render
-# (a plain text box or checkbox) without a per-field, per-collection
-# options source. "select"/"select_fk"/"combo" need one of the
-# hand-wired option lists built in list_collection() (e.g. organization,
-# rank, vehicle type/status) and "list"/"password" need their own
-# dedicated UI, so only a field already in `inline_edit_fields` gets
-# those editor types — see _effective_inline_fields below.
-_SIMPLE_INLINE_TYPES = {"text", "number", "checkbox", "textarea"}
-
-
 def _effective_inline_fields(spec: CollectionSpec) -> set[str]:
-    """The full set of fields this collection's grid may edit in place.
-
-    `inline_edit_fields` stays the hand-curated list for fields that need
-    a per-row options source (foreign keys, selects). On top of that,
-    every plain text/number/checkbox/textarea field is always safe to
-    edit the same way, so the column-visibility picker can show any such
-    field and have it be just as editable as the ones already on the
-    grid by default — "visible" and "inline-editable" stay in lockstep
-    instead of needing each collection's curated list hand-extended.
-    """
-    fields = set(spec.inline_edit_fields or [])
-    fields.update(
-        f.name for f in spec.fields
-        if f.input_type in _SIMPLE_INLINE_TYPES and f.name not in {spec.record_field, "sort_order"}
-    )
-    return fields
+    """Return the collection's explicit inline-edit allowlist."""
+    return set(spec.inline_edit_fields or [])
 
 
 def _record_route_arg(spec: CollectionSpec, record_id: str) -> Any:
@@ -3413,7 +3389,7 @@ def create_master_gui_router() -> APIRouter:
             return _redirect_login(request)
         root_path = request.scope.get("root_path") or ""
         visible_specs = sorted(
-            specs.values(),
+            (spec for spec in specs.values() if spec.key != "ranks"),
             key=lambda spec: spec.title.lower(),
         )
         items = "".join(

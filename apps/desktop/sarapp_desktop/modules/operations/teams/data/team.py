@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 
@@ -27,7 +27,7 @@ class Team:
     team_leader_phone: Optional[str] = None
     phone: Optional[str] = None
     notes: Optional[str] = None
-    last_update_ts: datetime = field(default_factory=datetime.utcnow)
+    last_update_ts: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     last_comm_ts: Optional[datetime] = None
     last_known_lat: Optional[float] = None
     last_known_lon: Optional[float] = None
@@ -79,7 +79,7 @@ class Team:
             "leader_phone": self.team_leader_phone,
             "phone": self.phone,
             "notes": self.notes,
-            "status_updated": (self.last_update_ts or datetime.utcnow()).isoformat(timespec="seconds"),
+            "status_updated": (self.last_update_ts or datetime.now(timezone.utc)).isoformat(timespec="seconds"),
             "last_comm_ping": (self.last_comm_ts.isoformat(timespec="seconds") if self.last_comm_ts else None),
             "last_known_lat": self.last_known_lat,
             "last_known_lon": self.last_known_lon,
@@ -114,7 +114,7 @@ class Team:
             "team_leader_phone": self.team_leader_phone,
             "phone": self.phone,
             "notes": self.notes,
-            "last_update_ts": (self.last_update_ts or datetime.utcnow()).isoformat(timespec="seconds"),
+            "last_update_ts": (self.last_update_ts or datetime.now(timezone.utc)).isoformat(timespec="seconds"),
             "last_comm_ts": (self.last_comm_ts.isoformat(timespec="seconds") if self.last_comm_ts else None),
             "last_known_lat": self.last_known_lat,
             "last_known_lon": self.last_known_lon,

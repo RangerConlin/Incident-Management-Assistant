@@ -271,10 +271,7 @@ def save_checkin(record: CheckInRecord) -> CheckInRecord:
     if record.location:
         payload["location"] = record.location.value
 
-    try:
-        _client().post(f"/api/incidents/{incident_id}/resource-status", json=payload)
-    except Exception:
-        pass
+    _client().post(f"/api/incidents/{incident_id}/resource-status", json=payload)
     return record
 
 

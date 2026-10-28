@@ -2,16 +2,19 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Body, HTTPException, Query
 
-from sarapp_db.mongo.collection_names import MasterCollections
+from sarapp_db.mongo.collection_names import IncidentCollections, MasterCollections
 from sarapp_db.mongo.database_manager import get_incident_db, get_master_db
 from sarapp_db.mongo.int_id import _ensure_record_ids, dual_key_field, next_record_id
 from sarapp_db.mongo.repository import BaseRepository
 from sarapp_db.sync.readthrough import refresh_collection_before_read
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -41,12 +44,21 @@ class PersonnelRepository(BaseRepository):
     soft_deletes = False
 
 
+class IncidentPersonnelRepository(BaseRepository):
+    collection_name = IncidentCollections.INCIDENT_PERSONNEL
+    soft_deletes = False
+
+
 def _utcnow() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
 def _personnel_repo() -> PersonnelRepository:
     return PersonnelRepository(get_master_db())
+
+
+def _incident_personnel_repo(incident_id: str) -> IncidentPersonnelRepository:
+    return IncidentPersonnelRepository(get_incident_db(incident_id))
 
 
 def _record_field(repo: PersonnelRepository) -> str:
@@ -277,7 +289,7 @@ def update_person(
 
     if active_incident_id and updated:
         try:
-            incident_personnel_col = get_incident_db(active_incident_id)["incident_personnel"]
+            incident_personnel_repo = _incident_personnel_repo(active_incident_id)
             sync_fields = {
                 "name": updated.get("name"),
                 "rank": updated.get("rank"),
@@ -289,12 +301,15 @@ def update_person(
                 "person_id": updated.get("person_id") or "",
                 "is_medic": bool(updated.get("is_medic", False)),
             }
-            incident_personnel_col.update_one(
-                {_RECORD_FIELD: person_record},
-                {"$set": sync_fields},
-            )
+            linked = incident_personnel_repo.find_one({_RECORD_FIELD: person_record})
+            if linked:
+                incident_personnel_repo.update_one(linked["_id"], sync_fields)
         except Exception:
-            pass
+            logger.exception(
+                "personnel update mirror failed active_incident_id=%s person_record=%s",
+                active_incident_id,
+                person_record,
+            )
 
     return _normalize(updated or existing)
 

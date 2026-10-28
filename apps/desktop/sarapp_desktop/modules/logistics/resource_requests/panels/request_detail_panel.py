@@ -245,12 +245,24 @@ class ResourceRequestDetailPanel(QtWidgets.QWidget):
             if dialog.exec() != QtWidgets.QDialog.Accepted:
                 return
             note = dialog.note
+        action_buttons = (
+            self.submit_button,
+            self.review_button,
+            self.approve_button,
+            self.deny_button,
+            self.cancel_button,
+        )
+        for button in action_buttons:
+            button.setEnabled(False)
         try:
             self.service.record_approval(self.current_request_id, action.value, actor_id="ui", note=note)
             self.load_request(self.current_request_id)
             self.requestSaved.emit(self.current_request_id)
         except ValidationError as exc:
             QtWidgets.QMessageBox.warning(self, "Validation", str(exc))
+        finally:
+            for button in action_buttons:
+                button.setEnabled(True)
 
     def _assign_fulfillment(self) -> None:
         if not self.current_request_id:

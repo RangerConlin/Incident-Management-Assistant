@@ -13,8 +13,11 @@ windows.
 """
 from __future__ import annotations
 
+import logging
 from datetime import date, datetime
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
@@ -462,8 +465,11 @@ class RequestDetailDialog(QDialog):
                 incident_id=self.incident_id,
             )
             self._reload_narrative()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.exception(
+                "add_request_narrative_entry failed for request %s", self.request.get("int_id")
+            )
+            QMessageBox.warning(self, "Narrative", f"Could not save narrative entry:\n{exc}")
 
     def _convert_to_objective(self) -> None:
         dialog = ConvertDialog("Objective", self.summary_edit.text().strip(), self.priority_combo.currentText(), self)

@@ -121,7 +121,7 @@
     "statusboard.team.columns.hidden": [
         "vehicle"
     ],
-    "lastIncidentNumber": "5af1a964-e810-4978-87ef-e25ac55095fa",
+    "lastIncidentNumber": "test-incident",
     "statusboard.task.textSize": "large",
     "statusboard.team.refreshMs": 15000,
     "statusboard.team.columns.widths": {

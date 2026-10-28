@@ -12,6 +12,7 @@ from modules.admin.resource_packages.data.repository import ApiResourcePackageRe
 from modules.admin.resource_associations.widgets.resource_picker_dialog import ResourcePickerDialog
 from modules.operations.teams.data import repository as team_repo
 from modules.operations.teams.data.team import Team
+from modules.operations.teams.panels import team_builder_window
 from modules.operations.teams.panels.team_builder_window import TeamBuilderWindow, _PackageBrowserDialog
 
 
@@ -21,6 +22,11 @@ def qt_app() -> QApplication:
     if app is None:
         app = QApplication([])
     return app
+
+
+@pytest.fixture(autouse=True)
+def _isolate_team_type_catalog(monkeypatch):
+    monkeypatch.setattr(team_builder_window, "active_team_types", lambda: [])
 
 
 def _status_payload(**overrides):
@@ -159,6 +165,7 @@ def test_vehicle_substitution_replaces_entry(qt_app: QApplication, monkeypatch) 
     window = TeamBuilderWindow()
     try:
         window._append_resource("vehicle", 10, "Engine 1")
+        monkeypatch.setattr(ResourcePickerDialog, "_reload", lambda self: None)
 
         def fake_exec(self):
             self.selected_resource_type = "vehicle"

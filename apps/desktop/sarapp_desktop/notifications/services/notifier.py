@@ -45,12 +45,29 @@ class Notifier(QObject):
         self._thresholds: Dict[str, str] = dict(CATEGORY_TOAST_THRESHOLDS)
         self.rules = RulesEngine(self)
         self.scheduler = NotificationScheduler(self)
+        try:
+            from utils.app_signals import app_signals
+            app_signals.incidentChanged.connect(lambda _: self.clear())
+        except Exception:
+            logger.exception("Notifier failed to wire incidentChanged clear")
 
     @classmethod
     def instance(cls) -> "Notifier":
         if cls._instance is None:
             cls._instance = Notifier()
         return cls._instance
+
+    def clear(self) -> None:
+        """Drop all tracked notifications and throttle state.
+
+        Called on active-incident switch: this history is not scoped by
+        incident, so without clearing it, the previous incident's
+        notifications (and unread badge count) would bleed into the newly
+        active one.
+        """
+        self._recent = []
+        self._throttle = {}
+        self._emit_badge()
 
     def set_threshold(self, category: str, severity: str) -> None:
         """Set the minimum severity that will produce a toast for a category."""

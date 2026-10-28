@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from threading import Lock
 from typing import Any
 
-CLOUD_SERVER_VERSION = "0.1.8"
+CLOUD_SERVER_VERSION = "0.1.9"
 
 
 def utc_now() -> str:

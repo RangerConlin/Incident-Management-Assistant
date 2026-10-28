@@ -765,6 +765,7 @@ class MainWindow(QMainWindow):
         self._add_action(m_edit, "Safety Analysis Templates", None, "edit.safety_templates")
         self._add_action(m_edit, "Task Types", None, "edit.task_types")
         self._add_action(m_edit, "Team Types", None, "edit.team_types")
+        self._add_action(m_edit, "Units and Organizations", None, "edit.units_organizations")
         self._add_action(m_edit, "Vehicles", None, "edit.vehicles")
 
         # ----- View (moved under Menu) -----
@@ -829,6 +830,7 @@ class MainWindow(QMainWindow):
         m_plan = mb.addMenu("Planning")
         self._add_action(m_plan, "Planning Dashboard", "Ctrl+Alt+D", "planning.glance")
         self._add_action(m_plan, "Planning Unit Log ICS-214", None, "planning.unit_log")
+        self._add_action(m_plan, "Pending Approvals", None, "planning.approvals")
         m_plan.addSeparator()
         self._add_action(m_plan, "Operational Period Manager", None, "planning.op_manager")
         self._add_action(m_plan, "Demobilization Planner", None, "planning.demobilization")
@@ -1022,45 +1024,46 @@ class MainWindow(QMainWindow):
         act_new_ws.triggered.connect(self.open_new_workspace_window)
         m_window.addAction(act_new_ws)
 
-        # ----- Debug -----
-        self.menuDebug = self.menuBar().addMenu("Debug")
-        act = QAction("Print Active Incident", self)
-        act.triggered.connect(lambda: print(f"[debug] active incident={AppState.get_active_incident()!r}"))
-        self.menuDebug.addAction(act)
+        # ----- Debug ----- (dev-only; never shipped unless DEV_MODE is on)
+        if DEV_MODE:
+            self.menuDebug = self.menuBar().addMenu("Debug")
+            act = QAction("Print Active Incident", self)
+            act.triggered.connect(lambda: print(f"[debug] active incident={AppState.get_active_incident()!r}"))
+            self.menuDebug.addAction(act)
 
-        # Quick way to add sample docks to play with ADS
-        act_defaults = QAction("Open Default Docks", self)
-        act_defaults.triggered.connect(self._create_default_docks)
-        self.menuDebug.addAction(act_defaults)
+            # Quick way to add sample docks to play with ADS
+            act_defaults = QAction("Open Default Docks", self)
+            act_defaults.triggered.connect(self._create_default_docks)
+            self.menuDebug.addAction(act_defaults)
 
-        act_reset = QAction("Reset Layout (Default)", self)
-        act_reset.triggered.connect(self._reset_layout)
-        self.menuDebug.addAction(act_reset)
+            act_reset = QAction("Reset Layout (Default)", self)
+            act_reset.triggered.connect(self._reset_layout)
+            self.menuDebug.addAction(act_reset)
 
-        act_audit = QAction("Audit Console", self)
-        def _show_audit():
-            try:
-                rows = fetch_last_audit_rows()
-                for row in rows:
-                    print(dict(row))
-            except Exception as e:
-                print(f"[debug] failed to fetch audit logs: {e}")
-        act_audit.triggered.connect(_show_audit)
-        self.menuDebug.addAction(act_audit)
+            act_audit = QAction("Audit Console", self)
+            def _show_audit():
+                try:
+                    rows = fetch_last_audit_rows()
+                    for row in rows:
+                        print(dict(row))
+                except Exception as e:
+                    print(f"[debug] failed to fetch audit logs: {e}")
+            act_audit.triggered.connect(_show_audit)
+            self.menuDebug.addAction(act_audit)
 
-        # Debug: Open Team Detail by ID
-        act_team_detail = QAction("Open Team Detail (Team ID…)", self)
-        def _open_team_detail_prompt():
-            try:
-                from PySide6.QtWidgets import QInputDialog
-                team_id, ok = QInputDialog.getInt(self, "Open Team Detail", "Team ID:", 1, 1, 10_000_000, 1)
-                if ok:
-                    from modules.operations.teams.windows import open_team_detail_window
-                    open_team_detail_window(int(team_id))
-            except Exception as e:
-                print(f"[debug] failed to open Team Detail: {e}")
-        act_team_detail.triggered.connect(_open_team_detail_prompt)
-        self.menuDebug.addAction(act_team_detail)
+            # Debug: Open Team Detail by ID
+            act_team_detail = QAction("Open Team Detail (Team ID…)", self)
+            def _open_team_detail_prompt():
+                try:
+                    from PySide6.QtWidgets import QInputDialog
+                    team_id, ok = QInputDialog.getInt(self, "Open Team Detail", "Team ID:", 1, 1, 10_000_000, 1)
+                    if ok:
+                        from modules.operations.teams.windows import open_team_detail_window
+                        open_team_detail_window(int(team_id))
+                except Exception as e:
+                    print(f"[debug] failed to open Team Detail: {e}")
+            act_team_detail.triggered.connect(_open_team_detail_prompt)
+            self.menuDebug.addAction(act_team_detail)
 
         self._refresh_toolkit_menu_gates()
         # you can toggle feature availability here, e.g.: {"planned.promotions": False}
@@ -1140,6 +1143,7 @@ class MainWindow(QMainWindow):
             "edit.aircraft": self.open_edit_aircraft,
             "edit.equipment": self.open_edit_equipment,
             "edit.resource_packages": self.open_edit_resource_packages,
+            "edit.units_organizations": self.open_edit_units_organizations,
             "edit.resource_types": self.open_edit_resource_types,
             "edit.hazard_types": self.open_edit_hazard_types,
             "edit.gar_templates": self.open_edit_gar_templates,
@@ -1784,6 +1788,9 @@ class MainWindow(QMainWindow):
     def open_planning_meetings(self) -> None:
         from modules import planning
         incident_id = AppState.get_active_incident()
+        if not incident_id:
+            QMessageBox.warning(self, "Meeting Planner", "No active incident.")
+            return
         panel = planning.get_meetings_panel(incident_id)
         self._open_panel(panel, title="Meeting Planner")
 
@@ -1915,7 +1922,7 @@ class MainWindow(QMainWindow):
                     return
                 from pathlib import Path
                 from modules.operations.taskings.repository import export_audit_as_214
-                out_dir = Path("data") / "exports" / str(iid) / f"task_{int(task_id)}"
+                out_dir = Path("data") / "exports" / str(AppState.get_active_incident()) / f"task_{int(task_id)}"
                 out_dir.mkdir(parents=True, exist_ok=True)
                 path = export_audit_as_214(int(task_id), str(out_dir / "ics_214.pdf"))
                 try:
@@ -2892,12 +2899,6 @@ class MainWindow(QMainWindow):
         incident_id = AppState.get_active_incident()
         panel = plannedtoolkit.get_vendors_panel(incident_id)
         self._open_panel(panel, title="Vendors && Permits")
-
-    def open_planned_safety(self) -> None:
-        from modules import plannedtoolkit
-        incident_id = AppState.get_active_incident()
-        panel = plannedtoolkit.get_health_sanitation_panel(incident_id)
-        self._open_panel(panel, title="Health & Sanitation")
 
     def open_planned_tasking(self) -> None:
         from modules import plannedtoolkit

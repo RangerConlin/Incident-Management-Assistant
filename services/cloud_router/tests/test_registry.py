@@ -107,6 +107,22 @@ def test_registry_register_get_deregister() -> None:
     assert registry.get("X") is conn
     assert registry.active_tunnel_count() == 1
     assert registry.list_connections() == [conn]
+
+
+def test_deregister_stale_connection_does_not_evict_reconnected_one() -> None:
+    """A reconnect race: the old handler's deferred deregister must not
+    evict the new connection that already re-registered under the same
+    connect code."""
+    registry = TunnelRegistry()
+    old_conn = TunnelConnection(connect_code="X", server_id="s", server_name="n", websocket=_FakeWebSocket())
+    registry.register(old_conn)
+
+    new_conn = TunnelConnection(connect_code="X", server_id="s", server_name="n", websocket=_FakeWebSocket())
+    registry.register(new_conn)
+
+    registry.deregister("X", old_conn)
+
+    assert registry.get("X") is new_conn
     registry.deregister("X")
     assert registry.get("X") is None
     assert registry.active_tunnel_count() == 0

@@ -69,6 +69,14 @@ def apply_incoming(
     col = db[collection]
     doc_id = doc.get("_id")
     existing = col.find_one({"_id": doc_id}) if doc_id else None
+
+    # A record that predates dual-key normalization may not have its local
+    # integer key yet. Do not turn an otherwise identical relay resend into
+    # a write merely because normalization would allocate that local-only
+    # field. A later real content change still normalizes before applying.
+    if existing is not None and _content_equal(existing, doc):
+        return "skipped_same_or_older"
+
     doc = _normalize_dual_key_fields(db, collection, dict(doc), existing, central_catalog=central_catalog)
 
     if existing is None:

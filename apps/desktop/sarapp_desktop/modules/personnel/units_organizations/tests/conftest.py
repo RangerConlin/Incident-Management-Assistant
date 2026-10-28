@@ -32,9 +32,10 @@ def _clear_master_collections() -> None:
 
 
 @pytest.fixture()
-def org_app_client():
+def org_app_client(monkeypatch):
     from sarapp_db.api.app import create_app
 
+    monkeypatch.setenv("SARAPP_MASTER_DB_NAME", "sarapp_central_master")
     _clear_master_collections()
     app = create_app()
     api_client.configure_test_transport(app)

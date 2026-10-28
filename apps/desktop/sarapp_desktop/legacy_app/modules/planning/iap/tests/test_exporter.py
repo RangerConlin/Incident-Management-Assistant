@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from app.modules.planning.iap.models.exporter import IAPPacketExporter
-from app.modules.planning.iap.models.iap_models import FormInstance, IAPPackage
+from legacy_app.modules.planning.iap.models.exporter import IAPPacketExporter
+from legacy_app.modules.planning.iap.models.iap_models import FormInstance, IAPPackage
 
 
 def _build_package() -> IAPPackage:

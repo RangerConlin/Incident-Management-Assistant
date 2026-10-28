@@ -306,7 +306,11 @@ class IntelItemsTab(QWidget):
         dlg = _NewItemDialog(self)
         if dlg.exec() == QDialog.Accepted and dlg.item:
             created = self._service.items.create(dlg.item)
-            if created and dlg.pending_attachments:
+            if created is None:
+                from PySide6.QtWidgets import QMessageBox
+                QMessageBox.critical(self, "New Intel Item", "Failed to create intel item on the server.")
+                return
+            if dlg.pending_attachments:
                 for path in dlg.pending_attachments:
                     add_attachment(
                         item_id=created.id,

@@ -149,6 +149,15 @@ class CustomFilterDialog(QtWidgets.QDialog):
 
         # Load presets and initial rules
         self._load_presets(seed_presets or {})
+        if rules:
+            # _load_presets() may have auto-selected a remembered preset,
+            # which already populated rows via _on_preset_selected — clear
+            # those before applying the caller's explicit current filters
+            # so they don't end up duplicated alongside them.
+            while self._rules_layout.count():
+                item = self._rules_layout.takeAt(0)
+                if item and item.widget():
+                    item.widget().deleteLater()
         for r in (rules or []):
             self._add_rule_row(preset=r)
         if not (rules or []):

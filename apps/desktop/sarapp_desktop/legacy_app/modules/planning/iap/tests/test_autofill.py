@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
-from app.modules.planning.iap.models.autofill import AutofillEngine, AutofillResult, AutofillRule
-from app.modules.planning.iap.models.iap_models import FormInstance
+from legacy_app.modules.planning.iap.models.autofill import (
+    AutofillEngine,
+    AutofillResult,
+    AutofillRule,
+)
+from legacy_app.modules.planning.iap.models.iap_models import FormInstance
 
 
 def test_preview_reflects_existing_fields() -> None:

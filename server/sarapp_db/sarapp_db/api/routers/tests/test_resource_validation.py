@@ -66,25 +66,27 @@ def test_qualification_and_min_staffing_outcomes_end_to_end():
         _seed_master()
         app = create_app()
         with TestClient(app) as client:
-            rt = client.post(
-                "/api/resource-types",
-                json={
+            # Resource types are central-catalog authoritative. Seed the
+            # local synced copy directly; this test exercises team readiness,
+            # not the separately-covered catalog lockdown guard.
+            resource_type_id = 883020
+            get_master_db()[MasterCollections.RESOURCE_TYPES].insert_one(
+                {
+                    "resource_type_id": str(resource_type_id),
                     "name": "Stage6 Test Ground Team Type",
                     "category": "Team",
                     "kind": "Ground Search Team",
                     "min_personnel": 2,
                     "required_qualifications": ["Ground Team Member", "Navigator"],
-                },
+                }
             )
-            assert rt.status_code == 201
-            resource_type_id = rt.json()["resource_type_id"]
 
             created = client.post(
                 f"/api/incidents/{INCIDENT_ID}/operations/teams",
                 json={
                     "name": "GT-1",
                     "team_type": "GT",
-                    "resource_type_id": int(resource_type_id),
+                    "resource_type_id": resource_type_id,
                     "member_person_records": [_PERSON_IDS[0]],
                 },
             )

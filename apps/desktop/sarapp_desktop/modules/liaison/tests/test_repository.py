@@ -1,72 +1,40 @@
 from __future__ import annotations
 
-import importlib
-
-
-def test_liaison_repository_creates_incident_scoped_feedback(monkeypatch, tmp_path):
-    monkeypatch.setenv("CHECKIN_DATA_DIR", str(tmp_path))
-    import utils.db as db
-    import utils.incident_context as incident_context
+def test_liaison_repository_uses_incident_scoped_feedback_api(monkeypatch):
     import modules.liaison.repository as repository
+    from utils.api_client import api_client
 
-    importlib.reload(incident_context)
-    importlib.reload(db)
-    importlib.reload(repository)
-    incident_context.set_active_incident("LIAISON-TEST")
+    calls: list[tuple[str, str, object]] = []
+    feedback = {"id": 9, "summary": "Stakeholder requested revised access plan."}
 
-    agency_id = repository.create_agency(
-        {
-            "name": "County Emergency Management",
-            "agency_type": "Government",
-            "jurisdiction": "County",
-            "current_status": "Supporting",
-            "priority": "High",
-        }
+    monkeypatch.setattr(
+        api_client,
+        "post",
+        lambda path, json: calls.append(("POST", path, json)) or {"id": len(calls)},
     )
-    interaction_id = repository.create_interaction(
-        {
-            "agency_id": agency_id,
-            "interaction_type": "Meeting",
-            "subject": "Coordination briefing",
-            "summary": "Reviewed stakeholder concerns.",
-            "followup_action": "Route concern to Planning",
-            "followup_assigned_to": "Liaison Officer",
-            "task_id": 42,
-        }
-    )
-    feedback_id = repository.create_feedback(
-        {
-            "agency_id": agency_id,
-            "interaction_id": interaction_id,
-            "feedback_type": "Concern",
-            "priority": "Critical",
-            "summary": "Stakeholder requested revised access plan.",
-            "requested_action": "Validate the planned route with the county.",
-            "assigned_section": "Planning",
-            "status": "Open",
-            "task_id": 42,
-            "resource_request_id": 7,
-            "validation_status": "Requires Revision",
-        }
+    monkeypatch.setattr(
+        api_client,
+        "get",
+        lambda path, params=None: calls.append(("GET", path, params)) or [feedback],
     )
 
-    agency_rows = repository.fetch_agency_rows()
-    assert agency_rows[0]["id"] == agency_id
-    assert agency_rows[0]["open_feedback_items"] == 1
+    agency = repository.create_agency({"name": "County Emergency Management"}, "LIAISON-TEST")
+    interaction = repository.create_interaction({"agency_id": agency["id"]}, "LIAISON-TEST")
+    created = repository.create_feedback(
+        {"agency_id": agency["id"], "interaction_id": interaction["id"], "task_id": 42},
+        "LIAISON-TEST",
+    )
+    task_feedback = repository.fetch_feedback_for_task(42, "LIAISON-TEST")
 
-    feedback_rows = repository.fetch_feedback_rows()
-    assert feedback_rows[0]["id"] == feedback_id
-    assert feedback_rows[0]["linked_item"] == "Task #42"
-    assert feedback_rows[0]["resolution_status"] == "Requires Revision"
-
-    task_feedback = repository.fetch_feedback_for_task(42)
-    assert task_feedback[0]["summary"] == "Stakeholder requested revised access plan."
-
-    con = db.get_incident_conn()
-    try:
-        audit_count = con.execute("SELECT COUNT(*) FROM audit_logs").fetchone()[0]
-        followup_count = con.execute("SELECT COUNT(*) FROM liaison_followup_actions").fetchone()[0]
-        assert audit_count >= 3
-        assert followup_count == 1
-    finally:
-        con.close()
+    assert created == {"id": 3}
+    assert task_feedback == [feedback]
+    assert calls == [
+        ("POST", "/api/incidents/LIAISON-TEST/liaison/agencies", {"name": "County Emergency Management"}),
+        ("POST", "/api/incidents/LIAISON-TEST/liaison/interactions", {"agency_id": 1}),
+        (
+            "POST",
+            "/api/incidents/LIAISON-TEST/liaison/feedback",
+            {"agency_id": 1, "interaction_id": 2, "task_id": 42},
+        ),
+        ("GET", "/api/incidents/LIAISON-TEST/liaison/feedback", {"task_id": 42}),
+    ]

@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
     QLineEdit, QFrame, QComboBox, QTableWidget, QTableWidgetItem,
     QHeaderView, QAbstractItemView, QDialog, QFormLayout,
     QTextEdit, QDialogButtonBox, QInputDialog, QStackedWidget,
-    QGroupBox, QCheckBox, QScrollArea,
+    QGroupBox, QCheckBox, QScrollArea, QMessageBox,
 )
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QBrush
@@ -648,7 +648,9 @@ class LeadsTab(QWidget):
                 created_subj = self._service.subjects.create(dlg.subject_to_create)
                 if created_subj:
                     lead.source_subject_id = created_subj.id
-            self._service.leads.create(lead)
+            if self._service.leads.create(lead) is None:
+                QMessageBox.critical(self, "New Lead", "Failed to create lead on the server.")
+                return
             self.refresh()
 
     def _assign_lead(self, lead: Lead) -> None:
@@ -659,8 +661,11 @@ class LeadsTab(QWidget):
             text=lead.assigned_to or "",
         )
         if ok:
-            self._service.leads.update(lead.id, {
+            updated = self._service.leads.update(lead.id, {
                 "assigned_to": name.strip() or None,
                 "status": LeadStatus.ASSIGNED if name.strip() else lead.status,
             })
+            if updated is None:
+                QMessageBox.critical(self, "Assign Lead", "Failed to update lead on the server.")
+                return
             self.refresh()

@@ -198,7 +198,7 @@ def export_stream(incident_id: str, stream_id: str, options: ExportRequest):
     try:
         from utils.state import AppState
         uid = AppState.get_active_user_id()
-        role = AppState.get_active_role()
+        role = AppState.get_active_user_role()
         prepared_name = str(uid or "")
         prepared_title = str(role or "")
     except Exception:

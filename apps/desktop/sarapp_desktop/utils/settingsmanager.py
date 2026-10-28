@@ -2,7 +2,9 @@ import json
 import os
 
 class SettingsManager:
-    def __init__(self, filename="settings.json"):
+    def __init__(self, filename=None):
+        if filename is None:
+            filename = os.environ.get("SARAPP_SETTINGS_PATH", "settings.json")
         self.filename = filename
         self.settings = {}
         self.load()
@@ -20,7 +22,18 @@ class SettingsManager:
                 with open(self.filename, "w", encoding="utf-8") as f:
                     json.dump(self.settings, f, indent=4, ensure_ascii=False)
             except json.JSONDecodeError:
-                print(f"Warning: Failed to decode JSON from {self.filename}. Resetting settings.")
+                backup_path = f"{self.filename}.corrupt"
+                try:
+                    os.replace(self.filename, backup_path)
+                    print(
+                        f"Warning: Failed to decode JSON from {self.filename}. "
+                        f"Saved the unreadable file to {backup_path} and resetting settings."
+                    )
+                except OSError as exc:
+                    print(
+                        f"Warning: Failed to decode JSON from {self.filename} "
+                        f"and could not back it up ({exc}). Resetting settings."
+                    )
                 self.settings = {}
                 self.save()
         else:

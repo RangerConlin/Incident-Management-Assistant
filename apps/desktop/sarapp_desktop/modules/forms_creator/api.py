@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -11,6 +12,8 @@ from .export import export_form
 from .templating import resolve_template as legacy_resolve
 from .render import render_form as legacy_render
 from utils.profile_manager import profile_manager
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -70,8 +73,11 @@ def export_form_unified(
             out.parent.mkdir(parents=True, exist_ok=True)
             export_form(sess, dict(context or {}), reg, out)
             return ExportResult(path=out, engine="v2", template_uid=tpl_uid)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning(
+            "export_form_unified: v2 pipeline failed for %r (profile=%s), falling back to legacy: %s",
+            form_or_uid, pid, exc,
+        )
 
     # ---------- Legacy fallback (registry + YAML mapping) ----------
     if not version:

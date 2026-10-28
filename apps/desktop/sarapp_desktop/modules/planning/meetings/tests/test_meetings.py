@@ -1,18 +1,100 @@
 from __future__ import annotations
 
-import sqlite3
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from modules.planning.meetings.repository import MeetingsRepository
+from modules.planning.meetings.models import ChecklistItem, Meeting, MeetingAttendee, StructuredNote
 from modules.planning.meetings.services import MeetingsService
 from modules.planning.meetings.seeds import ICS_MEETING_TEMPLATES
 from modules.planning.meetings.services import OP_TEMPLATE_SETS
 
 
-def make_service(tmp_path: Path) -> MeetingsService:
-    repo = MeetingsRepository(incident_id="TEST-123", db_path=tmp_path / "incident.db")
-    return MeetingsService(repo)
+class MemoryMeetingsRepository:
+    def __init__(self) -> None:
+        self.incident_id = "TEST-123"
+        self.templates = {template.slug: template for template in ICS_MEETING_TEMPLATES}
+        self.meetings: dict[int, Meeting] = {}
+        self.attendees: list[MeetingAttendee] = []
+        self.checklist: list[ChecklistItem] = []
+        self.notes: list[StructuredNote] = []
+        self.planning_logs: list[str] = []
+
+    def list_templates(self):
+        return list(self.templates.values())
+
+    def get_template(self, slug: str):
+        return self.templates[slug]
+
+    def create_meeting(self, meeting: Meeting) -> Meeting:
+        meeting.id = len(self.meetings) + 1
+        self.meetings[meeting.id] = meeting
+        return meeting
+
+    def get_meeting(self, meeting_id: int) -> Meeting:
+        return self.meetings[meeting_id]
+
+    def update_meeting(self, meeting_id: int, patch: dict) -> Meeting:
+        meeting = self.meetings[meeting_id]
+        for key, value in patch.items():
+            setattr(meeting, key, value)
+        return meeting
+
+    def list_meetings(self, *, operational_period_id=None, include_canceled=True, ics230_only=False):
+        rows = list(self.meetings.values())
+        if operational_period_id is not None:
+            rows = [row for row in rows if row.operational_period_id == operational_period_id]
+        if not include_canceled:
+            rows = [row for row in rows if row.status != "canceled"]
+        if ics230_only:
+            rows = [row for row in rows if row.show_on_ics230]
+        return rows
+
+    def add_attendee(self, attendee: MeetingAttendee) -> MeetingAttendee:
+        attendee.id = len(self.attendees) + 1
+        self.attendees.append(attendee)
+        return attendee
+
+    def list_attendees(self, meeting_id: int):
+        return [row for row in self.attendees if row.meeting_id == meeting_id]
+
+    def add_checklist_item(self, item: ChecklistItem) -> ChecklistItem:
+        item.id = len(self.checklist) + 1
+        self.checklist.append(item)
+        return item
+
+    def list_checklist_items(self, meeting_id: int):
+        return [row for row in self.checklist if row.meeting_id == meeting_id]
+
+    def update_checklist_item(self, item_id: int, patch: dict) -> ChecklistItem:
+        item = next(row for row in self.checklist if row.id == item_id)
+        for key, value in patch.items():
+            setattr(item, key, value)
+        return item
+
+    def checklist_progress(self, meeting_id: int):
+        rows = [row for row in self.list_checklist_items(meeting_id) if not row.is_not_applicable]
+        return sum(row.is_complete for row in rows), len(rows)
+
+    def add_structured_note(self, note: StructuredNote) -> StructuredNote:
+        note.id = len(self.notes) + 1
+        self.notes.append(note)
+        return note
+
+    def list_structured_notes(self, meeting_id: int):
+        return [row for row in self.notes if row.meeting_id == meeting_id]
+
+    def route_note_to_planning_log_for_meeting(self, meeting_id: int, note_id: int, *, entered_by=None):
+        note = next(row for row in self.notes if row.id == note_id and row.meeting_id == meeting_id)
+        if note.routing_status != "routed":
+            meeting = self.meetings[meeting_id]
+            self.planning_logs.append(f"{meeting.title}: {note.text}")
+            note.routing_status = "routed"
+            note.routed_log_refs = [f"planning:{note.id}"]
+        return note
+
+
+def make_service(_tmp_path: Path) -> MeetingsService:
+    return MeetingsService(MemoryMeetingsRepository())
 
 
 def test_seed_templates_cover_ahimt_operational_period_set() -> None:
@@ -42,7 +124,7 @@ def test_create_operational_period_template_set_uses_seeded_schedule() -> None:
     service.create_meeting_from_template = MagicMock(side_effect=created_meetings)
 
     result = service.create_operational_period_template_set(
-        "AHIMT Planning Cycle",
+        entries=OP_TEMPLATE_SETS["AHIMT Planning Cycle"],
         operational_period_id=12,
         meeting_date="2026-06-10",
         anchor_time="07:00",
@@ -129,8 +211,6 @@ def test_structured_note_routing_is_idempotent_and_links_source(tmp_path: Path) 
 
     assert routed.routing_status == "routed"
     assert routed.routed_log_refs == routed_again.routed_log_refs
-    with sqlite3.connect(tmp_path / "incident.db") as conn:
-        rows = conn.execute("SELECT text FROM planning_logs").fetchall()
-    assert len(rows) == 1
-    assert "Operational Period Briefing" in rows[0][0]
-    assert "Hold assignments" in rows[0][0]
+    assert len(service.repository.planning_logs) == 1
+    assert "Operational Period Briefing" in service.repository.planning_logs[0]
+    assert "Hold assignments" in service.repository.planning_logs[0]

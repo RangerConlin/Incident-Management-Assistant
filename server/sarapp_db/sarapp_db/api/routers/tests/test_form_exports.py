@@ -38,9 +38,10 @@ def load_saved(incident_id, form_id, source_id, period_id, prepared_by, form_set
 
 
 def snapshot(form: str, records: list[dict] | None = None) -> ExportSnapshot:
+    form_set_id = default_registry().get(form).default_set
     return ExportSnapshot(form, {"name": "Export test incident", "incident_number": "EXPORT-1"},
                           {"number": 1, "start_time": "2026-10-20T00:00:00Z", "end_time": "2026-10-20T12:00:00Z"},
-                          records if records is not None else [{"id": "r1", "title": "Water", "text": "Confirm access", "code": "OBJ-1", "priority": "IMMEDIATE", "created_utc": "2026-10-20T01:02:03Z", "created_by_id": "Requester", "assignment_name": "Access", "description": "Confirm access to staging", "location": "Staging", "sitrep_number": 1, "summary": "Access confirmed", "prepared_by": "Planner", "created_at": "2026-10-20T01:02:03Z", "meeting_date": "2026-10-20", "start_time": "10:00:00", "end_time": "11:00:00", "resource_name": "Responder", "entity_type": "personnel", "checked_in_time": "2026-10-20T01:02:03Z"}], "Planner")
+                          records if records is not None else [{"id": "r1", "title": "Water", "text": "Confirm access", "code": "OBJ-1", "priority": "IMMEDIATE", "created_utc": "2026-10-20T01:02:03Z", "created_by_id": "Requester", "assignment_name": "Access", "description": "Confirm access to staging", "location": "Staging", "sitrep_number": 1, "summary": "Access confirmed", "prepared_by": "Planner", "created_at": "2026-10-20T01:02:03Z", "meeting_date": "2026-10-20", "start_time": "10:00:00", "end_time": "11:00:00", "resource_name": "Responder", "entity_type": "personnel", "checked_in_time": "2026-10-20T01:02:03Z"}], "Planner", form_set_id)
 
 
 @pytest.mark.parametrize("form", [d.form_id for d in default_registry().definitions()])

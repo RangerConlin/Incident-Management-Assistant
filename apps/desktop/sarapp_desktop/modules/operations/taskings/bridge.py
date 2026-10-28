@@ -255,13 +255,13 @@ class TaskingsBridge(QObject):
     def submitDebrief(self, debrief_id: int) -> Any:  # noqa: N802
         """Set debrief status to Submitted and flag for review; return updated header."""
         from modules.operations.taskings.repository import update_debrief_header, get_debrief
-        from datetime import datetime
+        from datetime import datetime, timezone
         try:
             from utils.state import AppState
             uid = AppState.get_active_user_id()
         except Exception:
             uid = None
-        now = datetime.utcnow().isoformat(timespec="seconds")
+        now = datetime.now(timezone.utc).isoformat(timespec="seconds")
         update_debrief_header(int(debrief_id), {"status": "Submitted", "flagged_for_review": 1, "submitted_by": str(uid) if uid is not None else None, "submitted_at": now})
         # Audit hook for planning review
         try:
@@ -275,13 +275,13 @@ class TaskingsBridge(QObject):
     @Slot(int, result="QVariant")
     def markDebriefReviewed(self, debrief_id: int) -> Any:  # noqa: N802
         from modules.operations.taskings.repository import update_debrief_header, get_debrief
-        from datetime import datetime
+        from datetime import datetime, timezone
         try:
             from utils.state import AppState
             uid = AppState.get_active_user_id()
         except Exception:
             uid = None
-        now = datetime.utcnow().isoformat(timespec="seconds")
+        now = datetime.now(timezone.utc).isoformat(timespec="seconds")
         update_debrief_header(int(debrief_id), {"status": "Reviewed", "flagged_for_review": 0, "reviewed_by": str(uid) if uid is not None else None, "reviewed_at": now})
         try:
             from utils.audit import write_audit

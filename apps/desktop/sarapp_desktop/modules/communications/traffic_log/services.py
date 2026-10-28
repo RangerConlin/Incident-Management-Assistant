@@ -149,7 +149,8 @@ class CommsLogService:
             return None
 
         entry = self.repository.get_entry(entry_id)
-        base_title = title or entry.message.splitlines()[0][:60] or "Comms Follow-up"
+        first_line = entry.message.splitlines()[0] if entry.message else ""
+        base_title = title or first_line[:60] or "Comms Follow-up"
         priority_map = {
             PRIORITY_ROUTINE: 2,
             PRIORITY_PRIORITY: 3,

@@ -19,7 +19,7 @@ class _Identity:
 class _ApiClient:
     def get(self, path: str):
         assert path == "/api/incidents/INC-1/operations/teams/3"
-        return {"member_personnel_ids": [101]}
+        return {"member_person_records": [101]}
 
 
 def test_fetch_team_personnel_allows_identity_without_home_unit(monkeypatch):

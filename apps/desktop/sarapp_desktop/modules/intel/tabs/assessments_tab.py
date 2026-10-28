@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QLineEdit, QFrame, QComboBox, QTableWidget, QTableWidgetItem,
     QHeaderView, QAbstractItemView, QDialog, QFormLayout,
-    QTextEdit, QDialogButtonBox,
+    QTextEdit, QDialogButtonBox, QMessageBox,
 )
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QBrush
@@ -240,5 +240,7 @@ class AssessmentsTab(QWidget):
             return
         dlg = _NewAssessmentDialog(self)
         if dlg.exec() == QDialog.Accepted and dlg.assessment:
-            self._service.assessments.create(dlg.assessment)
+            if self._service.assessments.create(dlg.assessment) is None:
+                QMessageBox.critical(self, "New Assessment", "Failed to create assessment on the server.")
+                return
             self.refresh()

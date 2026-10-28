@@ -166,7 +166,7 @@ def create_router_app(*, server_info_fn: Callable[[], dict[str, Any]] | None = N
         finally:
             for task in (receive_task, heartbeat_task):
                 task.cancel()
-            registry.deregister(connect_code)
+            registry.deregister(connect_code, connection)
             connection.fail_all()
             logger.info("LAN server disconnected (connect code %s)", connect_code)
 

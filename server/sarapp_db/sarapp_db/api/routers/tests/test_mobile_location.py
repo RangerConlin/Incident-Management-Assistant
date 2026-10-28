@@ -53,6 +53,10 @@ def _connections_col():
     return get_master_db()[MasterCollections.CLIENT_CONNECTIONS]
 
 
+def _personnel_col():
+    return get_master_db()[MasterCollections.PERSONNEL]
+
+
 def _clear():
     _teams_col().delete_many({})
     _resource_status_col().delete_many({})
@@ -60,9 +64,20 @@ def _clear():
         TOKEN_LEADER, TOKEN_MEMBER, TOKEN_OUTSIDER, TOKEN_UNCHECKED,
     ]}})
     _connections_col().delete_many({"device_id": DEVICE_LEADER})
+    _personnel_col().delete_many(
+        {"person_record": {"$in": [LEADER_ID, MEMBER_ID, OUTSIDER_ID, UNCHECKED_ID]}}
+    )
 
 
 def _seed():
+    _personnel_col().insert_many(
+        [
+            {"person_record": LEADER_ID, "person_id": "leader", "name": "Team Leader"},
+            {"person_record": MEMBER_ID, "person_id": "member", "name": "Team Member"},
+            {"person_record": OUTSIDER_ID, "person_id": "outsider", "name": "Team Outsider"},
+            {"person_record": UNCHECKED_ID, "person_id": "unchecked", "name": "Unchecked Person"},
+        ]
+    )
     _teams_col().insert_one({
         "int_id": TEAM_INT_ID,
         "name": "Team 1",

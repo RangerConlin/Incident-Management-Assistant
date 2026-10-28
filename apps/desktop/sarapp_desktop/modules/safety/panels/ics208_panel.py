@@ -137,7 +137,13 @@ class ICS208Panel(QWidget):
         self._op_combo = QComboBox()
         for number in range(1, 100):
             self._op_combo.addItem(str(number), number)
-        current_op = int(AppState.get_active_op_period() or 1)
+        active_op = AppState.get_active_op_period()
+        if isinstance(active_op, dict):
+            active_op = active_op.get("number") or active_op.get("id")
+        try:
+            current_op = int(active_op or 1)
+        except (TypeError, ValueError):
+            current_op = 1
         self._op_combo.setCurrentIndex(max(0, current_op - 1))
         self._op_combo.currentIndexChanged.connect(self._load)
 

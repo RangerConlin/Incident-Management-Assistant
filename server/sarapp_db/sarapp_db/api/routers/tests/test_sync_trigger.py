@@ -32,6 +32,7 @@ def test_resync_reports_not_configured_when_sync_disabled(monkeypatch) -> None:
 def test_resync_runs_a_tick_when_sync_enabled(monkeypatch) -> None:
     monkeypatch.setenv("SARAPP_CENTRAL_MASTER_URL", "http://127.0.0.1:1")
     monkeypatch.setenv("SARAPP_CLOUD_ROUTER_TOKEN", "test-token")
+    monkeypatch.setattr("sarapp_db.sync.central_client.pull_since", lambda *args, **kwargs: None)
 
     app = create_app()
     with TestClient(app) as client:

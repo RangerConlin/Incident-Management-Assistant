@@ -1,6 +1,7 @@
 """PIO Dashboard overview — three-column layout."""
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from PySide6.QtCore import Qt, Signal
@@ -94,6 +95,27 @@ def _hr() -> QFrame:
     f.setFrameShape(QFrame.HLine)
     f.setStyleSheet("color:#3F3F46;")
     return f
+
+
+def _parse_deadline(value: Any) -> datetime | None:
+    """Best-effort parse of the free-text media-inquiry "deadline" field.
+
+    The field is a plain line edit, not a date/time picker, so it may hold
+    arbitrary text (e.g. "ASAP"). Unparseable values are treated as unknown
+    rather than counted as due-soon or overdue.
+    """
+    if not value:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    try:
+        dt = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
 
 
 def _sev_badge(severity: str) -> QLabel:
@@ -382,7 +404,7 @@ class _DistributionPanel(QWidget):
         root.addWidget(box)
         hdr = QHBoxLayout()
         hdr.addWidget(_lbl("CHANNEL", size=10, bold=True, color="#9CA3AF"), 2)
-        hdr.addWidget(_lbl("SENT / NOT SENT", size=10, bold=True, color="#9CA3AF"), 1)
+        hdr.addWidget(_lbl("SENT COUNT", size=10, bold=True, color="#9CA3AF"), 1)
         hdr.addWidget(_lbl("STATUS", size=10, bold=True, color="#9CA3AF"))
         lay.addLayout(hdr)
         lay.addWidget(_hr())
@@ -397,14 +419,19 @@ class _DistributionPanel(QWidget):
             w = self._rows_lay.takeAt(0)
             if w.widget():
                 w.widget().deleteLater()
-        distributed = {r.get("channel") for r in records}
+        sent_counts: dict[str, int] = {}
+        for r in records:
+            ch_name = r.get("channel")
+            if ch_name:
+                sent_counts[ch_name] = sent_counts.get(ch_name, 0) + 1
         for ch in channels:
-            sent = ch in distributed
+            count = sent_counts.get(ch, 0)
+            sent = count > 0
             rw = QWidget()
             rl = QHBoxLayout(rw)
             rl.setContentsMargins(0, 2, 0, 2)
             rl.addWidget(_lbl(ch, size=12, color="#D1D5DB"), 2)
-            rl.addWidget(_lbl("1 / 0" if sent else "0 / 1", size=12, color="#9CA3AF"), 1)
+            rl.addWidget(_lbl(str(count), size=12, color="#9CA3AF"), 1)
             dot = QLabel("●")
             dot.setStyleSheet(f"color:{'#10B981' if sent else '#D97706'}; font-size:16px;")
             rl.addWidget(dot)
@@ -566,8 +593,14 @@ class PIOOverviewPanel(QWidget):
         )
 
         self._rumor.update_items(misinfo)
-        overdue = [m for m in media if m.get("status") in ("New", "Assigned") and m.get("deadline")]
-        self._media.update_items(media, due_soon=len(overdue), overdue=0)
+        now = datetime.now(timezone.utc)
+        open_media = [m for m in media if m.get("status") in ("New", "Assigned")]
+        open_deadlines = [
+            (m, dt) for m in open_media for dt in (_parse_deadline(m.get("deadline")),) if dt is not None
+        ]
+        due_soon = sum(1 for _, dt in open_deadlines if now <= dt <= now + timedelta(hours=2))
+        overdue_count = sum(1 for _, dt in open_deadlines if dt < now)
+        self._media.update_items(media, due_soon=due_soon, overdue=overdue_count)
         self._talking_points.update_items(talking)
         self._distribution.update_records(dist[:20], DISTRIBUTION_CHANNELS[:7])
         self._recent.update_items(messages)

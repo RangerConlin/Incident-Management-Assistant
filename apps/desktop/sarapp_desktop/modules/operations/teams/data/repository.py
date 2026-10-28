@@ -2,10 +2,13 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime, timezone
 from typing import Any, Optional
 
 from .team import Team
+
+_log = logging.getLogger(__name__)
 
 
 def _base() -> str:
@@ -206,8 +209,8 @@ def reset_team_comm_timer(team_id: int, when: datetime | None = None) -> None:
     ts = (when or datetime.now(timezone.utc)).isoformat(timespec="seconds")
     try:
         _client().patch(f"{_base()}/teams/{team_id}/comm-ping", json={"when": ts})
-    except Exception:
-        pass
+    except Exception as exc:
+        _log.warning("reset_team_comm_timer API call failed for team_id=%s: %s", team_id, exc)
 
 
 def set_team_needs_attention(team_id: int, active: bool) -> None:
@@ -345,8 +348,8 @@ def set_team_ci_status(team_id: int, ci_status: str) -> None:
     """Set a resource status on a team for planning visibility."""
     try:
         _client().patch(f"{_base()}/teams/{team_id}", json={"ci_status": ci_status})
-    except Exception:
-        pass
+    except Exception as exc:
+        _log.warning("set_team_ci_status API call failed for team_id=%s: %s", team_id, exc)
 
 
 def _active_user_display() -> str:

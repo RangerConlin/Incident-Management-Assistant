@@ -1083,20 +1083,23 @@ class FinanceAdminPanel(QWidget):
         self.report_title.setText(current.text())
 
     def _save_fuel_price_profile(self) -> None:
-        profile = FuelPriceProfileCreate(
-            operational_period_id=None,
-            gasoline_price=float(self.price_gasoline.text()),
-            diesel_price=float(self.price_diesel.text()),
-            jet_a_price=float(self.price_jet_a.text()),
-            aviation_100ll_price=float(self.price_100ll.text()),
-            location_note=self.price_location.text() or None,
-            source_note=self.price_source.text() or None,
-            entered_by="Finance/Admin",
-            effective_at=self.price_effective.dateTime().toPython(),
-            is_active=self.price_active.isChecked(),
-        )
-        services.create_fuel_price_profile(self.incident_id, profile)
-        self._load_fuel_prices()
+        try:
+            profile = FuelPriceProfileCreate(
+                operational_period_id=None,
+                gasoline_price=float(self.price_gasoline.text()),
+                diesel_price=float(self.price_diesel.text()),
+                jet_a_price=float(self.price_jet_a.text()),
+                aviation_100ll_price=float(self.price_100ll.text()),
+                location_note=self.price_location.text() or None,
+                source_note=self.price_source.text() or None,
+                entered_by="Finance/Admin",
+                effective_at=self.price_effective.dateTime().toPython(),
+                is_active=self.price_active.isChecked(),
+            )
+            services.create_fuel_price_profile(self.incident_id, profile)
+            self._load_fuel_prices()
+        except Exception as exc:
+            QMessageBox.warning(self, "Fuel Prices", str(exc))
 
     def _copy_previous_fuel_price_profile(self) -> None:
         profile = services.get_active_fuel_price_profile(self.incident_id)
@@ -1194,36 +1197,39 @@ class FinanceAdminPanel(QWidget):
         self.refresh_all()
 
     def _save_expense(self) -> None:
-        expense = services.create_expense(
-            self.incident_id,
-            FinanceExpenseCreate(
-                category=self.expense_category.currentText(),
-                subcategory=self.expense_subcategory.text() or None,
-                description=self.expense_description.text(),
-                vendor=self.expense_vendor.text() or None,
-                expense_datetime=self.expense_datetime.dateTime().toPython(),
-                amount_subtotal=float(self.expense_subtotal.text() or "0"),
-                amount_tax=float(self.expense_tax.text() or "0"),
-                amount_tip=float(self.expense_tip.text() or "0"),
-                payment_method=self.expense_payment.text() or None,
-                entered_by="Finance/Admin",
-                notes=self.expense_notes.text() or None,
-                linked_forecast_id=int(self.expense_forecast_link.text()) if self.expense_forecast_link.text() else None,
-                receipt_attached=bool(self.expense_receipt_name.text()),
-            ),
-        )
-        if self.expense_receipt_name.text():
-            services.create_attachment(
+        try:
+            expense = services.create_expense(
                 self.incident_id,
-                AttachmentCreate(
-                    record_type="expense",
-                    record_id=expense.id,
-                    filename=self.expense_receipt_name.text(),
-                    file_path=self.expense_receipt_name.text(),
-                    uploaded_by="Finance/Admin",
+                FinanceExpenseCreate(
+                    category=self.expense_category.currentText(),
+                    subcategory=self.expense_subcategory.text() or None,
+                    description=self.expense_description.text(),
+                    vendor=self.expense_vendor.text() or None,
+                    expense_datetime=self.expense_datetime.dateTime().toPython(),
+                    amount_subtotal=float(self.expense_subtotal.text() or "0"),
+                    amount_tax=float(self.expense_tax.text() or "0"),
+                    amount_tip=float(self.expense_tip.text() or "0"),
+                    payment_method=self.expense_payment.text() or None,
+                    entered_by="Finance/Admin",
+                    notes=self.expense_notes.text() or None,
+                    linked_forecast_id=int(self.expense_forecast_link.text()) if self.expense_forecast_link.text() else None,
+                    receipt_attached=bool(self.expense_receipt_name.text()),
                 ),
             )
-        self.refresh_all()
+            if self.expense_receipt_name.text():
+                services.create_attachment(
+                    self.incident_id,
+                    AttachmentCreate(
+                        record_type="expense",
+                        record_id=expense.id,
+                        filename=self.expense_receipt_name.text(),
+                        file_path=self.expense_receipt_name.text(),
+                        uploaded_by="Finance/Admin",
+                    ),
+                )
+            self.refresh_all()
+        except Exception as exc:
+            QMessageBox.warning(self, "Expense", str(exc))
 
     def _submit_selected_expense(self) -> None:
         expense_id = self._selected_id(self.expenses_table)

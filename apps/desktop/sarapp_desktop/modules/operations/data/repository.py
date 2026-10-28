@@ -103,8 +103,8 @@ def touch_team_checkin(
     ref_iso = _iso_timestamp(reference_time or checkin_time or datetime.now(timezone.utc))
     try:
         _client().patch(f"{_base()}/teams/{team_id}/checkin", json={"checkin_time": check_iso, "reference_time": ref_iso})
-    except Exception:
-        pass
+    except Exception as exc:
+        _log.warning("touch_team_checkin API call failed for team_id=%s: %s", team_id, exc)
 
 
 def set_task_status(task_id: int, status_key: str) -> None:
@@ -261,8 +261,8 @@ def set_team_assignment_status(tt_id: int, status_key: str) -> None:
                     break
             if task_id_for_214 is not None:
                 break
-    except Exception:
-        pass
+    except Exception as exc:
+        _log.warning("set_team_assignment_status: task lookup for tt_id=%s failed: %s", tt_id, exc)
 
     if task_id_for_214 is not None:
         try:
@@ -270,8 +270,13 @@ def set_team_assignment_status(tt_id: int, status_key: str) -> None:
                 f"{_base()}/tasks/{task_id_for_214}/teams/{tt_id}/status",
                 json={"status_key": key},
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            _log.warning("set_team_assignment_status API call failed for tt_id=%s: %s", tt_id, exc)
+    else:
+        _log.warning(
+            "set_team_assignment_status: could not resolve task for tt_id=%s; status PATCH skipped",
+            tt_id,
+        )
 
     # Qt signals
     try:
@@ -317,7 +322,8 @@ def set_team_status(team_id: int, status_key: str) -> None:
     try:
         result = _client().patch(f"{_base()}/teams/{team_id}/status", json={"status_key": key, "changed_by": changed_by})
         current_task_id = result.get("current_task_id")
-    except Exception:
+    except Exception as exc:
+        _log.warning("set_team_status API call failed for team_id=%s: %s", team_id, exc)
         current_task_id = None
 
     # Qt signals
@@ -391,5 +397,5 @@ def set_team_assignment_status_for_task(task_id: int, tt_id: int, status_key: st
     key = str(status_key).strip().lower()
     try:
         _client().patch(f"{_base()}/tasks/{task_id}/teams/{tt_id}/status", json={"status_key": key})
-    except Exception:
-        pass
+    except Exception as exc:
+        _log.warning("set_team_assignment_status_for_task API call failed for task_id=%s tt_id=%s: %s", task_id, tt_id, exc)

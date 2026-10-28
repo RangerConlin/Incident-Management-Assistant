@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Optional
 
 from .enums import Priority, RequestStatus
@@ -14,7 +14,7 @@ ISO_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
 def utcnow() -> str:
     """Return a UTC timestamp in ISO-8601 with Z suffix."""
 
-    return datetime.utcnow().isoformat(timespec="seconds") + "Z"
+    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
 @dataclass(slots=True)

@@ -57,7 +57,11 @@ def qt_app() -> QApplication:
 
 
 def test_checkin_panel_embeds_full_ics211_window(qt_app: QApplication) -> None:
-    panel = CheckInPanel()
+    panel = CheckInPanel(
+        checkin_service=_StubService(),
+        auto_refresh=False,
+        organization_names=[],
+    )
     assert isinstance(panel.window, ICS211CheckInWindow)
 
 

@@ -285,9 +285,17 @@ class ThemeEditorPanel(QWidget):
     def _apply_theme(self) -> None:
         if not self._current_theme_id:
             return
-        theme = self._repo.get_theme(self._current_theme_id)
-        if not theme:
-            return
+        # Persist the editor's current edits first — otherwise this would
+        # reload and apply the last *saved* version, silently discarding
+        # any unsaved color/token/name/description changes in the table.
+        theme = ThemeProfile(
+            id=self._current_theme_id,
+            name=self._name_edit.text().strip(),
+            base_theme=self._base_label.text(),
+            description=self._description_edit.text().strip(),
+            tokens=self._collect_tokens(),
+        )
+        theme = self._repo.upsert_theme(theme)
         self._repo.set_active_theme(theme.id)
         apply_theme_profile(theme, getattr(self._main_window, "theme_manager", None), getattr(self._main_window, "settings_bridge", None))
         QMessageBox.information(self, "Theme", "Theme applied.")

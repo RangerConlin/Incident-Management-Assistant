@@ -58,7 +58,14 @@ class LookupResult:
 class ICS211CheckInWindow(QWidget):
     """Tabbed workbench for fast incident intake and team check-in."""
 
-    def __init__(self, parent: Optional[QWidget] = None, checkin_service: Optional[CheckInService] = None) -> None:
+    def __init__(
+        self,
+        parent: Optional[QWidget] = None,
+        checkin_service: Optional[CheckInService] = None,
+        *,
+        auto_refresh: bool = True,
+        organization_names: list[str] | None = None,
+    ) -> None:
         super().__init__(parent)
         self._id_inputs: dict[str, QLineEdit] = {}
         self._previews: dict[str, QLabel] = {}
@@ -71,9 +78,11 @@ class ICS211CheckInWindow(QWidget):
         self._checkin_notes: dict[str, QLineEdit] = {}
         self._active_selection: dict[str, dict[str, Any]] = {}
         self._team_rows: list[dict[str, Any]] = []
+        self._organization_names = organization_names
         self._checkin_service = checkin_service or get_service()
         self._build_ui()
-        self.refresh()
+        if auto_refresh:
+            self.refresh()
 
     def showEvent(self, event) -> None:
         super().showEvent(event)
@@ -156,7 +165,7 @@ class ICS211CheckInWindow(QWidget):
         section2 = self._section_frame("Select Existing Record")
         org_row = QHBoxLayout()
         org_row.setSpacing(8)
-        org_combo = make_org_combo()
+        org_combo = make_org_combo(names=self._organization_names)
         org_combo.setCurrentIndex(-1)
         org_combo.currentTextChanged.connect(lambda _: self._refresh_resource_picker(resource_type))
         picker = QComboBox()
@@ -701,7 +710,7 @@ class ICS211CheckInWindow(QWidget):
             edit = QLineEdit()
             layout.addRow(label, edit)
             fields[name] = edit
-        org = make_org_combo()
+        org = make_org_combo(names=self._organization_names)
         layout.addRow("Organization", org)
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         buttons.accepted.connect(dlg.accept)

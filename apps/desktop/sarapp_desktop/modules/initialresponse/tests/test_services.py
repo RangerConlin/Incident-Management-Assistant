@@ -6,6 +6,29 @@ from pathlib import Path
 import pytest
 
 
+class _InitialResponseApi:
+    def __init__(self) -> None:
+        self.hasty: list[dict] = []
+        self.reflex: list[dict] = []
+
+    def post(self, path: str, *, json: dict) -> dict:
+        rows = self.reflex if path.endswith("/reflex") else self.hasty
+        row = {**json, "id": len(rows) + 1, "created_at": "2026-10-28T12:00:00+00:00"}
+        rows.append(row)
+        return dict(row)
+
+    def get(self, path: str) -> list[dict]:
+        rows = self.reflex if path.endswith("/reflex") else self.hasty
+        return [dict(row) for row in rows]
+
+    def patch(self, path: str, *, json: dict) -> dict:
+        record_id = int(path.rstrip("/").split("/")[-2 if path.endswith("/notification") else -1])
+        rows = self.reflex if "/reflex/" in path else self.hasty
+        row = next(item for item in rows if item["id"] == record_id)
+        row.update(json)
+        return dict(row)
+
+
 def _reload_initialresponse_modules():
     import utils.incident_context as incident_context
 
@@ -22,6 +45,8 @@ def _reload_initialresponse_modules():
 def initialresponse_modules(tmp_path, monkeypatch):
     monkeypatch.setenv("CHECKIN_DATA_DIR", str(tmp_path))
     repository, services = _reload_initialresponse_modules()
+    api = _InitialResponseApi()
+    monkeypatch.setattr(repository, "_client", lambda: api)
 
     from utils import incident_context
 

@@ -23,6 +23,17 @@ def qt_app() -> QApplication:
     return app
 
 
+@pytest.fixture(autouse=True)
+def _isolate_team_bridge_catalog_and_global_signals(monkeypatch: pytest.MonkeyPatch):
+    """Keep unit tests off the live API and accumulated app-wide listeners."""
+    monkeypatch.setattr(team_window, "active_team_types", lambda: [])
+    was_blocked = team_window.app_signals.blockSignals(True)
+    try:
+        yield
+    finally:
+        team_window.app_signals.blockSignals(was_blocked)
+
+
 def test_team_detail_window_populates_empty_assigned_unit(qt_app: QApplication) -> None:
     window = TeamDetailWindow()
     try:
@@ -195,6 +206,9 @@ def test_team_bridge_removes_members_and_assets_from_persisted_lists(
     monkeypatch.setattr(team_window.team_repo, "save_team", lambda team: saved.append(Team(**team.__dict__)) or team)
     monkeypatch.setattr(TeamDetailBridge, "_team_log", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(TeamDetailBridge, "_emit_incident_refresh", lambda *_args, **_kwargs: None)
+    from modules.logistics.checkin import repository as checkin_repo
+
+    monkeypatch.setattr(checkin_repo, "fetch_checkin", lambda _person_id: None)
 
     bridge.removeMember(101)
     bridge.removeVehicle("11")
