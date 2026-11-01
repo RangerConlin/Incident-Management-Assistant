@@ -1755,8 +1755,8 @@ class TaskDetailWindow(QWidget):
             # Toolbar actions only; ICS-214 stream is always scoped to this task
             self._btn_214_refresh = QPushButton("Refresh")
             self._btn_214_export = QPushButton("Export 214")
-            self._btn_214_edit = QPushButton("Edit")
-            self._btn_214_delete = QPushButton("Delete")
+            self._btn_214_edit = QPushButton("Correct")
+            self._btn_214_delete = QPushButton("Void")
             self._btn_214_open_full = QPushButton("Open Full Log")
             for b in (self._btn_214_refresh, self._btn_214_export, self._btn_214_edit, self._btn_214_delete, self._btn_214_open_full): ics_bar.addWidget(b)
             ics_bar.addStretch(1); ics_layout.addLayout(ics_bar)
@@ -3284,15 +3284,18 @@ class TaskDetailWindow(QWidget):
                     crit = (crit_widget.currentIndex() == 1)
             except Exception:
                 crit = False
-            inc, sid = self._get_ops_214_stream()
+            inc, task_id = self._get_ops_214_scope()
             ok = False
-            if inc and sid:
+            if inc and task_id:
                 try:
                     from modules.ics214 import services
                     from modules.ics214.schemas import EntryCreate
                     from utils.state import AppState
                     uid = AppState.get_active_user_id()
-                    services.add_entry(str(inc), str(sid), EntryCreate(text=text, critical_flag=bool(crit), actor_user_id=str(uid) if uid is not None else None))
+                    services.create_entry(str(inc), EntryCreate(
+                        text=text, critical_flag=bool(crit), task_ids=[int(task_id)],
+                        created_by=str(uid) if uid is not None else None,
+                    ))
                     ok = True
                     self._load_ics214()
                 except Exception:
@@ -3319,15 +3322,18 @@ class TaskDetailWindow(QWidget):
             text = str(self._nar_model.item(r, 2).text() or "")
             crit_txt = str(self._nar_model.item(r, 5).text() or "No")
             crit = crit_txt.strip().lower() in ("yes", "1", "true")
-            inc, sid = self._get_ops_214_stream()
+            inc, task_id = self._get_ops_214_scope()
             ok = False
-            if inc and sid:
+            if inc and task_id:
                 try:
                     from modules.ics214 import services
                     from modules.ics214.schemas import EntryCreate
                     from utils.state import AppState
                     uid = AppState.get_active_user_id()
-                    services.add_entry(str(inc), str(sid), EntryCreate(text=text, critical_flag=bool(crit), actor_user_id=str(uid) if uid is not None else None))
+                    services.create_entry(str(inc), EntryCreate(
+                        text=text, critical_flag=bool(crit), task_ids=[int(task_id)],
+                        created_by=str(uid) if uid is not None else None,
+                    ))
                     ok = True
                     self._load_ics214()
                 except Exception:
@@ -3484,37 +3490,20 @@ class TaskDetailWindow(QWidget):
         except Exception:
             pass
 
-    def _get_ops_214_stream(self):
+    def _get_ops_214_scope(self):
         try:
             from utils import incident_context
-            from modules.ics214 import services
-            from modules.ics214.schemas import StreamCreate
             inc = incident_context.get_active_incident_id()
             if not inc:
                 return None, None
-            # Use task id to scope the ICS-214 stream
             task_id = int(self._task_id)
-            streams = services.list_streams(inc)
-            stream = None
-            for s in streams:
-                try:
-                    sec = getattr(s, 'section', None) or ''
-                    name = getattr(s, 'name', '')
-                    if (f'"ref": "task:{int(task_id)}"' in str(sec)) or (name.strip() == f"Task {int(task_id)}"):
-                        stream = s
-                        break
-                except Exception:
-                    continue
-            if stream is None:
-                section = '{"category": "task", "ref": "task:%d", "label": "Task %d"}' % (int(task_id), int(task_id))
-                stream = services.create_stream(StreamCreate(incident_id=str(inc), name=f"Task {int(task_id)}", section=section, kind="task"))
-            return inc, getattr(stream, "id", None)
+            return inc, task_id
         except Exception:
             return None, None
 
     def _load_ics214(self) -> None:
-        inc, sid = self._get_ops_214_stream()
-        if not inc or not sid:
+        inc, task_id = self._get_ops_214_scope()
+        if not inc or not task_id:
             try:
                 self._model_214.removeRows(0, self._model_214.rowCount())
             except Exception:
@@ -3522,7 +3511,8 @@ class TaskDetailWindow(QWidget):
             return
         try:
             from modules.ics214 import services
-            rows = services.list_entries(inc, sid) or []
+            from modules.ics214.schemas import EntryFilter
+            rows = services.list_entries(inc, EntryFilter(task_ids=[int(task_id)])) or []
         except Exception:
             rows = []
         try:
@@ -3530,9 +3520,9 @@ class TaskDetailWindow(QWidget):
         except Exception:
             pass
         for r in rows:
-            it_ts = QStandardItem(_fmt_ts(str(r.get("timestamp_utc") or "")))
+            it_ts = QStandardItem(_fmt_ts(str(r.get("occurred_at") or "")))
             it_entry = QStandardItem(str(r.get("text") or ""))
-            it_by = QStandardItem(str(r.get("actor_user_id") or ""))
+            it_by = QStandardItem(str(r.get("created_by") or ""))
             try:
                 it_ts.setData(str(r.get("id") or ""), Qt.UserRole)
             except Exception:
@@ -3541,12 +3531,14 @@ class TaskDetailWindow(QWidget):
 
     def _export_ics214(self) -> None:
         try:
-            inc, sid = self._get_ops_214_stream()
-            if not inc or not sid:
+            inc, task_id = self._get_ops_214_scope()
+            if not inc or not task_id:
                 return
             from modules.ics214 import services
-            from modules.ics214.schemas import ExportRequest
-            pdf = services.export_stream(inc, sid, ExportRequest())
+            from modules.ics214.schemas import EntryFilter, ExportRequest
+            pdf = services.export_log(inc, ExportRequest(
+                filters=EntryFilter(task_ids=[int(task_id)]), unit_name=f"Task {task_id}",
+            ))
             from PySide6.QtWidgets import QMessageBox
             QMessageBox.information(self, "ICS-214 Export", f"Exported to: {pdf.file_path}")
         except Exception:
@@ -3564,22 +3556,27 @@ class TaskDetailWindow(QWidget):
 
     def _delete_ics214_entry(self) -> None:
         try:
-            inc, sid = self._get_ops_214_stream()
+            inc, _task_id = self._get_ops_214_scope()
             entry_id = self._selected_214_entry_id()
-            if not inc or not sid or not entry_id:
+            if not inc or not entry_id:
                 return
             from PySide6.QtWidgets import QMessageBox
-            if QMessageBox.warning(self, "Delete 214 Entry", "Delete selected entry", QMessageBox.Yes | QMessageBox.No, QMessageBox.No) != QMessageBox.Yes:
+            if QMessageBox.warning(self, "Void 214 Entry", "Void selected entry?", QMessageBox.Yes | QMessageBox.No, QMessageBox.No) != QMessageBox.Yes:
                 return
             from modules.ics214 import services
-            services.delete_entry(inc, entry_id, stream_id=sid)
+            from modules.ics214.schemas import VoidRequest
+            from utils.state import AppState
+            services.void_entry(inc, entry_id, VoidRequest(
+                voided_by=str(AppState.get_active_user_id() or "unknown"),
+                reason="Voided from task detail",
+            ))
             self._load_ics214()
         except Exception:
             pass
 
     def _edit_ics214_entry(self) -> None:
         try:
-            inc, sid = self._get_ops_214_stream()
+            inc, task_id = self._get_ops_214_scope()
             entry_id = self._selected_214_entry_id()
             if not inc or not entry_id:
                 return
@@ -3598,8 +3595,14 @@ class TaskDetailWindow(QWidget):
                 new_txt = te.toPlainText().strip()
                 if new_txt:
                     from modules.ics214 import services
-                    from modules.ics214.schemas import EntryUpdate
-                    services.update_entry(inc, entry_id, EntryUpdate(text=new_txt), stream_id=sid)
+                    from modules.ics214.schemas import CorrectionCreate
+                    from utils.state import AppState
+                    services.correct_entry(inc, entry_id, CorrectionCreate(
+                        text=new_txt, task_ids=[int(task_id)],
+                        created_by=str(AppState.get_active_user_id() or ""),
+                        voided_by=str(AppState.get_active_user_id() or "unknown"),
+                        void_reason="Corrected from task detail",
+                    ))
                     self._load_ics214()
         except Exception:
             pass

@@ -39,6 +39,7 @@ STATUS_DICTS = [
     ("MEETING_STATUS", "meeting"),
     ("SITREP_STATUS", "sitrep"),
     ("PIO_STATUS", "pio"),
+    ("IAP_STATUS", "iap"),
     ("LIAISON_AGENCY_STATUS", "liaison-agency"),
     ("LIAISON_REQUEST_STATUS", "liaison-request"),
     ("LIAISON_PRIORITY", "liaison-priority"),

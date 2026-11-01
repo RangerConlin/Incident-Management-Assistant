@@ -1,5 +1,15 @@
 # API And Router Rules
 
+## ICS-214 Activity Entries
+
+- `/api/incidents/{incident_id}/ics214/entries` is the canonical operational logging surface. There are no stored streams and no stream CRUD endpoints.
+- Entry writes go through `Ics214EntriesRepository`. Each entry is an independent immutable document; never add update or hard-delete entry endpoints.
+- Logical logs use filters over `person_ids`, `team_ids`, `task_ids`, `org_unit_ids`, `facility_ids`, `resource_ids`, and `external_agency_ids`.
+- `incident_wide=true` is intentional overall-incident scope. Empty association arrays with `incident_wide=false` are derived as unassigned and remain reviewable.
+- Corrections void the original and create a new entry linked by `corrects_entry_id`.
+- Saved definitions under `/ics214/log-definitions` store reusable filters and export header settings only.
+- ICS-214 operational entries and technical audit records are separate systems.
+
 ## Core Rules
 - The shared FastAPI app entry point is `server/sarapp_db/sarapp_db/api/app.py`. The LAN server, built-in offline server, and hosted cloud server all serve that app. The hosted cloud server (`cloud_server/`) wraps the shared app with connect-code path handling and dashboard routes; it must not fork or duplicate incident/master routers.
 - Incident/master Mongo-data routers live under `server/sarapp_db/sarapp_db/api/routers/`.
@@ -18,6 +28,13 @@
 - UI/service code should default to the API repository once the cutover is complete.
 
 ## Headless form exports
+
+The shared form-export API is the only production binding and rendering
+pipeline. Clients must not resolve mappings, assemble bound form data, or fill
+PDFs locally. Desktop, web, and mobile submit canonical source identifiers to
+`POST /api/incidents/{incident_id}/form-exports` and consume the returned PDF.
+Local desktop tools may inspect templates and preview mappings while authoring,
+but must never serve as a runtime fallback for an unregistered server form.
 
 `POST /api/incidents/{incident_id}/form-exports` renders saved incident records via
 `sarapp_db.form_exports`. The full app mounts it; master-only servers do not. Keep

@@ -196,6 +196,25 @@ Medical Plan ICS 206
   - Remaining gap: Agency Detail dialog's Contacts / Restrictions / Agreements tabs are
     read-only (backend supports Contacts CRUD; Restrictions/Agreements have no create UI at
     all) — add "add" dialogs for these if the LNO workflow needs them tracked.
+  - Shell redesign mockup (SARApp Shell Redesign artifact, 2026-10-31) surfaced a schema/API
+    mismatch blocking real data on three of desktop's six Liaison tabs:
+    - Contacts: `LiaisonContactsRepository`/`liaison.py` only expose list/create scoped to one
+      agency (`/incidents/{id}/liaison/agencies/{agency_id}/contacts`), matching how the web
+      client's `AgencyRelations.tsx` already renders them (a per-agency tab). Desktop's
+      `modules/liaison/panels/contacts_panel.py` instead wants a flat, incident-wide, filterable
+      table (Availability/Verified columns that don't exist in the schema at all). Needs a
+      decision: add an incident-wide list endpoint + the missing fields, or redesign desktop's
+      Contacts tab to the same per-agency pattern the web app already uses instead.
+    - Agreements: `LiaisonAgreementsRepository` exists and is returned by `get_agency_detail`
+      (read-only, matching web's `AgencyRelations.tsx` Agreements tab), but there's no
+      incident-wide list/create endpoint either. `modules/liaison/panels/agreements_panel.py`
+      wants a flat cross-agency table (Scope/Effective Date/Expiration/Owner/Document columns,
+      a renewal/compliance queue) — none of that is modeled anywhere yet. Same decision needed
+      as Contacts, plus the new fields if the flat table is the direction taken.
+    - Liaison Log: no backing collection anywhere (confirmed, not just missing from one client) —
+      a unified, chronological, cross-type activity log (contacts/status updates/issues/
+      follow-ups together) doesn't exist. This is a real net-new schema + API + both clients'
+      UI, not a wiring gap like the two above.
 **************************************************************************************************************
 [PIO]
 - Shared API hardening: public_information.py still writes messages, revisions, templates,
@@ -281,15 +300,15 @@ Cost Summary
         `equipment_json` arrays as plain strings (add/remove a name or ID), not against the
         Personnel/Logistics master catalogs — those aren't wired up to the web client yet. Revisit once
         those modules get their own web pass.
-      - GIS/map: `moduleRegistry.ts` lists GIS as `status: "live"` (sidebar nav shows it as clickable),
-        but there is no `apps/web/src/modules/gis/` directory, no map library dependency in
-        `package.json`, and no `/gis` route in `App.tsx` — clicking it just redirects back to the
-        incident home today. Surfaced while mocking a Map Snapshot panel for the Command Dashboard
-        redesign (2026-10-26), which is a placeholder graphic, not a preview of real functionality.
-        Desktop's `modules/gis/` embeds Leaflet (bundled `leaflet.js`/`leaflet.css`) in a
-        `QWebEngineView` — a real stack to port from, not a from-scratch build. Until this is built,
-        either flip the registry entry to `"planned"` or build the module; either way the nav
-        shouldn't claim a page exists that doesn't.
+      - Incident Map (`apps/web/src/modules/incidentMap/IncidentMapPage.tsx`, standalone `/incident-map`
+        route, not nested in `AppShell`) is live but read/inspect-only: it renders real spatial features
+        from `gis.py` on a Leaflet map with a feature table, search, coordinate entry, and delete, but the
+        ribbon's Operational Points/Lines/Areas, Draw, Edit (Vertices/Move/Buffer), Quick Add, Measure,
+        and Layers controls are all disabled stubs — creating/editing features and layer management still
+        need a real implementation (WKT writing, create/update calls against `gis.py`, a draw
+        interaction). Team/Task extent buttons are disabled too — no endpoint exposes team
+        `current_location_lat/lon` or task lat/lon to the web client yet. The Coordinates tab shows DMS
+        only; UTM/MGRS conversion (`utils/coordinates.py` on desktop) isn't ported.
       - Incident Organization (`IncidentOrganizationPage.tsx`) was rebuilt (2026-10-28) with a real
         tree/detail split and a client-computed span-of-control warning, matching most of desktop's
         `incident_organization_panel.py`. A dedicated Operations Section sub-view (desktop's
@@ -390,10 +409,6 @@ Cost Summary
       BaseRepository subclass, a master router (text search, bbox, near-point radius), a new layer in
       `LayerRegistry`, and a third result group in `MapSearchController`. Open questions: facility types to
       include by default, and who triggers the refresh (LAN console vs. schedule).
-
-**************************************************************************************************************
-[Logs]
-  - Logs need to be able to write to multiple streams at once.  Would like to be able to generate a log for each individual person, but i dont think writing a separate stream is a good idea.  perhaps something that generates from a lookup of everything that person has done?
 
 **************************************************************************************************************
 [Web Logistics follow-up]

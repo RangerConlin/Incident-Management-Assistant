@@ -8,6 +8,13 @@ import type { WorkAssignment } from "../../../api/types";
 import { useSession } from "../../../auth/SessionContext";
 import { useCreateWorkAssignment, useWorkAssignments } from "./hooks";
 
+const APPROVAL_STATUS_LABELS: Record<string, string> = {
+  not_started: "Not Sent",
+  pending: "Approval Pending",
+  approved: "Approved",
+  rejected: "Rejected",
+};
+
 export default function WorkAssignmentsBoardPage() {
   const { incidentId, user } = useSession();
   const navigate = useNavigate();
@@ -40,6 +47,14 @@ export default function WorkAssignmentsBoardPage() {
     { key: "planning_status", header: "Planning Status", defaultWidth: 160 },
     { key: "safety_status", header: "Safety Status", defaultWidth: 160 },
     { key: "resource_status", header: "Resource Status", defaultWidth: 150 },
+    {
+      key: "approval_status",
+      header: "Approval",
+      render: (w) => (
+        <StatusPill domain="approval" statusKey={w.approval_status} label={APPROVAL_STATUS_LABELS[w.approval_status] ?? w.approval_status} />
+      ),
+      defaultWidth: 140,
+    },
     { key: "division_group", header: "Division/Group", render: (w) => w.division_group || "—", defaultWidth: 140 },
     {
       key: "resources",

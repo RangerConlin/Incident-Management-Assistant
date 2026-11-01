@@ -74,7 +74,8 @@ type StatusDomain =
   | "facility"
   | "approval"
   | "approval-step"
-  | "intel-priority";
+  | "intel-priority"
+  | "iap";
 
 function slug(key: string): string {
   return key.trim().toLowerCase().replace(/\s+/g, "-").replace(/\//g, "-");
@@ -162,6 +163,9 @@ export type ApprovalStatusKey = "not_started" | "pending" | "approved" | "reject
 export type ApprovalStepStatusKey = "waiting" | "active" | "completed" | "skipped";
 export function approvalStatusVar(key: ApprovalStatusKey | string) { return statusVar("approval", key); }
 export function approvalStepStatusVar(key: ApprovalStepStatusKey | string) { return statusVar("approval-step", key); }
+
+export type IapStatusKey = "draft" | "in_review" | "approved" | "published" | "superseded";
+export function iapStatusVar(key: IapStatusKey | string) { return statusVar("iap", key); }
 
 export type IntelPriorityKey = "Critical" | "High" | "Medium" | "Low";
 export function intelPriorityVar(key: IntelPriorityKey | string) { return statusVar("intel-priority", key); }

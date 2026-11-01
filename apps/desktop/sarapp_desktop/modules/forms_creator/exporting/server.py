@@ -9,22 +9,34 @@ from urllib.parse import quote
 from utils.api_client import api_client
 
 
-def download_ics203(
-    incident_id: str, operational_period_id: int, output_path: Path,
-    *, prepared_by: str = "",
-    form_set_id: str = "fema",
+def download_form(
+    incident_id: str,
+    form_id: str,
+    output_path: Path,
+    *,
+    source_id: str | int | None = None,
+    operational_period_id: int | None = None,
+    prepared_by: str = "",
+    form_set_id: str | None = None,
     prepared_by_position: str = "",
 ) -> Path:
-    if not incident_id or operational_period_id <= 0:
-        raise ValueError("An incident and operational period are required")
+    if not incident_id or not form_id:
+        raise ValueError("An incident and form are required")
+    body = {
+        "form_id": form_id,
+        "source_id": None if source_id in (None, "") else str(source_id),
+        "operational_period_id": operational_period_id,
+        "prepared_by": prepared_by,
+        "form_set_id": form_set_id,
+        "prepared_by_position": prepared_by_position,
+    }
     content = api_client.post_pdf(
         f"/api/incidents/{quote(incident_id, safe='')}/form-exports",
-        json={"form_id": "ics_203", "operational_period_id": operational_period_id,
-              "prepared_by": prepared_by, "form_set_id": form_set_id,
-              "prepared_by_position": prepared_by_position},
+        json=body,
     )
     temporary: Path | None = None
     try:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
         with NamedTemporaryFile(dir=output_path.parent, suffix=".pdf.tmp", delete=False) as stream:
             temporary = Path(stream.name)
             stream.write(content)

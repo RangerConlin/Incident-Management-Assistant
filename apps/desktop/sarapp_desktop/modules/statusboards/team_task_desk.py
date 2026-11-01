@@ -21,6 +21,7 @@ from typing import Any, Optional
 from PySide6.QtCore import QObject, QTimer, Signal
 
 from utils.incident_cache import incident_cache
+from utils.personnel_display import format_name_with_rank
 
 logger = logging.getLogger(__name__)
 
@@ -50,9 +51,10 @@ def _resolve_leader(team_doc: dict[str, Any], personnel_by_master_id: dict[Any, 
             person = None
         if person:
             if not leader_name:
-                leader_name = person.get("name") or (
+                raw_name = person.get("name") or (
                     ((person.get("first_name") or "") + " " + (person.get("last_name") or "")).strip()
                 )
+                leader_name = format_name_with_rank(raw_name, person.get("rank"))
             if not leader_phone:
                 leader_phone = person.get("phone") or ""
     return leader_name, leader_phone

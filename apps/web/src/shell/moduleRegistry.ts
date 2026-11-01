@@ -14,7 +14,6 @@ import {
   HeartPulse,
   Search,
   Handshake,
-  Users,
   BookOpen,
   FileText,
   CircleDollarSign,
@@ -110,14 +109,12 @@ export const MODULE_REGISTRY: ModuleSection[] = [
   {
     section: "Liaison",
     icon: Handshake,
-    modules: [{ key: "liaison", label: "Liaison", path: "/liaison", status: "live" }],
-  },
-  {
-    section: "Personnel & Role Management",
-    icon: Users,
     modules: [
-      { key: "personnel", label: "Personnel", path: "/personnel", status: "live" },
-      { key: "certifications", label: "Certifications", path: "/personnel/certifications", status: "live" },
+      { key: "liaison-overview", label: "Liaison Overview", path: "/liaison", status: "live" },
+      { key: "liaison-agencies", label: "Agency Directory", path: "/liaison/agencies", status: "live" },
+      { key: "liaison-requests", label: "Requests / Offers", path: "/liaison/requests", status: "live" },
+      { key: "liaison-reporting", label: "Reporting Board", path: "/liaison/reporting", status: "live" },
+      { key: "liaison-interactions", label: "Interaction Log", path: "/liaison/interactions", status: "live" },
     ],
   },
   {
@@ -138,12 +135,25 @@ export const MODULE_REGISTRY: ModuleSection[] = [
   {
     section: "Public Information",
     icon: Megaphone,
-    modules: [{ key: "pio", label: "Public Information", path: "/pio", status: "live" }],
+    modules: [
+      { key: "pio-overview", label: "PIO Dashboard", path: "/pio", status: "live" },
+      { key: "pio-releases", label: "Messages / Releases", path: "/pio/releases", status: "live" },
+      { key: "pio-misinformation", label: "Misinformation / Rumors", path: "/pio/misinformation", status: "live" },
+      { key: "pio-media", label: "Media Log", path: "/pio/media", status: "live" },
+      { key: "pio-talking-points", label: "Talking Points", path: "/pio/talking-points", status: "live" },
+      { key: "pio-templates", label: "Letterhead / Templates", path: "/pio/templates", status: "live" },
+      { key: "pio-distribution", label: "Distribution Log", path: "/pio/distribution", status: "live" },
+    ],
   },
   {
-    section: "GIS",
+    // Not a page inside this shell — the single link below opens
+    // IncidentMapPage, a standalone route (see App.tsx) that isn't nested
+    // under AppShell, so navigating here leaves the sidebar/topbar chrome
+    // entirely, the closest web equivalent to desktop's Incident Map
+    // opening as its own top-level window.
+    section: "Incident Map",
     icon: Map,
-    modules: [{ key: "gis", label: "GIS", path: "/gis", status: "live" }],
+    modules: [{ key: "incident-map", label: "Incident Map", path: "/incident-map", status: "live" }],
   },
   {
     section: "Toolkits",

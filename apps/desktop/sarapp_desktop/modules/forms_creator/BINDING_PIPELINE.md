@@ -1,5 +1,14 @@
 # Form Data Binding Pipeline
 
+> **Production architecture:** Form context loading, binding resolution, PDF
+> filling, pagination, and validation live under
+> `server/sarapp_db/sarapp_db/form_exports/`. Desktop, web, and mobile call
+> `POST /api/incidents/{incident_id}/form-exports` with canonical source and
+> operational-period identifiers. Desktop mapping tools remain available for
+> authoring and diagnostics, but are not a production fallback. Register and
+> test every new binding in the shared server package so all clients receive
+> identical output.
+
 ## ICS 203 server migration (2026-10-19)
 
 The production ICS 203 export now resolves the same binding paths and the same
@@ -375,7 +384,7 @@ These catalog (layer 2) entries already exist but resolve to nothing
 because layer 1 was never wired for them - `context.py` hardcodes the key
 to `[]`/`{}` instead of calling an API:
 
-- `narrative` (100 entries) - comes from canonical `ics_214_logs` streams.
+- `narrative` (100 entries) - comes from filtered canonical `ics_214_entries` documents.
 - `team_members` (32 entries) - currently a hardcoded `[]`.
 - `assignment.*` / `task.*` (the SAR 104 ground/air POD-matrix paths) - no `_build_assignment` exists in `context.py` at all yet; these resolve via `extra_data` only if a caller builds and passes that dict themselves (nobody does yet).
 
@@ -442,7 +451,7 @@ that point (follow the debrief table's format below as the template).
 | `communications_plan` | - | Not started (handled one layer up instead) | per-operational-period communications planning record; not wired into `context.py`/layer 1 - instead, the ICS-205 **export builder** (`modules/forms_creator/exporting/builders/communications.py`, see `modules/forms_creator/exporting/EXPORT_SERVICE.md`) fetches `special_instructions` for the selected operational period directly and overlays it as `extra_data["channels_notes"]` at export time. `incident_channels` (below) gets the same op-period-aware, `include_on_205`-filtered treatment from that same builder, overriding the raw passthrough this table's `incident_channels` row describes. |
 | `incident_channels` | `channels` | Wired | full incident-channel payload exposed, including ICS-205-relevant fields (`system`, assignment division/team, include_on_205, sort/line flags) plus compatibility aliases (`name`, `assignment`, `remarks`) |
 | `communications_log` | `comm_log` | Wired | full communications log entry payload exposed for layer 1/2; create/update/delete metadata lives on each log entry |
-| `ics_214_logs` | `narrative` | Wired | ICS 214 stream entries are flattened into the legacy narrative shape (`timestamp`, `narrative`, `entered_by`, `team_num`, `critical`) with extra source metadata preserved alongside |
+| `ics_214_entries` | `narrative` | Wired | Canonical ICS-214 entries are projected into the form narrative shape (`timestamp`, `narrative`, `entered_by`, `team_num`, `critical`) with typed associations preserved alongside |
 
 ### Medical & Safety
 
@@ -553,7 +562,7 @@ that point (follow the debrief table's format below as the template).
 
 | Collection | Context key(s) | Status | Notes |
 |---|---|---|---|
-| `meetings` | `meetings` | Wired | raw passthrough |
+| `meetings` | `meetings`, `ics_230` | Wired | Current-operational-period, ICS-230-visible meetings are fetched from the canonical planning endpoint. Raw meeting fields remain under `meetings`; computed `date_time_display`, `purpose`, `attendees_display`, and `location_display` values feed `ics_230`, which separates the five FEMA preprinted standard-meeting slots from seven open schedule rows. |
 | `approval_instances` | - | Not started | |
 | `approval_records` | - | Not started | |
 | `notifications` | - | N/A (likely) | alert history; revisit if a form ever needs it |
@@ -936,11 +945,11 @@ fresh raw copy.
 | fema | ics_220 | (none) | 45 | - | Needs template (mapping orphaned) |
 | fema | ics_221 | (none) | 10 | - | Needs template (mapping orphaned) - see orphaned-mapping example above |
 | fema | ics_225 | 100 | (none) | - | Needs mapping |
-| fema | ics_230 | 44 | (none) | - | Needs mapping |
+| fema | ics_230 | 44 | 44 | 44 | Wired - current-operational-period meetings marked for ICS 230 populate all five preprinted standard-meeting time slots and all seven open rows; test-fill verified zero warnings |
 | fema | ics_233 | 378 | (none) | - | Needs mapping |
 | fema | ics_309 | 0 | (none) | - | Non-fillable source PDF, no mapping started - source file has 0 fields and 0 annotations (not corruption, never a fillable AcroForm) |
 | ics_canada | ics_201 | 160 | 169 | 160 | Wired |
-| ics_canada | ics_203 | 106 | 83 | 83 | **Wired** (rebuilt 2026-09-14) - the old mapping (117/195/69 in this table's stale numbers) was built against a differently-renamed copy of the PDF; almost every field name was missing this template's real numeric/lettered section prefix (`5. `, `7. `, `a.`, `b.`, `c.`, `d. `, etc.), see "ICS-203 (ICS Canada) resolution" below. 96.2% of real leaf fields now bound (102/106); test-fill verified 4 warnings, all genuinely unresolved (no printed label on the form to key off of) |
+| ics_canada | ics_203 | 106 | 83 | 83 | **Needs review — server mapping copy is stale.** Re-run the authoritative desktop/server mapping comparison before accepting or syncing either copy. The desktop mapping was rebuilt 2026-09-14 against the numeric/lettered template fields and previously test-filled with 4 genuinely unresolved fields; the current server asset drift means that result must be re-verified. |
 | ics_canada | ics_205 | 85 | 7 | 85 | Wired - row-group coverage fills the 13 channel rows; test-fill verified zero warnings |
 | ics_canada | ics_206 | 105 | 105 | 105 | Wired - source-backed medical-plan fields test-fill verified zero warnings; aid-station contact/frequency is stored, paramedics-on-site is inferred from ALS/Paramedic aid-station values, and hospital air/ground travel times are stored when ICP/hospital coordinates allow calculation |
 | ics_canada | ics_207 | 114 | 120 | 98 | Mapped, not yet test-fill verified |

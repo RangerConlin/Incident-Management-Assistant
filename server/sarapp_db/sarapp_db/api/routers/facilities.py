@@ -20,6 +20,11 @@ def _repo(incident_id: str) -> FacilitiesRepository:
     return FacilitiesRepository(get_incident_db(incident_id))
 
 
+def _next_int_id(repo: FacilitiesRepository) -> int:
+    row = repo._col.find_one({"int_id": {"$exists": True}}, sort=[("int_id", -1)])
+    return int(row.get("int_id") or 0) + 1 if row else 1
+
+
 class FacilityPayload(BaseModel):
     name: str
     facility_type: str = "other"
@@ -43,6 +48,7 @@ class FacilityPayload(BaseModel):
 def _serialize(doc: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "id": str(doc.get("_id") or ""),
+        "int_id": doc.get("int_id"),
         "incident_id": str(doc.get("incident_id") or ""),
         "name": str(doc.get("name") or ""),
         "facility_type": str(doc.get("facility_type") or "other"),
@@ -107,7 +113,7 @@ def create_facility(incident_id: str, payload: FacilityPayload) -> Dict[str, Any
     values = payload.model_dump()
     values["capabilities"] = list(values["function_tags"])
     values["served_modules"] = list(values["served_sections"])
-    doc = repo.insert_one({"incident_id": incident_id, **values})
+    doc = repo.insert_one({"incident_id": incident_id, "int_id": _next_int_id(repo), **values})
     if payload.is_primary:
         _apply_primary_constraint(repo, incident_id, payload.facility_type, str(doc["_id"]))
         doc = repo.find_by_id(str(doc["_id"])) or doc

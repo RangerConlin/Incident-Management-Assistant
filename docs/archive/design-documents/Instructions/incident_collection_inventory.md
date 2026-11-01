@@ -69,7 +69,8 @@ and legacy/cleanup concerns. It does not describe `sarapp_system` or
 | `communications_plan` | Per-operational-period communications plan record for general comms planning data. Currently stores ICS-205 special instructions and can also hold phone/contact blocks and broader communications notes. |
 | `communications_log` | Incident communications log / ICS-309 style traffic entries, including simple create/update/delete metadata fields on each entry. |
 | `incident_channels` | Incident-assigned radio/channel plan entries copied or derived from master radio channels, including ICS-205 inclusion and incident-specific overrides. |
-| `ics_214_logs` | Canonical ICS-214 activity log collection. Each document is a stream for a unit, team, section, or entity, with entries embedded in `entries`. Desktop panels, mobile team logs, auto-generated status entries, exports, and form context all use this collection. |
+| `ics_214_entries` | Canonical ICS-214 activity entries. Each document is one immutable incident entry with typed association arrays for people, teams, tasks, organizational units, facilities, resources, and external agencies. Logical logs and exports are filtered views; void-and-correct preserves record history. |
+| `ics_214_log_definitions` | Named reusable ICS-214 filters and export header settings. Definitions never own or duplicate activity entries. |
 | `notifications` | Incident-scoped alert/notification history. |
 
 ## Medical And ICS 206

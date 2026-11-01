@@ -48,4 +48,14 @@ def default_registry() -> ExportRegistry:
             builder=load_snapshot, mapper=map_saved_records,
             source_required=source in {"work_assignment", "resource_request", "sitrep"},
         ))
+    # Same physical ICS 213RR template as above, but sourced from a work
+    # assignment's own resource requirements instead of a single saved
+    # Logistics resource request record: one 213RR listing every
+    # requirement on the assignment that still has an outstanding gap.
+    registry.register(FormDefinition(
+        form_id="ics_213rr_wa", label="ICS 213RR - Resource Request (Work Assignment Gaps) (FEMA)",
+        source="work_assignment", default_set="fema",
+        templates=(TemplateSpec("fema", "ics_213rr.pdf"),),
+        builder=load_snapshot, mapper=map_saved_records, source_required=True,
+    ))
     return registry

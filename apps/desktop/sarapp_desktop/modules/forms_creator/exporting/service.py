@@ -18,11 +18,11 @@ class ExportService:
         self,
         registry: ExportRegistry,
         *,
-        generator: Callable[..., object] | None = None,
+        downloader: Callable[..., object] | None = None,
         clock: Callable[[], str] = utcnow_seconds,
     ) -> None:
         self._registry = registry
-        self._generator = generator
+        self._downloader = downloader
         self._clock = clock
 
     def export(self, request: ExportRequest) -> ExportResult:
@@ -39,38 +39,39 @@ class ExportService:
         )
 
     def _generate(self, prepared: PreparedExport) -> None:
-        if prepared.form_id == "ics_203":
-            from .server import download_ics203
+        from .server import download_form
 
-            if prepared.form_set_id not in (None, "fema", "ics_canada", "uscg"):
-                raise ValueError("Unsupported ICS 203 form set")
-            period_id = prepared.metadata.get("operational_period_id")
-            if not isinstance(period_id, int) or isinstance(period_id, bool):
-                raise ValueError("Select an operational period for ICS 203")
-            download_ics203(
-                str(prepared.incident_id or ""), period_id, prepared.output_path,
-                prepared_by=str(prepared.metadata.get("prepared_by") or ""),
-                form_set_id=prepared.form_set_id or "fema",
-                prepared_by_position=str(prepared.metadata.get("prepared_by_position") or ""),
-            )
-            return
-        if self._generator is not None:
-            self._generator(
-                prepared.form_id,
-                prepared.output_path,
-                incident_id=prepared.incident_id,
-                form_set_id=prepared.form_set_id,
-                extra_data=prepared.extra_data,
-            )
-            return
-        from modules.forms_creator.engine import generate
-
-        generate(
+        downloader = self._downloader or download_form
+        period_id = next(
+            (prepared.metadata[key] for key in (
+                "operational_period_id", "op_period_id", "op_period"
+            ) if prepared.metadata.get(key) not in (None, "")),
+            None,
+        )
+        if period_id is not None:
+            if isinstance(period_id, bool):
+                raise ValueError("Operational period ID must be numeric")
+            try:
+                period_id = int(period_id)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("Operational period ID must be numeric") from exc
+        target_type = str(prepared.metadata.get("target_type") or "").strip().lower()
+        target_id = prepared.metadata.get("target_id")
+        if period_id is None and target_type in {"operational_period", "op_period"}:
+            try:
+                period_id = int(target_id)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("Operational period ID must be numeric") from exc
+        source_id = None if target_type in {"operational_period", "op_period"} else target_id
+        downloader(
+            str(prepared.incident_id or ""),
             prepared.form_id,
             prepared.output_path,
-            incident_id=prepared.incident_id,
+            source_id=source_id,
+            operational_period_id=period_id,
+            prepared_by=str(prepared.metadata.get("prepared_by") or ""),
             form_set_id=prepared.form_set_id,
-            extra_data=prepared.extra_data,
+            prepared_by_position=str(prepared.metadata.get("prepared_by_position") or ""),
         )
 
 

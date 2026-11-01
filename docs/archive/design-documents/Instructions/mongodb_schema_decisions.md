@@ -7,7 +7,7 @@
 - PIO message lifecycle approvals are embedded on each `pio_messages` document in `approvals`; the duplicate `pio_approvals` collection is retired.
 - PIO misinformation timelines are embedded on each `pio_misinformation_items` document in `timeline`; the duplicate `pio_misinformation_timeline` collection is retired.
 - `intel_env_snapshots`, `intel_form_entries`, and `intel_clues` are retired legacy Intel collections. Clues are canonical `intel_items` documents with `item_type="Clue"`.
-- `ics_214_logs` is the canonical incident activity-log collection. A document is a stream, and entries are embedded in `entries`. The duplicate `unit_logs` collection is retired; SQLite `ics214_streams` imports seed `ics_214_logs`.
+- `ics_214_entries` is the canonical ICS-214 activity-log collection. Each document is one immutable entry in the incident-wide chronological pool. Logical person/team/task/unit/facility/resource/agency logs are filtered views using typed integer-ID arrays; `incident_wide` marks intentional overall-incident entries, while empty arrays with `incident_wide=false` derive the unassigned review state. Entries are never edited or deleted: mistakes are voided and replaced with a linked correction. Saved log definitions live in `ics_214_log_definitions` and store filters, never entry copies. This operational record is separate from technical audit logs.
 - Use string UUID4 `_id` fields, Pydantic v2, and soft deletes.
 
 ## Terminology: "master" is overloaded — read this before the sections below

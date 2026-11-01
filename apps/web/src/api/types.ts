@@ -445,6 +445,7 @@ export interface WorkAssignment {
   planning_status: string;
   safety_status: string;
   resource_status: string;
+  approval_status: string;
   description: string;
   tactics_summary: string;
   special_instructions: string;
@@ -795,4 +796,39 @@ export interface ChatChannelSummary {
   participant_ids: string[];
   unread_count: number;
   last_message: ChatMessage | null;
+}
+
+// Mirrors gis.py's _feature_out — the SpatialFeaturesRepository row shape.
+export interface SpatialFeature {
+  id: number;
+  incident_id: string;
+  feature_type: string;
+  feature_subtype: string | null;
+  geometry_type: string;
+  label: string;
+  description: string | null;
+  status: string;
+  source_module: string;
+  source_record_type: string;
+  source_record_id: string;
+  geometry_wkt: string;
+  centroid_lat: number | null;
+  centroid_lon: number | null;
+  bbox_min_lat: number | null;
+  bbox_min_lon: number | null;
+  bbox_max_lat: number | null;
+  bbox_max_lon: number | null;
+  elevation_m: number | null;
+  start_time: string | null;
+  end_time: string | null;
+  is_planning_only: boolean;
+  is_visible: boolean;
+  is_locked: boolean;
+  is_archived: boolean;
+  layer_key: string;
+  style_key: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  created_by: string | null;
+  updated_by: string | null;
 }

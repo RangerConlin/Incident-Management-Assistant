@@ -67,6 +67,12 @@ export function useAssignApprovalStep(incidentId: string, entityType: string, en
   });
 }
 
+export function useNotifyApprovalStep(incidentId: string, entityType: string, entityId: string | null) {
+  return useMutation({
+    mutationFn: (stepId: string) => api.notifyApprovalStep(incidentId, entityType, entityId!, stepId),
+  });
+}
+
 export function usePersonnelSearch(query: string) {
   return useQuery({
     queryKey: ["master_personnel_search", query],

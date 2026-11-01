@@ -28,8 +28,8 @@ void main() {
         expect(request.url.path, _logPath);
         return http.Response(
           jsonEncode([
-            {'id': 'a', 'timestamp_utc': '2026-09-19T10:00:00+00:00', 'text': 'Older'},
-            {'id': 'b', 'timestamp_utc': '2026-09-19T11:00:00+00:00', 'text': 'Newer\nDetail'},
+            {'id': 'a', 'occurred_at': '2026-09-19T10:00:00+00:00', 'text': 'Older'},
+            {'id': 'b', 'occurred_at': '2026-09-19T11:00:00+00:00', 'text': 'Newer\nDetail'},
           ]),
           200,
         );
@@ -79,7 +79,7 @@ void main() {
           posted = jsonDecode(request.body) as Map<String, dynamic>;
           entries.add({
             'id': 'n1',
-            'timestamp_utc': posted!['timestamp_utc'],
+            'occurred_at': posted!['occurred_at'],
             'text': posted!['text'],
           });
           return http.Response(jsonEncode(entries.last), 201);

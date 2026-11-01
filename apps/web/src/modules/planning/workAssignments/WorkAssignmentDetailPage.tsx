@@ -13,12 +13,14 @@ import {
   useUpdateWorkAssignment,
   useWorkAssignmentDetail,
 } from "./hooks";
+import WorkAssignmentApprovals from "./WorkAssignmentApprovals";
 
-type Tab = "overview" | "resources" | "tasks";
+type Tab = "overview" | "resources" | "tasks" | "approvals";
 const TABS: { key: Tab; label: string }[] = [
   { key: "overview", label: "Overview" },
   { key: "resources", label: "Resources" },
   { key: "tasks", label: "Linked Tasks" },
+  { key: "approvals", label: "Approvals" },
 ];
 
 export default function WorkAssignmentDetailPage() {
@@ -291,6 +293,8 @@ export default function WorkAssignmentDetailPage() {
           )}
         </div>
       )}
+
+      {tab === "approvals" && <WorkAssignmentApprovals incidentId={incidentId} workAssignmentId={id} />}
     </div>
   );
 }

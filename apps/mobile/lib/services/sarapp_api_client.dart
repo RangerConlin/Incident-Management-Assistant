@@ -479,9 +479,8 @@ class SarAppApiClient {
     return _decodeJsonObject(response);
   }
 
-  /// The team's ICS 214 log. The server creates the team's stream on first
-  /// use and omits internal (composition) entries. [since] is an ISO
-  /// timestamp for delta polling.
+  /// The team's filtered view of the canonical ICS 214 stream. [since] is
+  /// an ISO timestamp for delta polling.
   Future<List<dynamic>> fetchTeamLog(
     String incidentId,
     String teamIntId, {
@@ -501,7 +500,7 @@ class SarAppApiClient {
     body: {
       'text': text,
       'actor_user_id': actorUserId,
-      'timestamp_utc': DateTime.now().toUtc().toIso8601String(),
+      'occurred_at': DateTime.now().toUtc().toIso8601String(),
       'critical_flag': critical,
     },
   );

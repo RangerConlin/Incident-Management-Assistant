@@ -14,6 +14,7 @@ from typing import Any, Optional
 from PySide6.QtCore import QObject, Signal
 
 from utils.incident_cache import incident_cache
+from utils.personnel_display import format_name_with_rank
 
 logger = logging.getLogger(__name__)
 
@@ -226,7 +227,9 @@ class ResourceStatusDesk(QObject):
                             )
                             if entity_type == "personnel":
                                 source_record_id = master.get("person_record") or master.get("int_id") or record_id
-                                resource_name = master.get("name") or str(record_id)
+                                resource_name = format_name_with_rank(
+                                    master.get("name"), master.get("rank")
+                                ) or str(record_id)
                     except Exception:
                         pass
 

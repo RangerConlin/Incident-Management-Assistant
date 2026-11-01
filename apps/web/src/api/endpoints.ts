@@ -73,7 +73,7 @@ import type {
   WorkAssignmentResourceRequirement,
   WorkAssignmentTaskLink,
   IncidentProfile, OrgAssignment, OrgPosition, OrgTemplate, IapPackage,
-  TeamTypeDefinition, ResourceType,
+  TeamTypeDefinition, ResourceType, SpatialFeature,
 } from "./types";
 
 export function lookupPerson(personId: string) {
@@ -792,6 +792,11 @@ export const assignApprovalStep = (
   entityId: string,
   body: { step_id: string; actor_id: number }
 ) => api.post<ApprovalInstance>(`${approvalsBase(id)}/${entityType}/${encodeURIComponent(entityId)}/assign-step`, body);
+export const notifyApprovalStep = (id: string, entityType: string, entityId: string, stepId: string) =>
+  api.post<{ ok: boolean }>(
+    `${approvalsBase(id)}/${entityType}/${encodeURIComponent(entityId)}/steps/${encodeURIComponent(stepId)}/notify`,
+    {}
+  );
 export const searchPersonnel = (search: string) =>
   api.get<MasterPersonnelSummary[]>(`/api/master/personnel?search=${encodeURIComponent(search)}&limit=25`);
 
@@ -825,3 +830,11 @@ export const chatSummary = (incidentId: string, userId: string) =>
   api.get<{ items: ChatChannelSummary[] }>(`/api/incidents/${encodeURIComponent(incidentId)}/chat/summary?user_id=${encodeURIComponent(userId)}`);
 export const markChatChannelRead = (incidentId: string, channelId: string, userId: string) =>
   api.post<{ id: string }>(`/api/incidents/${encodeURIComponent(incidentId)}/chat/channels/${encodeURIComponent(channelId)}/read`, { user_id: userId });
+
+// ---------------------------------------------------------------------------
+// GIS: spatial features (Incident Map). Mirrors gis.py's router.
+// ---------------------------------------------------------------------------
+const gisFeaturesBase = (incidentId: string) => `/api/incidents/${encodeURIComponent(incidentId)}/gis/features`;
+export const listSpatialFeatures = (incidentId: string) => api.get<SpatialFeature[]>(gisFeaturesBase(incidentId));
+export const archiveSpatialFeature = (incidentId: string, featureId: number) =>
+  api.patch<SpatialFeature>(`${gisFeaturesBase(incidentId)}/${featureId}/archive`, {});

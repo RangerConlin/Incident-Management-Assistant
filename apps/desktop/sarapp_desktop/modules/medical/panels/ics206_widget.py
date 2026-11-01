@@ -721,7 +721,7 @@ class ICS206Panel(QWidget):
         title_row.addWidget(title)
         title_row.addStretch()
         title_row.addWidget(QLabel("Op Period:"))
-        self._op_label = QLabel(str(AppState.get_active_op_period() or 1))
+        self._op_label = QLabel(self._format_op_period())
         op_font = self._op_label.font()
         op_font.setBold(True)
         self._op_label.setFont(op_font)
@@ -884,7 +884,7 @@ class ICS206Panel(QWidget):
     def _refresh_all(self) -> None:
         if not self._bridge:
             return
-        self._op_label.setText(str(AppState.get_active_op_period() or 1))
+        self._op_label.setText(self._format_op_period())
         try:
             versions = self._bridge.list_versions()
             current = self._bridge.current_version()
@@ -1005,6 +1005,13 @@ class ICS206Panel(QWidget):
     # ------------------------------------------------------------------
     # Actions
     # ------------------------------------------------------------------
+    @staticmethod
+    def _format_op_period() -> str:
+        op_dict = AppState.get_active_op_period_dict()
+        if op_dict and op_dict.get("number") is not None:
+            return str(op_dict["number"])
+        return "1"
+
     def _on_op_period_changed(self, op_data: object) -> None:
         """Reload the plan for the newly active operational period."""
         if not self._bridge:

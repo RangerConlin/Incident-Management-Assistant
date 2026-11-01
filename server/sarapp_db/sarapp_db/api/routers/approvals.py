@@ -33,6 +33,7 @@ _ENTITY_LABELS: dict[str, str] = {
     "ics_206": "the ICS-206 Medical Plan",
     "iwi_report": "an IWI report",
     "iap": "the IAP",
+    "work_assignment": "a work assignment",
 }
 
 _VALID_ACTIONS = {"approved", "rejected", "acknowledged"}
@@ -46,6 +47,7 @@ _ENTITY_COLLECTIONS: dict[str, tuple[str, str, str]] = {
     "ics_206": (IncidentCollections.MEDICAL_PLAN, "plan_id", "approval_status"),
     "iwi_report": (IncidentCollections.IWI_REPORTS, "id", "approval_status"),
     "iap": (IncidentCollections.IAP_PACKAGES, "op_number", "status"),
+    "work_assignment": (IncidentCollections.WORK_ASSIGNMENTS, "int_id", "approval_status"),
 }
 
 
@@ -158,6 +160,46 @@ _SPECS: dict[str, ApprovalSpec] = {
         ),
         precondition=_iap_precondition,
     ),
+    "work_assignment": ApprovalSpec(
+        entity_type="work_assignment",
+        # All four sign-offs are requested at once (parallel, same order) —
+        # only Safety Officer's is a real approve/reject gate; Operations,
+        # Planning, and Logistics each just acknowledge ("Reviewed").
+        steps=(
+            ApprovalStepSpec(
+                step_id="sofr_approval",
+                label="Safety Officer",
+                role="Safety Officer",
+                kind="parallel",
+                acceptable_types=("primary", "deputy"),
+                order=0,
+            ),
+            ApprovalStepSpec(
+                step_id="osc_review",
+                label="Operations Section Chief",
+                role="Operations Section Chief",
+                kind="parallel",
+                acceptable_types=("primary", "deputy"),
+                order=0,
+            ),
+            ApprovalStepSpec(
+                step_id="psc_review",
+                label="Planning Section Chief",
+                role="Planning Section Chief",
+                kind="parallel",
+                acceptable_types=("primary", "deputy"),
+                order=0,
+            ),
+            ApprovalStepSpec(
+                step_id="lsc_review",
+                label="Logistics Section Chief",
+                role="Logistics Section Chief",
+                kind="parallel",
+                acceptable_types=("primary", "deputy"),
+                order=0,
+            ),
+        ),
+    ),
 }
 
 # ICS standard escalation chains. Key: position title (must match org chart
@@ -199,11 +241,21 @@ def _escalation_chain(role: str) -> list[str]:
 
 
 def _resolve_actor(incident_id: str, role: str) -> tuple[Optional[int], Optional[str]]:
-    """Walk the escalation chain for `role`, returning the first filled position's actor."""
+    """Walk the escalation chain for `role`, returning the first filled position's actor.
+
+    Title matching is case/whitespace-insensitive, mirroring the canonical
+    ICS position catalog's own casefolded lookup
+    (`modules/common/models/ics_positions.py`'s `ICS_POSITIONS_BY_TITLE`) so
+    a position saved as "safety officer" or "Safety Officer " still resolves
+    instead of silently matching nothing.
+    """
     repo = _org_repo(incident_id)
     positions = repo.find_many({})
     for candidate_role in _escalation_chain(role):
-        position = next((p for p in positions if p.get("title") == candidate_role), None)
+        target = candidate_role.strip().casefold()
+        position = next(
+            (p for p in positions if str(p.get("title") or "").strip().casefold() == target), None
+        )
         if position is None:
             continue
         assignments = [
@@ -454,11 +506,18 @@ def _write_status_to_entity(incident_id: str, instance: dict[str, Any]) -> None:
     _EntityRepository.soft_deletes = False
     repo = _EntityRepository(get_incident_db(incident_id))
     entity_id: Any = instance["entity_id"]
-    if instance["entity_type"] == "iap":
+    if instance["entity_type"] in ("iap", "work_assignment"):
         entity_id = int(entity_id)
     existing = repo.find_one({"incident_id": incident_id, id_field: entity_id})
-    if existing is not None:
-        repo.update_one(existing["_id"], {status_field: instance["status"]})
+    if existing is None:
+        return
+    update = {status_field: instance["status"]}
+    if instance["entity_type"] == "work_assignment" and instance["status"] == "rejected":
+        # A Safety Officer rejection *is* a safety concern by definition —
+        # reflect it on safety_status directly. Planning status is left
+        # alone; rejection doesn't mean the plan itself reverts to Draft.
+        update["safety_status"] = "Safety Concern"
+    repo.update_one(existing["_id"], update)
 
 
 @router.get("/{incident_id}/approvals/{entity_type}/{entity_id}/start/preview")
@@ -487,11 +546,16 @@ def _preview_row(incident_id: str, step: dict[str, Any]) -> dict[str, Any]:
 
 @router.post("/{incident_id}/approvals/{entity_type}/{entity_id}/start")
 def start_instance(incident_id: str, entity_type: str, entity_id: str, body: StartRequest = StartRequest()) -> dict[str, Any]:
+    """Start a fresh approval chain. A rejected instance doesn't block this —
+    rejection is meant to be fixable: the rejector's reason is already kept
+    in the (never-deleted) approval_records audit trail via `/sign`'s
+    `notes`, and resubmitting here simply replaces the old rejected instance
+    with a brand new one so the whole chain is asked again from scratch."""
     spec = _get_spec(entity_type)
     existing = _instances_repo(incident_id).find_one(
         {"incident_id": incident_id, "entity_type": entity_type, "entity_id": entity_id}
     )
-    if existing is not None:
+    if existing is not None and existing.get("status") != "rejected":
         raise HTTPException(409, "Approval workflow already exists for this record")
     if spec.precondition and not spec.precondition(incident_id, entity_id):
         raise HTTPException(
@@ -508,6 +572,24 @@ def start_instance(incident_id: str, entity_type: str, entity_id: str, body: Sta
     }
     _activate_next_steps(incident_id, instance, body.assign_actors)
     _save_instance(incident_id, instance)
+    if existing is not None:
+        # Clear the stale terminal status left on the entity by the
+        # rejected instance so nothing shows "rejected" while a fresh
+        # review is actually in progress.
+        entry = _ENTITY_COLLECTIONS.get(entity_type)
+        if entry is not None:
+            collection_name, id_field, status_field = entry
+
+            class _EntityRepository(BaseRepository):
+                pass
+
+            _EntityRepository.collection_name = collection_name
+            _EntityRepository.soft_deletes = False
+            repo = _EntityRepository(get_incident_db(incident_id))
+            lookup_id: Any = int(entity_id) if entity_type in ("iap", "work_assignment") else entity_id
+            existing_entity = repo.find_one({"incident_id": incident_id, id_field: lookup_id})
+            if existing_entity is not None:
+                repo.update_one(existing_entity["_id"], {status_field: "pending"})
     return instance
 
 
@@ -637,6 +719,26 @@ def assign_step(
     _save_instance(incident_id, instance)
     _notify_step_awaiting(incident_id, entity_type, entity_id, step)
     return _strip_id(instance)
+
+
+@router.post("/{incident_id}/approvals/{entity_type}/{entity_id}/steps/{step_id}/notify")
+def notify_step(incident_id: str, entity_type: str, entity_id: str, step_id: str) -> dict[str, Any]:
+    """Re-send the "sign-off needed" notification for a step that's already
+    active and resolved — a manual nudge, distinct from the automatic
+    notification `start`/`sign`/`assign-step` already send on activation."""
+    repo = _instances_repo(incident_id)
+    instance = repo.find_one(
+        {"incident_id": incident_id, "entity_type": entity_type, "entity_id": entity_id}
+    )
+    if instance is None:
+        raise HTTPException(404, "Approval instance not found")
+    step = next((s for s in instance["steps"] if s["step_id"] == step_id), None)
+    if step is None:
+        raise HTTPException(404, f"Step not found: {step_id}")
+    if step["status"] != "active" or step.get("resolved_actor_id") is None:
+        raise HTTPException(400, "Step is not active or has nobody resolved to notify.")
+    _notify_step_awaiting(incident_id, entity_type, entity_id, step)
+    return {"ok": True}
 
 
 # ---------------------------------------------------------------------------

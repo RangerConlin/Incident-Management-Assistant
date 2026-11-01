@@ -1980,7 +1980,9 @@ class MainWindow(QMainWindow):
 
             # Context header
             try:
-                op = AppState.get_active_op_period() or "—"
+                op_dict = AppState.get_active_op_period_dict()
+                op = op_dict.get("number") if op_dict else None
+                op = op if op is not None else "—"
                 role = AppState.get_active_user_role() or "—"
             except Exception:
                 op, role = "—", "—"
@@ -2276,7 +2278,9 @@ class MainWindow(QMainWindow):
                 return
 
             try:
-                op = AppState.get_active_op_period() or "—"
+                op_dict = AppState.get_active_op_period_dict()
+                op = op_dict.get("number") if op_dict else None
+                op = op if op is not None else "—"
             except Exception:
                 op = "—"
             try:
@@ -2746,7 +2750,9 @@ class MainWindow(QMainWindow):
 
             # Header context
             try:
-                op = AppState.get_active_op_period() or "—"
+                op_dict = AppState.get_active_op_period_dict()
+                op = op_dict.get("number") if op_dict else None
+                op = op if op is not None else "—"
             except Exception:
                 op = "—"
             try:
@@ -3786,6 +3792,7 @@ class MainWindow(QMainWindow):
             "ics_206": "medical.206",
             "iwi_report": "safety.iwi",
             "iap": "command.iap",
+            "work_assignment": "planning.tactics_planner",
         }
         key = _routes.get(entity_type)
         if key:

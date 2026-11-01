@@ -23,7 +23,8 @@ def _incident_number() -> str | None:
 
 def _active_op_period() -> int:
     try:
-        op_no = AppState.get_active_op_period()
+        op_dict = AppState.get_active_op_period_dict()
+        op_no = op_dict.get("number") if op_dict else None
         return int(op_no) if op_no else 1
     except Exception:
         return 1
@@ -571,30 +572,19 @@ def requests_getSummary() -> Dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# ICS-214 Activity Log (all streams)
+# ICS-214 Activity Log
 # ---------------------------------------------------------------------------
 
 def ics214_getRecentEntries(limit: int = 30) -> List[Dict[str, Any]]:
-    """Return the most recent activity log entries across all streams."""
+    """Return the most recent entries in the canonical incident stream."""
     try:
         from modules.ics214 import services as svc214
         incident_id = _incident_number()
         if not incident_id:
             return []
-        streams = svc214.list_streams(incident_id)
-        all_entries: List[Dict[str, Any]] = []
-        for stream in streams:
-            stream_id = stream.id if hasattr(stream, "id") else stream.get("id")
-            stream_name = stream.name if hasattr(stream, "name") else stream.get("name", "?")
-            if not stream_id:
-                continue
-            entries = svc214.list_entries(incident_id, stream_id)
-            for e in entries:
-                e["_stream_name"] = stream_name
-            all_entries.extend(entries)
-        # Sort by timestamp descending
+        all_entries = svc214.list_entries(incident_id)
         all_entries.sort(
-            key=lambda e: e.get("timestamp_utc") or "",
+            key=lambda e: e.get("occurred_at") or "",
             reverse=True,
         )
         return all_entries[:limit]

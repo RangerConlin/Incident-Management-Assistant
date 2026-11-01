@@ -1,0 +1,107 @@
+/* Incident Map — a full-page clone of desktop's
+ * modules/gis/map_window/incident_map_window.py (IncidentMapWindow).
+ * Reached from the sidebar's "Incident Map" link, which is a plain <a>
+ * outside react-router's nested "/" route (not wrapped in AppShell), so
+ * this page owns its whole viewport instead of sitting inside the normal
+ * sidebar/topbar chrome. */
+
+.im-page {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  background: #121417;
+  color: #e8e8e8;
+}
+
+.im-topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: var(--chrome-bg);
+  color: var(--chrome-fg);
+  border-bottom: 1px solid var(--chrome-border);
+  flex-shrink: 0;
+}
+.im-topbar h1 { margin: 0; font-size: 1rem; }
+.im-topbar .sub { font-size: 0.76rem; color: var(--chrome-fg-dim); }
+.im-back-btn {
+  background: transparent; border: 1px solid var(--chrome-border); color: var(--chrome-fg);
+  border-radius: 8px; padding: 6px 12px; font: inherit; font-size: 0.8rem; font-weight: 650;
+  cursor: pointer; width: auto; display: inline-flex; align-items: center; gap: 6px;
+}
+.im-back-btn:hover { background: var(--chrome-bg-hover); }
+
+.im-ribbon { background: #17191d; border-bottom: 1px solid #2a2d33; flex-shrink: 0; }
+.im-ribbon-tabs { display: flex; gap: 2px; padding: 4px 10px 0; }
+.im-ribbon-tab {
+  background: transparent; border: none; font: inherit; font-size: 0.82rem; font-weight: 650;
+  color: #9aa0a8; padding: 6px 14px; border-radius: 6px 6px 0 0; cursor: pointer; width: auto;
+}
+.im-ribbon-tab.active { background: #121417; color: var(--brand-accent); }
+.im-ribbon-page { display: none; padding: 8px 10px; gap: 4px; overflow-x: auto; }
+.im-ribbon-page.active { display: flex; }
+.im-rgroup { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 4px 12px; border-right: 1px solid #2a2d33; flex-shrink: 0; }
+.im-rgroup:last-child { border-right: none; }
+.im-rgroup-buttons { display: flex; gap: 4px; align-items: center; }
+.im-rbtn {
+  background: #1d2024; border: 1px solid #2a2d33; color: #e8e8e8; border-radius: 6px;
+  padding: 5px 9px; font: inherit; font-size: 0.74rem; font-weight: 600; cursor: pointer; white-space: nowrap; width: auto;
+}
+.im-rbtn:hover:not(:disabled) { border-color: var(--brand-accent); color: var(--brand-accent); }
+.im-rbtn.active { background: var(--brand-accent); color: #fff; border-color: var(--brand-accent); }
+.im-rbtn:disabled { opacity: 0.45; cursor: default; }
+.im-rgroup-label { font-size: 0.65rem; color: #9aa0a8; text-transform: uppercase; letter-spacing: 0.03em; }
+.im-rgroup-input {
+  width: 150px; background: #121417; border: 1px solid #2a2d33; border-radius: 6px; color: #e8e8e8;
+  font: inherit; font-size: 0.78rem; padding: 5px 8px;
+}
+.im-soon { font-size: 0.6rem; font-weight: 650; color: #a88f1a; border: 1px solid #a88f1a; border-radius: 999px; padding: 0 6px; margin-left: 4px; text-transform: none; }
+
+.im-contextual-strip {
+  display: flex; align-items: center; gap: 8px; padding: 6px 14px; background: #1d2024;
+  border-bottom: 1px solid #2a2d33; font-size: 0.82rem; flex-shrink: 0;
+}
+.im-contextual-strip .spacer { flex: 1; }
+
+.im-canvas-area { flex: 1; min-height: 0; position: relative; }
+.im-canvas-area .leaflet-container { width: 100%; height: 100%; background: #1d2024; }
+
+.im-bottom-panel { flex-shrink: 0; background: #17191d; border-top: 1px solid #2a2d33; }
+.im-bottom-tabs { display: flex; align-items: center; gap: 2px; padding: 0 10px; border-bottom: 1px solid #2a2d33; }
+.im-bottom-tab {
+  background: transparent; border: none; font: inherit; font-size: 0.78rem; font-weight: 600;
+  color: #9aa0a8; padding: 7px 12px; cursor: pointer; width: auto;
+}
+.im-bottom-tab.active { color: var(--brand-accent); border-bottom: 2px solid var(--brand-accent); margin-bottom: -1px; }
+.im-bottom-collapse { margin-left: auto; background: transparent; border: none; color: #9aa0a8; cursor: pointer; width: auto; padding: 4px 8px; }
+.im-bottom-content { height: 190px; overflow-y: auto; padding: 10px 14px; }
+.im-bottom-content .im-empty { color: #9aa0a8; font-size: 0.84rem; text-align: center; padding: 40px 0; }
+
+.im-table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
+.im-table th { text-align: left; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em; color: #9aa0a8; font-weight: 700; padding: 6px 10px; border-bottom: 1px solid #2a2d33; }
+.im-table td { padding: 6px 10px; border-bottom: 1px solid #2a2d33; }
+.im-table tbody tr { cursor: pointer; }
+.im-table tbody tr:hover td { background: #1d2024; }
+.im-table tbody tr.selected { outline: 2px solid var(--color-selected-outline, #5b9bd5); outline-offset: -1px; }
+
+.im-coord-form { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 10px; }
+.im-coord-form .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 0; }
+.im-coord-form .field label { font-size: 0.78rem; color: #9aa0a8; }
+.im-coord-form input { width: 160px; }
+.im-coord-readout { color: #9aa0a8; font-size: 0.82rem; }
+
+.im-log-line { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 0.8rem; margin: 2px 0; color: #c7cad1; }
+
+.im-statusbar {
+  display: flex; gap: 20px; padding: 4px 14px; font-size: 0.72rem; color: #9aa0a8;
+  border-top: 1px solid #2a2d33; flex-shrink: 0; font-family: "IBM Plex Mono", ui-monospace, monospace;
+}
+.im-statusbar .sep { flex: 1; }
+
+/* Point features render as CircleMarker, not the default pin icon, so
+ * selection highlighting is one setStyle call shared with lines/polygons
+ * instead of swapping marker icon images. */
+.im-feature-point { fill-opacity: 0.9; }

@@ -150,7 +150,8 @@ class IncidentCollections:
     # Communications
     COMMUNICATIONS_PLAN = "communications_plan"
     COMMUNICATIONS_LOG = "communications_log"
-    ICS_214_LOGS = "ics_214_logs"
+    ICS_214_ENTRIES = "ics_214_entries"
+    ICS_214_LOG_DEFINITIONS = "ics_214_log_definitions"
     ICS_206_AID_STATIONS = "ics_206_aid_stations"
     MEDICAL_PLAN = "medical_plan"
 

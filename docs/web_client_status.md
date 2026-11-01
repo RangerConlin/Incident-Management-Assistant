@@ -102,11 +102,11 @@ Legend: ✅ Live · 🚧 In progress · ⬜ Planned (not started)
 | --- | --- | --- |
 | Public Information | ✅ Live | PAO overview; release authoring, preview, lifecycle and history; media response drafts; talking points; misinformation timelines; templates; distribution records. Publication records status; external delivery is manual. |
 
-## GIS
+## Incident Map
 
 | Module | Status | Notes |
 | --- | --- | --- |
-| GIS | ⬜ Planned | |
+| Incident Map | ✅ Live | Standalone full-page route (not nested in the sidebar shell — a clone of desktop's `IncidentMapWindow`, not a board page). Leaflet map with real spatial features from `gis.py`, feature table, search, coordinate entry, delete. Ribbon's Operational Points/Lines/Areas, Draw, Edit, Quick Add, Measure, and Layers controls are disabled stubs; drawing/editing and layer management stay desktop-only for now. Team/Task extent buttons are disabled — no web endpoint exposes their coordinates yet. |
 
 ## Toolkits
 

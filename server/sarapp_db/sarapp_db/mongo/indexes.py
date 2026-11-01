@@ -67,7 +67,27 @@ def create_incident_indexes(incident_db: Database) -> None:
     _create_iap_indexes(incident_db)
     _create_sitrep_indexes(incident_db)
     _create_package_activations_indexes(incident_db)
+    _create_ics214_indexes(incident_db)
     logger.debug("Incident database indexes verified: %s", incident_db.name)
+
+
+def _create_ics214_indexes(incident_db: Database) -> None:
+    entries = incident_db[IncidentCollections.ICS_214_ENTRIES]
+    _ensure_index(entries, [("entry_id", ASCENDING)], unique=True)
+    _ensure_index(entries, [("incident_id", ASCENDING), ("occurred_at", DESCENDING)])
+    _ensure_index(entries, [("incident_id", ASCENDING), ("idempotency_hash", ASCENDING)], unique=True)
+    _ensure_index(entries, [("voided_at", ASCENDING)])
+    _ensure_index(entries, [("incident_wide", ASCENDING)])
+    for field in (
+        "person_ids", "team_ids", "task_ids", "org_unit_ids", "facility_ids",
+        "resource_ids", "external_agency_ids",
+    ):
+        _ensure_index(entries, [(field, ASCENDING)])
+
+    definitions = incident_db[IncidentCollections.ICS_214_LOG_DEFINITIONS]
+    _ensure_index(definitions, [("definition_id", ASCENDING)], unique=True)
+    _ensure_index(definitions, [("incident_id", ASCENDING), ("name", ASCENDING)])
+    _ensure_index(definitions, [("deleted", ASCENDING)])
 
 
 def _create_package_activations_indexes(incident_db: Database) -> None:
@@ -377,6 +397,7 @@ def _create_facilities_indexes(incident_db: Database) -> None:
     _ensure_index(facilities, [("name", ASCENDING)])
     _ensure_index(facilities, [("latitude", ASCENDING), ("longitude", ASCENDING)])
     _ensure_index(facilities, [("deleted", ASCENDING)])
+    _ensure_index(facilities, [("int_id", ASCENDING)], unique=True, sparse=True)
 
 
 def _create_resource_status_indexes(incident_db: Database) -> None:
@@ -390,6 +411,7 @@ def _create_resource_status_indexes(incident_db: Database) -> None:
     _ensure_index(col, [("status", ASCENDING)])
     _ensure_index(col, [("updated_at", DESCENDING)])
     _ensure_index(col, [("deleted", ASCENDING)])
+    _ensure_index(col, [("int_id", ASCENDING)], unique=True, sparse=True)
 
 
 def _create_approval_indexes(incident_db: Database) -> None:

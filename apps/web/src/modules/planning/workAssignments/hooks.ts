@@ -33,7 +33,19 @@ function useInvalidateWorkAssignments(incidentId: string) {
 export function useCreateWorkAssignment(incidentId: string) {
   const invalidate = useInvalidateWorkAssignments(incidentId);
   return useMutation({
-    mutationFn: (body: Record<string, unknown>) => api.createWorkAssignment(incidentId, body),
+    mutationFn: async (body: Record<string, unknown>) => {
+      const created = await api.createWorkAssignment(incidentId, body);
+      // Request Safety/OSC/PSC/LSC sign-off immediately — the approvals
+      // engine notifies each resolved role as soon as its step activates,
+      // so creating the assignment is what puts it on their radar. Best
+      // effort: a failure here shouldn't block the assignment existing.
+      try {
+        await api.startApproval(incidentId, "work_assignment", String(created.id));
+      } catch {
+        // ignored — the Approvals tab's "Request Sign-offs" covers retry
+      }
+      return created;
+    },
     onSuccess: invalidate,
   });
 }

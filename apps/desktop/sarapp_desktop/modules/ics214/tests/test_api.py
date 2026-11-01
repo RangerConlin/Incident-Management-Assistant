@@ -1,28 +1,18 @@
-"""Stream/entry creation against the real MongoDB-backed router.
-
-Rewritten: the previous version tested modules.ics214.api, a local FastAPI
-router that duplicated routing already provided by
-server/sarapp_db/sarapp_db/api/routers/ics214.py and was never registered into the
-real app (main.py's ICS-214 panel calls modules.ics214.services directly).
-That dead router also exposed its own per-stream WebSocket and a local PDF
-export endpoint, neither of which exist in the current architecture — live
-updates now go through the generic IncidentCache hub, and PDF export happens
-client-side via services.export_stream. Both are exercised elsewhere; this
-test now covers what the real router actually does: streams and entries.
-"""
-
-from __future__ import annotations
-
+"""Canonical ICS-214 client/API integration tests."""
 from modules.ics214 import services
-from modules.ics214.schemas import EntryCreate, StreamCreate
+from modules.ics214.schemas import EntryCreate, EntryFilter
 
 
-def test_create_stream_and_entry(ics214_app_client):
-    stream = services.create_stream(StreamCreate(incident_id="m1", name="Test"))
-    assert stream["name"] == "Test"
+def test_create_and_filter_entry(ics214_app_client):
+    created = services.create_entry(
+        "m1", EntryCreate(text="hello", task_ids=[12], incident_wide=True)
+    )
+    assert created["task_ids"] == [12]
+    rows = services.list_entries("m1", EntryFilter(task_ids=[12]))
+    assert [row["text"] for row in rows] == ["hello"]
 
-    services.add_entry("m1", stream["id"], EntryCreate(text="hello"))
 
-    entries = services.list_entries("m1", stream["id"])
-    assert len(entries) == 1
-    assert entries[0]["text"] == "hello"
+def test_empty_associations_are_unassigned(ics214_app_client):
+    created = services.create_entry("m1", EntryCreate(text="needs review"))
+    assert created["unassigned"] is True
+    assert services.list_entries("m1", EntryFilter(unassigned=True))[0]["id"] == created["id"]

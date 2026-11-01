@@ -78,3 +78,6 @@ class ApprovalRepository:
             "actor_id": actor_id,
         })
         return ApprovalInstance.from_dict(doc)
+
+    def notify_step(self, entity_type: str, entity_id: str, step_id: str) -> None:
+        self._post(f"/{entity_type}/{entity_id}/steps/{step_id}/notify", {})

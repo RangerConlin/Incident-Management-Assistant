@@ -253,6 +253,19 @@ WA_SAFETY_STATUS: Dict[str, Dict[str, str]] = {
     "Safety Concern":       {"bg": "#991b1b", "fg": "#ffffff"},
 }
 
+# Work Assignment's own resource-fill status — distinct from the
+# personnel/team check-in RESOURCE_STATUS dict above; values must match
+# RESOURCE_STATUS_VALUES in modules/planning/.../work_assignment_models.py.
+WA_RESOURCE_STATUS: Dict[str, Dict[str, str]] = {
+    "Unreviewed":          {"bg": "#52525b", "fg": "#f5f5f5"},
+    "Needs Identified":    {"bg": "#1d4ed8", "fg": "#ffffff"},
+    "Partially Filled":    {"bg": "#b45309", "fg": "#ffffff"},
+    "Filled":              {"bg": "#15803d", "fg": "#ffffff"},
+    "Overfilled":          {"bg": "#0f766e", "fg": "#ffffff"},
+    "Gap Exists":          {"bg": "#b91c1c", "fg": "#ffffff"},
+    "Logistics Requested": {"bg": "#7c3aed", "fg": "#ffffff"},
+}
+
 WEATHER_SEVERITY: Dict[str, Dict[str, str]] = {
     "extreme":  {"bg": "#ef4f6e", "fg": "#1a0508"},
     "severe":   {"bg": "#ff8a4c", "fg": "#241000"},
@@ -506,6 +519,17 @@ PIO_STATUS = {
 }
 
 
+# IAP package lifecycle (an operational period's assembled form package);
+# shared with the browser client. Same five-stage shape as PIO_STATUS above.
+IAP_STATUS = {
+    "draft": dict(OBJECTIVE_STATUS["draft"]),
+    "in_review": dict(OBJECTIVE_STATUS["deferred"]),
+    "approved": dict(OBJECTIVE_STATUS["active"]),
+    "published": dict(OBJECTIVE_STATUS["completed"]),
+    "superseded": dict(OBJECTIVE_STATUS["cancelled"]),
+}
+
+
 # Logistics workflow tokens shared by desktop profiles and browser status pills.
 LOGISTICS_REQUEST_STATUS = {
     "DRAFT": dict(OBJECTIVE_STATUS["draft"]),
@@ -551,6 +575,7 @@ __all__ = [
     "LOGISTICS_REQUEST_PRIORITY",
     "FACILITY_STATUS",
     "PIO_STATUS",
+    "IAP_STATUS",
     "MAP_SYMBOL_COLORS",
     "NAMED_COLORS",
     "PALETTE",
@@ -591,5 +616,6 @@ __all__ = [
     "LIAISON_REQUEST_STATUS",
     "WA_PLANNING_STATUS",
     "WA_SAFETY_STATUS",
+    "WA_RESOURCE_STATUS",
     "WA_PRIORITY",
 ]

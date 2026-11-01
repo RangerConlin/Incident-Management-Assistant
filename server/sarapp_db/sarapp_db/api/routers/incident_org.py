@@ -40,7 +40,6 @@ def normalize_assignment_type(value: object) -> str:
 
 class IncidentOrgRepository(BaseRepository):
     collection_name = IncidentCollections.INCIDENT_ORG
-    soft_deletes = False
 
 
 class OrgTemplatesRepository(BaseRepository):
@@ -233,7 +232,7 @@ def deactivate_position(incident_id: str, position_id: int) -> dict[str, Any]:
     existing = repo.find_one({"position_id": position_id})
     if not existing:
         raise HTTPException(404, f"Position {position_id} not found")
-    repo.delete_one(existing["_id"])
+    repo.soft_delete(existing["_id"])
     return {"ok": True}
 
 

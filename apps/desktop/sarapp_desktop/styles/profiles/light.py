@@ -246,6 +246,16 @@ WA_SAFETY_STATUS: Dict[str, Dict[str, str]] = {
     "Safety Concern":       {"bg": "#B71C1C", "fg": "#ffffff"},
 }
 
+WA_RESOURCE_STATUS: Dict[str, Dict[str, str]] = {
+    "Unreviewed":          {"bg": "#78716C", "fg": "#ffffff"},
+    "Needs Identified":    {"bg": "#1976D2", "fg": "#ffffff"},
+    "Partially Filled":    {"bg": "#FB8C00", "fg": "#1a1a1a"},
+    "Filled":              {"bg": "#43A047", "fg": "#ffffff"},
+    "Overfilled":          {"bg": "#00897B", "fg": "#ffffff"},
+    "Gap Exists":          {"bg": "#E53935", "fg": "#ffffff"},
+    "Logistics Requested": {"bg": "#7E57C2", "fg": "#ffffff"},
+}
+
 WA_PRIORITY: Dict[str, Dict[str, str]] = {
     "Low":    {"bg": "#78716C", "fg": "#ffffff"},
     "Normal": {"bg": "#1976D2", "fg": "#ffffff"},
@@ -499,6 +509,17 @@ PIO_STATUS = {
 }
 
 
+# IAP package lifecycle (an operational period's assembled form package);
+# shared with the browser client. Same five-stage shape as PIO_STATUS above.
+IAP_STATUS = {
+    "draft": dict(OBJECTIVE_STATUS["draft"]),
+    "in_review": dict(OBJECTIVE_STATUS["deferred"]),
+    "approved": dict(OBJECTIVE_STATUS["active"]),
+    "published": dict(OBJECTIVE_STATUS["completed"]),
+    "superseded": dict(OBJECTIVE_STATUS["cancelled"]),
+}
+
+
 # Logistics workflow tokens shared by desktop profiles and browser status pills.
 LOGISTICS_REQUEST_STATUS = {
     "DRAFT": dict(OBJECTIVE_STATUS["draft"]),
@@ -544,6 +565,7 @@ __all__ = [
     "LOGISTICS_REQUEST_PRIORITY",
     "FACILITY_STATUS",
     "PIO_STATUS",
+    "IAP_STATUS",
     "MAP_SYMBOL_COLORS",
     "NAMED_COLORS",
     "PALETTE",
@@ -584,5 +606,6 @@ __all__ = [
     "LIAISON_REQUEST_STATUS",
     "WA_PLANNING_STATUS",
     "WA_SAFETY_STATUS",
+    "WA_RESOURCE_STATUS",
     "WA_PRIORITY",
 ]

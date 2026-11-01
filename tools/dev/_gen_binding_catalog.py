@@ -692,7 +692,7 @@ for i in range(20):
             "label": f"Narrative Entry {i+1} ({ord_}) — {label}",
             "category": "Narrative",
             "source_type": "incident_db",
-            "table": "ics_214_logs",
+            "table": "ics_214_entries",
             "column": col,
             "index": i,
         })

@@ -9,10 +9,12 @@ Tabs:
   3. Hazards/215A      — hazard analysis entries
   4. Tasks             — linked Operations tasks
   5. Agency Requests    — linked ICS 213RR requests
-  6. Outputs           — ICS 215 / 215A / 204 readiness tracking
+  6. Outputs           — ICS 215 / 215A / 213RR readiness tracking
+  7. Approvals         — Safety/OSC/PSC/LSC sign-off chain
 """
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -24,6 +26,7 @@ from PySide6.QtWidgets import (
     QFrame,
     QGridLayout,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QLineEdit,
     QMessageBox,
@@ -34,6 +37,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from modules.approvals.models import ApprovalInstance, StepInstance
+from modules.approvals.service import ApprovalService
 from modules.logistics.facilities.widgets import FacilityPicker
 from modules.planning.tactics_resources.data.work_assignment_desk import (
     resolve_person_name,
@@ -56,14 +61,30 @@ from modules.planning.tactics_resources.widgets.hazard_analysis_editor import Ha
 from modules.planning.tactics_resources.widgets.linked_agency_requests_panel import LinkedAgencyRequestsPanel
 from modules.planning.tactics_resources.widgets.linked_tasks_panel import LinkedTasksPanel
 from modules.planning.tactics_resources.widgets.resource_requirement_editor import ResourceRequirementEditor
+from utils.state import AppState
 from utils.styles import (
+    approval_step_status_colors,
     get_palette,
-    resource_status_colors,
+    wa_resource_status_colors,
     subscribe_theme,
     wa_planning_status_colors,
     wa_priority_colors,
     wa_safety_status_colors,
 )
+
+logger = logging.getLogger(__name__)
+
+# Work assignment approval chain — step_id must match the spec registered
+# server-side under entity_type "work_assignment"
+# (server/sarapp_db/sarapp_db/api/routers/approvals.py). Safety Officer is
+# the only real approve/reject gate; the other three just acknowledge
+# ("Reviewed").
+_WA_APPROVAL_STEPS: list[tuple[str, str, str, bool]] = [
+    ("sofr_approval", "Safety Officer", "SOFR", True),
+    ("osc_review", "Operations Section Chief", "OSC", False),
+    ("psc_review", "Planning Section Chief", "PSC", False),
+    ("lsc_review", "Logistics Section Chief", "LSC", False),
+]
 
 
 def _format_display_timestamp(value: object) -> str:
@@ -125,6 +146,7 @@ class WorkAssignmentDetailWindow(QWidget):
         self._save_timer.timeout.connect(self._auto_save)
 
         self._build_ui()
+        self._apply_window_stylesheet()
         self._update_title()
         self._refresh_status_chips()
         self._update_summary()
@@ -137,7 +159,111 @@ class WorkAssignmentDetailWindow(QWidget):
         except Exception:
             pass
 
+    def _apply_window_stylesheet(self) -> None:
+        """Bold flat field styling matching the approved mockup — larger
+        radius, generous padding, accent-colored focus state, borderless
+        combo drop-downs. The app's own shared stylesheet
+        (`styles/qss_helpers.global_qss`) already reaches this window but
+        is deliberately subtle (1px borders, 3px radius, 2px padding) and
+        was never meant to look like this redesign, so this window defines
+        its own rules instead of reusing that one. Scoped automatically to
+        this window's own widget subtree (a stylesheet set directly on a
+        widget never leaks outside it), so nothing else in the app is
+        affected."""
+        p = get_palette()
+        bg_field = p.get("ctrl_bg").name()
+        bg_field_hover = p.get("ctrl_hover").name()
+        border = p.get("ctrl_border").name()
+        accent = p.get("ctrl_focus").name()
+        text = p.get("fg_primary").name()
+        muted = p.get("fg_muted").name()
+        bg_raised = p.get("bg_raised").name()
+        btn_bg = p.get("btn_bg").name()
+        btn_border = p.get("btn_border").name()
+        btn_hover = p.get("btn_hover").name()
+        divider = p.get("divider").name()
+        self.setStyleSheet(f"""
+            QLineEdit, QPlainTextEdit, QComboBox {{
+                background: {bg_field};
+                color: {text};
+                border: 1px solid {border};
+                border-radius: 6px;
+                padding: 8px 10px;
+                font-size: 13px;
+                selection-background-color: {accent};
+            }}
+            QLineEdit:hover, QPlainTextEdit:hover, QComboBox:hover {{
+                background: {bg_field_hover};
+            }}
+            QLineEdit:focus, QPlainTextEdit:focus, QComboBox:focus {{
+                border: 1px solid {accent};
+                background: {bg_field_hover};
+            }}
+            QComboBox::drop-down {{
+                subcontrol-origin: padding;
+                subcontrol-position: top right;
+                width: 26px;
+                border: none;
+                background: transparent;
+            }}
+            QComboBox::down-arrow {{
+                image: none;
+                width: 0px;
+                height: 0px;
+                border-left: 4px solid transparent;
+                border-right: 4px solid transparent;
+                border-top: 5px solid {muted};
+                margin-right: 10px;
+            }}
+            QComboBox QAbstractItemView {{
+                background: {bg_raised};
+                color: {text};
+                border: 1px solid {border};
+                border-radius: 6px;
+                selection-background-color: {bg_field_hover};
+                selection-color: {text};
+                padding: 4px;
+            }}
+            QPushButton {{
+                background: {btn_bg};
+                color: {text};
+                border: 1px solid {btn_border};
+                border-radius: 6px;
+                padding: 8px 16px;
+                font-weight: 600;
+                font-size: 12.5px;
+            }}
+            QPushButton:hover {{
+                background: {btn_hover};
+            }}
+            QPushButton:disabled {{
+                color: {muted};
+            }}
+            QTabWidget::pane {{
+                border: none;
+                border-top: 1px solid {divider};
+            }}
+            QTabBar::tab {{
+                background: transparent;
+                color: {muted};
+                border: none;
+                border-bottom: 2px solid transparent;
+                padding: 10px 16px;
+                margin-right: 2px;
+                font-weight: 600;
+                font-size: 12.5px;
+            }}
+            QTabBar::tab:selected {{
+                color: {accent};
+                border-bottom: 2px solid {accent};
+            }}
+            QTabBar::tab:hover {{
+                color: {text};
+            }}
+        """)
+
     def _on_theme_changed(self, _name: str) -> None:
+        self._apply_window_stylesheet()
         self._refresh_status_chips()
 
     # ------------------------------------------------------------------
@@ -161,6 +287,7 @@ class WorkAssignmentDetailWindow(QWidget):
         self._build_tasks_tab()
         self._build_agency_requests_tab()
         self._build_outputs_tab()
+        self._build_approvals_tab()
         layout.addWidget(self._tabs, 1)
 
     def _build_header(self) -> QFrame:
@@ -178,19 +305,24 @@ class WorkAssignmentDetailWindow(QWidget):
         outer.setContentsMargins(16, 14, 16, 14)
         outer.setSpacing(6)
 
-        top_row = QHBoxLayout()
-        top_row.setSpacing(8)
-        self._header_number_label = QLabel("New Work Assignment")
-        self._header_number_label.setStyleSheet(
-            f"color:{get_palette().get('accent').name()}; font-weight:700;"
+        muted = get_palette().get("fg_muted").name()
+        accent = get_palette().get("accent").name()
+
+        eyebrow = QLabel("PLANNING  ·  WORK ASSIGNMENT")
+        eyebrow.setStyleSheet(f"color:{muted}; font-size:10px; font-weight:700; letter-spacing:1px;")
+        outer.addWidget(eyebrow)
+
+        name_row = QHBoxLayout()
+        name_row.setSpacing(12)
+
+        self._name_edit = QLineEdit()
+        self._name_edit.setPlaceholderText("Name this assignment…")
+        self._name_edit.setStyleSheet(
+            "QLineEdit { border:none; background:transparent; font-size:19px; font-weight:700; "
+            "padding:2px 0; border-bottom:2px solid transparent; }"
+            f"QLineEdit:focus {{ border-bottom:2px solid {accent}; }}"
         )
-        self._header_op_label = QLabel("")
-        self._header_op_label.setStyleSheet(
-            f"color:{get_palette().get('accent').name()}; font-weight:700;"
-        )
-        top_row.addWidget(self._header_number_label)
-        top_row.addWidget(self._header_op_label)
-        top_row.addStretch(1)
+        name_row.addWidget(self._name_edit, 1)
 
         self._planning_status_combo = QComboBox()
         self._planning_status_combo.addItems(PLANNING_STATUS_VALUES)
@@ -202,37 +334,50 @@ class WorkAssignmentDetailWindow(QWidget):
         self._resource_status_combo.addItems(RESOURCE_STATUS_VALUES)
         self._resource_status_combo.setToolTip("Resource status")
 
-        muted = get_palette().get("fg_muted").name()
-        for prefix, combo in (
-            ("Planning", self._planning_status_combo),
-            ("Safety", self._safety_status_combo),
-            ("Resources", self._resource_status_combo),
-        ):
+        for combo in (self._planning_status_combo, self._safety_status_combo, self._resource_status_combo):
             combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
-            prefix_label = QLabel(prefix)
-            prefix_label.setStyleSheet(f"color:{muted}; font-size:11px; font-weight:600;")
-            top_row.addWidget(prefix_label)
-            top_row.addWidget(combo)
-        outer.addLayout(top_row)
+            name_row.addWidget(combo)
+        outer.addLayout(name_row)
 
-        self._header_title_label = QLabel("New Work Assignment")
-        self._header_title_label.setStyleSheet("font-size:18px; font-weight:700;")
-        outer.addWidget(self._header_title_label)
+        self._header_number_label = QLabel("New Work Assignment")
+        self._header_number_label.setStyleSheet(f"color:{muted}; font-size:11px;")
+        self._header_op_label = QLabel("")
+        self._header_op_label.setStyleSheet(f"color:{accent}; font-size:11px; font-weight:700;")
 
         self._header_meta_label = QLabel("")
-        self._header_meta_label.setStyleSheet(
-            f"color:{get_palette().get('fg_muted').name()};"
-        )
-        outer.addWidget(self._header_meta_label)
+        self._header_meta_label.setStyleSheet(f"color:{muted}; font-size:11px;")
+        self._header_meta_label.setWordWrap(True)
+
+        sub_row = QHBoxLayout()
+        sub_row.setSpacing(10)
+        sub_row.addWidget(self._header_number_label)
+        sub_row.addWidget(self._header_op_label)
+        sub_row.addWidget(self._header_meta_label, 1)
+        outer.addLayout(sub_row)
 
         return box
 
-    def _build_stat_row(self) -> QHBoxLayout:
-        """Quick-glance Priority/Resources/Gap/Hazards/Tasks cards, shown at
-        the top of the Overview tab. Replaces the old single summary line."""
-        row = QHBoxLayout()
-        row.setSpacing(10)
-        self._stat_cards: dict[str, tuple[QFrame, QLabel]] = {}
+    def _build_stat_row(self) -> QFrame:
+        """Quick-glance Priority/Resources/Gap/Hazards/Tasks strip, shown at
+        the top of the Overview tab — one flush bar with hairline dividers
+        between cells (matching the approved mockup), not separate floating
+        cards."""
+        bar = QFrame()
+        bar.setFrameShape(QFrame.NoFrame)
+        bar.setAttribute(Qt.WA_StyledBackground, True)
+        divider = get_palette().get("divider").name()
+        bar.setStyleSheet(
+            "QFrame { "
+            f"background:{divider}; "
+            f"border:1px solid {divider}; "
+            "border-radius:6px; "
+            "}"
+        )
+        row = QHBoxLayout(bar)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(1)
+        self._stat_cards: dict[str, tuple[QWidget, QLabel]] = {}
+        panel_bg = get_palette().get("bg_panel").name()
         for key, title in (
             ("priority", "Priority"),
             ("resources", "Resources"),
@@ -240,29 +385,24 @@ class WorkAssignmentDetailWindow(QWidget):
             ("hazards", "Open Hazards"),
             ("tasks", "Linked Tasks"),
         ):
-            frame = QFrame()
-            frame.setFrameShape(QFrame.StyledPanel)
-            frame.setAttribute(Qt.WA_StyledBackground, True)
-            frame.setStyleSheet(
-                "QFrame { "
-                f"background:{get_palette().get('bg_raised').name()}; "
-                f"border:1px solid {get_palette().get('ctrl_border').name()}; "
-                "border-radius:5px; }"
-            )
-            layout = QVBoxLayout(frame)
-            layout.setContentsMargins(10, 8, 10, 8)
-            layout.setSpacing(2)
+            cell = QWidget()
+            cell.setAttribute(Qt.WA_StyledBackground, True)
+            cell.setStyleSheet(f"background:{panel_bg};")
+            layout = QVBoxLayout(cell)
+            layout.setContentsMargins(14, 10, 14, 10)
+            layout.setSpacing(3)
             label = QLabel(title.upper())
             label.setStyleSheet(
-                f"color:{get_palette().get('fg_muted').name()}; font-size:10px; font-weight:700;"
+                f"color:{get_palette().get('fg_muted').name()}; font-size:10px; font-weight:700; "
+                "letter-spacing:0.5px; background:transparent;"
             )
             value = QLabel("-")
-            value.setStyleSheet("font-size:16px; font-weight:700;")
+            value.setStyleSheet("font-size:16px; font-weight:700; background:transparent;")
             layout.addWidget(label)
             layout.addWidget(value)
-            row.addWidget(frame, 1)
-            self._stat_cards[key] = (frame, value)
-        return row
+            row.addWidget(cell, 1)
+            self._stat_cards[key] = (cell, value)
+        return bar
 
     @staticmethod
     def _style_status_combo(combo: QComboBox, brushes: dict | None) -> None:
@@ -295,22 +435,25 @@ class WorkAssignmentDetailWindow(QWidget):
         )
         self._style_status_combo(
             self._resource_status_combo,
-            resource_status_colors().get(self._resource_status_combo.currentText()),
+            wa_resource_status_colors().get(self._resource_status_combo.currentText()),
         )
         self._refresh_header()
 
     def _refresh_header(self) -> None:
-        if not hasattr(self, "_header_title_label") or not hasattr(self, "_name_edit"):
+        if not hasattr(self, "_header_number_label") or not hasattr(self, "_name_edit"):
             return
         number = self._number_label.text().strip()
-        name = self._name_edit.text().strip()
-        self._header_number_label.setText(number or "New Work Assignment")
+        self._header_number_label.setText(number or "Not yet saved")
         op_text = self._op_period_combo.currentText().strip() if hasattr(self, "_op_period_combo") else ""
         op_text = op_text.split(" (", 1)[0]
         self._header_op_label.setText(f"OP: {op_text}" if op_text and op_text != "(none)" else "")
-        self._header_title_label.setText(name or "New Work Assignment")
 
         meta_parts: list[str] = []
+        objective_text = self._objective_combo.currentText().strip() if hasattr(self, "_objective_combo") else ""
+        if objective_text and objective_text != "(none)":
+            meta_parts.append(objective_text)
+        else:
+            meta_parts.append("No objective linked")
         branch = self._branch_combo.currentText().strip()
         division = self._division_combo.currentText().strip()
         if branch and branch != "(none)" and division and division != "(none)":
@@ -333,27 +476,39 @@ class WorkAssignmentDetailWindow(QWidget):
             if self._updated_by:
                 updated_text += f" by {resolve_person_name(self._updated_by)}"
             meta_parts.append(updated_text)
-        self._header_meta_label.setText(" | ".join(meta_parts))
+        self._header_meta_label.setText(" · ".join(meta_parts))
+
+    def _section_title(self, text: str) -> QHBoxLayout:
+        """A section heading with a trailing rule line filling the rest of
+        the row, matching the mockup's `.section-title::after` treatment."""
+        row = QHBoxLayout()
+        row.setSpacing(8)
+        label = QLabel(text)
+        label.setStyleSheet(
+            f"color:{get_palette().get('fg_muted').name()}; font-size:11px; font-weight:700; "
+            "letter-spacing:0.5px;"
+        )
+        row.addWidget(label)
+        rule = QFrame()
+        rule.setFrameShape(QFrame.HLine)
+        rule.setFixedHeight(1)
+        rule.setStyleSheet(f"background:{get_palette().get('divider').name()}; border:none;")
+        row.addWidget(rule, 1)
+        return row
 
     def _build_overview_tab(self) -> None:
         tab = QWidget()
         layout = QVBoxLayout(tab)
         layout.setSpacing(12)
 
-        layout.addLayout(self._build_stat_row())
+        layout.addWidget(self._build_stat_row())
 
-        assignment_title = QLabel("ASSIGNMENT")
-        assignment_title.setStyleSheet(
-            f"color:{get_palette().get('fg_muted').name()}; font-weight:700;"
-        )
-        layout.addWidget(assignment_title)
+        layout.addLayout(self._section_title("ASSIGNMENT"))
 
         grid = QGridLayout()
         grid.setHorizontalSpacing(16)
         grid.setVerticalSpacing(8)
 
-        self._name_edit = QLineEdit()
-        self._name_edit.setPlaceholderText("Assignment name (required)")
         self._number_label = QLineEdit()
         self._number_label.setPlaceholderText("(auto-generated)")
 
@@ -371,6 +526,7 @@ class WorkAssignmentDetailWindow(QWidget):
 
         self._division_combo = QComboBox()
         self._division_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+        self._division_combo.addItem("(none)", None)
         self._location_picker = FacilityPicker(facility_type=None, parent=self)
         self._location_picker.line_edit.setPlaceholderText("Reporting / destination location (optional)")
 
@@ -387,14 +543,14 @@ class WorkAssignmentDetailWindow(QWidget):
             grid.addWidget(lbl, row * 2, col)
             grid.addWidget(widget, row * 2 + 1, col, 1, col_span)
 
-        _add_field(0, 0, "Assignment Name", self._name_edit, 2)
-        _add_field(0, 2, "Assignment #", self._number_label)
-        _add_field(1, 0, "Objective", self._objective_combo)
-        _add_field(1, 1, "Branch", self._branch_combo)
-        _add_field(1, 2, "Division / Group", self._division_combo)
-        _add_field(2, 0, "Kind", self._kind_combo)
-        _add_field(2, 1, "Priority", self._priority_combo)
-        _add_field(3, 0, "Location / Facility", self._location_picker, 3)
+        _add_field(0, 0, "Assignment #", self._number_label)
+        _add_field(0, 1, "Objective", self._objective_combo)
+        _add_field(0, 2, "Op. Period", self._op_period_combo)
+        _add_field(1, 0, "Branch", self._branch_combo)
+        _add_field(1, 1, "Division / Group", self._division_combo)
+        _add_field(1, 2, "Kind", self._kind_combo)
+        _add_field(2, 0, "Priority", self._priority_combo)
+        _add_field(2, 1, "Location / Facility", self._location_picker, 2)
 
         grid.setColumnStretch(0, 1)
         grid.setColumnStretch(1, 1)
@@ -433,6 +589,8 @@ class WorkAssignmentDetailWindow(QWidget):
         self._name_edit.textChanged.connect(self._schedule_save)
         self._name_edit.textChanged.connect(self._refresh_header)
         self._objective_combo.currentIndexChanged.connect(self._schedule_save)
+        self._objective_combo.currentIndexChanged.connect(self._refresh_header)
+        self._op_period_combo.currentIndexChanged.connect(self._schedule_save)
         self._op_period_combo.currentIndexChanged.connect(self._refresh_header)
         self._branch_combo.currentIndexChanged.connect(self._schedule_save)
         self._branch_combo.currentIndexChanged.connect(self._refresh_header)
@@ -510,6 +668,25 @@ class WorkAssignmentDetailWindow(QWidget):
         layout.addStretch(1)
 
         self._tabs.addTab(tab, "Outputs")
+
+    def _build_approvals_tab(self) -> None:
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(10)
+
+        self._approvals_summary_label = QLabel("")
+        self._approvals_summary_label.setStyleSheet(
+            f"color:{get_palette().get('fg_muted').name()};"
+        )
+        layout.addWidget(self._approvals_summary_label)
+
+        self._approvals_rows_layout = QVBoxLayout()
+        self._approvals_rows_layout.setSpacing(8)
+        layout.addLayout(self._approvals_rows_layout)
+        layout.addStretch(1)
+
+        self._tabs.addTab(tab, "Approvals")
 
     # ------------------------------------------------------------------
     # Combo population helpers
@@ -619,6 +796,7 @@ class WorkAssignmentDetailWindow(QWidget):
         self._populate_tasks_tab()
         self._populate_agency_requests_tab()
         self._reload_outputs()
+        self._reload_approvals()
         self._update_summary()
         self._update_title()
 
@@ -817,6 +995,11 @@ class WorkAssignmentDetailWindow(QWidget):
                 self._populate_tasks_tab()
                 self._populate_agency_requests_tab()
                 repo.add_log_entry(new_id, "Work Assignment created.", entry_type="System")
+                # Request Safety/OSC/PSC/LSC sign-off immediately — the
+                # approvals engine notifies each resolved role as soon as
+                # their step activates, so creating the assignment is what
+                # puts it on their radar.
+                self._start_approval_chain(quiet=True)
             else:
                 repo.update_work_assignment(self._work_assignment_id, data)
                 if not quiet:
@@ -837,6 +1020,7 @@ class WorkAssignmentDetailWindow(QWidget):
             self._updated_by = str(saved_wa.updated_by or "")
         self._update_title()
         self._reload_outputs()
+        self._reload_approvals()
         self._refresh_header()
         self.saved.emit(self._work_assignment_id)
         return True
@@ -859,6 +1043,12 @@ class WorkAssignmentDetailWindow(QWidget):
                 item.widget().deleteLater()
         by_type = {output.output_type: output for output in outputs}
         for output_type in OUTPUT_TYPE_VALUES:
+            if output_type == "ICS 204":
+                # ICS 204 is a multi-assignment Assignment List, assembled at
+                # the IAP Package level from every work assignment in the
+                # operational period — not something a single assignment can
+                # generate on its own, so it isn't offered here.
+                continue
             output = by_type.get(output_type)
             self._outputs_layout.addWidget(self._build_output_row(output_type, output))
 
@@ -924,6 +1114,16 @@ class WorkAssignmentDetailWindow(QWidget):
         else:
             if not self._save(quiet=True):
                 return
+        if output_type == "ICS 213RR":
+            _total_req, _total_assigned, total_gap, *_rest = work_assignment_desk.meta_for(self._work_assignment_id)
+            if total_gap <= 0:
+                QMessageBox.information(
+                    self,
+                    "Generate ICS 213RR",
+                    "No resource requirements on this assignment currently have a gap — "
+                    "nothing to request.",
+                )
+                return
         try:
             result = generate_work_assignment_output(self._work_assignment_id, output_type)
             repo = WorkAssignmentRepository(self._db_path)
@@ -947,6 +1147,256 @@ class WorkAssignmentDetailWindow(QWidget):
             self._reload_outputs()
             return
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(path.resolve())))
+
+    # ------------------------------------------------------------------
+    # Approvals tab
+    # ------------------------------------------------------------------
+
+    def _current_person_record(self) -> int:
+        uid = AppState.get_active_user_id()
+        return int(uid) if uid and str(uid).isdigit() else 0
+
+    def _approval_service(self) -> ApprovalService | None:
+        incident_id = self._incident_id()
+        if not incident_id:
+            return None
+        return ApprovalService(incident_id)
+
+    def _start_approval_chain(self, *, quiet: bool = False) -> None:
+        """Request sign-offs from Safety/OSC/PSC/LSC — the engine notifies
+        each resolved role the moment their step activates."""
+        if self._work_assignment_id is None:
+            return
+        service = self._approval_service()
+        if service is None:
+            return
+        try:
+            service.start("work_assignment", str(self._work_assignment_id))
+        except Exception as exc:
+            logger.exception("Failed to start approval chain for work assignment %s", self._work_assignment_id)
+            if not quiet:
+                QMessageBox.critical(self, "Request Sign-offs", f"Failed to request sign-offs:\n{exc}")
+
+    def _reload_approvals(self) -> None:
+        if not hasattr(self, "_approvals_rows_layout"):
+            return
+        while self._approvals_rows_layout.count():
+            item = self._approvals_rows_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        if self._work_assignment_id is None:
+            self._approvals_summary_label.setText("Save the work assignment first to request sign-offs.")
+            return
+
+        service = self._approval_service()
+        instance: ApprovalInstance | None = None
+        try:
+            if service is not None:
+                instance = service.get("work_assignment", str(self._work_assignment_id))
+        except Exception as exc:
+            self._approvals_summary_label.setText(f"Approval details unavailable: {exc}")
+            return
+
+        steps_by_id: dict[str, StepInstance] = {s.step_id: s for s in instance.steps} if instance else {}
+        total = len(_WA_APPROVAL_STEPS)
+        completed = sum(1 for s in steps_by_id.values() if s.status == "completed")
+        note = ""
+        if instance is None:
+            note = "  ·  not yet requested"
+        elif instance.status == "rejected":
+            note = "  ·  Rejected"
+        else:
+            gate = steps_by_id.get("sofr_approval")
+            if gate is not None and gate.status != "completed":
+                note = "  ·  Safety approval pending"
+        self._approvals_summary_label.setText(f"{completed} of {total} sign-offs complete{note}")
+
+        for step_id, label, code, is_gate in _WA_APPROVAL_STEPS:
+            row = self._build_approval_row(step_id, label, code, is_gate, steps_by_id.get(step_id), instance)
+            self._approvals_rows_layout.addWidget(row)
+
+        if instance is None:
+            start_btn = QPushButton("Request Sign-offs")
+            start_btn.clicked.connect(lambda _checked=False: self._on_request_sign_offs())
+            self._approvals_rows_layout.addWidget(start_btn, 0, Qt.AlignLeft)
+
+    def _approval_row_status_text(
+        self, step: StepInstance | None, instance: ApprovalInstance | None, is_gate: bool
+    ) -> str:
+        if step is None:
+            return "Not Sent"
+        if step.status == "completed":
+            if is_gate:
+                return "Rejected" if instance is not None and instance.status == "rejected" else "Approved"
+            return "Reviewed"
+        if step.status == "active":
+            return "Pending"
+        if step.status == "skipped":
+            return "Skipped"
+        return "Waiting"
+
+    def _approval_row_meta(self, step: StepInstance | None) -> str:
+        if step is None or step.resolved_actor_id is None:
+            return ""
+        name = resolve_person_name(str(step.resolved_actor_id))
+        if step.status == "completed" and step.completed_at:
+            return f"{name}  ·  {_format_display_timestamp(step.completed_at)}"
+        if step.status == "active":
+            return f"Awaiting {name}"
+        return name
+
+    def _build_approval_row(
+        self,
+        step_id: str,
+        label: str,
+        code: str,
+        is_gate: bool,
+        step: StepInstance | None,
+        instance: ApprovalInstance | None,
+    ) -> QFrame:
+        row = QFrame(self)
+        row.setFrameShape(QFrame.StyledPanel)
+        row.setAttribute(Qt.WA_StyledBackground, True)
+        row.setStyleSheet(
+            "QFrame { "
+            f"background:{get_palette().get('bg_raised').name()}; "
+            f"border:1px solid {get_palette().get('ctrl_border').name()}; "
+            "border-radius:6px; "
+            "}"
+        )
+        layout = QHBoxLayout(row)
+        layout.setContentsMargins(16, 12, 16, 12)
+
+        title = QLabel(f"{label} ({code})")
+        title.setStyleSheet("font-weight:700;")
+        layout.addWidget(title, 1)
+
+        status_text = self._approval_row_status_text(step, instance, is_gate)
+        badge = QLabel(status_text)
+        badge.setAlignment(Qt.AlignCenter)
+        step_colors = approval_step_status_colors().get(step.status if step else "waiting")
+        badge_bg = step_colors["bg"].color().name() if step_colors else get_palette().get("ctrl_border").name()
+        badge.setStyleSheet(
+            f"background:{badge_bg}; color:{get_palette().get('fg').name()}; "
+            "padding:2px 10px; border-radius:4px; font-weight:700;"
+        )
+        layout.addWidget(badge)
+
+        meta = QLabel(self._approval_row_meta(step))
+        meta.setStyleSheet(f"color:{get_palette().get('fg_muted').name()};")
+        layout.addWidget(meta)
+
+        if step is not None and step.status == "active":
+            if step.resolved_actor_id is None:
+                assign_btn = QPushButton("Assign…")
+                assign_btn.setToolTip(
+                    "Nobody currently holds this role (or the escalation chain up to "
+                    "Incident Commander is vacant) — pick who should sign off."
+                )
+                assign_btn.clicked.connect(
+                    lambda _checked=False, sid=step_id, lbl=label: self._on_assign_approval_step(sid, lbl)
+                )
+                layout.addWidget(assign_btn)
+            person_record = self._current_person_record()
+            if step.resolved_actor_id == person_record:
+                if is_gate:
+                    approve_btn = QPushButton("Approve")
+                    approve_btn.clicked.connect(
+                        lambda _checked=False, sid=step_id: self._act_on_approval_step(sid, "approved")
+                    )
+                    layout.addWidget(approve_btn)
+                    reject_btn = QPushButton("Reject")
+                    reject_btn.clicked.connect(
+                        lambda _checked=False, sid=step_id: self._act_on_approval_step(sid, "rejected")
+                    )
+                    layout.addWidget(reject_btn)
+                else:
+                    review_btn = QPushButton("Mark Reviewed")
+                    review_btn.clicked.connect(
+                        lambda _checked=False, sid=step_id: self._act_on_approval_step(sid, "acknowledged")
+                    )
+                    layout.addWidget(review_btn)
+            if step.resolved_actor_id is not None:
+                send_label = "Send for Approval" if is_gate else "Send for Review"
+                send_btn = QPushButton(send_label)
+                send_btn.clicked.connect(lambda _checked=False, sid=step_id: self._send_for_approval(sid))
+                layout.addWidget(send_btn)
+
+        return row
+
+    def _on_request_sign_offs(self) -> None:
+        self._start_approval_chain()
+        self._reload_approvals()
+
+    def _on_assign_approval_step(self, step_id: str, step_label: str) -> None:
+        if self._work_assignment_id is None:
+            return
+        from modules.approvals.panels.assign_step_dialog import AssignStepDialog
+
+        dlg = AssignStepDialog(step_label, self)
+        if not dlg.exec():
+            return
+        person_record = dlg.selected_person_record()
+        if not person_record:
+            return
+        service = self._approval_service()
+        if service is None:
+            return
+        try:
+            instance = service.get("work_assignment", str(self._work_assignment_id))
+            if instance is None:
+                raise RuntimeError("Sign-offs have not been requested yet.")
+            service.assign_step(instance, step_id, person_record)
+        except Exception as exc:
+            QMessageBox.critical(self, "Assign Failed", str(exc))
+            return
+        self._reload_approvals()
+
+    def _send_for_approval(self, step_id: str) -> None:
+        """Manual nudge — re-send the notification for a step that's already
+        active and resolved (the engine already notified its actor once,
+        automatically, the moment the step activated)."""
+        if self._work_assignment_id is None:
+            return
+        service = self._approval_service()
+        if service is None:
+            return
+        try:
+            instance = service.get("work_assignment", str(self._work_assignment_id))
+            if instance is None:
+                service.start("work_assignment", str(self._work_assignment_id))
+            else:
+                service.notify_step(instance, step_id)
+        except Exception as exc:
+            QMessageBox.critical(self, "Send Notification", f"Failed to send notification:\n{exc}")
+            return
+        self._reload_approvals()
+
+    def _act_on_approval_step(self, step_id: str, action: str) -> None:
+        if self._work_assignment_id is None:
+            return
+        notes = None
+        if action == "rejected":
+            reason, ok = QInputDialog.getText(
+                self, "Reject", "Why is this work assignment's safety approval being rejected?"
+            )
+            if not ok:
+                return
+            notes = reason.strip() or None
+        service = self._approval_service()
+        if service is None:
+            return
+        try:
+            instance = service.get("work_assignment", str(self._work_assignment_id))
+            if instance is None:
+                raise RuntimeError("Sign-offs have not been requested yet.")
+            person_record = self._current_person_record()
+            service.sign(instance, step_id, person_record, action, notes=notes)
+        except Exception as exc:
+            QMessageBox.critical(self, "Approval Failed", str(exc))
+            return
+        self._reload_approvals()
 
     def closeEvent(self, event: QCloseEvent) -> None:  # type: ignore[override]
         super().closeEvent(event)

@@ -38,6 +38,7 @@ from styles.colors import MUTED_TEXT
 from utils.app_signals import app_signals
 from utils.state import AppState
 from utils.api_client import api_client
+from utils.personnel_display import format_name_with_rank
 
 from ..controller import IncidentOrganizationController
 from ..models import (
@@ -196,7 +197,20 @@ class PositionDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Position")
         layout = QFormLayout(self)
-        self.title_edit = QLineEdit(position.title if position else "", self)
+        self.title_edit = QComboBox(self)
+        self.title_edit.setEditable(True)
+        self.title_edit.setInsertPolicy(QComboBox.NoInsert)
+        from modules.common.models.ics_positions import all_position_names
+
+        self.title_edit.addItems(all_position_names())
+        current_title = position.title if position else ""
+        if current_title and self.title_edit.findText(current_title) < 0:
+            self.title_edit.addItem(current_title)
+        self.title_edit.setCurrentText(current_title)
+        self.title_edit.setToolTip(
+            "Pick a standard ICS title so role-based lookups (approvals, notifications) "
+            "resolve correctly, or type a custom title for an AHJ-specific position."
+        )
         layout.addRow("Title", self.title_edit)
         self.classification_combo = QComboBox(self)
         self.classification_combo.addItems(self.CLASSIFICATIONS)
@@ -241,7 +255,7 @@ class PositionDialog(QDialog):
         raw_id = self.parent_combo.currentData()
         parent_id = None if raw_id == self._TOP_LEVEL_SENTINEL else raw_id
         return {
-            "title": self.title_edit.text().strip(),
+            "title": self.title_edit.currentText().strip(),
             "classification": self.classification_combo.currentText(),
             "parent_position_id": parent_id,
         }
@@ -567,7 +581,7 @@ class UnifiedAssignmentDialog(QDialog):
             return
         self._result = {
             "person_record": int(pid) if pid is not None else None,
-            "person_name": name,
+            "person_name": format_name_with_rank(name, person.get("rank")),
             "assignment_type": normalize_assignment_type(self.type_combo.currentText()),
         }
         self.accept()
@@ -1293,18 +1307,19 @@ class IncidentOrganizationPanel(QWidget):
             return
         person = self._pool_rows[row]
         try:
+            name = str(
+                person.get("name")
+                or " ".join(
+                    part for part in (
+                        str(person.get("first_name") or "").strip(),
+                        str(person.get("last_name") or "").strip(),
+                    )
+                    if part
+                )
+            )
             _, warnings = self._ensure_controller().assign_person(position_id, {
                 "person_record": int(person.get("person_record") or 0) or None,
-                "person_name": str(
-                    person.get("name")
-                    or " ".join(
-                        part for part in (
-                            str(person.get("first_name") or "").strip(),
-                            str(person.get("last_name") or "").strip(),
-                        )
-                        if part
-                    )
-                ),
+                "person_name": format_name_with_rank(name, person.get("rank")),
                 "assignment_type": ASSIGNMENT_TYPE_PRIMARY,
             })
         except ValueError as exc:

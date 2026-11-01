@@ -55,6 +55,7 @@ def _wa_out(doc: dict) -> dict:
         "planning_status": doc.get("planning_status", "Draft"),
         "safety_status": doc.get("safety_status", "Unchecked"),
         "resource_status": doc.get("resource_status", "Unreviewed"),
+        "approval_status": doc.get("approval_status", "not_started"),
         "description": doc.get("description", ""),
         "tactics_summary": doc.get("tactics_summary", ""),
         "special_instructions": doc.get("special_instructions", ""),

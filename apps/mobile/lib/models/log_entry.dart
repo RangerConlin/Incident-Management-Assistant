@@ -1,6 +1,6 @@
 import '../utils/json_parsing.dart';
 
-/// A single ICS 214 activity-log entry on a team's stream
+/// A canonical ICS 214 activity entry associated with a team
 /// (`GET/POST .../incidents/{id}/mobile/teams/{team_id}/log`).
 ///
 /// The server stores one free-text `text` field per entry, so the sheet's
@@ -44,10 +44,10 @@ class LogEntry {
     return LogEntry(
       id: '${json['id'] ?? ''}',
       timestamp:
-          parseDateTime(json['timestamp_utc']) ??
+          parseDateTime(json['occurred_at']) ??
           DateTime.fromMillisecondsSinceEpoch(0),
       text: '${json['text'] ?? ''}',
-      actorUserId: nullIfBlank(json['actor_user_id']),
+      actorUserId: nullIfBlank(json['created_by']),
       source: '${json['source'] ?? ''}',
       critical: parseIntBool(json['critical_flag']),
     );

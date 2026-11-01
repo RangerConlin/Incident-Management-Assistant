@@ -28,7 +28,6 @@ import CommandDashboardPage from "./modules/command/CommandDashboardPage";
 import IncidentOverviewPage from "./modules/command/IncidentOverviewPage";
 import IncidentOrganizationPage from "./modules/command/IncidentOrganizationPage";
 import IapPackagesPage from "./modules/command/IapPackagesPage";
-import IapPackageDetailPage from "./modules/command/IapPackageDetailPage";
 
 import ResourceStatusBoardPage from "./modules/logistics/resourceStatus/ResourceStatusBoardPage";
 import ResourceDetailPage from "./modules/logistics/resourceStatus/ResourceDetailPage";
@@ -65,6 +64,7 @@ import DemobilizationPage from "./modules/workspaces/DemobilizationPage";
 import CustomizationPage from "./modules/workspaces/CustomizationPage";
 import WorkspacePage from "./modules/workspaces/WorkspacePage";
 import { WORKSPACES } from "./modules/workspaces/config";
+import IncidentMapPage from "./modules/incidentMap/IncidentMapPage";
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const { isAuthenticated } = useSession();
@@ -112,6 +112,20 @@ export default function App() {
           </RequireAuth>
         }
       />
+      {/* Standalone — not nested under the "/" route below, so it never
+          renders inside AppShell. The sidebar's "Incident Map" link is a
+          plain navigation to this path, the closest web equivalent to
+          desktop's Incident Map opening as its own top-level window. */}
+      <Route
+        path="/incident-map"
+        element={
+          <RequireAuth>
+            <RequireIncident>
+              <IncidentMapPage />
+            </RequireIncident>
+          </RequireAuth>
+        }
+      />
       <Route
         path="/"
         element={
@@ -151,7 +165,7 @@ export default function App() {
         <Route path="command/overview" element={<RequireIncident><IncidentOverviewPage /></RequireIncident>} />
         <Route path="command/organization" element={<RequireIncident><IncidentOrganizationPage /></RequireIncident>} />
         <Route path="command/iap" element={<RequireIncident><IapPackagesPage /></RequireIncident>} />
-        <Route path="command/iap/:opNumber" element={<RequireIncident><IapPackageDetailPage /></RequireIncident>} />
+        <Route path="command/iap/:opNumber" element={<RequireIncident><IapPackagesPage /></RequireIncident>} />
         <Route path="command/sitreps" element={<RequireIncident><SitrepsBoardPage /></RequireIncident>} />
         <Route path="command/sitreps/:sitrepId" element={<RequireIncident><SitrepDetailPage /></RequireIncident>} />
         <Route path="comms/plan" element={<RequireIncident><CommsPlanPage /></RequireIncident>} />

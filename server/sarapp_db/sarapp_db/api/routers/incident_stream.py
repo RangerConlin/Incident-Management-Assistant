@@ -36,7 +36,7 @@ _HEAVY_COLLECTIONS = {
     IncidentCollections.AUDIT_LOGS,
     IncidentCollections.ATTACHMENTS,
     IncidentCollections.COMMUNICATIONS_LOG,
-    IncidentCollections.ICS_214_LOGS,
+    IncidentCollections.ICS_214_ENTRIES,
     IncidentCollections.INTEL_LOG,
     IncidentCollections.MESSAGES,
     IncidentCollections.NOTIFICATIONS,

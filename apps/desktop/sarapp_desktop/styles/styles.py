@@ -253,6 +253,9 @@ _WA_PLANNING_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PRO
 _WA_SAFETY_STATUS_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "WA_SAFETY_STATUS")
 _WA_SAFETY_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "WA_SAFETY_STATUS")
 
+_WA_RESOURCE_STATUS_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "WA_RESOURCE_STATUS")
+_WA_RESOURCE_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "WA_RESOURCE_STATUS")
+
 _WA_PRIORITY_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "WA_PRIORITY")
 _WA_PRIORITY_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "WA_PRIORITY")
 
@@ -466,6 +469,10 @@ def wa_safety_status_colors() -> Dict[str, Dict[str, QBrush]]:
     return _WA_SAFETY_STATUS_LIGHT if THEME_NAME == "light" else _WA_SAFETY_STATUS_DARK
 
 
+def wa_resource_status_colors() -> Dict[str, Dict[str, QBrush]]:
+    return _WA_RESOURCE_STATUS_LIGHT if THEME_NAME == "light" else _WA_RESOURCE_STATUS_DARK
+
+
 def wa_priority_colors() -> Dict[str, Dict[str, QBrush]]:
     return _WA_PRIORITY_LIGHT if THEME_NAME == "light" else _WA_PRIORITY_DARK
 
@@ -674,6 +681,7 @@ __all__ = [
     "approval_awaiting_me_color",
     "wa_planning_status_colors",
     "wa_safety_status_colors",
+    "wa_resource_status_colors",
     "wa_priority_colors",
     "weather_severity_colors",
     "notification_colors",

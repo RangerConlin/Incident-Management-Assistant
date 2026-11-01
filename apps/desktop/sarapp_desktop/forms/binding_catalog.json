@@ -20189,7 +20189,7 @@
     "label": "Narrative Entry 1 (1st) — Timestamp",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "timestamp",
     "index": 0
   },
@@ -20198,7 +20198,7 @@
     "label": "Narrative Entry 1 (1st) — Narrative",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "narrative",
     "index": 0
   },
@@ -20207,7 +20207,7 @@
     "label": "Narrative Entry 1 (1st) — Entered By",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "entered_by",
     "index": 0
   },
@@ -20216,7 +20216,7 @@
     "label": "Narrative Entry 1 (1st) — Team Number",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "team_num",
     "index": 0
   },
@@ -20225,7 +20225,7 @@
     "label": "Narrative Entry 1 (1st) — Critical",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "critical",
     "index": 0
   },
@@ -20234,7 +20234,7 @@
     "label": "Narrative Entry 2 (2nd) — Timestamp",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "timestamp",
     "index": 1
   },
@@ -20243,7 +20243,7 @@
     "label": "Narrative Entry 2 (2nd) — Narrative",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "narrative",
     "index": 1
   },
@@ -20252,7 +20252,7 @@
     "label": "Narrative Entry 2 (2nd) — Entered By",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "entered_by",
     "index": 1
   },
@@ -20261,7 +20261,7 @@
     "label": "Narrative Entry 2 (2nd) — Team Number",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "team_num",
     "index": 1
   },
@@ -20270,7 +20270,7 @@
     "label": "Narrative Entry 2 (2nd) — Critical",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "critical",
     "index": 1
   },
@@ -20279,7 +20279,7 @@
     "label": "Narrative Entry 3 (3rd) — Timestamp",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "timestamp",
     "index": 2
   },
@@ -20288,7 +20288,7 @@
     "label": "Narrative Entry 3 (3rd) — Narrative",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "narrative",
     "index": 2
   },
@@ -20297,7 +20297,7 @@
     "label": "Narrative Entry 3 (3rd) — Entered By",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "entered_by",
     "index": 2
   },
@@ -20306,7 +20306,7 @@
     "label": "Narrative Entry 3 (3rd) — Team Number",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "team_num",
     "index": 2
   },
@@ -20315,7 +20315,7 @@
     "label": "Narrative Entry 3 (3rd) — Critical",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "critical",
     "index": 2
   },
@@ -20324,7 +20324,7 @@
     "label": "Narrative Entry 4 (4th) — Timestamp",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "timestamp",
     "index": 3
   },
@@ -20333,7 +20333,7 @@
     "label": "Narrative Entry 4 (4th) — Narrative",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "narrative",
     "index": 3
   },
@@ -20342,7 +20342,7 @@
     "label": "Narrative Entry 4 (4th) — Entered By",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "entered_by",
     "index": 3
   },
@@ -20351,7 +20351,7 @@
     "label": "Narrative Entry 4 (4th) — Team Number",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "team_num",
     "index": 3
   },
@@ -20360,7 +20360,7 @@
     "label": "Narrative Entry 4 (4th) — Critical",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "critical",
     "index": 3
   },
@@ -20369,7 +20369,7 @@
     "label": "Narrative Entry 5 (5th) — Timestamp",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "timestamp",
     "index": 4
   },
@@ -20378,7 +20378,7 @@
     "label": "Narrative Entry 5 (5th) — Narrative",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "narrative",
     "index": 4
   },
@@ -20387,7 +20387,7 @@
     "label": "Narrative Entry 5 (5th) — Entered By",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "entered_by",
     "index": 4
   },
@@ -20396,7 +20396,7 @@
     "label": "Narrative Entry 5 (5th) — Team Number",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "team_num",
     "index": 4
   },
@@ -20405,7 +20405,7 @@
     "label": "Narrative Entry 5 (5th) — Critical",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "critical",
     "index": 4
   },
@@ -20414,7 +20414,7 @@
     "label": "Narrative Entry 6 (6th) — Timestamp",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "timestamp",
     "index": 5
   },
@@ -20423,7 +20423,7 @@
     "label": "Narrative Entry 6 (6th) — Narrative",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "narrative",
     "index": 5
   },
@@ -20432,7 +20432,7 @@
     "label": "Narrative Entry 6 (6th) — Entered By",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "entered_by",
     "index": 5
   },
@@ -20441,7 +20441,7 @@
     "label": "Narrative Entry 6 (6th) — Team Number",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "team_num",
     "index": 5
   },
@@ -20450,7 +20450,7 @@
     "label": "Narrative Entry 6 (6th) — Critical",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "critical",
     "index": 5
   },
@@ -20459,7 +20459,7 @@
     "label": "Narrative Entry 7 (7th) — Timestamp",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "timestamp",
     "index": 6
   },
@@ -20468,7 +20468,7 @@
     "label": "Narrative Entry 7 (7th) — Narrative",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "narrative",
     "index": 6
   },
@@ -20477,7 +20477,7 @@
     "label": "Narrative Entry 7 (7th) — Entered By",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "entered_by",
     "index": 6
   },
@@ -20486,7 +20486,7 @@
     "label": "Narrative Entry 7 (7th) — Team Number",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "team_num",
     "index": 6
   },
@@ -20495,7 +20495,7 @@
     "label": "Narrative Entry 7 (7th) — Critical",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "critical",
     "index": 6
   },
@@ -20504,7 +20504,7 @@
     "label": "Narrative Entry 8 (8th) — Timestamp",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "timestamp",
     "index": 7
   },
@@ -20513,7 +20513,7 @@
     "label": "Narrative Entry 8 (8th) — Narrative",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "narrative",
     "index": 7
   },
@@ -20522,7 +20522,7 @@
     "label": "Narrative Entry 8 (8th) — Entered By",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "entered_by",
     "index": 7
   },
@@ -20531,7 +20531,7 @@
     "label": "Narrative Entry 8 (8th) — Team Number",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "team_num",
     "index": 7
   },
@@ -20540,7 +20540,7 @@
     "label": "Narrative Entry 8 (8th) — Critical",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "critical",
     "index": 7
   },
@@ -20549,7 +20549,7 @@
     "label": "Narrative Entry 9 (9th) — Timestamp",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "timestamp",
     "index": 8
   },
@@ -20558,7 +20558,7 @@
     "label": "Narrative Entry 9 (9th) — Narrative",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "narrative",
     "index": 8
   },
@@ -20567,7 +20567,7 @@
     "label": "Narrative Entry 9 (9th) — Entered By",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "entered_by",
     "index": 8
   },
@@ -20576,7 +20576,7 @@
     "label": "Narrative Entry 9 (9th) — Team Number",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "team_num",
     "index": 8
   },
@@ -20585,7 +20585,7 @@
     "label": "Narrative Entry 9 (9th) — Critical",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "critical",
     "index": 8
   },
@@ -20594,7 +20594,7 @@
     "label": "Narrative Entry 10 (10th) — Timestamp",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "timestamp",
     "index": 9
   },
@@ -20603,7 +20603,7 @@
     "label": "Narrative Entry 10 (10th) — Narrative",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "narrative",
     "index": 9
   },
@@ -20612,7 +20612,7 @@
     "label": "Narrative Entry 10 (10th) — Entered By",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "entered_by",
     "index": 9
   },
@@ -20621,7 +20621,7 @@
     "label": "Narrative Entry 10 (10th) — Team Number",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "team_num",
     "index": 9
   },
@@ -20630,7 +20630,7 @@
     "label": "Narrative Entry 10 (10th) — Critical",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "critical",
     "index": 9
   },
@@ -20639,7 +20639,7 @@
     "label": "Narrative Entry 11 (11th) — Timestamp",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "timestamp",
     "index": 10
   },
@@ -20648,7 +20648,7 @@
     "label": "Narrative Entry 11 (11th) — Narrative",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "narrative",
     "index": 10
   },
@@ -20657,7 +20657,7 @@
     "label": "Narrative Entry 11 (11th) — Entered By",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "entered_by",
     "index": 10
   },
@@ -20666,7 +20666,7 @@
     "label": "Narrative Entry 11 (11th) — Team Number",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "team_num",
     "index": 10
   },
@@ -20675,7 +20675,7 @@
     "label": "Narrative Entry 11 (11th) — Critical",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "critical",
     "index": 10
   },
@@ -20684,7 +20684,7 @@
     "label": "Narrative Entry 12 (12th) — Timestamp",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "timestamp",
     "index": 11
   },
@@ -20693,7 +20693,7 @@
     "label": "Narrative Entry 12 (12th) — Narrative",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "narrative",
     "index": 11
   },
@@ -20702,7 +20702,7 @@
     "label": "Narrative Entry 12 (12th) — Entered By",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "entered_by",
     "index": 11
   },
@@ -20711,7 +20711,7 @@
     "label": "Narrative Entry 12 (12th) — Team Number",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "team_num",
     "index": 11
   },
@@ -20720,7 +20720,7 @@
     "label": "Narrative Entry 12 (12th) — Critical",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "critical",
     "index": 11
   },
@@ -20729,7 +20729,7 @@
     "label": "Narrative Entry 13 (13th) — Timestamp",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "timestamp",
     "index": 12
   },
@@ -20738,7 +20738,7 @@
     "label": "Narrative Entry 13 (13th) — Narrative",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "narrative",
     "index": 12
   },
@@ -20747,7 +20747,7 @@
     "label": "Narrative Entry 13 (13th) — Entered By",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "entered_by",
     "index": 12
   },
@@ -20756,7 +20756,7 @@
     "label": "Narrative Entry 13 (13th) — Team Number",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "team_num",
     "index": 12
   },
@@ -20765,7 +20765,7 @@
     "label": "Narrative Entry 13 (13th) — Critical",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "critical",
     "index": 12
   },
@@ -20774,7 +20774,7 @@
     "label": "Narrative Entry 14 (14th) — Timestamp",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "timestamp",
     "index": 13
   },
@@ -20783,7 +20783,7 @@
     "label": "Narrative Entry 14 (14th) — Narrative",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "narrative",
     "index": 13
   },
@@ -20792,7 +20792,7 @@
     "label": "Narrative Entry 14 (14th) — Entered By",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "entered_by",
     "index": 13
   },
@@ -20801,7 +20801,7 @@
     "label": "Narrative Entry 14 (14th) — Team Number",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "team_num",
     "index": 13
   },
@@ -20810,7 +20810,7 @@
     "label": "Narrative Entry 14 (14th) — Critical",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "critical",
     "index": 13
   },
@@ -20819,7 +20819,7 @@
     "label": "Narrative Entry 15 (15th) — Timestamp",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "timestamp",
     "index": 14
   },
@@ -20828,7 +20828,7 @@
     "label": "Narrative Entry 15 (15th) — Narrative",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "narrative",
     "index": 14
   },
@@ -20837,7 +20837,7 @@
     "label": "Narrative Entry 15 (15th) — Entered By",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "entered_by",
     "index": 14
   },
@@ -20846,7 +20846,7 @@
     "label": "Narrative Entry 15 (15th) — Team Number",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "team_num",
     "index": 14
   },
@@ -20855,7 +20855,7 @@
     "label": "Narrative Entry 15 (15th) — Critical",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "critical",
     "index": 14
   },
@@ -20864,7 +20864,7 @@
     "label": "Narrative Entry 16 (16th) — Timestamp",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "timestamp",
     "index": 15
   },
@@ -20873,7 +20873,7 @@
     "label": "Narrative Entry 16 (16th) — Narrative",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "narrative",
     "index": 15
   },
@@ -20882,7 +20882,7 @@
     "label": "Narrative Entry 16 (16th) — Entered By",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "entered_by",
     "index": 15
   },
@@ -20891,7 +20891,7 @@
     "label": "Narrative Entry 16 (16th) — Team Number",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "team_num",
     "index": 15
   },
@@ -20900,7 +20900,7 @@
     "label": "Narrative Entry 16 (16th) — Critical",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "critical",
     "index": 15
   },
@@ -20909,7 +20909,7 @@
     "label": "Narrative Entry 17 (17th) — Timestamp",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "timestamp",
     "index": 16
   },
@@ -20918,7 +20918,7 @@
     "label": "Narrative Entry 17 (17th) — Narrative",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "narrative",
     "index": 16
   },
@@ -20927,7 +20927,7 @@
     "label": "Narrative Entry 17 (17th) — Entered By",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "entered_by",
     "index": 16
   },
@@ -20936,7 +20936,7 @@
     "label": "Narrative Entry 17 (17th) — Team Number",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "team_num",
     "index": 16
   },
@@ -20945,7 +20945,7 @@
     "label": "Narrative Entry 17 (17th) — Critical",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "critical",
     "index": 16
   },
@@ -20954,7 +20954,7 @@
     "label": "Narrative Entry 18 (18th) — Timestamp",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "timestamp",
     "index": 17
   },
@@ -20963,7 +20963,7 @@
     "label": "Narrative Entry 18 (18th) — Narrative",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "narrative",
     "index": 17
   },
@@ -20972,7 +20972,7 @@
     "label": "Narrative Entry 18 (18th) — Entered By",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "entered_by",
     "index": 17
   },
@@ -20981,7 +20981,7 @@
     "label": "Narrative Entry 18 (18th) — Team Number",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "team_num",
     "index": 17
   },
@@ -20990,7 +20990,7 @@
     "label": "Narrative Entry 18 (18th) — Critical",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "critical",
     "index": 17
   },
@@ -20999,7 +20999,7 @@
     "label": "Narrative Entry 19 (19th) — Timestamp",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "timestamp",
     "index": 18
   },
@@ -21008,7 +21008,7 @@
     "label": "Narrative Entry 19 (19th) — Narrative",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "narrative",
     "index": 18
   },
@@ -21017,7 +21017,7 @@
     "label": "Narrative Entry 19 (19th) — Entered By",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "entered_by",
     "index": 18
   },
@@ -21026,7 +21026,7 @@
     "label": "Narrative Entry 19 (19th) — Team Number",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "team_num",
     "index": 18
   },
@@ -21035,7 +21035,7 @@
     "label": "Narrative Entry 19 (19th) — Critical",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "critical",
     "index": 18
   },
@@ -21044,7 +21044,7 @@
     "label": "Narrative Entry 20 (20th) — Timestamp",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "timestamp",
     "index": 19
   },
@@ -21053,7 +21053,7 @@
     "label": "Narrative Entry 20 (20th) — Narrative",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "narrative",
     "index": 19
   },
@@ -21062,7 +21062,7 @@
     "label": "Narrative Entry 20 (20th) — Entered By",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "entered_by",
     "index": 19
   },
@@ -21071,7 +21071,7 @@
     "label": "Narrative Entry 20 (20th) — Team Number",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "team_num",
     "index": 19
   },
@@ -21080,7 +21080,7 @@
     "label": "Narrative Entry 20 (20th) — Critical",
     "category": "Narrative",
     "source_type": "incident_db",
-    "table": "ics_214_logs",
+    "table": "ics_214_entries",
     "column": "critical",
     "index": 19
   },
@@ -51462,6 +51462,361 @@
     "table": "meetings",
     "column": "status",
     "index": 4
+  },
+  {
+    "path": "ics_230.blank_rows.0.date_time_display",
+    "label": "ICS 230 Open Row 1 (1st) — Date/Time Display",
+    "category": "ICS 230 Meeting Schedule",
+    "source_type": "computed",
+    "table": "meetings",
+    "column": "meeting_date + start_time + end_time",
+    "index": 0
+  },
+  {
+    "path": "ics_230.blank_rows.0.title",
+    "label": "ICS 230 Open Row 1 (1st) — Meeting Name",
+    "category": "ICS 230 Meeting Schedule",
+    "source_type": "computed",
+    "table": "meetings",
+    "column": "title",
+    "index": 0
+  },
+  {
+    "path": "ics_230.blank_rows.0.purpose",
+    "label": "ICS 230 Open Row 1 (1st) — Purpose",
+    "category": "ICS 230 Meeting Schedule",
+    "source_type": "computed",
+    "table": "meetings",
+    "column": "purpose",
+    "index": 0
+  },
+  {
+    "path": "ics_230.blank_rows.0.attendees_display",
+    "label": "ICS 230 Open Row 1 (1st) — Attendees Display",
+    "category": "ICS 230 Meeting Schedule",
+    "source_type": "computed",
+    "table": "meetings",
+    "column": "attendees_display",
+    "index": 0
+  },
+  {
+    "path": "ics_230.blank_rows.0.location_display",
+    "label": "ICS 230 Open Row 1 (1st) — Location Display",
+    "category": "ICS 230 Meeting Schedule",
+    "source_type": "computed",
+    "table": "meetings",
+    "column": "location_display",
+    "index": 0
+  },
+  {
+    "path": "ics_230.blank_rows.1.date_time_display",
+    "label": "ICS 230 Open Row 2 (2nd) — Date/Time Display",
+    "category": "ICS 230 Meeting Schedule",
+    "source_type": "computed",
+    "table": "meetings",
+    "column": "meeting_date + start_time + end_time",
+    "index": 1
+  },
+  {
+    "path": "ics_230.blank_rows.1.title",
+    "label": "ICS 230 Open Row 2 (2nd) — Meeting Name",
+    "category": "ICS 230 Meeting Schedule",
+    "source_type": "computed",
+    "table": "meetings",
+    "column": "title",
+    "index": 1
+  },
+  {
+    "path": "ics_230.blank_rows.1.purpose",
+    "label": "ICS 230 Open Row 2 (2nd) — Purpose",
+    "category": "ICS 230 Meeting Schedule",
+    "source_type": "computed",
+    "table": "meetings",
+    "column": "purpose",
+    "index": 1
+  },
+  {
+    "path": "ics_230.blank_rows.1.attendees_display",
+    "label": "ICS 230 Open Row 2 (2nd) — Attendees Display",
+    "category": "ICS 230 Meeting Schedule",
+    "source_type": "computed",
+    "table": "meetings",
+    "column": "attendees_display",
+    "index": 1
+  },
+  {
+    "path": "ics_230.blank_rows.1.location_display",
+    "label": "ICS 230 Open Row 2 (2nd) — Location Display",
+    "category": "ICS 230 Meeting Schedule",
+    "source_type": "computed",
+    "table": "meetings",
+    "column": "location_display",
+    "index": 1
+  },
+  {
+    "path": "ics_230.blank_rows.2.date_time_display",
+    "label": "ICS 230 Open Row 3 (3rd) — Date/Time Display",
+    "category": "ICS 230 Meeting Schedule",
+    "source_type": "computed",
+    "table": "meetings",
+    "column": "meeting_date + start_time + end_time",
+    "index": 2
+  },
+  {
+    "path": "ics_230.blank_rows.2.title",
+    "label": "ICS 230 Open Row 3 (3rd) — Meeting Name",
+    "category": "ICS 230 Meeting Schedule",
+    "source_type": "computed",
+    "table": "meetings",
+    "column": "title",
+    "index": 2
+  },
+  {
+    "path": "ics_230.blank_rows.2.purpose",
+    "label": "ICS 230 Open Row 3 (3rd) — Purpose",
+    "category": "ICS 230 Meeting Schedule",
+    "source_type": "computed",
+    "table": "meetings",
+    "column": "purpose",
+    "index": 2
+  },
+  {
+    "path": "ics_230.blank_rows.2.attendees_display",
+    "label": "ICS 230 Open Row 3 (3rd) — Attendees Display",
+    "category": "ICS 230 Meeting Schedule",
+    "source_type": "computed",
+    "table": "meetings",
+    "column": "attendees_display",
+    "index": 2
+  },
+  {
+    "path": "ics_230.blank_rows.2.location_display",
+    "label": "ICS 230 Open Row 3 (3rd) — Location Display",
+    "category": "ICS 230 Meeting Schedule",
+    "source_type": "computed",
+    "table": "meetings",
+    "column": "location_display",
+    "index": 2
+  },
+  {
+    "path": "ics_230.blank_rows.3.date_time_display",
+    "label": "ICS 230 Open Row 4 (4th) — Date/Time Display",
+    "category": "ICS 230 Meeting Schedule",
+    "source_type": "computed",
+    "table": "meetings",
+    "column": "meeting_date + start_time + end_time",
+    "index": 3
+  },
+  {
+    "path": "ics_230.blank_rows.3.title",
+    "label": "ICS 230 Open Row 4 (4th) — Meeting Name",
+    "category": "ICS 230 Meeting Schedule",
+    "source_type": "computed",
+    "table": "meetings",
+    "column": "title",
+    "index": 3
+  },
+  {
+    "path": "ics_230.blank_rows.3.purpose",
+    "label": "ICS 230 Open Row 4 (4th) — Purpose",
+    "category": "ICS 230 Meeting Schedule",
+    "source_type": "computed",
+    "table": "meetings",
+    "column": "purpose",
+    "index": 3
+  },
+  {
+    "path": "ics_230.blank_rows.3.attendees_display",
+    "label": "ICS 230 Open Row 4 (4th) — Attendees Display",
+    "category": "ICS 230 Meeting Schedule",
+    "source_type": "computed",
+    "table": "meetings",
+    "column": "attendees_display",
+    "index": 3
+  },
+  {
+    "path": "ics_230.blank_rows.3.location_display",
+    "label": "ICS 230 Open Row 4 (4th) — Location Display",
+    "category": "ICS 230 Meeting Schedule",
+    "source_type": "computed",
+    "table": "meetings",
+    "column": "location_display",
+    "index": 3
+  },
+  {
+    "path": "ics_230.blank_rows.4.date_time_display",
+    "label": "ICS 230 Open Row 5 (5th) — Date/Time Display",
+    "category": "ICS 230 Meeting Schedule",
+    "source_type": "computed",
+    "table": "meetings",
+    "column": "meeting_date + start_time + end_time",
+    "index": 4
+  },
+  {
+    "path": "ics_230.blank_rows.4.title",
+    "label": "ICS 230 Open Row 5 (5th) — Meeting Name",
+    "category": "ICS 230 Meeting Schedule",
+    "source_type": "computed",
+    "table": "meetings",
+    "column": "title",
+    "index": 4
+  },
+  {
+    "path": "ics_230.blank_rows.4.purpose",
+    "label": "ICS 230 Open Row 5 (5th) — Purpose",
+    "category": "ICS 230 Meeting Schedule",
+    "source_type": "computed",
+    "table": "meetings",
+    "column": "purpose",
+    "index": 4
+  },
+  {
+    "path": "ics_230.blank_rows.4.attendees_display",
+    "label": "ICS 230 Open Row 5 (5th) — Attendees Display",
+    "category": "ICS 230 Meeting Schedule",
+    "source_type": "computed",
+    "table": "meetings",
+    "column": "attendees_display",
+    "index": 4
+  },
+  {
+    "path": "ics_230.blank_rows.4.location_display",
+    "label": "ICS 230 Open Row 5 (5th) — Location Display",
+    "category": "ICS 230 Meeting Schedule",
+    "source_type": "computed",
+    "table": "meetings",
+    "column": "location_display",
+    "index": 4
+  },
+  {
+    "path": "ics_230.blank_rows.5.date_time_display",
+    "label": "ICS 230 Open Row 6 (6th) — Date/Time Display",
+    "category": "ICS 230 Meeting Schedule",
+    "source_type": "computed",
+    "table": "meetings",
+    "column": "meeting_date + start_time + end_time",
+    "index": 5
+  },
+  {
+    "path": "ics_230.blank_rows.5.title",
+    "label": "ICS 230 Open Row 6 (6th) — Meeting Name",
+    "category": "ICS 230 Meeting Schedule",
+    "source_type": "computed",
+    "table": "meetings",
+    "column": "title",
+    "index": 5
+  },
+  {
+    "path": "ics_230.blank_rows.5.purpose",
+    "label": "ICS 230 Open Row 6 (6th) — Purpose",
+    "category": "ICS 230 Meeting Schedule",
+    "source_type": "computed",
+    "table": "meetings",
+    "column": "purpose",
+    "index": 5
+  },
+  {
+    "path": "ics_230.blank_rows.5.attendees_display",
+    "label": "ICS 230 Open Row 6 (6th) — Attendees Display",
+    "category": "ICS 230 Meeting Schedule",
+    "source_type": "computed",
+    "table": "meetings",
+    "column": "attendees_display",
+    "index": 5
+  },
+  {
+    "path": "ics_230.blank_rows.5.location_display",
+    "label": "ICS 230 Open Row 6 (6th) — Location Display",
+    "category": "ICS 230 Meeting Schedule",
+    "source_type": "computed",
+    "table": "meetings",
+    "column": "location_display",
+    "index": 5
+  },
+  {
+    "path": "ics_230.blank_rows.6.date_time_display",
+    "label": "ICS 230 Open Row 7 (7th) — Date/Time Display",
+    "category": "ICS 230 Meeting Schedule",
+    "source_type": "computed",
+    "table": "meetings",
+    "column": "meeting_date + start_time + end_time",
+    "index": 6
+  },
+  {
+    "path": "ics_230.blank_rows.6.title",
+    "label": "ICS 230 Open Row 7 (7th) — Meeting Name",
+    "category": "ICS 230 Meeting Schedule",
+    "source_type": "computed",
+    "table": "meetings",
+    "column": "title",
+    "index": 6
+  },
+  {
+    "path": "ics_230.blank_rows.6.purpose",
+    "label": "ICS 230 Open Row 7 (7th) — Purpose",
+    "category": "ICS 230 Meeting Schedule",
+    "source_type": "computed",
+    "table": "meetings",
+    "column": "purpose",
+    "index": 6
+  },
+  {
+    "path": "ics_230.blank_rows.6.attendees_display",
+    "label": "ICS 230 Open Row 7 (7th) — Attendees Display",
+    "category": "ICS 230 Meeting Schedule",
+    "source_type": "computed",
+    "table": "meetings",
+    "column": "attendees_display",
+    "index": 6
+  },
+  {
+    "path": "ics_230.blank_rows.6.location_display",
+    "label": "ICS 230 Open Row 7 (7th) — Location Display",
+    "category": "ICS 230 Meeting Schedule",
+    "source_type": "computed",
+    "table": "meetings",
+    "column": "location_display",
+    "index": 6
+  },
+  {
+    "path": "ics_230.fixed.objectives_meeting.date_time_display",
+    "label": "ICS 230 Objectives Meeting — Date/Time Display",
+    "category": "ICS 230 Meeting Schedule",
+    "source_type": "computed",
+    "table": "meetings",
+    "column": "meeting_date + start_time + end_time"
+  },
+  {
+    "path": "ics_230.fixed.command_general_staff.date_time_display",
+    "label": "ICS 230 Command and General Staff Meeting — Date/Time Display",
+    "category": "ICS 230 Meeting Schedule",
+    "source_type": "computed",
+    "table": "meetings",
+    "column": "meeting_date + start_time + end_time"
+  },
+  {
+    "path": "ics_230.fixed.tactics.date_time_display",
+    "label": "ICS 230 Tactics Meeting — Date/Time Display",
+    "category": "ICS 230 Meeting Schedule",
+    "source_type": "computed",
+    "table": "meetings",
+    "column": "meeting_date + start_time + end_time"
+  },
+  {
+    "path": "ics_230.fixed.planning.date_time_display",
+    "label": "ICS 230 Planning Meeting — Date/Time Display",
+    "category": "ICS 230 Meeting Schedule",
+    "source_type": "computed",
+    "table": "meetings",
+    "column": "meeting_date + start_time + end_time"
+  },
+  {
+    "path": "ics_230.fixed.operations_briefing.date_time_display",
+    "label": "ICS 230 Operational Period Briefing — Date/Time Display",
+    "category": "ICS 230 Meeting Schedule",
+    "source_type": "computed",
+    "table": "meetings",
+    "column": "meeting_date + start_time + end_time"
   },
   {
     "path": "equipment.0.name",

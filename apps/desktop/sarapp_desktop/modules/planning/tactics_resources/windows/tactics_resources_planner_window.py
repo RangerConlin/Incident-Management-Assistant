@@ -43,12 +43,20 @@ from modules.planning.tactics_resources.windows.work_assignment_detail_window im
     WorkAssignmentDetailWindow,
 )
 from utils.styles import (
+    approval_status_colors,
     get_palette,
-    resource_status_colors,
     subscribe_theme,
     wa_planning_status_colors,
+    wa_resource_status_colors,
     wa_safety_status_colors,
 )
+
+_APPROVAL_STATUS_LABELS = {
+    "not_started": "Not Sent",
+    "pending": "Approval Pending",
+    "approved": "Approved",
+    "rejected": "Rejected",
+}
 
 
 _Meta = tuple[int, int, int, int, int, int]
@@ -232,8 +240,10 @@ class _AssignmentCard(QFrame):
         title.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         header.addWidget(title, 1)
         header.addWidget(_chip(wa.planning_status, wa_planning_status_colors().get(wa.planning_status), self))
-        header.addWidget(_chip(wa.resource_status, resource_status_colors().get(wa.resource_status), self))
+        header.addWidget(_chip(wa.resource_status, wa_resource_status_colors().get(wa.resource_status), self))
         header.addWidget(_chip(wa.safety_status, wa_safety_status_colors().get(wa.safety_status), self))
+        approval_label = _APPROVAL_STATUS_LABELS.get(wa.approval_status, wa.approval_status)
+        header.addWidget(_chip(approval_label, approval_status_colors().get(wa.approval_status), self))
         layout.addLayout(header)
 
         objective = QLabel(self._objective_label or "No objective linked")
@@ -292,7 +302,7 @@ class _AssignmentCard(QFrame):
         if _has_open_hazard(self._meta) or wa.safety_status == "Safety Concern":
             left_border = _color_name("danger")
         elif _has_resource_gap(self._meta):
-            brushes = resource_status_colors().get(wa.resource_status)
+            brushes = wa_resource_status_colors().get(wa.resource_status)
             if brushes:
                 left_border = brushes["bg"].color().name()
             else:
@@ -577,7 +587,7 @@ class TacticsResourcesPlannerWindow(QWidget):
         )
         _tint_stat_card(
             self._stat_cards["resource_gaps"],
-            resource_status_colors().get("Gap Exists") if resource_gaps else None,
+            wa_resource_status_colors().get("Gap Exists") if resource_gaps else None,
         )
         _tint_stat_card(
             self._stat_cards["safety_review"],

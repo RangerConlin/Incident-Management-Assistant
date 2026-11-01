@@ -133,6 +133,13 @@
   border-radius: 8px; padding: 9px 12px; font-size: 0.82rem; margin-bottom: 12px;
 }
 .org-warning-strip svg { width: 16px; height: 16px; color: var(--status-severity-warning-bg); flex-shrink: 0; margin-top: 1px; }
+.org-info-strip {
+  display: flex; align-items: flex-start; gap: 8px;
+  background: color-mix(in srgb, var(--status-severity-info-bg) 14%, #17191d);
+  border: 1px solid color-mix(in srgb, var(--status-severity-info-bg) 40%, #2a2d33);
+  border-radius: 8px; padding: 9px 12px; font-size: 0.82rem; margin-bottom: 12px;
+}
+.org-info-strip svg { width: 16px; height: 16px; color: var(--status-severity-info-bg); flex-shrink: 0; margin-top: 1px; }
 .org-section-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.65; font-weight: 700; margin: 14px 0 6px; }
 .org-section-label:first-of-type { margin-top: 0; }
 .org-assign-table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }

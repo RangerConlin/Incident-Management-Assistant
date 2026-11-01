@@ -127,7 +127,7 @@
     "statusboard.team.columns.widths": {
         "team_type": 43,
         "sortie": 53,
-        "name": 91,
+        "name": 99,
         "leader": 130,
         "contact": 87,
         "status": 93,
@@ -177,5 +177,5 @@
     "rememberLogin": true,
     "rememberedUsername": "405021",
     "rememberedRole": "Incident Commander",
-    "rememberedPassword": "AQAAANCMnd8BFdERjHoAwE/Cl+sBAAAA//5ZTOtJUEqI9vv8pwlGTwAAAAACAAAAAAAQZgAAAAEAACAAAABJSJ2A2sKPlFTDEKwhHfU4GTIhjUlIUi1or85IShgF1QAAAAAOgAAAAAIAACAAAAA7w8fupmXT4ysx5YgZXH4vVy+v8G2X5DNcs/ZIk1W8khAAAABSrS5CR7lwoEMibE6qdtVdQAAAAMJGw5ypI+4xApuSeKCP1kRDf2sQyeF0FRuP03kc51kXKaxIta+4Tzl40pT6RzBomjRiJO0QoBR40Q0TTwasUYM="
+    "rememberedPassword": "AQAAANCMnd8BFdERjHoAwE/Cl+sBAAAA//5ZTOtJUEqI9vv8pwlGTwAAAAACAAAAAAAQZgAAAAEAACAAAACacmFRvod/feNb+uXIkJAsOhB/duXZS0QTuAk7/4l+vAAAAAAOgAAAAAIAACAAAAATjQZn8cPRLqTX3Eb7S/eqPrQiKpKlh9HOep+WDruBVRAAAABQF1J+R8g3bg+n3O9nW4gYQAAAAKSXBqdVaHtJziEtWWBjknQFeIcLg6OpLlQ42RnxNXzTQ0gfAO/1GPFtrY8RzAuLAxVz4wtXNRyifVOJr3pXZ9c="
 }

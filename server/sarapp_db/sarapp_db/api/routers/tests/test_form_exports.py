@@ -47,7 +47,12 @@ def snapshot(form: str, records: list[dict] | None = None) -> ExportSnapshot:
 @pytest.mark.parametrize("form", [d.form_id for d in default_registry().definitions()])
 def test_every_export_has_exact_template_fields_and_valid_interactive_values(form):
     data = snapshot(form)
-    available = PdfReader(ASSETS / f"{form}.pdf").get_fields() or {}
+    # Resolve the actual template PDF through the registry rather than
+    # assuming the asset filename equals the form_id — some form_ids (e.g.
+    # "ics_213rr_wa") deliberately reuse another form's physical template.
+    definition = default_registry().get(form)
+    template_pdf = ASSETS / definition.template(data.form_set_id).pdf
+    available = PdfReader(template_pdf).get_fields() or {}
     for values in mapped_sheets(data):
         assert set(values).issubset(available)
     result = PdfReader(BytesIO(render_snapshot(data)))
@@ -89,6 +94,43 @@ def test_resource_request_overflow_keeps_all_rows_and_never_fills_approval_signa
     assert not fields["sheet_1.14. Approval Signature of Authorized Log Rep"].get("/V")
 
 
+def test_work_assignment_213rr_lists_only_resources_with_a_gap():
+    data = snapshot("ics_213rr_wa", [{
+        "assignment_number": "WA-14", "assignment_name": "Drainage Sweep", "priority": "Urgent",
+        "resources": [
+            {"resource_type_text": "Ground Team", "capability_text": "Type II SAR", "quantity_gap": 2, "unit": "teams"},
+            {"resource_type_text": "UTV", "quantity_gap": 0, "unit": "vehicles"},
+            {"resource_type_text": "K9 Team", "capability_text": "Air Scent", "quantity_gap": 1, "unit": "teams"},
+        ],
+    }])
+    sheets = mapped_sheets(data)
+    assert len(sheets) == 1
+    description_key = "Detailed Item Description Vital characteristics brand specs experience size etcRow"
+    descriptions = {sheets[0].get(f"{description_key}1"), sheets[0].get(f"{description_key}2")}
+    assert descriptions == {"Ground Team Type II SAR teams", "K9 Team Air Scent teams"}
+    assert sheets[0]["QtyRow1"] == 2
+    assert sheets[0]["3 Resource Request Number"] == "WA-14"
+    result = PdfReader(BytesIO(render_snapshot(data)))
+    fields = result.get_fields() or {}
+    # The rendered form fields (what someone reads as "the request") list
+    # only the gapped resources; the full source record — UTV included —
+    # still appears in the lossless raw-data continuation page, by design.
+    assert "Ground Team" in str(fields[f"sheet_1.{description_key}1"]["/V"])
+    assert "K9 Team" in str(fields[f"sheet_1.{description_key}2"]["/V"])
+
+
+def test_work_assignment_213rr_with_no_gaps_still_generates():
+    data = snapshot("ics_213rr_wa", [{
+        "assignment_number": "WA-15", "assignment_name": "No Gaps",
+        "resources": [{"resource_type_text": "UTV", "quantity_gap": 0, "unit": "vehicles"}],
+    }])
+    sheets = mapped_sheets(data)
+    assert len(sheets) == 1
+    assert "No outstanding resource gaps" in str(sheets[0].get(
+        "Detailed Item Description Vital characteristics brand specs experience size etcRow1"
+    ))
+
+
 def test_long_text_has_visible_continuation_and_lossless_supplement():
     data = snapshot("ics_202", [{"text": "Continuation content " * 700, "code": "OBJ-1"}])
     result = PdfReader(BytesIO(render_snapshot(data)))
@@ -101,6 +143,27 @@ def test_safety_and_checkin_rows_paginate_without_truncating():
     data = snapshot("ics_215a")
     data.records[0]["hazards"] = [{"hazard_type_text": f"Hazard {n}"} for n in range(31)]
     assert len(mapped_sheets(data)) == 3
+
+
+def test_ics230_places_standard_meetings_in_preprinted_rows_and_paginates_open_rows():
+    records = [{
+        "title": "Objectives Meeting", "meeting_type": "objectives-meeting",
+        "meeting_date": "2026-10-20", "start_time": "08:00:00",
+        "end_time": "08:30:00", "freeform_notes": "Set incident objectives",
+        "attendees": [{"display_name": "Incident Commander"}],
+        "location": "Command Tent",
+    }, *[{
+        "title": f"Custom Meeting {index}", "meeting_date": "2026-10-20",
+        "start_time": "09:00:00", "end_time": "09:30:00",
+    } for index in range(8)]]
+    sheets = mapped_sheets(snapshot("ics_230", records))
+    assert len(sheets) == 2
+    assert sheets[0]["Meeting NameRow2"] == "Objectives Meeting"
+    assert sheets[0]["PurposeRow2"] == "Set incident objectives"
+    assert sheets[0]["AttendeesRow2"] == "Incident Commander"
+    assert sheets[0]["LocationRow2"] == "Command Tent"
+    assert sheets[0]["Meeting NameRow1"] == "Custom Meeting 0"
+    assert sheets[1]["Meeting NameRow1"] == "Custom Meeting 7"
     data = snapshot("ics_211", [{"resource_name": str(n)} for n in range(25)])
     assert len(mapped_sheets(data)) == 4
     data = snapshot("ics_215")

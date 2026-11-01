@@ -119,10 +119,10 @@ Field operations endpoints:
 - PATCH /api/incidents/{incident_id}/operations/teams/{team_id}/checkin
 - GET /api/incidents/{incident_id}/operations/tasks/{task_id}/team-status-log
 
-ICS 214 team logbook endpoints (entries land on the team's ICS-214 stream, source=mobile; stream is created on first use; {team_id} is the operations team int_id):
+ICS 214 team logbook endpoints (entries are independent documents in the canonical incident stream, associated through team_ids and the team's current person_ids; source=mobile; {team_id} is the operations team int_id):
 - GET /api/incidents/{incident_id}/mobile/teams/{team_id}/log?since=<iso>
-- POST /api/incidents/{incident_id}/mobile/teams/{team_id}/log  (body: text, actor_user_id, timestamp_utc, critical_flag)
-- DELETE /api/incidents/{incident_id}/mobile/teams/{team_id}/log/{entry_id}  (not used by the app yet)
+- POST /api/incidents/{incident_id}/mobile/teams/{team_id}/log  (body: text, actor_user_id, occurred_at, critical_flag)
+  Responses use occurred_at and created_by. Entries are immutable; corrections use the shared void-and-correct API rather than mobile delete/edit.
 
 Command overview endpoints:
 - GET /api/incidents/{incident_id}/header

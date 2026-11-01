@@ -113,40 +113,25 @@ class TaskingsBridge(QObject):
 
     @Slot("QString", bool, result=bool)
     def addIcs214Entry(self, text: str, critical_flag: bool = False) -> bool:  # noqa: N802
-        """Append a simple entry to the default ICS-214 stream for the active incident.
-
-        Creates a default Operations stream if none exists.
-        """
+        """Append an incident-wide manual ICS-214 entry."""
         try:
             from utils import incident_context
             from utils.state import AppState
             from modules.ics214 import services
-            from modules.ics214.schemas import StreamCreate, EntryCreate
+            from modules.ics214.schemas import EntryCreate
         except Exception:
             return False
 
         incident_id = incident_context.get_active_incident_id()
         if not incident_id:
             return False
-        # Find or create a default stream (Operations Unit Log)
-        streams = services.list_streams(incident_id)
-        stream = None
-        for s in streams:
-            try:
-                if getattr(s, "name", "") == "Operations Unit Log":
-                    stream = s
-                    break
-            except Exception:
-                continue
-        if stream is None:
-            stream = services.create_stream(StreamCreate(incident_id=incident_id, name="Operations Unit Log", section="Operations"))
-
         uid = AppState.get_active_user_id()
         try:
-            services.add_entry(
+            services.create_entry(
                 incident_id,
-                stream.id,  # type: ignore[attr-defined]
-                EntryCreate(text=str(text or ""), critical_flag=bool(critical_flag), actor_user_id=str(uid) if uid is not None else None),
+                EntryCreate(text=str(text or ""), critical_flag=bool(critical_flag),
+                            incident_wide=True,
+                            created_by=str(uid) if uid is not None else None),
             )
             return True
         except Exception:

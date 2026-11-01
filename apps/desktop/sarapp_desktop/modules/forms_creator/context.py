@@ -8,6 +8,7 @@ from typing import Any
 from modules.intel.weather.services.summary import build_weather_form_payload
 from utils import incident_context
 from utils.api_client import api_client
+from utils.personnel_display import personnel_display_name
 
 
 def _fmt_date(dt_str: str | None) -> str:
@@ -158,6 +159,7 @@ class FormDataContext:
         data["incident"]        = self._build_incident(inc_id)
         data["op_period"]       = self._build_op_period(inc_id)
         current_op             = self._current_op_number(data["op_period"])
+        current_op_id          = self._current_op_id(data["op_period"])
         data["organization"]    = self._build_organization(inc_id)
         air_ops = self._build_air_ops_branch(inc_id)
         if air_ops["director_name"]:
@@ -188,7 +190,8 @@ class FormDataContext:
         data["liaison_restrictions"] = liaison_data["liaison_restrictions"]
         data["liaison_agreements"] = liaison_data["liaison_agreements"]
         data["narrative"]       = self._build_narrative(inc_id)
-        data["meetings"]        = self._build_meetings(inc_id)
+        data["meetings"]        = self._build_meetings(inc_id, current_op_id)
+        data["ics_230"]         = self._build_ics_230(data["meetings"])
         data["subject"]         = {"name": "", "sex": "", "dob": "", "race": "", "lkp_place": "", "lkp_time": ""}
         data["debrief"]         = self._empty_debrief_shape()
         data["sar_135"]         = self._empty_sar_135_shape()
@@ -239,6 +242,16 @@ class FormDataContext:
     @staticmethod
     def _current_op_number(op_period: dict[str, Any]) -> int | None:
         raw = op_period.get("number")
+        if raw in (None, ""):
+            return None
+        try:
+            return int(raw)
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _current_op_id(op_period: dict[str, Any]) -> int | None:
+        raw = op_period.get("id")
         if raw in (None, ""):
             return None
         try:
@@ -314,7 +327,7 @@ class FormDataContext:
 
     def _build_op_period(self, inc_id: str | None) -> dict[str, Any]:
         empty = {
-            "number": "", "start": "", "end": "",
+            "id": "", "number": "", "start": "", "end": "",
             "start_date": "", "start_time": "", "end_date": "", "end_time": "",
         }
         if not inc_id:
@@ -326,6 +339,7 @@ class FormDataContext:
                 start = row.get("start_time") or row.get("op_start") or ""
                 end = row.get("end_time") or row.get("op_end") or ""
                 return {
+                    "id":         row.get("id") or row.get("int_id") or "",
                     "number":     row.get("op_number") or row.get("number") or "",
                     "start":      start,
                     "end":        end,
@@ -357,13 +371,15 @@ class FormDataContext:
                     p.get("position_id"): p.get("title") or "" for p in positions
                 }
                 assignments = _get(f"/api/incidents/{inc_id}/org/assignments") or []
+                personnel_by_id = self._personnel_by_id()
                 seen: set[str] = set()
                 for row in assignments:
                     title = title_by_position_id.get(row.get("position_id"), "")
                     key = self._ORG_POSITIONS.get(title)
                     if key and key not in seen:
+                        display_name = self._assignment_display_name(row, personnel_by_id)
                         result[key] = {
-                            "name": row.get("display_name") or "",
+                            "name": display_name,
                             "person_record": row.get("person_record"),
                             "title": title,
                         }
@@ -405,7 +421,8 @@ class FormDataContext:
                     person = personnel_by_id.get(int(prec))
                     if person:
                         agency = self._person_organization(person)
-                result.append({"agency": agency, "name": row.get("display_name") or ""})
+                display_name = self._assignment_display_name(row, personnel_by_id)
+                result.append({"agency": agency, "name": display_name})
             return result
         except Exception:
             return []
@@ -416,6 +433,21 @@ class FormDataContext:
             return {int(r["person_record"]): r for r in rows if r.get("person_record") is not None}
         except Exception:
             return {}
+
+    @staticmethod
+    def _assignment_display_name(
+        row: dict[str, Any], personnel_by_id: dict[int, dict[str, Any]]
+    ) -> str:
+        """Resolve an org-assignment row's display name, rank-prefixed when
+        the assignment's personnel record resolves (falls back to the
+        assignment's own ``display_name`` otherwise)."""
+        display_name = row.get("display_name") or ""
+        prec = row.get("person_record")
+        if prec is not None:
+            person = personnel_by_id.get(int(prec))
+            if person:
+                display_name = personnel_display_name(person) or display_name
+        return display_name
 
     # ------------------------------------------------------------------
     # Operations Section branches + divisions/groups (ICS 203/207)
@@ -430,6 +462,7 @@ class FormDataContext:
                 classifications="branch,division,group",
             ) or []
             assignments = _get(f"/api/incidents/{inc_id}/org/assignments") or []
+            personnel_by_id = self._personnel_by_id()
             assign_by_position: dict[int, list[dict[str, Any]]] = {}
             for row in assignments:
                 assign_by_position.setdefault(row.get("position_id"), []).append(row)
@@ -453,9 +486,9 @@ class FormDataContext:
                 deputy_name = ""
                 for row in assign_by_position.get(branch_pid, []):
                     if row.get("assignment_type") == "deputy":
-                        deputy_name = deputy_name or row.get("display_name") or ""
+                        deputy_name = deputy_name or self._assignment_display_name(row, personnel_by_id)
                     else:
-                        director_name = director_name or row.get("display_name") or ""
+                        director_name = director_name or self._assignment_display_name(row, personnel_by_id)
 
                 divisions = [
                     u for u in units
@@ -469,7 +502,7 @@ class FormDataContext:
                     div_pid = division.get("position_id")
                     supervisor_name = ""
                     for row in assign_by_position.get(div_pid, []):
-                        supervisor_name = row.get("display_name") or ""
+                        supervisor_name = self._assignment_display_name(row, personnel_by_id)
                         break
                     division_list.append({
                         "name": division.get("title") or "",
@@ -532,6 +565,7 @@ class FormDataContext:
             specialists.sort(key=lambda p: (p.get("sort_order") or 0, p.get("position_id") or 0))
 
             assignments = _get(f"/api/incidents/{inc_id}/org/assignments") or []
+            personnel_by_id = self._personnel_by_id()
             assign_by_position: dict[int, list[dict[str, Any]]] = {}
             for row in assignments:
                 assign_by_position.setdefault(row.get("position_id"), []).append(row)
@@ -544,7 +578,7 @@ class FormDataContext:
                 specialty = title.split("-", 1)[1].strip() if "-" in title else ""
                 name = ""
                 for row in assign_by_position.get(pos.get("position_id"), []):
-                    name = row.get("display_name") or ""
+                    name = self._assignment_display_name(row, personnel_by_id)
                     break
                 result.append({"name": name, "specialty": specialty})
             return result
@@ -603,36 +637,30 @@ class FormDataContext:
         if not inc_id:
             return []
         try:
-            streams = _get(f"/api/incidents/{inc_id}/ics214/streams") or []
+            rows = _get(f"/api/incidents/{inc_id}/ics214/entries") or []
             entries: list[dict[str, Any]] = []
-            for stream in streams:
-                stream_id = stream.get("id")
-                if not stream_id:
-                    continue
-                detail = _get(f"/api/incidents/{inc_id}/ics214/streams/{stream_id}") or {}
-                stream_name = detail.get("name") or stream.get("name") or ""
-                stream_entries = detail.get("entries") or []
-                for entry in stream_entries:
-                    entries.append(
-                        {
-                            "id": entry.get("id") or "",
-                            "stream_id": entry.get("stream_id") or stream_id,
-                            "timestamp": entry.get("timestamp_utc") or "",
-                            "timestamp_utc": entry.get("timestamp_utc") or "",
-                            "narrative": entry.get("text") or "",
-                            "text": entry.get("text") or "",
-                            "entered_by": entry.get("actor_user_id") or "",
-                            "actor_user_id": entry.get("actor_user_id") or "",
-                            "team_num": self._extract_team_num(stream_name),
-                            "stream_name": stream_name,
-                            "source": entry.get("source") or "",
-                            "autogenerated": bool(entry.get("autogenerated")),
-                            "critical": bool(entry.get("critical_flag")),
-                            "critical_flag": bool(entry.get("critical_flag")),
-                            "idempotency_hash": entry.get("idempotency_hash") or "",
-                            "tags": entry.get("tags") or [],
-                        }
-                    )
+            for entry in rows:
+                team_ids = entry.get("team_ids") or []
+                entries.append(
+                    {
+                        "id": entry.get("id") or "",
+                        "timestamp": entry.get("occurred_at") or "",
+                        "timestamp_utc": entry.get("occurred_at") or "",
+                        "narrative": entry.get("text") or "",
+                        "text": entry.get("text") or "",
+                        "entered_by": entry.get("created_by") or "",
+                        "actor_user_id": entry.get("created_by") or "",
+                        "team_num": str(team_ids[0]) if team_ids else "",
+                        "source": entry.get("source") or "",
+                        "autogenerated": entry.get("source") == "auto",
+                        "critical": bool(entry.get("critical_flag")),
+                        "critical_flag": bool(entry.get("critical_flag")),
+                        "idempotency_hash": entry.get("idempotency_hash") or "",
+                        "person_ids": entry.get("person_ids") or [],
+                        "team_ids": team_ids,
+                        "task_ids": entry.get("task_ids") or [],
+                    }
+                )
             entries.sort(key=lambda item: item.get("timestamp_utc") or item.get("timestamp") or "")
             return entries
         except Exception:
@@ -1013,13 +1041,94 @@ class FormDataContext:
     # Meetings
     # ------------------------------------------------------------------
 
-    def _build_meetings(self, inc_id: str | None) -> list[dict[str, Any]]:
+    @staticmethod
+    def _meeting_time(value: Any) -> str:
+        text = str(value or "").strip()
+        if not text:
+            return ""
+        digits = "".join(character for character in text if character.isdigit())
+        if len(digits) >= 4:
+            return digits[:4]
+        return text
+
+    @classmethod
+    def _normalize_meeting(cls, row: dict[str, Any]) -> dict[str, Any]:
+        normalized = dict(row or {})
+        meeting_date = str(normalized.get("meeting_date") or "")
+        start_time = cls._meeting_time(normalized.get("start_time"))
+        end_time = cls._meeting_time(normalized.get("end_time"))
+        date_display = _fmt_date(meeting_date) or meeting_date
+        time_display = "-".join(value for value in (start_time, end_time) if value)
+        normalized["date_time_display"] = " ".join(
+            value for value in (date_display, time_display) if value
+        )
+        normalized["purpose"] = str(
+            normalized.get("freeform_notes") or normalized.get("title") or ""
+        )
+        attendees = normalized.get("attendees") or []
+        attendee_names: list[str] = []
+        for attendee in attendees:
+            if not isinstance(attendee, dict):
+                continue
+            name = str(attendee.get("display_name") or attendee.get("role") or "").strip()
+            if name and name not in attendee_names:
+                attendee_names.append(name)
+        normalized["attendees_display"] = ", ".join(attendee_names)
+        normalized["location_display"] = str(
+            normalized.get("virtual_link") or normalized.get("location") or ""
+        )
+        return normalized
+
+    def _build_meetings(
+        self, inc_id: str | None, operational_period_id: int | None = None
+    ) -> list[dict[str, Any]]:
         if not inc_id:
             return []
         try:
-            return _get(f"/api/incidents/{inc_id}/meetings") or []
+            params: dict[str, Any] = {"ics230_only": True}
+            if operational_period_id is not None:
+                params["operational_period_id"] = str(operational_period_id)
+            rows = _get(
+                f"/api/incidents/{inc_id}/planning/meetings",
+                **params,
+            ) or []
+            return [
+                self._normalize_meeting(row)
+                for row in rows
+                if isinstance(row, dict)
+            ]
         except Exception:
             return []
+
+    @staticmethod
+    def _build_ics_230(meetings: list[dict[str, Any]]) -> dict[str, Any]:
+        fixed_slugs = {
+            "objectives-meeting": "objectives_meeting",
+            "command-general-staff": "command_general_staff",
+            "tactics": "tactics",
+            "planning": "planning",
+            "operations-briefing": "operations_briefing",
+        }
+        fixed_titles = {
+            "objectives meeting": "objectives_meeting",
+            "unified command objectives meeting": "objectives_meeting",
+            "command and general staff meeting": "command_general_staff",
+            "tactics meeting": "tactics",
+            "planning meeting": "planning",
+            "operational period briefing": "operations_briefing",
+            "operations briefing": "operations_briefing",
+        }
+        fixed = {key: {} for key in fixed_slugs.values()}
+        blank_rows: list[dict[str, Any]] = []
+        for meeting in meetings:
+            template_id = str(meeting.get("template_id") or "").strip().lower()
+            title = str(meeting.get("title") or "").strip().lower()
+            fixed_key = fixed_slugs.get(template_id) or fixed_titles.get(title)
+            if fixed_key and not fixed[fixed_key]:
+                fixed[fixed_key] = meeting
+            else:
+                blank_rows.append(meeting)
+        return {"fixed": fixed, "blank_rows": blank_rows[:7]}
 
     def _build_hazards(self, inc_id: str | None) -> list[dict[str, Any]]:
         if not inc_id:
@@ -1630,12 +1739,15 @@ class FormDataContext:
             resource_type_id = master.get("resource_type_id")
             kind = resource_types_by_id.get(str(resource_type_id), "") if resource_type_id is not None else ""
             home_unit = ""
+            resource_name_override = None
             if entity_type == "personnel":
                 kind = master.get("primary_role") or master.get("role") or "Personnel"
                 incident_contact = master.get("phone") or master.get("callsign") or ""
                 home_unit = master.get("home_unit") or ""
                 agency = ""
                 type_value = ""
+                if master:
+                    resource_name_override = personnel_display_name(master) or None
             elif entity_type == "vehicle":
                 incident_contact = ""
                 agency = master.get("organization") or ""
@@ -1658,7 +1770,7 @@ class FormDataContext:
                 "category": entity_type.title(),
                 "kind": kind,
                 "type": type_value,
-                "resource_name_or_id": row.get("resource_name") or row.get("resource_id") or "",
+                "resource_name_or_id": resource_name_override or row.get("resource_name") or row.get("resource_id") or "",
                 "st_or_tf": "Single Resource",
                 "date_time_check_in": row.get("checked_in_time") or "",
                 "leader_name": "",
@@ -1687,7 +1799,7 @@ class FormDataContext:
             if leader_id:
                 try:
                     leader = _get(f"/api/master/personnel/{leader_id}") or {}
-                    leader_name = leader.get("name") or ""
+                    leader_name = personnel_display_name(leader)
                 except Exception:
                     leader_name = ""
 

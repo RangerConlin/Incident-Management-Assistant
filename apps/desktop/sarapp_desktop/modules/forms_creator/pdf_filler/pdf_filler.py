@@ -144,7 +144,12 @@ class PDFFiller:
         all_field_values = {**field_values, **continuation_field_values}
         if all_field_values:
             writer.set_need_appearances_writer(True)
-            writer.update_page_form_field_values(list(writer.pages), all_field_values, auto_regenerate=True)
+            writer.update_page_form_field_values(
+                list(writer.pages),
+                all_field_values,
+                flags=int(self.mapping.get("field_flags", 0)),
+                auto_regenerate=True,
+            )
 
         with output_path.open("wb") as handle:
             writer.write(handle)

@@ -216,23 +216,6 @@ class HandoffPanel(QWidget):
         QGuiApplication.clipboard().setText(text)
         self._set_status("Handoff brief copied")
 
-    def _ensure_214_stream(self, incident_id: str) -> str:
-        streams = self._api_get(f"/api/incidents/{incident_id}/ics214/streams") or []
-        for stream in streams:
-            if str(stream.get("section", "")).lower() == "initial response":
-                return str(stream.get("id"))
-        created = self._api_post(
-            f"/api/incidents/{incident_id}/ics214/streams",
-            json={
-                "incident_id": incident_id,
-                "name": "Initial Response Handoff",
-                "op_number": 1,
-                "kind": "handoff",
-                "section": "Initial Response",
-            },
-        )
-        return str(created.get("id", ""))
-
     def _commit_handoff(self) -> None:
         incident_id = self._incident()
         if not incident_id:
@@ -260,14 +243,13 @@ class HandoffPanel(QWidget):
                     )
                     created_objectives += 1
             if self._push_214.isChecked():
-                stream_id = self._ensure_214_stream(incident_id)
                 self._api_post(
-                    f"/api/incidents/{incident_id}/ics214/streams/{stream_id}/entries",
+                    f"/api/incidents/{incident_id}/ics214/entries",
                     json={
                         "text": text,
                         "critical_flag": False,
-                        "tags": ["initial-response", "handoff"],
                         "source": "manual",
+                        "incident_wide": True,
                     },
                 )
             services.save_initial_overview_entry(

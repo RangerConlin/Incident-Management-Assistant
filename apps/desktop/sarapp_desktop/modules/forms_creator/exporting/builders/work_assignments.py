@@ -15,7 +15,10 @@ WORK_ASSIGNMENT_FORM_IDS = {
     "ICS 204": "ics_204",
     "ICS 215": "ics_215",
     "ICS 215A": "ics_215a",
-    "ICS 213RR": "ics_213rr",
+    # Distinct from the Logistics module's "ics_213rr" (one saved resource
+    # request record) — this variant lists every resource requirement on
+    # the assignment that still has a gap, in one document.
+    "ICS 213RR": "ics_213rr_wa",
 }
 
 

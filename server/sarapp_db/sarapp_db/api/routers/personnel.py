@@ -41,7 +41,6 @@ _DUPLICATE_FIELDS = (
 
 class PersonnelRepository(BaseRepository):
     collection_name = MasterCollections.PERSONNEL
-    soft_deletes = False
 
 
 class IncidentPersonnelRepository(BaseRepository):
@@ -320,4 +319,4 @@ def delete_person(person_record: int) -> None:
     existing = _find_person(repo, person_record)
     if not existing:
         raise HTTPException(status_code=404, detail="Person not found")
-    repo.delete_one(existing["_id"])
+    repo.soft_delete(existing["_id"])

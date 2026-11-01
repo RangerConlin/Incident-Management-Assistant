@@ -14,10 +14,10 @@ export function useOrgWrites(id: string) { const c=useQueryClient(); const done=
   end: useMutation({ mutationFn: (assignmentId: string) => api.endOrgAssignment(id,assignmentId), onSuccess: done }),
 }; }
 export const useIapPackages = (id: string) => useQuery({ queryKey: ["incident",id,"iap_packages"], queryFn: () => api.listIapPackages(id), refetchInterval: 20_000 });
-export const useIapPackage = (id: string, op: number) => useQuery({ queryKey: ["incident",id,"iap_packages",op], queryFn: () => api.getIapPackage(id,op), refetchInterval: 20_000 });
-export function useIapWrites(id: string, op: number) { const c=useQueryClient(); const done=invalidate(c,id,"iap_packages"); return {
-  save: useMutation({ mutationFn: (body: Record<string,unknown>) => api.saveIapPackage(id,op,body), onSuccess: done }),
-  form: useMutation({ mutationFn: (v: { formId:string; body:Record<string,unknown> }) => api.saveIapForm(id,op,v.formId,v.body), onSuccess: done }),
-  removeForm: useMutation({ mutationFn: (formId:string) => api.deleteIapForm(id,op,formId), onSuccess: done }),
-  order: useMutation({ mutationFn: (order:string[]) => api.orderIapForms(id,op,order), onSuccess: done }),
+export const useIapPackage = (id: string, op: number | undefined) => useQuery({ queryKey: ["incident",id,"iap_packages",op], queryFn: () => api.getIapPackage(id,op as number), enabled: op != null, refetchInterval: 20_000 });
+export function useIapWrites(id: string, op: number | undefined) { const c=useQueryClient(); const done=invalidate(c,id,"iap_packages"); return {
+  save: useMutation({ mutationFn: (body: Record<string,unknown>) => api.saveIapPackage(id,op as number,body), onSuccess: done }),
+  form: useMutation({ mutationFn: (v: { formId:string; body:Record<string,unknown> }) => api.saveIapForm(id,op as number,v.formId,v.body), onSuccess: done }),
+  removeForm: useMutation({ mutationFn: (formId:string) => api.deleteIapForm(id,op as number,formId), onSuccess: done }),
+  order: useMutation({ mutationFn: (order:string[]) => api.orderIapForms(id,op as number,order), onSuccess: done }),
 }; }

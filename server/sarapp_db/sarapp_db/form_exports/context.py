@@ -64,6 +64,7 @@ def load_snapshot(request: ExportRequest, definition: FormDefinition) -> ExportS
                 raise ExportError(422, "Meeting ID must be numeric") from exc
         else:
             query["show_on_ics230"] = True
+            query["status"] = {"$in": ["scheduled", "ready", "completed"]}
             if period_id is not None:
                 query["operational_period_id"] = str(period_id)
         records = repo(C.MEETINGS).find_many(query, sort=[("meeting_date", 1), ("start_time", 1)])

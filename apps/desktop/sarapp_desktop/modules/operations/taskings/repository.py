@@ -1324,19 +1324,6 @@ def get_task_detail(task_id: int) -> TaskDetail:
 def create_team(team_leader_id: Optional[int] = None) -> int:
     result = _client().post(f"{_base()}/teams", json={"team_leader": team_leader_id})
     team_int_id = int(result.get("int_id") or 0)
-    # Auto-create ICS-214 stream for this team
-    try:
-        from modules.ics214 import services as ics214_services
-        from modules.ics214.schemas import StreamCreate
-        iid = _iid()
-        label = f"Team {team_int_id}"
-        import json as _json
-        section = _json.dumps({"category": "team", "ref": f"team:{team_int_id}", "label": label})
-        ics214_services.create_stream(StreamCreate(
-            incident_id=str(iid), name=label, op_number=0, kind="team", section=section,
-        ))
-    except Exception as exc:
-        logger.debug("ICS-214 stream creation for team %s: %s", team_int_id, exc)
     try:
         from modules.operations.data.repository import ics214_log_entry
         ics214_log_entry("team", team_int_id, "Team created", source="auto")
@@ -1356,11 +1343,8 @@ def add_task_team(task_id: int, team_id: Optional[int] = None, sortie_id: Option
     actual_team_id = int(result.get("team_id") or team_id or 0) or None
     # Set team assignment status to "assigned" (fires its own ICS-214 auto entry)
     try:
-        from modules.operations.data.repository import set_team_assignment_status, ics214_log_entry
+        from modules.operations.data.repository import set_team_assignment_status
         set_team_assignment_status(tt_id, "assigned")
-        if actual_team_id:
-            ics214_log_entry("team", actual_team_id, f"Assigned to Task {task_id}", source="auto")
-        ics214_log_entry("task", int(task_id), f"Team {actual_team_id or tt_id} assigned to task", source="auto")
     except Exception:
         pass
     try:
@@ -1412,10 +1396,13 @@ def remove_task_team(tt_id: int) -> None:
 def remove_task_team_from_task(task_id: int, tt_id: int, team_id: Optional[int] = None) -> None:
     _client().delete(f"{_base()}/tasks/{task_id}/teams/{tt_id}", params={"changed_by": _active_user_display()})
     try:
-        from modules.operations.data.repository import ics214_log_entry
-        if team_id:
-            ics214_log_entry("team", int(team_id), f"Removed from Task {task_id}", source="auto")
-        ics214_log_entry("task", int(task_id), f"Team {team_id or tt_id} removed from task", source="auto")
+        from modules.operations.data.repository import ics214_log_event
+        ics214_log_event(
+            f"Team {team_id or tt_id} removed from Task {task_id}",
+            team_ids=[int(team_id)] if team_id else [],
+            task_ids=[int(task_id)],
+            expand_team_members=bool(team_id),
+        )
     except Exception:
         pass
     try:

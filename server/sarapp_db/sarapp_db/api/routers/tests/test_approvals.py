@@ -28,6 +28,7 @@ def _reset():
         IncidentCollections.COMMUNICATIONS_PLAN,
         IncidentCollections.IWI_REPORTS,
         IncidentCollections.IAP_PACKAGES,
+        IncidentCollections.WORK_ASSIGNMENTS,
         IncidentCollections.NOTIFICATIONS,
     ):
         db[name].delete_many({})
@@ -148,3 +149,119 @@ def test_iap_requires_approved_forms_and_writes_package_status(monkeypatch):
         )
         assert response.status_code == 200
     assert db[IncidentCollections.IAP_PACKAGES].find_one({"op_number": 4})["status"] == "approved"
+
+
+def test_work_assignment_four_role_parallel_chain_and_notify_endpoint(monkeypatch):
+    """Safety Officer, OSC, PSC, and LSC all activate together; only Safety's
+    sign-off is a real approve/reject gate, the rest just acknowledge."""
+    db = _reset()
+    db[IncidentCollections.WORK_ASSIGNMENTS].insert_one(
+        {
+            "incident_id": INCIDENT_ID,
+            "int_id": 14,
+            "approval_status": "not_started",
+            "safety_status": "Unchecked",
+            "planning_status": "Under Review",
+        }
+    )
+    people = {
+        "Safety Officer": 501,
+        "Operations Section Chief": 502,
+        "Planning Section Chief": 503,
+        "Logistics Section Chief": 504,
+    }
+    monkeypatch.setattr(
+        approvals_router, "_resolve_actor", lambda _incident, role: (people[role], role)
+    )
+    base = f"/api/incidents/{INCIDENT_ID}/approvals/work_assignment/14"
+    with TestClient(create_app()) as client:
+        started = client.post(f"{base}/start", json={})
+        assert started.status_code == 200
+        steps = {s["step_id"]: s for s in started.json()["steps"]}
+        assert all(s["status"] == "active" for s in steps.values())
+
+        # Manual "Send for Review" nudge re-notifies an already-active step.
+        notified = client.post(f"{base}/steps/osc_review/notify")
+        assert notified.status_code == 200
+
+        # A step with nobody resolved (or not active) can't be nudged.
+        bogus = client.post(f"{base}/steps/no_such_step/notify")
+        assert bogus.status_code == 404
+
+        for step_id, actor in (
+            ("osc_review", 502),
+            ("psc_review", 503),
+            ("lsc_review", 504),
+        ):
+            ack = client.post(
+                f"{base}/sign", headers=_headers(actor),
+                json={"step_id": step_id, "actor_id": actor, "action": "acknowledged"},
+            )
+            assert ack.status_code == 200
+            assert ack.json()["status"] == "pending"
+
+        final = client.post(
+            f"{base}/sign", headers=_headers(501),
+            json={"step_id": "sofr_approval", "actor_id": 501, "action": "approved"},
+        )
+        assert final.status_code == 200
+        assert final.json()["status"] == "approved"
+    assert db[IncidentCollections.WORK_ASSIGNMENTS].find_one({"int_id": 14})["approval_status"] == "approved"
+
+
+def test_work_assignment_rejection_sets_safety_concern_and_can_be_resubmitted(monkeypatch):
+    db = _reset()
+    db[IncidentCollections.WORK_ASSIGNMENTS].insert_one(
+        {
+            "incident_id": INCIDENT_ID,
+            "int_id": 21,
+            "approval_status": "not_started",
+            "safety_status": "Unchecked",
+            "planning_status": "Under Review",
+        }
+    )
+    people = {
+        "Safety Officer": 601,
+        "Operations Section Chief": 602,
+        "Planning Section Chief": 603,
+        "Logistics Section Chief": 604,
+    }
+    monkeypatch.setattr(
+        approvals_router, "_resolve_actor", lambda _incident, role: (people[role], role)
+    )
+    base = f"/api/incidents/{INCIDENT_ID}/approvals/work_assignment/21"
+    with TestClient(create_app()) as client:
+        assert client.post(f"{base}/start", json={}).status_code == 200
+
+        rejected = client.post(
+            f"{base}/sign", headers=_headers(601),
+            json={
+                "step_id": "sofr_approval", "actor_id": 601, "action": "rejected",
+                "notes": "Drainage route hasn't been re-assessed for the heat advisory.",
+            },
+        )
+        assert rejected.status_code == 200
+        assert rejected.json()["status"] == "rejected"
+
+        doc = db[IncidentCollections.WORK_ASSIGNMENTS].find_one({"int_id": 21})
+        assert doc["approval_status"] == "rejected"
+        assert doc["safety_status"] == "Safety Concern"
+        # Planning status is left alone by a safety rejection.
+        assert doc["planning_status"] == "Under Review"
+
+        # A second start() while the old instance is still "pending" would
+        # 409; a rejected one does not block resubmission.
+        restarted = client.post(f"{base}/start", json={})
+        assert restarted.status_code == 200
+        steps = {s["step_id"]: s for s in restarted.json()["steps"]}
+        assert all(s["status"] == "active" for s in steps.values())
+
+        doc = db[IncidentCollections.WORK_ASSIGNMENTS].find_one({"int_id": 21})
+        assert doc["approval_status"] == "pending"
+
+        # The rejection reason is preserved in the audit trail even after
+        # the instance itself was replaced by the resubmission.
+        records = list(db[IncidentCollections.APPROVAL_RECORDS].find(
+            {"incident_id": INCIDENT_ID, "entity_type": "work_assignment", "entity_id": "21"}
+        ))
+        assert any(r["action"] == "rejected" and "heat advisory" in (r.get("notes") or "") for r in records)

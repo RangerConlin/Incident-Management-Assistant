@@ -5,9 +5,9 @@ void main() {
   test('parses a server entry and splits activity from note', () {
     final entry = LogEntry.fromJson({
       'id': 'e1',
-      'timestamp_utc': '2026-09-19T14:30:00+00:00',
+      'occurred_at': '2026-09-19T14:30:00+00:00',
       'text': 'Departed staging\nTwo members, full kit',
-      'actor_user_id': 'P100',
+      'created_by': 'P100',
       'source': 'mobile',
       'critical_flag': true,
     });

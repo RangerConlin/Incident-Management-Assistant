@@ -592,7 +592,7 @@ def delete_team(incident_id: str, team_id: int) -> dict:
     tasks_repo = _tasks_repo(incident_id)
     doc = _find_by_int_id(teams_repo, team_id)
     if doc:
-        teams_repo.delete_one(doc["_id"])
+        teams_repo.soft_delete(doc["_id"])
     for task in tasks_repo.find_many({"task_teams": {"$elemMatch": {"team_id": team_id}}}):
         tasks_repo.apply_update(
             task["_id"],

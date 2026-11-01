@@ -37,6 +37,11 @@ def _repo(incident_id: str) -> ResourceStatusRepository:
     return ResourceStatusRepository(get_incident_db(incident_id))
 
 
+def _next_int_id(repo: ResourceStatusRepository) -> int:
+    row = repo._col.find_one({"int_id": {"$exists": True}}, sort=[("int_id", -1)])
+    return int(row.get("int_id") or 0) + 1 if row else 1
+
+
 def _utcnow() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
@@ -145,6 +150,7 @@ def upsert_resource_status(
         body["checked_in_time"] = now
 
     doc = {
+        "int_id": _next_int_id(repo),
         "entity_type": entity_type,
         "record_id": record_id,
         "resource_id": body.get("resource_id") or str(record_id),

@@ -88,6 +88,10 @@ class ApprovalService:
         self._notify_awaiting_me(updated)
         return updated
 
+    def notify_step(self, instance: ApprovalInstance, step_id: str) -> None:
+        """Manually re-send the sign-off notification for an already-active step."""
+        self.repo.notify_step(instance.entity_type, instance.entity_id, step_id)
+
     # ------------------------------------------------------------------
     # Internal helpers
 

@@ -27,7 +27,9 @@ def _clear_ics214_collections() -> None:
 
     for incident_id in _TEST_INCIDENT_IDS:
         db = get_incident_db(incident_id)
-        db[IncidentCollections.ICS_214_LOGS].delete_many({})
+        db[IncidentCollections.ICS_214_ENTRIES].delete_many({})
+        db[IncidentCollections.ICS_214_LOG_DEFINITIONS].delete_many({})
+        db["ics_214_logs"].delete_many({})
 
 
 @pytest.fixture()

@@ -41,6 +41,39 @@ def build_sheets(snapshot: ExportSnapshot) -> list[dict[str, Any]]:
                                f"Arrival Date/Time: RequestedRow{n}": human_time(request.get("needed_by_utc"))})
             sheets.append(fields)
         return sheets
+    if form == "ics_213rr_wa":
+        assignment = snapshot.records[0]
+        gapped = [r for r in assignment.get("resources", []) if int(r.get("quantity_gap") or 0) > 0]
+        items = gapped or [{"description": "No outstanding resource gaps."}]
+        sheets = []
+        for rows in chunks(items, 9):
+            fields: dict[str, Any] = {
+                "1. Incident Name": incident.get("name", ""),
+                "2 DateTime": human_time(assignment.get("updated_at") or assignment.get("created_at")),
+                "3 Resource Request Number": str(assignment.get("assignment_number", "")).upper(),
+                "5 Requested DeliveryReporting Location": assignment.get("location", ""),
+                "7 Requested by NamePosition": assignment.get("prepared_by") or snapshot.prepared_by,
+                "13 Notes": "\n".join(str(assignment.get(k) or "") for k in
+                                       ["assignment_name", "tactics_summary", "special_instructions"]).strip(),
+                "8. Priority: Urgent": assignment.get("priority") in ("High", "Urgent"),
+                "8. Priority: Routine": assignment.get("priority") in ("Low", "Normal"),
+            }
+            for n, row in enumerate(rows, 1):
+                # KindRow is a narrow field meant for a short ICS resource
+                # category (PERSONNEL/EQUIPMENT/SUPPLY/...); a work
+                # assignment's resource requirement doesn't carry one, so
+                # the full resource type goes in the (overflow-capable)
+                # description field instead of truncating to "...".
+                fields.update({
+                    f"QtyRow{n}": row.get("quantity_gap", ""),
+                    f"KindRow{n}": "",
+                    f"Detailed Item Description Vital characteristics brand specs experience size etcRow{n}":
+                        " ".join(str(row.get(k) or "") for k in
+                                 ["resource_type_text", "capability_text", "unit", "source_note", "notes", "description"]).strip(),
+                    f"Arrival Date/Time: RequestedRow{n}": "",
+                })
+            sheets.append(fields)
+        return sheets
     if form == "ics_204":
         assignment = snapshot.records[0]
         assigned = [r for requirement in assignment.get("resources", []) for r in requirement.get("assignments", [])]
@@ -76,14 +109,45 @@ def build_sheets(snapshot: ExportSnapshot) -> list[dict[str, Any]]:
             sheets.append(fields)
         return sheets
     if form == "ics_230":
-        # This shipped form uses shared two-row meeting cells (rows 1,3,5,7,9,11,12).
+        fixed_rows = {
+            "objectives-meeting": 2,
+            "command-general-staff": 4,
+            "tactics": 6,
+            "planning": 8,
+            "operations-briefing": 10,
+        }
+        title_rows = {
+            "objectives meeting": 2,
+            "command and general staff meeting": 4,
+            "command & general staff meeting": 4,
+            "tactics meeting": 6,
+            "planning meeting": 8,
+            "operations briefing": 10,
+        }
+        fixed: dict[int, dict[str, Any]] = {}
+        open_meetings: list[dict[str, Any]] = []
+        for meeting in snapshot.records:
+            slug = str(meeting.get("meeting_type") or meeting.get("meeting_type_slug") or "").strip().lower()
+            title = str(meeting.get("title") or meeting.get("meeting_name") or "").strip().lower()
+            row_number = fixed_rows.get(slug) or title_rows.get(title)
+            if row_number and row_number not in fixed:
+                fixed[row_number] = meeting
+            else:
+                open_meetings.append(meeting)
+
         sheets = []
-        row_numbers = [1, 3, 5, 7, 9, 11, 12]
-        for rows in chunks(snapshot.records, 7):
+        open_rows = [1, 3, 5, 7, 9, 11, 12]
+        for rows in chunks(open_meetings, len(open_rows)):
             fields = {"1 Incident Name": incident.get("name", ""), "2 Operational Period DateTime: From": human_time(start), "2 Operational Period DateTime: To:": human_time(end), "4 Prepared by Situation Unit Leader DateTime": snapshot.prepared_by}
-            for n, row in zip(row_numbers, rows):
-                fields.update({f"Meeting NameRow{n}": row.get("title", ""), f"Date TimeRow{n}": f"{row.get('meeting_date', '')} {row.get('start_time', '')} - {row.get('end_time', '')}".strip(),
-                               f"PurposeRow{n}": row.get("freeform_notes", ""), f"AttendeesRow{n}": ", ".join(str(a.get("display_name") or "") for a in row.get("attendees", [])), f"LocationRow{n}": row.get("location", "")})
+            meetings = {**fixed, **dict(zip(open_rows, rows))}
+            for n, row in meetings.items():
+                attendees = ", ".join(
+                    str(a.get("display_name") or a.get("name") or a.get("role") or "")
+                    for a in row.get("attendees", [])
+                    if isinstance(a, dict)
+                )
+                fields.update({f"Meeting NameRow{n}": row.get("title") or row.get("meeting_name", ""), f"Date TimeRow{n}": f"{row.get('meeting_date', '')} {row.get('start_time', '')} - {row.get('end_time', '')}".strip(),
+                               f"PurposeRow{n}": row.get("freeform_notes") or row.get("purpose", ""), f"AttendeesRow{n}": attendees, f"LocationRow{n}": row.get("virtual_link") or row.get("location", "")})
             sheets.append(fields)
         return sheets
     if form == "ics_209":

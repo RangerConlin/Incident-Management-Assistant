@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, List, Optional, Sequence
 
 from modules.common.models.ics_positions import get_position
+from utils.personnel_display import format_name_with_rank
 
 from .models import (
     ACTIVE_ASSIGNMENT_TYPES,
@@ -277,7 +278,7 @@ class ApiIncidentOrganizationRepository:
                     )
                     if part
                 )
-            names[record] = name
+            names[record] = format_name_with_rank(name, person.get("rank"))
         return names
 
     @staticmethod

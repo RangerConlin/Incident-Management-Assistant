@@ -94,6 +94,7 @@ class WorkAssignment:
     planning_status: str = "Draft"
     safety_status: str = "Unchecked"
     resource_status: str = "Unreviewed"
+    approval_status: str = "not_started"
     description: str = ""
     tactics_summary: str = ""
     special_instructions: str = ""

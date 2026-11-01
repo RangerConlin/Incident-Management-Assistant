@@ -58,6 +58,7 @@ def wa_from_dict(d: dict) -> WorkAssignment:
         planning_status=str(d.get("planning_status") or "Draft"),
         safety_status=str(d.get("safety_status") or "Unchecked"),
         resource_status=str(d.get("resource_status") or "Unreviewed"),
+        approval_status=str(d.get("approval_status") or "not_started"),
         description=str(d.get("description") or ""),
         tactics_summary=str(d.get("tactics_summary") or ""),
         special_instructions=str(d.get("special_instructions") or ""),

@@ -1,0 +1,59 @@
+{
+  "description": "FEMA ICS 230 Daily Meeting Schedule bound to the current operational period meeting schedule.",
+  "field_flags": 4096,
+  "fields": [
+    {"pdf_field": "1 Incident Name", "source": {"key": "incident.name", "default": ""}},
+    {"pdf_field": "2 Operational Period DateTime: From", "source": {"join": ["op_period.start_date", "op_period.start_time"], "separator": " ", "default": ""}},
+    {"pdf_field": "2 Operational Period DateTime: To:", "source": {"join": ["op_period.end_date", "op_period.end_time"], "separator": " ", "default": ""}},
+    {"pdf_field": "4 Prepared by Situation Unit Leader DateTime", "source": {"join": ["organization.situation_unit_leader.name", "prepared_by.date_time"], "separator": " - ", "default": ""}},
+
+    {"pdf_field": "Date TimeRow2", "source": {"key": "ics_230.fixed.objectives_meeting.date_time_display", "default": ""}},
+    {"pdf_field": "Date TimeRow4", "source": {"key": "ics_230.fixed.command_general_staff.date_time_display", "default": ""}},
+    {"pdf_field": "Date TimeRow6", "source": {"key": "ics_230.fixed.tactics.date_time_display", "default": ""}},
+    {"pdf_field": "Date TimeRow8", "source": {"key": "ics_230.fixed.planning.date_time_display", "default": ""}},
+    {"pdf_field": "Date TimeRow10", "source": {"key": "ics_230.fixed.operations_briefing.date_time_display", "default": ""}},
+
+    {"pdf_field": "Date TimeRow1", "source": {"key": "ics_230.blank_rows.0.date_time_display", "default": ""}},
+    {"pdf_field": "Meeting NameRow1", "source": {"key": "ics_230.blank_rows.0.title", "default": ""}},
+    {"pdf_field": "PurposeRow1", "source": {"key": "ics_230.blank_rows.0.purpose", "default": ""}},
+    {"pdf_field": "AttendeesRow1", "source": {"key": "ics_230.blank_rows.0.attendees_display", "default": ""}},
+    {"pdf_field": "LocationRow1", "source": {"key": "ics_230.blank_rows.0.location_display", "default": ""}},
+
+    {"pdf_field": "Date TimeRow3", "source": {"key": "ics_230.blank_rows.1.date_time_display", "default": ""}},
+    {"pdf_field": "Meeting NameRow3", "source": {"key": "ics_230.blank_rows.1.title", "default": ""}},
+    {"pdf_field": "PurposeRow3", "source": {"key": "ics_230.blank_rows.1.purpose", "default": ""}},
+    {"pdf_field": "AttendeesRow3", "source": {"key": "ics_230.blank_rows.1.attendees_display", "default": ""}},
+    {"pdf_field": "LocationRow3", "source": {"key": "ics_230.blank_rows.1.location_display", "default": ""}},
+
+    {"pdf_field": "Date TimeRow5", "source": {"key": "ics_230.blank_rows.2.date_time_display", "default": ""}},
+    {"pdf_field": "Meeting NameRow5", "source": {"key": "ics_230.blank_rows.2.title", "default": ""}},
+    {"pdf_field": "PurposeRow5", "source": {"key": "ics_230.blank_rows.2.purpose", "default": ""}},
+    {"pdf_field": "AttendeesRow5", "source": {"key": "ics_230.blank_rows.2.attendees_display", "default": ""}},
+    {"pdf_field": "LocationRow5", "source": {"key": "ics_230.blank_rows.2.location_display", "default": ""}},
+
+    {"pdf_field": "Date TimeRow7", "source": {"key": "ics_230.blank_rows.3.date_time_display", "default": ""}},
+    {"pdf_field": "Meeting NameRow7", "source": {"key": "ics_230.blank_rows.3.title", "default": ""}},
+    {"pdf_field": "PurposeRow7", "source": {"key": "ics_230.blank_rows.3.purpose", "default": ""}},
+    {"pdf_field": "AttendeesRow7", "source": {"key": "ics_230.blank_rows.3.attendees_display", "default": ""}},
+    {"pdf_field": "LocationRow7", "source": {"key": "ics_230.blank_rows.3.location_display", "default": ""}},
+
+    {"pdf_field": "Date TimeRow9", "source": {"key": "ics_230.blank_rows.4.date_time_display", "default": ""}},
+    {"pdf_field": "Meeting NameRow9", "source": {"key": "ics_230.blank_rows.4.title", "default": ""}},
+    {"pdf_field": "PurposeRow9", "source": {"key": "ics_230.blank_rows.4.purpose", "default": ""}},
+    {"pdf_field": "AttendeesRow9", "source": {"key": "ics_230.blank_rows.4.attendees_display", "default": ""}},
+    {"pdf_field": "LocationRow9", "source": {"key": "ics_230.blank_rows.4.location_display", "default": ""}},
+
+    {"pdf_field": "Date TimeRow11", "source": {"key": "ics_230.blank_rows.5.date_time_display", "default": ""}},
+    {"pdf_field": "Meeting NameRow11", "source": {"key": "ics_230.blank_rows.5.title", "default": ""}},
+    {"pdf_field": "PurposeRow11", "source": {"key": "ics_230.blank_rows.5.purpose", "default": ""}},
+    {"pdf_field": "AttendeesRow11", "source": {"key": "ics_230.blank_rows.5.attendees_display", "default": ""}},
+    {"pdf_field": "LocationRow11", "source": {"key": "ics_230.blank_rows.5.location_display", "default": ""}},
+
+    {"pdf_field": "Date TimeRow12", "source": {"key": "ics_230.blank_rows.6.date_time_display", "default": ""}},
+    {"pdf_field": "Meeting NameRow12", "source": {"key": "ics_230.blank_rows.6.title", "default": ""}},
+    {"pdf_field": "PurposeRow12", "source": {"key": "ics_230.blank_rows.6.purpose", "default": ""}},
+    {"pdf_field": "AttendeesRow12", "source": {"key": "ics_230.blank_rows.6.attendees_display", "default": ""}},
+    {"pdf_field": "LocationRow12", "source": {"key": "ics_230.blank_rows.6.location_display", "default": ""}}
+  ],
+  "row_groups": []
+}

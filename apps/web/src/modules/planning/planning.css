@@ -1,0 +1,51 @@
+/* Planning Dashboard — same panel-grid/entry-card language as Command
+ * Dashboard (modules/command/command.css), duplicated under its own
+ * .planning-dashboard scope rather than imported, matching this repo's
+ * existing per-module CSS convention (compare modules/logistics/logistics.css
+ * vs command.css: same shapes, each module keeps its own copy). */
+.planning-dashboard { max-width: 1600px; margin: 0 auto; }
+.planning-dashboard .command-heading { display: flex; justify-content: space-between; gap: 24px; align-items: start; flex-wrap: wrap; }
+.planning-dashboard .command-heading h2 { margin: 4px 0; }
+.planning-dashboard .command-eyebrow { font-size: .75rem; letter-spacing: .15em; opacity: .7; }
+.planning-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.planning-panel { background: #17191d; border: 1px solid #2a2d33; border-radius: 10px; padding: 18px; min-width: 0; }
+.planning-panel h3 { margin-top: 0; }
+@media (max-width: 1000px) { .planning-grid { grid-template-columns: 1fr; } }
+
+.planning-dashboard .info-strip { display: flex; flex-wrap: wrap; gap: 20px 28px; padding-bottom: 16px; margin-bottom: 18px; border-bottom: 1px solid #2a2d33; }
+.planning-dashboard .info-item { display: flex; flex-direction: column; gap: 2px; }
+.planning-dashboard .info-item .k { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.65; font-weight: 650; }
+.planning-dashboard .info-item .v { font-size: 0.86rem; font-weight: 600; }
+
+/* Each entry is its own card, tinted to its severity — see EntryCard.tsx. */
+.planning-dashboard .entry-card {
+  position: relative; display: block; padding: 10px 34px 10px 12px;
+  border: 1px solid #2a2d33; border-radius: 9px;
+  background: #1d2024; margin-bottom: 8px; font-size: 0.84rem; cursor: pointer;
+  transition: border-color .12s ease;
+}
+.planning-dashboard .entry-card:last-child { margin-bottom: 0; }
+.planning-dashboard .entry-card:hover,
+.planning-dashboard .entry-card.expanded { border-color: #4a5058; }
+.planning-dashboard .entry-card .who { font-weight: 650; }
+.planning-dashboard .entry-card .when { opacity: 0.65; font-size: 0.76rem; float: right; }
+.planning-dashboard .entry-card p { margin: 4px 0 0; opacity: 0.75; }
+.planning-dashboard .entry-chev {
+  position: absolute; right: 11px; top: 13px; width: 14px; height: 14px;
+  opacity: 0.65; transition: transform .15s ease;
+}
+.planning-dashboard .entry-card.expanded .entry-chev { transform: rotate(90deg); }
+.planning-dashboard .entry-detail { margin-top: 10px; padding-top: 10px; border-top: 1px solid #2a2d33; }
+.planning-dashboard .entry-detail p { margin: 0 0 8px; }
+.planning-dashboard .entry-detail a { font-size: 0.82rem; }
+.planning-dashboard .entry-empty { opacity: 0.6; font-size: 0.84rem; padding: 10px 0; }
+
+.planning-dashboard .flag {
+  display: inline-flex; align-items: center; font-size: 0.68rem; font-weight: 700;
+  padding: 2px 9px; border-radius: 999px; margin-right: 7px;
+  text-transform: uppercase; letter-spacing: 0.02em;
+}
+.planning-dashboard .flag.neutral { background: #2a2d33; color: #c7cad1; }
+
+.planning-dashboard .panel-link { color: inherit; font-weight: 650; text-decoration: none; }
+.planning-dashboard .panel-link:hover { text-decoration: underline; }

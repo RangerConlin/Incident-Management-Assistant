@@ -21,15 +21,12 @@ def _now() -> str:
 # Repositories
 #
 # All liaison collections are keyed by a sequential `int_id` (not `_id`), and
-# none carry a `deleted` field (agencies/feedback historically filtered with
-# `{"deleted": {"$ne": True}}`, which is equivalent to "no deleted field" for
-# existing docs). soft_deletes is disabled so BaseRepository's find/count
-# methods don't inject a `deleted: False` filter that would hide these docs.
+# BaseRepository supplies the permanent archive identity required by ICS-214
+# associations. Existing documents without a deleted field remain active.
 # ---------------------------------------------------------------------------
 
 class LiaisonAgenciesRepository(BaseRepository):
     collection_name = IncidentCollections.LIAISON_AGENCIES
-    soft_deletes = False
 
 
 class LiaisonContactsRepository(BaseRepository):
