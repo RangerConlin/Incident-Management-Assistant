@@ -632,9 +632,6 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
         self.em_secondary_rel = QtWidgets.QLineEdit()
         self.em_secondary_phone = QtWidgets.QLineEdit()
         self.em_medical = QtWidgets.QTextEdit()
-        self.em_blood = QtWidgets.QComboBox()
-        self.em_blood.addItems(["", "A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"])
-        self.em_ins = QtWidgets.QTextEdit()
 
         form.addRow("Primary Name:", self.em_primary_name)
         form.addRow("Primary Relationship:", self.em_primary_rel)
@@ -643,8 +640,6 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
         form.addRow("Secondary Relationship:", self.em_secondary_rel)
         form.addRow("Secondary Phone:", self.em_secondary_phone)
         form.addRow("Medical/Allergies:", self.em_medical)
-        form.addRow("Blood Type:", self.em_blood)
-        form.addRow("Insurance Info:", self.em_ins)
 
         self.tabs.addTab(widget, "Emergency Info")
 
@@ -758,8 +753,6 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
         self.em_secondary_rel.setText(em.get("secondary_relationship") or "")
         self.em_secondary_phone.setText(em.get("secondary_phone") or "")
         self.em_medical.setPlainText(em.get("medical") or "")
-        self.em_blood.setCurrentText(em.get("blood_type") or "")
-        self.em_ins.setPlainText(em.get("insurance") or "")
 
         ct = doc.get("contact_info") or {}
         self.addr1.setText(ct.get("address1") or "")
@@ -836,8 +829,6 @@ class PersonnelDetailDialog(QtWidgets.QDialog):
                 "secondary_relationship": self.em_secondary_rel.text().strip(),
                 "secondary_phone": self.em_secondary_phone.text().strip(),
                 "medical": self.em_medical.toPlainText().strip(),
-                "blood_type": self.em_blood.currentText().strip(),
-                "insurance": self.em_ins.toPlainText().strip(),
             },
             "contact_info": {
                 "address1": self.addr1.text().strip(),

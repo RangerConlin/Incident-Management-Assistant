@@ -1,16 +1,33 @@
-/// The personal check-in QR code payload.
+import 'dart:convert';
+
+import '../services/local_profile_store.dart';
+
+/// Versioned mobile profile payload for staff check-in scanners.
 ///
-/// A check-in desk (the desktop app's Quick Check In window) reads this to
-/// find the person. The format must stay in step with
-/// `modules/logistics/checkin/qr_code.py` in the desktop repo. It is a plain
-/// prefixed string rather than JSON because hardware QR scanners usually act
-/// as keyboards, and braces/quotes are what keyboard layouts mangle most.
-/// Only the visible Person ID is encoded; the desk resolves it against the
-/// roster.
+/// URL-safe base64 keeps punctuation that keyboard-wedge scanners commonly
+/// mangle out of the scanned text. The decoded JSON uses the canonical
+/// personnel field names shared by master and incident personnel records.
 class CheckInQr {
   CheckInQr._();
 
-  static const prefix = 'SARAPP:CHECKIN:v1:';
+  static const prefix = 'SARAPP:PROFILE:v2:';
 
-  static String payload(String personId) => '$prefix${personId.trim()}';
+  static String payload(LocalProfile profile) {
+    final json = jsonEncode(profile.toPersonnelJson());
+    final encoded = base64Url.encode(utf8.encode(json)).replaceAll('=', '');
+    return '$prefix$encoded';
+  }
+
+  static Map<String, dynamic>? decode(String payload) {
+    final value = payload.trim();
+    if (!value.startsWith(prefix)) return null;
+    try {
+      final encoded = value.substring(prefix.length);
+      final padded = encoded.padRight((encoded.length + 3) ~/ 4 * 4, '=');
+      final decoded = jsonDecode(utf8.decode(base64Url.decode(padded)));
+      return decoded is Map ? Map<String, dynamic>.from(decoded) : null;
+    } catch (_) {
+      return null;
+    }
+  }
 }

@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QTableView,
     QTextEdit,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -278,6 +279,7 @@ class Ics214ActivityLogPanel(QWidget):
         self.incident_id = str(incident_id or incident_context.get_active_incident_id() or "")
         self.launch_context = launch_context or {}
         self._active_log_keys: list[str] = []
+        self._launch_association: tuple[str, int] | None = None
         self._definitions: dict[str, dict[str, Any]] = {}
         self._log_labels: dict[str, str] = {}
         self._options: dict[str, list[dict[str, Any]]] = {}
@@ -294,6 +296,10 @@ class Ics214ActivityLogPanel(QWidget):
         root = QVBoxLayout(self)
         self.title = QLabel("ICS 214 — Incident Activity Stream", self)
         root.addWidget(self.title)
+        self.subtitle = QLabel(
+            "Record significant actions and decisions in chronological order.", self,
+        )
+        root.addWidget(self.subtitle)
 
         self.saved_bar_widget = QWidget(self)
         saved_bar = QHBoxLayout(self.saved_bar_widget)
@@ -314,43 +320,71 @@ class Ics214ActivityLogPanel(QWidget):
         self.quick_entry.setPlaceholderText("Type an activity and press Enter")
         self.quick_entry.returnPressed.connect(self._quick_add_entry)
         quick_entry.addWidget(self.quick_entry, 1)
-        quick_add = QPushButton("Add", self)
+        self.quick_incident_wide = QCheckBox("Also show incident-wide", self)
+        quick_entry.addWidget(self.quick_incident_wide)
+        quick_add = QPushButton("Add Activity", self)
         quick_add.clicked.connect(self._quick_add_entry)
         quick_entry.addWidget(quick_add)
         root.addLayout(quick_entry)
 
-        filters = QHBoxLayout()
-        filters.addWidget(QLabel("Additional filters:", self))
+        self.filter_toggle = QToolButton(self)
+        self.filter_toggle.setText("Show filters")
+        self.filter_toggle.setCheckable(True)
+        self.filter_toggle.toggled.connect(self._toggle_filters)
+        root.addWidget(self.filter_toggle)
+
+        self.filters_widget = QWidget(self)
+        filter_layout = QVBoxLayout(self.filters_widget)
+        filter_layout.setContentsMargins(0, 0, 0, 0)
+        filter_fields = QHBoxLayout()
+        filter_fields.addWidget(QLabel("Related to:", self.filters_widget))
         self.type_combo = QComboBox(self)
         for label, field in ASSOCIATION_TYPES:
             self.type_combo.addItem(label, field)
         self.type_combo.currentIndexChanged.connect(self._association_type_changed)
         self.entity_combo = QComboBox(self)
         self.entity_combo.setMinimumWidth(180)
+        filter_fields.addWidget(self.type_combo)
+        filter_fields.addWidget(self.entity_combo, 1)
+        filter_fields.addWidget(QLabel("Operational period:", self.filters_widget))
         self.period_combo = QComboBox(self)
         self.period_combo.addItem("All operational periods", None)
-        self.incident_wide = QCheckBox("Incident-wide", self)
-        self.unassigned = QCheckBox("Unassigned", self)
+        filter_fields.addWidget(self.period_combo, 1)
+        filter_layout.addLayout(filter_fields)
+
+        filter_options = QHBoxLayout()
+        self.incident_wide_filter = QCheckBox("Incident-wide only", self)
+        self.unassigned = QCheckBox("Unassigned only", self)
         self.include_voided = QCheckBox("Include voided", self)
-        refresh = QPushButton("Refresh", self)
-        refresh.clicked.connect(self.refresh)
+        self.incident_wide_filter.toggled.connect(self._exclusive_scope_filter)
+        self.unassigned.toggled.connect(self._exclusive_scope_filter)
+        apply_filters = QPushButton("Apply", self)
+        apply_filters.clicked.connect(self.refresh)
+        clear_filters = QPushButton("Clear", self)
+        clear_filters.clicked.connect(self._clear_filters)
         for widget in (
-            self.type_combo, self.entity_combo, self.period_combo, self.incident_wide,
-            self.unassigned, self.include_voided, refresh,
+            self.incident_wide_filter, self.unassigned, self.include_voided,
         ):
-            filters.addWidget(widget)
-        root.addLayout(filters)
+            filter_options.addWidget(widget)
+        filter_options.addStretch(1)
+        filter_options.addWidget(apply_filters)
+        filter_options.addWidget(clear_filters)
+        filter_layout.addLayout(filter_options)
+        self.filters_widget.hide()
+        root.addWidget(self.filters_widget)
 
         actions = QHBoxLayout()
-        add = QPushButton("Detailed Entry", self)
-        void = QPushButton("Void", self)
-        correct = QPushButton("Correct", self)
+        add = QPushButton("Add with Details…", self)
+        self.void_button = QPushButton("Void…", self)
+        self.correct_button = QPushButton("Correct…", self)
+        refresh = QPushButton("Refresh", self)
         export = QPushButton("Export ICS-214", self)
         add.clicked.connect(self._add_entry)
-        void.clicked.connect(self._void_entry)
-        correct.clicked.connect(self._correct_entry)
+        self.void_button.clicked.connect(self._void_entry)
+        self.correct_button.clicked.connect(self._correct_entry)
+        refresh.clicked.connect(self.refresh)
         export.clicked.connect(self._export)
-        for button in (add, void, correct, export):
+        for button in (add, self.correct_button, self.void_button, refresh, export):
             actions.addWidget(button)
         actions.addStretch(1)
         root.addLayout(actions)
@@ -361,14 +395,42 @@ class Ics214ActivityLogPanel(QWidget):
         self.table.setModel(self.model)
         self.table.setSortingEnabled(True)
         apply_statusboard_table_behavior(self.table)
+        self.table.selectionModel().selectionChanged.connect(self._selection_changed)
         header = self.table.horizontalHeader()
         header.setStretchLastSection(False)
         header.setSectionResizeMode(QHeaderView.Interactive)
         header.setSectionResizeMode(1, QHeaderView.Stretch)
         root.addWidget(self.table, 1)
+        self._selection_changed()
 
         self.status = QLabel(self)
         root.addWidget(self.status)
+
+    def _toggle_filters(self, visible: bool) -> None:
+        self.filters_widget.setVisible(visible)
+        self.filter_toggle.setText("Hide filters" if visible else "Show filters")
+
+    def _exclusive_scope_filter(self, checked: bool) -> None:
+        if not checked:
+            return
+        sender = self.sender()
+        other = self.unassigned if sender is self.incident_wide_filter else self.incident_wide_filter
+        other.blockSignals(True)
+        other.setChecked(False)
+        other.blockSignals(False)
+
+    def _clear_filters(self) -> None:
+        self.type_combo.setCurrentIndex(0)
+        self.period_combo.setCurrentIndex(0)
+        self.incident_wide_filter.setChecked(False)
+        self.unassigned.setChecked(False)
+        self.include_voided.setChecked(False)
+        self.refresh()
+
+    def _selection_changed(self, *_args) -> None:
+        has_selection = self._selected_entry_id() is not None
+        self.correct_button.setEnabled(has_selection)
+        self.void_button.setEnabled(has_selection)
 
     def _apply_launch_context(self) -> None:
         log_key = str(self.launch_context.get("default_log_key") or "").strip()
@@ -376,6 +438,9 @@ class Ics214ActivityLogPanel(QWidget):
             self._active_log_keys = [log_key]
             log_name = str(self.launch_context.get("default_log_name") or log_key)
             self.title.setText(f"ICS 214 — {log_name} Log")
+            self.subtitle.setText(
+                "This built-in log is always available and does not depend on incident staffing.",
+            )
             self.saved_bar_widget.hide()
             return
         category = str(self.launch_context.get("default_log_for_type") or "")
@@ -395,11 +460,12 @@ class Ics214ActivityLogPanel(QWidget):
             option_index = self.entity_combo.findData(int(value)) if value.isdigit() else -1
             if option_index >= 0:
                 self.entity_combo.setCurrentIndex(option_index)
+                self._launch_association = (field, int(value))
 
     def _current_filter(self) -> EntryFilter:
         data: dict[str, Any] = {
             "log_keys": list(self._active_log_keys),
-            "incident_wide": True if self.incident_wide.isChecked() else None,
+            "incident_wide": True if self.incident_wide_filter.isChecked() else None,
             "operational_period_id": self.period_combo.currentData(),
             "unassigned": self.unassigned.isChecked(),
             "include_voided": self.include_voided.isChecked(),
@@ -434,6 +500,7 @@ class Ics214ActivityLogPanel(QWidget):
 
     def refresh(self) -> None:
         self.model.removeRows(0, self.model.rowCount())
+        self._selection_changed()
         if not self.incident_id:
             self.status.setText("No active incident")
             return
@@ -461,7 +528,10 @@ class Ics214ActivityLogPanel(QWidget):
                 QStandardItem(str(entry.get("source") or "")),
                 QStandardItem(self._scope_text(entry)),
             ])
-        self.status.setText(f"{len(rows)} entries")
+        if rows:
+            self.status.setText(f"Showing {len(rows)} entries")
+        else:
+            self.status.setText("No activity has been recorded for this view.")
 
     def _selected_entry_id(self) -> str | None:
         rows = self.table.selectionModel().selectedRows()
@@ -476,7 +546,6 @@ class Ics214ActivityLogPanel(QWidget):
             self, options=self._options, default_field=field,
             default_id=int(default_id) if default_id is not None else None,
         )
-        dialog.incident_wide.setChecked(self.incident_wide.isChecked())
         if not dialog.exec():
             return
         try:
@@ -497,17 +566,17 @@ class Ics214ActivityLogPanel(QWidget):
             "text": text,
             "created_by": _active_user(),
             "log_keys": list(self._active_log_keys),
-            "incident_wide": self.incident_wide.isChecked(),
+            "incident_wide": self.quick_incident_wide.isChecked(),
         }
-        field = str(self.type_combo.currentData() or "")
-        record_id = self.entity_combo.currentData()
-        if field and record_id is not None:
-            entry_data[field] = [int(record_id)]
+        if self._launch_association:
+            field, record_id = self._launch_association
+            entry_data[field] = [record_id]
             if field == "team_ids":
                 entry_data["expand_team_members"] = True
         try:
             services.create_entry(self.incident_id, EntryCreate(**entry_data))
             self.quick_entry.clear()
+            self.quick_entry.setFocus()
             self.refresh()
         except Exception as exc:
             QMessageBox.warning(self, "ICS-214", f"Could not add entry:\n{exc}")
@@ -605,7 +674,7 @@ class Ics214ActivityLogPanel(QWidget):
             self.title.setText(f"ICS 214 — {definition.get('name')} Log")
         elif not self._active_log_keys:
             self.title.setText("ICS 214 — Incident Activity Stream")
-        self.incident_wide.setChecked(filters.incident_wide is True)
+        self.incident_wide_filter.setChecked(filters.incident_wide is True)
         self.unassigned.setChecked(filters.unassigned)
         self.include_voided.setChecked(filters.include_voided)
         period_index = self.period_combo.findData(filters.operational_period_id)

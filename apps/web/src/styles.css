@@ -54,6 +54,25 @@ h1, h2 {
   opacity: 0.8;
 }
 
+/* Groups a dialog's conditional sections (e.g. the Intel module's New
+ * Subject dialog, which shows a different set of these per subject type) —
+ * plain .field rows otherwise run together with no visual separation. */
+fieldset {
+  border: 1px solid #2a2d33;
+  border-radius: 8px;
+  margin: 0 0 14px;
+  padding: 4px 14px 2px;
+}
+
+fieldset legend {
+  font-size: 0.8rem;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.7;
+  padding: 0 4px;
+}
+
 input, select, textarea {
   background: #1d2025;
   border: 1px solid #3a3f47;

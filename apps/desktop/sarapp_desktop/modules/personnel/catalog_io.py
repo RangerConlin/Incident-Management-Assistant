@@ -200,8 +200,6 @@ def personnel_export_row(doc: dict[str, Any], catalog_by_id: Optional[dict[int, 
         "emergency_secondary_relationship": clean_text(emergency.get("secondary_relationship")),
         "emergency_secondary_phone": clean_text(emergency.get("secondary_phone")),
         "emergency_medical": clean_text(emergency.get("medical")),
-        "emergency_blood_type": clean_text(emergency.get("blood_type")),
-        "emergency_insurance": clean_text(emergency.get("insurance")),
         "contact_address1": clean_text(contact.get("address1")),
         "contact_address2": clean_text(contact.get("address2")),
         "contact_city": clean_text(contact.get("city")),
@@ -235,8 +233,6 @@ def build_personnel_import_payload(row: dict[str, Any], catalog_by_code: Optiona
         "secondary_relationship": clean_text(row.get("emergency_secondary_relationship")),
         "secondary_phone": clean_text(row.get("emergency_secondary_phone")),
         "medical": clean_text(row.get("emergency_medical")),
-        "blood_type": clean_text(row.get("emergency_blood_type")),
-        "insurance": clean_text(row.get("emergency_insurance")),
     }
     emergency = {k: v for k, v in emergency.items() if v}
 
@@ -301,8 +297,6 @@ PERSONNEL_FIELDS: list[FieldSpec] = [
     FieldSpec("emergency_secondary_relationship", "Emergency Secondary Relationship"),
     FieldSpec("emergency_secondary_phone", "Emergency Secondary Phone"),
     FieldSpec("emergency_medical", "Emergency Medical"),
-    FieldSpec("emergency_blood_type", "Emergency Blood Type"),
-    FieldSpec("emergency_insurance", "Emergency Insurance"),
     FieldSpec("contact_address1", "Contact Address 1"),
     FieldSpec("contact_address2", "Contact Address 2"),
     FieldSpec("contact_city", "Contact City"),

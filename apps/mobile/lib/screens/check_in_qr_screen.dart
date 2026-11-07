@@ -29,7 +29,20 @@ class CheckInQrScreen extends StatelessWidget {
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 4),
-                Text('ID ${profile.personId}', style: theme.textTheme.bodyLarge),
+                Text(
+                  'ID ${profile.personId}',
+                  style: theme.textTheme.bodyLarge,
+                ),
+                if (profile.organization.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    profile.organization,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
                 const SizedBox(height: 24),
                 // Always dark-on-white, whatever the app theme: scanners need
                 // the contrast, and a white quiet zone around the code.
@@ -37,7 +50,7 @@ class CheckInQrScreen extends StatelessWidget {
                   color: Colors.white,
                   padding: const EdgeInsets.all(16),
                   child: QrImageView(
-                    data: CheckInQr.payload(profile.personId),
+                    data: CheckInQr.payload(profile),
                     size: 260,
                     backgroundColor: Colors.white,
                     eyeStyle: const QrEyeStyle(
@@ -52,9 +65,17 @@ class CheckInQrScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 24),
                 Text(
-                  'Show this to the check-in desk. Turn your screen brightness up if it is hard to scan.',
+                  'Have check-in staff scan this code to load your profile for incident check-in.',
                   textAlign: TextAlign.center,
                   style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'The code contains the profile details shown in this app. Turn your screen brightness up if it is hard to scan.',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),

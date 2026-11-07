@@ -154,25 +154,19 @@ The form has no corresponding server endpoint and submission only reports that t
 
 Evidence: [`apps/mobile/lib/screens/report_hazard_screen.dart`](apps/mobile/lib/screens/report_hazard_screen.dart)
 
-#### 3. QR scanning is a placeholder
-
-There is no camera scanning implementation.
-
-Evidence: [`apps/mobile/lib/screens/qr_scanner_screen.dart`](apps/mobile/lib/screens/qr_scanner_screen.dart)
-
-#### 4. Safety/GAR workflow is a scaffold
+#### 3. Safety/GAR workflow is a scaffold
 
 The stable navigation screen exists, but mobile SPE/GAR calculation and persistence are not connected.
 
 Evidence: [`apps/mobile/lib/screens/safety_screen.dart`](apps/mobile/lib/screens/safety_screen.dart)
 
-#### 5. Task status actions are UI-only
+#### 4. Task status actions are UI-only
 
 Status advancement is not persisted because the required mobile write endpoints do not exist.
 
 Evidence: [`apps/mobile/lib/screens/task_detail_screen.dart`](apps/mobile/lib/screens/task_detail_screen.dart)
 
-#### 6. Navigation tools use sample coordinates
+#### 5. Navigation tools use sample coordinates
 
 No location-target endpoint exists, so the screen displays explicitly labeled sample/preview data.
 
@@ -209,7 +203,7 @@ The audit deliberately excluded:
 3. Implement real persistence for mobile hazard reporting and task-status changes.
 4. Finish map creation and editing consistently across desktop and web.
 5. Finish authentication as a coordinated desktop/mobile/web change.
-6. Complete form mappings and secondary actions such as timeline, downloads, and QR scanning.
+6. Complete form mappings and secondary actions such as timeline and downloads.
 
 ## Audit limitations
 

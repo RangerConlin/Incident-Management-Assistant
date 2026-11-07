@@ -20,6 +20,7 @@ void main() {
     addTearDown(tester.view.reset);
     await tester.pumpWidget(const MaterialApp(home: ProfileScreen()));
 
+    await tester.ensureVisible(find.text('Save profile'));
     await tester.tap(find.text('Save profile'));
     await tester.pumpAndSettle();
     expect(
@@ -47,6 +48,18 @@ void main() {
       'CAP',
     );
     await tester.enterText(find.widgetWithText(TextField, 'Radio ID'), 'R-7');
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Primary role'),
+      'Ground Team Member',
+    );
+    await tester.enterText(find.widgetWithText(TextField, 'Rank'), 'Captain');
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Callsign'),
+      'Rescue 7',
+    );
+    await tester.ensureVisible(find.text('Medical responder'));
+    await tester.tap(find.text('Medical responder'));
+    await tester.ensureVisible(find.text('Save profile'));
     await tester.tap(find.text('Save profile'));
     await tester.pumpAndSettle();
 
@@ -55,9 +68,16 @@ void main() {
     expect(saved?.fullName, 'Jane Doe');
     expect(saved?.organization, 'CAP');
     expect(saved?.radioId, 'R-7');
+    expect(saved?.primaryRole, 'Ground Team Member');
+    expect(saved?.rank, 'Captain');
+    expect(saved?.callsign, 'Rescue 7');
+    expect(saved?.isMedic, isTrue);
   });
 
   testWidgets('editing prefills the existing profile', (tester) async {
+    tester.view.physicalSize = const Size(800, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
     await tester.pumpWidget(
       const MaterialApp(
         home: ProfileScreen(
@@ -135,6 +155,7 @@ void main() {
     );
     expect(idField.enabled, isFalse);
 
+    await tester.ensureVisible(find.text('Remove profile from this device'));
     await tester.tap(find.text('Remove profile from this device'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Remove'));

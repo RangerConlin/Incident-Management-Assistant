@@ -971,7 +971,6 @@ _AIRCRAFT_FUEL_OPTIONS = ["Jet A", "Avgas", "Electric", "Other"]
 _AIRCRAFT_MED_CONFIG_OPTIONS = ["None", "Basic", "Advanced"]
 _VEHICLE_STATUS_OPTIONS = ["Available", "In Service", "Out of Service", "Retired"]
 _VEHICLE_TYPE_OPTIONS = ["Passenger Vehicle", "Utility", "Support", "Other"]
-_BLOOD_TYPE_OPTIONS = ["", "A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]
 _STATE_CODES = [
     "", "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI",
     "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN",
@@ -1023,7 +1022,6 @@ def _build_collection_specs() -> dict[str, CollectionSpec]:
             input_type="select" if f.key in {
                 "home_unit",
                 "rank",
-                "emergency_blood_type",
                 "contact_state",
             } else "checkbox" if f.key == "is_medic" else "textarea" if f.key in {"notes", "contact_notes", "emergency_medical"} else "text",
         )
@@ -2921,7 +2919,6 @@ def _form_html(spec: CollectionSpec, doc: dict[str, Any], *, action: str, submit
         organization = str(doc.get("home_unit") or "").strip()
         combo_options["home_unit"] = org_rank_options["organization_options"]
         combo_options["rank"] = [(r, r) for r in org_rank_options["rank_by_org"].get(organization, [])]
-        combo_options["emergency_blood_type"] = [(value, value) for value in _BLOOD_TYPE_OPTIONS]
         combo_options["contact_state"] = [(value, value) for value in _STATE_CODES]
         combo_depends["rank"] = "home_unit"
         depmap_json = json.dumps(org_rank_options["rank_by_org"], separators=(",", ":")).replace("</", "<\\/")

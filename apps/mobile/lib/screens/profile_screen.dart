@@ -19,12 +19,35 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   late final _personId = TextEditingController(text: widget.existing?.personId);
-  late final _firstName = TextEditingController(text: widget.existing?.firstName);
+  late final _firstName = TextEditingController(
+    text: widget.existing?.firstName,
+  );
   late final _lastName = TextEditingController(text: widget.existing?.lastName);
+  late final _primaryRole = TextEditingController(
+    text: widget.existing?.primaryRole,
+  );
+  late final _homeUnit = TextEditingController(text: widget.existing?.homeUnit);
+  late final _rank = TextEditingController(text: widget.existing?.rank);
+  late final _callsign = TextEditingController(text: widget.existing?.callsign);
   late final _title = TextEditingController(text: widget.existing?.title);
   late final _phone = TextEditingController(text: widget.existing?.phone);
   late final _email = TextEditingController(text: widget.existing?.email);
   late final _radioId = TextEditingController(text: widget.existing?.radioId);
+  late final _status = TextEditingController(text: widget.existing?.status);
+  late final _notes = TextEditingController(text: widget.existing?.notes);
+  late final _photoUrl = TextEditingController(text: widget.existing?.photoUrl);
+  late final _certifications = TextEditingController(
+    text: _formatCertifications(widget.existing?.certifications ?? const []),
+  );
+  late final Map<String, TextEditingController> _emergency = {
+    for (final key in _emergencyFields.keys)
+      key: TextEditingController(text: widget.existing?.emergencyInfo[key]),
+  };
+  late final Map<String, TextEditingController> _contact = {
+    for (final key in _contactFields.keys)
+      key: TextEditingController(text: widget.existing?.contactInfo[key]),
+  };
+  late bool _isMedic = widget.existing?.isMedic ?? false;
 
   // Organization picker: a hardcoded hierarchy (see lib/models/organizations.dart)
   // with a manual "Other" fallback for anything not in the list, since the
@@ -92,10 +115,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _firstName,
       _lastName,
       _customOrganization,
+      _primaryRole,
+      _homeUnit,
+      _rank,
+      _callsign,
       _title,
       _phone,
       _email,
       _radioId,
+      _status,
+      _notes,
+      _photoUrl,
+      _certifications,
+      ..._emergency.values,
+      ..._contact.values,
     ]) {
       c.dispose();
     }
@@ -108,14 +141,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
       firstName: _firstName.text.trim(),
       lastName: _lastName.text.trim(),
       organization: _organizationValue,
+      homeUnit: _homeUnit.text.trim(),
+      primaryRole: _primaryRole.text.trim(),
+      rank: _rank.text.trim(),
+      callsign: _callsign.text.trim(),
       title: _title.text.trim(),
       phone: _phone.text.trim(),
       email: _email.text.trim(),
       radioId: _radioId.text.trim(),
+      isMedic: _isMedic,
+      status: _status.text.trim().isEmpty ? 'available' : _status.text.trim(),
+      notes: _notes.text.trim(),
+      photoUrl: _photoUrl.text.trim(),
+      emergencyInfo: _controllerValues(_emergency),
+      contactInfo: _controllerValues(_contact),
+      certifications: _parseCertifications(_certifications.text),
     );
     if (!profile.isComplete) {
       setState(
-        () => _errorMessage = 'Person ID, first name and last name are required.',
+        () =>
+            _errorMessage = 'Person ID, first name and last name are required.',
       );
       return;
     }
@@ -175,11 +220,59 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  static const _emergencyFields = {
+    'primary_name': 'Primary contact name',
+    'primary_relationship': 'Primary relationship',
+    'primary_phone': 'Primary contact phone',
+    'secondary_name': 'Secondary contact name',
+    'secondary_relationship': 'Secondary relationship',
+    'secondary_phone': 'Secondary contact phone',
+    'medical': 'Medical information',
+  };
+
+  static const _contactFields = {
+    'address1': 'Address line 1',
+    'address2': 'Address line 2',
+    'city': 'City',
+    'state': 'State / Province',
+    'zip': 'ZIP / Postal code',
+    'work_phone': 'Work phone',
+    'secondary_phone': 'Secondary phone',
+    'pager_id': 'Pager / alternate radio ID',
+    'notes': 'Contact notes',
+  };
+
+  static Map<String, String> _controllerValues(
+    Map<String, TextEditingController> controllers,
+  ) => {
+    for (final entry in controllers.entries) entry.key: entry.value.text.trim(),
+  };
+
+  static String _formatCertifications(List<Map<String, int>> rows) => rows
+      .map((row) => '${row['cert_type_id']}:${row['level'] ?? 0}')
+      .join('; ');
+
+  static List<Map<String, int>> _parseCertifications(String value) {
+    final result = <Map<String, int>>[];
+    for (final token in value.split(RegExp(r'[;\n,]+'))) {
+      final parts = token.trim().split(':');
+      final typeId = int.tryParse(parts.first.trim());
+      if (typeId == null) continue;
+      final level = parts.length > 1 ? int.tryParse(parts[1].trim()) ?? 0 : 0;
+      result.add({'cert_type_id': typeId, 'level': level.clamp(0, 3)});
+    }
+    return result;
+  }
+
+  Widget _sectionTitle(String title) => Padding(
+    padding: const EdgeInsets.only(top: 12, bottom: 12),
+    child: Text(title, style: Theme.of(context).textTheme.titleMedium),
+  );
+
   Future<void> _pickOrganization() async {
     final result = await Navigator.of(context).push<String>(
       MaterialPageRoute(
-        builder: (context) =>
-            OrganizationPickerScreen(entries: _orgEntries),
+        builder: (context) => OrganizationPickerScreen(entries: _orgEntries),
       ),
     );
     if (result != null) setState(() => _selectedOrgKey = result);
@@ -233,58 +326,117 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final editing = widget.existing != null;
     return Scaffold(
       appBar: AppBar(title: Text(editing ? 'Edit profile' : 'Create profile')),
-      body: ListView(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
-        children: [
-          const Text(
-            'Saved on this device and used for every incident. Loading an '
-            'incident, or saving while connected, updates your personnel '
-            'record on the server to match.',
-          ),
-          const SizedBox(height: 16),
-          _field(
-            _personId,
-            'Person ID *',
-            enabled: !editing,
-            helper: editing
-                ? 'Identifies your personnel record, so it can\'t be changed. '
-                      'Remove the profile to use a different ID.'
-                : 'Your badge or member number',
-          ),
-          _field(
-            _firstName,
-            'First name *',
-            capitalization: TextCapitalization.words,
-          ),
-          _field(
-            _lastName,
-            'Last name *',
-            capitalization: TextCapitalization.words,
-          ),
-          _organizationField(),
-          _field(_title, 'Title', capitalization: TextCapitalization.words),
-          _field(_phone, 'Phone', keyboardType: TextInputType.phone),
-          _field(_email, 'Email', keyboardType: TextInputType.emailAddress),
-          _field(_radioId, 'Radio ID'),
-          if (_errorMessage != null) ...[
-            Text(
-              _errorMessage!,
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'Saved on this device and used for every incident. Loading an '
+              'incident, or saving while connected, updates your personnel '
+              'record on the server to match.',
+            ),
+            const SizedBox(height: 16),
+            _field(
+              _personId,
+              'Person ID *',
+              enabled: !editing,
+              helper: editing
+                  ? 'Identifies your personnel record, so it can\'t be changed. '
+                        'Remove the profile to use a different ID.'
+                  : 'Your badge or member number',
+            ),
+            _field(
+              _firstName,
+              'First name *',
+              capitalization: TextCapitalization.words,
+            ),
+            _field(
+              _lastName,
+              'Last name *',
+              capitalization: TextCapitalization.words,
+            ),
+            _organizationField(),
+            _field(
+              _homeUnit,
+              'Home unit',
+              capitalization: TextCapitalization.words,
+            ),
+            _field(
+              _primaryRole,
+              'Primary role',
+              capitalization: TextCapitalization.words,
+            ),
+            _field(_rank, 'Rank', capitalization: TextCapitalization.words),
+            _field(_callsign, 'Callsign'),
+            _field(_title, 'Title', capitalization: TextCapitalization.words),
+            _field(_phone, 'Phone', keyboardType: TextInputType.phone),
+            _field(_email, 'Email', keyboardType: TextInputType.emailAddress),
+            _field(_radioId, 'Radio ID'),
+            _field(_status, 'Status'),
+            _field(_photoUrl, 'Photo URL', keyboardType: TextInputType.url),
+            _field(
+              _notes,
+              'Personnel notes',
+              capitalization: TextCapitalization.sentences,
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Medical responder'),
+              subtitle: const Text(
+                'Marks the personnel record as available for medical roles.',
+              ),
+              value: _isMedic,
+              onChanged: (value) => setState(() => _isMedic = value),
             ),
             const SizedBox(height: 12),
-          ],
-          FilledButton(
-            onPressed: _saving ? null : _save,
-            child: const Text('Save profile'),
-          ),
-          if (editing) ...[
-            const SizedBox(height: 8),
-            TextButton(
-              onPressed: _remove,
-              child: const Text('Remove profile from this device'),
+            _sectionTitle('Emergency information'),
+            for (final entry in _emergencyFields.entries)
+              _field(
+                _emergency[entry.key]!,
+                entry.value,
+                keyboardType: entry.key.endsWith('phone')
+                    ? TextInputType.phone
+                    : null,
+                capitalization: TextCapitalization.sentences,
+              ),
+            _sectionTitle('Additional contact information'),
+            for (final entry in _contactFields.entries)
+              _field(
+                _contact[entry.key]!,
+                entry.value,
+                keyboardType: entry.key.contains('phone')
+                    ? TextInputType.phone
+                    : null,
+                capitalization: TextCapitalization.sentences,
+              ),
+            _sectionTitle('Certifications'),
+            _field(
+              _certifications,
+              'Certification type IDs and levels',
+              helper:
+                  'Use cert_type_id:level entries separated by semicolons. Levels are 0–3.',
             ),
+            if (_errorMessage != null) ...[
+              Text(
+                _errorMessage!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+              const SizedBox(height: 12),
+            ],
+            FilledButton(
+              onPressed: _saving ? null : _save,
+              child: const Text('Save profile'),
+            ),
+            if (editing) ...[
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: _remove,
+                child: const Text('Remove profile from this device'),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }

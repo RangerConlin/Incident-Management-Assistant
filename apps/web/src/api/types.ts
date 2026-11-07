@@ -1224,3 +1224,233 @@ export interface WeatherConfig {
   updated_at: string | null;
   updated_by: string | null;
 }
+
+// Intel module — matches server/sarapp_db/sarapp_db/api/routers/intel.py's
+// _map_subject/_map_lead/_map_item/_map_observation/_map_assessment exactly
+// (field-for-field), not the desktop dataclasses in
+// apps/desktop/sarapp_desktop/modules/intel/models/ — those two shapes
+// mostly line up but the API response is the actual contract here.
+export interface IntelSubject {
+  id: string;
+  incident_id: string;
+  subject_type: string;
+  status: string;
+  name: string;
+  sex: string | null;
+  dob: string | null;
+  age: number | null;
+  race: string | null;
+  height: string | null;
+  weight: string | null;
+  hair_color: string | null;
+  eye_color: string | null;
+  distinguishing_features: string | null;
+  photo_path: string | null;
+  lkp_time: string | null;
+  lkp_place: string | null;
+  pls_time: string | null;
+  pls_place: string | null;
+  phone: string | null;
+  email: string | null;
+  address: string | null;
+  organization: string | null;
+  relationship_to_incident: string | null;
+  medical_conditions: string | null;
+  medications: string | null;
+  mobility_limitations: string | null;
+  outdoor_experience: string | null;
+  behavioral_notes: string | null;
+  communication_needs: string | null;
+  sensory_considerations: string | null;
+  routine_habits: string | null;
+  wandering_history: string | null;
+  favorite_places: string | null;
+  triggers_or_stressors: string | null;
+  recent_changes: string | null;
+  equipment_description: string | null;
+  clothing_description: string | null;
+  vehicle_description: string | null;
+  treatment_given: string | null;
+  transport_required: string | null;
+  transport_method: string | null;
+  transport_destination: string | null;
+  disposition: string | null;
+  plate: string | null;
+  plate_state: string | null;
+  make: string | null;
+  model: string | null;
+  year: number | null;
+  color: string | null;
+  vin: string | null;
+  owner_or_operator: string | null;
+  tail_number: string | null;
+  aircraft_type: string | null;
+  make_model: string | null;
+  color_markings: string | null;
+  pilot_or_operator: string | null;
+  route_or_last_contact: string | null;
+  departure_point: string | null;
+  destination: string | null;
+  occupants: string | null;
+  fuel_endurance: string | null;
+  elt_survival_gear: string | null;
+  remarks: string | null;
+  description: string | null;
+  linked_item_ids: string[];
+  linked_task_ids: string[];
+  notes: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  deleted: boolean;
+}
+
+export interface IntelLead {
+  id: string;
+  incident_id: string;
+  lead_number: number | null;
+  title: string;
+  summary: string;
+  source_type: string;
+  reported_by: string;
+  contact_info: string | null;
+  location_text: string | null;
+  priority: string;
+  status: string;
+  assigned_to: string | null;
+  assigned_team_id: number | null;
+  notes: string | null;
+  converted_to_type: string | null;
+  converted_to_id: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  deleted: boolean;
+  source_category: string | null;
+  source_display: string | null;
+  source_ref_type: string | null;
+  source_ref_id: string | null;
+  source_subject_id: string | null;
+  source_team_id: number | null;
+  source_team_name: string | null;
+  source_staff_id: string | null;
+  source_agency: string | null;
+  source_role: string | null;
+  source_contact_name: string | null;
+  source_phone: string | null;
+  source_email: string | null;
+  source_address: string | null;
+  source_contact_method: string | null;
+  source_notes: string | null;
+  source_reliability: string | null;
+  information_confidence: string | null;
+}
+
+export interface IntelObservation {
+  obs_id: string;
+  observed_at: string;
+  observer: string;
+  source_team: string | null;
+  source_team_id: number | null;
+  status: string;
+  severity: string;
+  confidence: string;
+  summary: string;
+  detailed_notes: string | null;
+  location_text: string | null;
+  attachments: string[];
+}
+
+export interface IntelItem {
+  id: string;
+  incident_id: string;
+  item_type: string;
+  title: string;
+  status: string;
+  priority: string;
+  confidence: string;
+  trend: string;
+  location_text: string | null;
+  linked_subject_ids: string[];
+  linked_task_ids: string[];
+  linked_team_ids: number[];
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  notes: string | null;
+  urgent_response_needed: boolean;
+  deleted: boolean;
+  observations: IntelObservation[];
+  source_lead_id: string | null;
+}
+
+export interface IntelAssessment {
+  id: string;
+  incident_id: string;
+  assessment_number: number | null;
+  title: string;
+  summary: string;
+  findings: string;
+  recommendations: string | null;
+  analyst: string;
+  status: string;
+  linked_subject_ids: string[];
+  linked_item_ids: string[];
+  linked_task_ids: string[];
+  notes: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  deleted: boolean;
+}
+
+export interface IntelLogEntry {
+  id: string;
+  incident_id: string;
+  entity_type: string;
+  entity_id: string;
+  event_type: string;
+  summary: string;
+  actor: string;
+  timestamp: string;
+}
+
+export interface IntelDashboardActivity {
+  entity_type: string;
+  entity_id: string;
+  event_type: string;
+  summary: string;
+  actor: string;
+  timestamp: string;
+}
+
+export interface IntelDashboardCriticalItem {
+  number: string;
+  title: string;
+  item_type: string;
+  priority: string;
+  trend: string;
+  updated_at: string;
+}
+
+export interface IntelDashboardLead {
+  title: string;
+  priority: string;
+  status: string;
+  assigned_to: string | null;
+  source_type: string;
+  updated_at: string;
+}
+
+export interface IntelDashboard {
+  active_subjects: number;
+  open_leads: number;
+  total_items: number;
+  critical_items: number;
+  worsening_items: number;
+  improving_items: number;
+  open_assessments: number;
+  recent_activity: IntelDashboardActivity[];
+  critical_item_list: IntelDashboardCriticalItem[];
+  open_lead_list: IntelDashboardLead[];
+}

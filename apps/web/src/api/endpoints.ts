@@ -87,6 +87,7 @@ import type {
   WorkAssignmentTaskLink,
   IncidentProfile, OrgAssignment, OrgPosition, OrgTemplate, IapPackage,
   TeamTypeDefinition, ResourceType, SpatialFeature,
+  IntelSubject, IntelLead, IntelItem, IntelAssessment, IntelLogEntry, IntelDashboard,
 } from "./types";
 
 export function lookupPerson(personId: string) {
@@ -1002,4 +1003,111 @@ export const updateIwiReport = (incidentId: string, reportId: string, body: Reco
   api.put<IwiReport>(`${iwiBase(incidentId)}/${encodeURIComponent(reportId)}`, body);
 export const signoffIwiReport = (incidentId: string, reportId: string, role: string, name: string) =>
   api.post<IwiReport>(`${iwiBase(incidentId)}/${encodeURIComponent(reportId)}/signoff`, { role, name });
+
+// ---------------------------------------------------------------------------
+// Intel module. Mirrors routers/intel.py exactly — subjects/leads/items
+// (with embedded observations)/assessments/log/dashboard. Clues are intel
+// items with item_type="Clue"; there's no separate clues endpoint.
+// ---------------------------------------------------------------------------
+const intelBase = (incidentId: string) => `/api/incidents/${encodeURIComponent(incidentId)}/intel`;
+
+export const SUBJECT_TYPES = ["Missing Person", "Witness", "Reporting Party", "Contact", "Patient", "Vehicle", "Aircraft"];
+export const SUBJECT_STATUSES = ["Active", "Located", "Deceased", "Archived"];
+export const LEAD_STATUSES = ["New", "Assigned", "In Progress", "Closed", "Converted", "Rejected"];
+export const LEAD_PRIORITIES = ["Critical", "High", "Medium", "Low"];
+export const LEAD_SOURCE_CATEGORIES = ["Team", "Staff", "Agency / Liaison", "Public Tip", "Other"];
+export const SOURCE_RELIABILITY_VALUES = ["Unknown", "Firsthand", "Secondhand", "Official", "Unverified", "Questionable"];
+export const INFORMATION_CONFIDENCE_VALUES = ["Confirmed", "Probable", "Possible", "Unconfirmed", "Ruled Out"];
+export const ITEM_TYPES = ["Clue", "Infrastructure Assessment", "Road Closure", "Hazard", "Resource Status", "Population Movement", "Communications", "Medical", "Environmental", "Other"];
+export const ITEM_STATUSES = ["Active", "Closed", "Archived"];
+export const ITEM_TREND_VALUES = ["Improving", "Stable", "Worsening", "Unknown"];
+export const SEVERITY_VALUES = ["Critical", "High", "Medium", "Low", "None"];
+export const ASSESSMENT_STATUSES = ["Draft", "In Progress", "Complete", "Archived"];
+
+export const getIntelDashboard = (incidentId: string) => api.get<IntelDashboard>(`${intelBase(incidentId)}/dashboard`);
+
+export function listIntelSubjects(incidentId: string, params: { subject_type?: string; status?: string } = {}) {
+  const qs = new URLSearchParams();
+  if (params.subject_type) qs.set("subject_type", params.subject_type);
+  if (params.status) qs.set("status", params.status);
+  const q = qs.toString();
+  return api.get<IntelSubject[]>(`${intelBase(incidentId)}/subjects${q ? `?${q}` : ""}`);
+}
+export const getIntelSubject = (incidentId: string, subjectId: string) =>
+  api.get<IntelSubject>(`${intelBase(incidentId)}/subjects/${encodeURIComponent(subjectId)}`);
+export const createIntelSubject = (incidentId: string, body: Record<string, unknown>) =>
+  api.post<IntelSubject>(`${intelBase(incidentId)}/subjects`, body);
+export const updateIntelSubject = (incidentId: string, subjectId: string, body: Record<string, unknown>) =>
+  api.patch<IntelSubject>(`${intelBase(incidentId)}/subjects/${encodeURIComponent(subjectId)}`, body);
+export const archiveIntelSubject = (incidentId: string, subjectId: string) =>
+  api.delete<void>(`${intelBase(incidentId)}/subjects/${encodeURIComponent(subjectId)}`);
+
+export function listIntelLeads(incidentId: string, params: { status?: string; priority?: string; assigned_to?: string } = {}) {
+  const qs = new URLSearchParams();
+  if (params.status) qs.set("status", params.status);
+  if (params.priority) qs.set("priority", params.priority);
+  if (params.assigned_to) qs.set("assigned_to", params.assigned_to);
+  const q = qs.toString();
+  return api.get<IntelLead[]>(`${intelBase(incidentId)}/leads${q ? `?${q}` : ""}`);
+}
+export const getIntelLead = (incidentId: string, leadId: string) =>
+  api.get<IntelLead>(`${intelBase(incidentId)}/leads/${encodeURIComponent(leadId)}`);
+export const createIntelLead = (incidentId: string, body: Record<string, unknown>) =>
+  api.post<IntelLead>(`${intelBase(incidentId)}/leads`, body);
+export const updateIntelLead = (incidentId: string, leadId: string, body: Record<string, unknown>) =>
+  api.patch<IntelLead>(`${intelBase(incidentId)}/leads/${encodeURIComponent(leadId)}`, body);
+export const closeIntelLead = (incidentId: string, leadId: string) =>
+  api.delete<void>(`${intelBase(incidentId)}/leads/${encodeURIComponent(leadId)}`);
+export const convertIntelLead = (incidentId: string, leadId: string, body: { target_type: string; target_id?: string; actor?: string }) =>
+  api.post<IntelLead>(`${intelBase(incidentId)}/leads/${encodeURIComponent(leadId)}/convert`, body);
+
+export function listIntelItems(incidentId: string, params: { item_type?: string; status?: string; priority?: string; trend?: string } = {}) {
+  const qs = new URLSearchParams();
+  if (params.item_type) qs.set("item_type", params.item_type);
+  if (params.status) qs.set("status", params.status);
+  if (params.priority) qs.set("priority", params.priority);
+  if (params.trend) qs.set("trend", params.trend);
+  const q = qs.toString();
+  return api.get<IntelItem[]>(`${intelBase(incidentId)}/items${q ? `?${q}` : ""}`);
+}
+export const getIntelItem = (incidentId: string, itemId: string) =>
+  api.get<IntelItem>(`${intelBase(incidentId)}/items/${encodeURIComponent(itemId)}`);
+export const createIntelItem = (incidentId: string, body: Record<string, unknown>) =>
+  api.post<IntelItem>(`${intelBase(incidentId)}/items`, body);
+export const updateIntelItem = (incidentId: string, itemId: string, body: Record<string, unknown>) =>
+  api.patch<IntelItem>(`${intelBase(incidentId)}/items/${encodeURIComponent(itemId)}`, body);
+export const archiveIntelItem = (incidentId: string, itemId: string) =>
+  api.delete<void>(`${intelBase(incidentId)}/items/${encodeURIComponent(itemId)}`);
+export const addIntelObservation = (incidentId: string, itemId: string, body: Record<string, unknown>) =>
+  api.post<IntelItem>(`${intelBase(incidentId)}/items/${encodeURIComponent(itemId)}/observations`, body);
+export const updateIntelObservation = (incidentId: string, itemId: string, obsId: string, body: Record<string, unknown>) =>
+  api.patch<IntelItem>(`${intelBase(incidentId)}/items/${encodeURIComponent(itemId)}/observations/${encodeURIComponent(obsId)}`, body);
+
+export function listIntelAssessments(incidentId: string, status?: string) {
+  const q = status ? `?status=${encodeURIComponent(status)}` : "";
+  return api.get<IntelAssessment[]>(`${intelBase(incidentId)}/assessments${q}`);
+}
+export const getIntelAssessment = (incidentId: string, assessmentId: string) =>
+  api.get<IntelAssessment>(`${intelBase(incidentId)}/assessments/${encodeURIComponent(assessmentId)}`);
+export const createIntelAssessment = (incidentId: string, body: Record<string, unknown>) =>
+  api.post<IntelAssessment>(`${intelBase(incidentId)}/assessments`, body);
+export const updateIntelAssessment = (incidentId: string, assessmentId: string, body: Record<string, unknown>) =>
+  api.patch<IntelAssessment>(`${intelBase(incidentId)}/assessments/${encodeURIComponent(assessmentId)}`, body);
+export const archiveIntelAssessment = (incidentId: string, assessmentId: string) =>
+  api.delete<void>(`${intelBase(incidentId)}/assessments/${encodeURIComponent(assessmentId)}`);
+
+export function getIntelLog(
+  incidentId: string,
+  params: { entity_type?: string; entity_id?: string; event_type?: string; since?: string; until?: string; limit?: number } = {},
+) {
+  const qs = new URLSearchParams();
+  if (params.entity_type) qs.set("entity_type", params.entity_type);
+  if (params.entity_id) qs.set("entity_id", params.entity_id);
+  if (params.event_type) qs.set("event_type", params.event_type);
+  if (params.since) qs.set("since", params.since);
+  if (params.until) qs.set("until", params.until);
+  if (params.limit) qs.set("limit", String(params.limit));
+  const q = qs.toString();
+  return api.get<IntelLogEntry[]>(`${intelBase(incidentId)}/log${q ? `?${q}` : ""}`);
+}
 export const deleteIwiReport = (incidentId: string, reportId: string) => api.delete<void>(`${iwiBase(incidentId)}/${encodeURIComponent(reportId)}`);

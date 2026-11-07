@@ -75,6 +75,11 @@ type StatusDomain =
   | "approval"
   | "approval-step"
   | "intel-priority"
+  | "intel-subject-status"
+  | "intel-lead-status"
+  | "intel-confidence"
+  | "intel-trend"
+  | "intel-assessment-status"
   | "iap"
   | "spe-band";
 
@@ -170,6 +175,21 @@ export function iapStatusVar(key: IapStatusKey | string) { return statusVar("iap
 
 export type IntelPriorityKey = "Critical" | "High" | "Medium" | "Low";
 export function intelPriorityVar(key: IntelPriorityKey | string) { return statusVar("intel-priority", key); }
+
+export type IntelSubjectStatusKey = "Active" | "Located" | "Deceased" | "Archived";
+export function intelSubjectStatusVar(key: IntelSubjectStatusKey | string) { return statusVar("intel-subject-status", key); }
+
+export type IntelLeadStatusKey = "New" | "Assigned" | "In Progress" | "Closed" | "Converted" | "Rejected";
+export function intelLeadStatusVar(key: IntelLeadStatusKey | string) { return statusVar("intel-lead-status", key); }
+
+export type IntelConfidenceKey = "Confirmed" | "Probable" | "Possible" | "Unconfirmed" | "Ruled Out";
+export function intelConfidenceVar(key: IntelConfidenceKey | string) { return statusVar("intel-confidence", key); }
+
+export type IntelTrendKey = "Improving" | "Stable" | "Worsening" | "Unknown";
+export function intelTrendVar(key: IntelTrendKey | string) { return statusVar("intel-trend", key); }
+
+export type IntelAssessmentStatusKey = "Draft" | "In Progress" | "Complete" | "Archived";
+export function intelAssessmentStatusVar(key: IntelAssessmentStatusKey | string) { return statusVar("intel-assessment-status", key); }
 
 // safety.py's SPE_BANDS: Slight / Possible / Substantial / High / Very High.
 export type SpeBandKey = "Slight" | "Possible" | "Substantial" | "High" | "Very High";

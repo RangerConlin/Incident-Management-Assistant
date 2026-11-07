@@ -37,11 +37,16 @@ def test_medical_launcher_needs_no_organization_options(monkeypatch):
     })
     assert panel._current_filter().log_keys == ["medical_unit"]
     assert panel.saved_bar_widget.isHidden()
+    assert panel.filters_widget.isHidden()
+    assert panel.correct_button.isEnabled() is False
+    assert panel.void_button.isEnabled() is False
 
     panel.quick_entry.setText("Patient transported")
+    panel.quick_incident_wide.setChecked(True)
     panel._quick_add_entry()
 
     assert created[0][0] == "incident-no-org"
     assert created[0][1].log_keys == ["medical_unit"]
+    assert created[0][1].incident_wide is True
     panel.deleteLater()
     app.processEvents()

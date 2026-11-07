@@ -2,6 +2,7 @@
     xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <uses-permission android:name="android.permission.CAMERA"/>
 
     <!-- Tracelet auto-injects ACCESS_FINE/COARSE_LOCATION, ACCESS_BACKGROUND_LOCATION,
          FOREGROUND_SERVICE(+LOCATION), ACTIVITY_RECOGNITION, WAKE_LOCK, and

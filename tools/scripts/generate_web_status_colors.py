@@ -50,6 +50,11 @@ STATUS_DICTS = [
     ("APPROVAL_STATUS", "approval"),
     ("APPROVAL_STEP_STATUS", "approval-step"),
     ("INTEL_PRIORITY_COLORS", "intel-priority"),
+    ("INTEL_SUBJECT_STATUS_COLORS", "intel-subject-status"),
+    ("INTEL_LEAD_STATUS_COLORS", "intel-lead-status"),
+    ("INTEL_CONFIDENCE_COLORS", "intel-confidence"),
+    ("INTEL_TREND_STATUS_COLORS", "intel-trend"),
+    ("INTEL_ASSESSMENT_STATUS_COLORS", "intel-assessment-status"),
 ]
 
 # Hand-kept values with no Python dict equivalent (UI chrome, not a status

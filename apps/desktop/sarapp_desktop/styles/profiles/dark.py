@@ -401,6 +401,50 @@ INTEL_TREND_COLORS: Dict[str, str] = {
     "unknown":   "#8b949e",
 }
 
+# Opaque pill colors for the web Intel module's per-record status/confidence/
+# trend badges — same "dark bg, bright fg" chip style as INTEL_PRIORITY_COLORS
+# above (reused verbatim: bad=critical's pair, warn=high's pair, info=
+# medium's pair, neutral=low's pair), plus one new "good" pair for states
+# like Located/Converted/Complete that priority has no equivalent for. Keys
+# are lowercase to match generate_web_status_colors.py's slugify step.
+INTEL_SUBJECT_STATUS_COLORS: Dict[str, Dict[str, str]] = {
+    "active":   {"fg": "#338eda", "bg": "#0d2a42"},
+    "located":  {"fg": "#2da44e", "bg": "#123d1e"},
+    "deceased": {"fg": "#cf222e", "bg": "#3d1414"},
+    "archived": {"fg": "#6e7781", "bg": "#1c2128"},
+}
+
+INTEL_LEAD_STATUS_COLORS: Dict[str, Dict[str, str]] = {
+    "new":          {"fg": "#338eda", "bg": "#0d2a42"},
+    "assigned":     {"fg": "#d29922", "bg": "#3d2c08"},
+    "in progress":  {"fg": "#d29922", "bg": "#3d2c08"},
+    "closed":       {"fg": "#6e7781", "bg": "#1c2128"},
+    "converted":    {"fg": "#2da44e", "bg": "#123d1e"},
+    "rejected":     {"fg": "#cf222e", "bg": "#3d1414"},
+}
+
+INTEL_CONFIDENCE_COLORS: Dict[str, Dict[str, str]] = {
+    "confirmed":   {"fg": "#2da44e", "bg": "#123d1e"},
+    "probable":    {"fg": "#338eda", "bg": "#0d2a42"},
+    "possible":    {"fg": "#6e7781", "bg": "#1c2128"},
+    "unconfirmed": {"fg": "#6e7781", "bg": "#1c2128"},
+    "ruled out":   {"fg": "#cf222e", "bg": "#3d1414"},
+}
+
+INTEL_TREND_STATUS_COLORS: Dict[str, Dict[str, str]] = {
+    "improving": {"fg": "#2da44e", "bg": "#123d1e"},
+    "stable":    {"fg": "#6e7781", "bg": "#1c2128"},
+    "worsening": {"fg": "#cf222e", "bg": "#3d1414"},
+    "unknown":   {"fg": "#6e7781", "bg": "#1c2128"},
+}
+
+INTEL_ASSESSMENT_STATUS_COLORS: Dict[str, Dict[str, str]] = {
+    "draft":       {"fg": "#6e7781", "bg": "#1c2128"},
+    "in progress": {"fg": "#d29922", "bg": "#3d2c08"},
+    "complete":    {"fg": "#2da44e", "bg": "#123d1e"},
+    "archived":    {"fg": "#6e7781", "bg": "#1c2128"},
+}
+
 # Liaison module — bold, saturated opaque fills for agency-status chips,
 # priority badges, and the Reporting Board's ready/not-ready state.
 LIAISON_AGENCY_STATUS: Dict[str, Dict[str, str]] = {
@@ -605,6 +649,11 @@ __all__ = [
     "INTEL_ENTITY_COLORS",
     "INTEL_PRIORITY_COLORS",
     "INTEL_TREND_COLORS",
+    "INTEL_SUBJECT_STATUS_COLORS",
+    "INTEL_LEAD_STATUS_COLORS",
+    "INTEL_CONFIDENCE_COLORS",
+    "INTEL_TREND_STATUS_COLORS",
+    "INTEL_ASSESSMENT_STATUS_COLORS",
     "LIAISON_AGENCY_STATUS",
     "LIAISON_PRIORITY",
     "LIAISON_REPORT_STATE",

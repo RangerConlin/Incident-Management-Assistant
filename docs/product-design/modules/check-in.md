@@ -18,7 +18,7 @@ Record arrival, availability, planning/check-in status, and accountability for p
 - Working: Quick Check In can search by scanned mobile QR, personnel ID, CAPID/person ID, name, callsign, or phone.
 - Working: Quick Check In supports status buttons for Expected, Enroute, Checked In, and Check Out/Demobilized.
 - Working: Mobile Check-in QR screen generates a personal QR from the on-device profile and works without a network connection.
-- Working: Shared QR payload format is documented as `SARAPP:CHECKIN:v1:<person_id>`.
+- Working: Mobile generates a versioned `SARAPP:PROFILE:v2:` QR containing every user-editable personnel field, including emergency/contact information and certification references; staff-side import/check-in support is pending.
 - Working: ICS-211 Resource Check In desktop workbench has tabs for Personnel, Groups / Teams, Vehicles, Aircraft, and Equipment.
 - Working: Resource tabs support fast lookup, selecting existing records by organization, reporting location, LDW date/notes, check-in notes, status actions, and adding new records.
 - Working: Resource status actions include Enroute, Preparing for Demobilization, and Cancelled.

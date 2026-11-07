@@ -18,6 +18,11 @@ import {
   approvalStatusVar,
   approvalStepStatusVar,
   intelPriorityVar,
+  intelSubjectStatusVar,
+  intelLeadStatusVar,
+  intelConfidenceVar,
+  intelTrendVar,
+  intelAssessmentStatusVar,
   speBandVar,
 } from "../../styles/statusColors";
 
@@ -41,6 +46,11 @@ type Domain =
   | "approval"
   | "approval-step"
   | "intel-priority"
+  | "intel-subject-status"
+  | "intel-lead-status"
+  | "intel-confidence"
+  | "intel-trend"
+  | "intel-assessment-status"
   | "spe-band";
 
 interface StatusPillProps {
@@ -69,6 +79,11 @@ const RESOLVERS: Record<Domain, (key: string) => { bg: string; fg: string }> = {
   approval: approvalStatusVar,
   "approval-step": approvalStepStatusVar,
   "intel-priority": intelPriorityVar,
+  "intel-subject-status": intelSubjectStatusVar,
+  "intel-lead-status": intelLeadStatusVar,
+  "intel-confidence": intelConfidenceVar,
+  "intel-trend": intelTrendVar,
+  "intel-assessment-status": intelAssessmentStatusVar,
   "spe-band": speBandVar,
 };
 

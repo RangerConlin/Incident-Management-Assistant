@@ -330,8 +330,6 @@ def test_personnel_organization_and_rank_are_catalog_dropdowns(monkeypatch) -> N
         assert 'data-combo-depends="home_unit"' in new_page.text
         assert 'data-combo-depmap-for="home_unit"' in new_page.text
         assert "TL - GUI Test Team Leader" in new_page.text
-        assert 'name="emergency_blood_type"' in new_page.text
-        assert "O+" in new_page.text
         assert 'name="contact_state"' in new_page.text
         assert "MI" in new_page.text
     finally:
