@@ -29,9 +29,12 @@ from PySide6.QtWidgets import (
     QInputDialog,
     QLabel,
     QLineEdit,
+    QLayout,
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
+    QScrollArea,
+    QSizePolicy,
     QTabWidget,
     QVBoxLayout,
     QWidget,
@@ -129,7 +132,6 @@ class WorkAssignmentDetailWindow(QWidget):
     ) -> None:
         super().__init__(parent)
         self.setAttribute(Qt.WA_DeleteOnClose, True)
-        self.setMinimumSize(900, 680)
         self._work_assignment_id = work_assignment_id
         self._db_path = db_path
         self._description_text = ""
@@ -138,6 +140,7 @@ class WorkAssignmentDetailWindow(QWidget):
         self._approved_by = ""
         self._updated_at = ""
         self._updated_by = ""
+        self._save_state = "Saved"
 
         # Debounce timer — fires 800 ms after the last field change
         self._save_timer = QTimer(self)
@@ -146,10 +149,12 @@ class WorkAssignmentDetailWindow(QWidget):
         self._save_timer.timeout.connect(self._auto_save)
 
         self._build_ui()
+        self.resize(960, 860)
         self._apply_window_stylesheet()
         self._update_title()
         self._refresh_status_chips()
         self._update_summary()
+        self._reload_approvals()
 
         if work_assignment_id is not None:
             self._load()
@@ -182,7 +187,28 @@ class WorkAssignmentDetailWindow(QWidget):
         btn_border = p.get("btn_border").name()
         btn_hover = p.get("btn_hover").name()
         divider = p.get("divider").name()
+        panel_bg = p.get("bg_panel").name()
+        primary_fg = p.get("btn_primary_fg").name()
+        danger = p.get("danger").name()
+        success = p.get("success").name()
         self.setStyleSheet(f"""
+            WorkAssignmentDetailWindow {{
+                background: {panel_bg};
+            }}
+            QFrame#workAssignmentHeader, QFrame#workAssignmentFooter {{
+                background: {panel_bg};
+                border: none;
+            }}
+            QFrame#workAssignmentStatStrip {{
+                background: {divider};
+                border: none;
+                border-radius: 0px;
+            }}
+            QScrollArea#workAssignmentOverviewScroll,
+            QWidget#workAssignmentOverviewContent {{
+                background: {panel_bg};
+                border: none;
+            }}
             QLineEdit, QPlainTextEdit, QComboBox {{
                 background: {bg_field};
                 color: {text};
@@ -202,18 +228,9 @@ class WorkAssignmentDetailWindow(QWidget):
             QComboBox::drop-down {{
                 subcontrol-origin: padding;
                 subcontrol-position: top right;
-                width: 26px;
+                width: 22px;
                 border: none;
                 background: transparent;
-            }}
-            QComboBox::down-arrow {{
-                image: none;
-                width: 0px;
-                height: 0px;
-                border-left: 4px solid transparent;
-                border-right: 4px solid transparent;
-                border-top: 5px solid {muted};
-                margin-right: 10px;
             }}
             QComboBox QAbstractItemView {{
                 background: {bg_raised};
@@ -236,20 +253,41 @@ class WorkAssignmentDetailWindow(QWidget):
             QPushButton:hover {{
                 background: {btn_hover};
             }}
+            QPushButton#workAssignmentPrimaryButton {{
+                background: {accent};
+                color: {primary_fg};
+                border-color: {accent};
+            }}
+            QPushButton#workAssignmentPrimaryButton:hover {{
+                background: {accent};
+            }}
+            QPushButton#workAssignmentDangerButton {{
+                background: transparent;
+                color: {danger};
+                border-color: {danger};
+            }}
             QPushButton:disabled {{
                 color: {muted};
             }}
+            QLabel#workAssignmentSaveState[saveState="saved"] {{ color: {success}; }}
+            QLabel#workAssignmentSaveState[saveState="dirty"] {{ color: {muted}; }}
+            QLabel#workAssignmentSaveState[saveState="saving"] {{ color: {accent}; }}
+            QLabel#workAssignmentSaveState[saveState="error"] {{ color: {danger}; }}
             QTabWidget::pane {{
                 border: none;
                 border-top: 1px solid {divider};
+                padding: 0px;
+            }}
+            QTabBar {{
+                background: transparent;
             }}
             QTabBar::tab {{
                 background: transparent;
                 color: {muted};
                 border: none;
                 border-bottom: 2px solid transparent;
-                padding: 10px 16px;
-                margin-right: 2px;
+                padding: 10px 12px;
+                margin-right: 0px;
                 font-weight: 600;
                 font-size: 12.5px;
             }}
@@ -259,6 +297,32 @@ class WorkAssignmentDetailWindow(QWidget):
             }}
             QTabBar::tab:hover {{
                 color: {text};
+            }}
+            QTableView {{
+                background: {panel_bg};
+                alternate-background-color: {bg_field};
+                border: 1px solid {border};
+                border-radius: 6px;
+                gridline-color: {divider};
+            }}
+            QHeaderView::section {{
+                background: {panel_bg};
+                color: {muted};
+                border: none;
+                border-bottom: 1px solid {border};
+                padding: 7px 9px;
+            }}
+            QGroupBox {{
+                border: none;
+                margin-top: 18px;
+                font-size: 11px;
+                font-weight: 700;
+                color: {muted};
+            }}
+            QGroupBox::title {{
+                subcontrol-origin: margin;
+                left: 0px;
+                padding: 0px;
             }}
         """)
 
@@ -272,12 +336,20 @@ class WorkAssignmentDetailWindow(QWidget):
 
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(6)
+        # Deliberately allow the user to shrink the window below every child
+        # widget's combined size hint. Qt otherwise derives an implicit
+        # minimum from the wide tab labels and toolbar buttons.
+        layout.setSizeConstraint(QLayout.SetNoConstraint)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
 
         # Top header bar
         self._header_box = self._build_header()
         layout.addWidget(self._header_box)
+
+        # The quick-glance strip belongs to the assignment as a whole, not
+        # only to Overview, so it remains visible while the user changes tabs.
+        layout.addWidget(self._build_stat_row())
 
         # Tab widget
         self._tabs = QTabWidget(self)
@@ -290,20 +362,17 @@ class WorkAssignmentDetailWindow(QWidget):
         self._build_approvals_tab()
         layout.addWidget(self._tabs, 1)
 
+        self._footer_box = self._build_footer()
+        layout.addWidget(self._footer_box)
+
     def _build_header(self) -> QFrame:
         box = QFrame(self)
-        box.setFrameShape(QFrame.StyledPanel)
+        box.setObjectName("workAssignmentHeader")
+        box.setFrameShape(QFrame.NoFrame)
         box.setAttribute(Qt.WA_StyledBackground, True)
-        box.setStyleSheet(
-            "QFrame { "
-            f"background:{get_palette().get('bg_raised').name()}; "
-            f"border:1px solid {get_palette().get('ctrl_border').name()}; "
-            "border-radius:6px; "
-            "}"
-        )
         outer = QVBoxLayout(box)
-        outer.setContentsMargins(16, 14, 16, 14)
-        outer.setSpacing(6)
+        outer.setContentsMargins(24, 18, 24, 16)
+        outer.setSpacing(8)
 
         muted = get_palette().get("fg_muted").name()
         accent = get_palette().get("accent").name()
@@ -336,6 +405,12 @@ class WorkAssignmentDetailWindow(QWidget):
 
         for combo in (self._planning_status_combo, self._safety_status_combo, self._resource_status_combo):
             combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+            combo.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+            widest_text = max(
+                (combo.fontMetrics().horizontalAdvance(combo.itemText(index)) for index in range(combo.count())),
+                default=0,
+            )
+            combo.setFixedWidth(min(widest_text + 34, 190))
             name_row.addWidget(combo)
         outer.addLayout(name_row)
 
@@ -357,20 +432,48 @@ class WorkAssignmentDetailWindow(QWidget):
 
         return box
 
+    def _build_footer(self) -> QFrame:
+        footer = QFrame(self)
+        footer.setObjectName("workAssignmentFooter")
+        footer.setFrameShape(QFrame.NoFrame)
+        footer.setAttribute(Qt.WA_StyledBackground, True)
+        footer.setStyleSheet(
+            f"QFrame#workAssignmentFooter {{ border-top:1px solid {get_palette().get('divider').name()}; }}"
+        )
+        layout = QHBoxLayout(footer)
+        layout.setContentsMargins(24, 14, 24, 14)
+        layout.setSpacing(10)
+
+        self._save_state_label = QLabel("Saved")
+        self._save_state_label.setObjectName("workAssignmentSaveState")
+        self._save_state_label.setProperty("saveState", "saved")
+        layout.addWidget(self._save_state_label)
+        layout.addStretch(1)
+
+        close_btn = QPushButton("Close")
+        close_btn.clicked.connect(self.close)
+        layout.addWidget(close_btn)
+
+        save_btn = QPushButton("Save")
+        save_btn.setObjectName("workAssignmentPrimaryButton")
+        save_btn.clicked.connect(lambda _checked=False: self._save(quiet=False))
+        layout.addWidget(save_btn)
+        return footer
+
     def _build_stat_row(self) -> QFrame:
         """Quick-glance Priority/Resources/Gap/Hazards/Tasks strip, shown at
         the top of the Overview tab — one flush bar with hairline dividers
         between cells (matching the approved mockup), not separate floating
         cards."""
         bar = QFrame()
+        bar.setObjectName("workAssignmentStatStrip")
         bar.setFrameShape(QFrame.NoFrame)
         bar.setAttribute(Qt.WA_StyledBackground, True)
         divider = get_palette().get("divider").name()
         bar.setStyleSheet(
-            "QFrame { "
+            "QFrame#workAssignmentStatStrip { "
             f"background:{divider}; "
-            f"border:1px solid {divider}; "
-            "border-radius:6px; "
+            "border:none; "
             "}"
         )
         row = QHBoxLayout(bar)
@@ -389,7 +492,7 @@ class WorkAssignmentDetailWindow(QWidget):
             cell.setAttribute(Qt.WA_StyledBackground, True)
             cell.setStyleSheet(f"background:{panel_bg};")
             layout = QVBoxLayout(cell)
-            layout.setContentsMargins(14, 10, 14, 10)
+            layout.setContentsMargins(18, 12, 18, 12)
             layout.setSpacing(3)
             label = QLabel(title.upper())
             label.setStyleSheet(
@@ -498,10 +601,23 @@ class WorkAssignmentDetailWindow(QWidget):
 
     def _build_overview_tab(self) -> None:
         tab = QWidget()
-        layout = QVBoxLayout(tab)
-        layout.setSpacing(12)
+        tab_layout = QVBoxLayout(tab)
+        tab_layout.setContentsMargins(0, 0, 0, 0)
+        tab_layout.setSpacing(0)
 
-        layout.addWidget(self._build_stat_row())
+        scroll = QScrollArea(tab)
+        scroll.setObjectName("workAssignmentOverviewScroll")
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        content = QWidget(scroll)
+        content.setObjectName("workAssignmentOverviewContent")
+        content.setAttribute(Qt.WA_StyledBackground, True)
+        layout = QVBoxLayout(content)
+        layout.setContentsMargins(24, 22, 24, 26)
+        layout.setSpacing(18)
+        scroll.setWidget(content)
+        tab_layout.addWidget(scroll)
 
         layout.addLayout(self._section_title("ASSIGNMENT"))
 
@@ -540,28 +656,29 @@ class WorkAssignmentDetailWindow(QWidget):
             lbl.setStyleSheet(
                 f"color:{get_palette().get('fg_muted').name()}; font-size:11px; font-weight:700;"
             )
+            widget.setMinimumHeight(36)
+            widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
             grid.addWidget(lbl, row * 2, col)
             grid.addWidget(widget, row * 2 + 1, col, 1, col_span)
 
-        _add_field(0, 0, "Assignment #", self._number_label)
-        _add_field(0, 1, "Objective", self._objective_combo)
-        _add_field(0, 2, "Op. Period", self._op_period_combo)
-        _add_field(1, 0, "Branch", self._branch_combo)
-        _add_field(1, 1, "Division / Group", self._division_combo)
-        _add_field(1, 2, "Kind", self._kind_combo)
+        # Same 2-column shape as the mockup's Assignment grid for the six
+        # fields it actually shows; Assignment # and Op. Period are real
+        # editable fields the mockup never depicted, so they get their own
+        # row at the end rather than widening the grid to three columns.
+        _add_field(0, 0, "Objective", self._objective_combo)
+        _add_field(0, 1, "Branch", self._branch_combo)
+        _add_field(1, 0, "Division / Group", self._division_combo)
+        _add_field(1, 1, "Kind", self._kind_combo)
         _add_field(2, 0, "Priority", self._priority_combo)
-        _add_field(2, 1, "Location / Facility", self._location_picker, 2)
+        _add_field(2, 1, "Location / Facility", self._location_picker)
+        _add_field(3, 0, "Assignment #", self._number_label)
+        _add_field(3, 1, "Op. Period", self._op_period_combo)
 
         grid.setColumnStretch(0, 1)
         grid.setColumnStretch(1, 1)
-        grid.setColumnStretch(2, 1)
         layout.addLayout(grid)
 
-        narrative_title = QLabel("OVERVIEW")
-        narrative_title.setStyleSheet(
-            f"color:{get_palette().get('fg_muted').name()}; font-weight:700;"
-        )
-        layout.addWidget(narrative_title)
+        layout.addLayout(self._section_title("OVERVIEW"))
 
         narrative_layout = QVBoxLayout()
         narrative_layout.setSpacing(8)
@@ -660,20 +777,20 @@ class WorkAssignmentDetailWindow(QWidget):
     def _build_outputs_tab(self) -> None:
         tab = QWidget()
         layout = QVBoxLayout(tab)
-        layout.setContentsMargins(12, 12, 12, 12)
-        layout.setSpacing(10)
+        layout.setContentsMargins(24, 22, 24, 26)
+        layout.setSpacing(18)
         self._outputs_layout = QVBoxLayout()
         self._outputs_layout.setSpacing(10)
         layout.addLayout(self._outputs_layout)
         layout.addStretch(1)
 
-        self._tabs.addTab(tab, "Outputs")
+        self._outputs_tab_index = self._tabs.addTab(tab, "Outputs")
 
     def _build_approvals_tab(self) -> None:
         tab = QWidget()
         layout = QVBoxLayout(tab)
-        layout.setContentsMargins(12, 12, 12, 12)
-        layout.setSpacing(10)
+        layout.setContentsMargins(24, 22, 24, 26)
+        layout.setSpacing(18)
 
         self._approvals_summary_label = QLabel("")
         self._approvals_summary_label.setStyleSheet(
@@ -686,7 +803,7 @@ class WorkAssignmentDetailWindow(QWidget):
         layout.addLayout(self._approvals_rows_layout)
         layout.addStretch(1)
 
-        self._tabs.addTab(tab, "Approvals")
+        self._approvals_tab_index = self._tabs.addTab(tab, "Approvals")
 
     # ------------------------------------------------------------------
     # Combo population helpers
@@ -860,6 +977,7 @@ class WorkAssignmentDetailWindow(QWidget):
         editor = ResourceRequirementEditor(
             self._work_assignment_id, db_path=self._db_path, parent=self
         )
+        editor.layout().setContentsMargins(24, 22, 24, 26)
         editor.changed.connect(self._update_summary)
         self._tabs.removeTab(self._resources_tab_index)
         self._tabs.insertTab(self._resources_tab_index, editor, "Resources")
@@ -871,6 +989,7 @@ class WorkAssignmentDetailWindow(QWidget):
         editor = HazardAnalysisEditor(
             self._work_assignment_id, db_path=self._db_path, parent=self
         )
+        editor.layout().setContentsMargins(24, 22, 24, 26)
         editor.changed.connect(self._update_summary)
         self._tabs.removeTab(self._hazards_tab_index)
         self._tabs.insertTab(self._hazards_tab_index, editor, "Hazards")
@@ -882,6 +1001,7 @@ class WorkAssignmentDetailWindow(QWidget):
         panel = LinkedTasksPanel(
             self._work_assignment_id, db_path=self._db_path, parent=self
         )
+        panel.layout().setContentsMargins(24, 22, 24, 26)
         panel.changed.connect(self._update_summary)
         self._tabs.removeTab(self._tasks_tab_index)
         self._tabs.insertTab(self._tasks_tab_index, panel, "Tasks")
@@ -893,6 +1013,7 @@ class WorkAssignmentDetailWindow(QWidget):
         panel = LinkedAgencyRequestsPanel(
             self._work_assignment_id, db_path=self._db_path, parent=self
         )
+        panel.layout().setContentsMargins(24, 22, 24, 26)
         panel.changed.connect(self._update_summary)
         self._tabs.removeTab(self._agency_requests_tab_index)
         self._tabs.insertTab(self._agency_requests_tab_index, panel, "Agency Requests")
@@ -929,12 +1050,14 @@ class WorkAssignmentDetailWindow(QWidget):
         value_label.setText(text)
         if brushes:
             value_label.setStyleSheet(
-                f"font-size:16px; font-weight:700; color:{brushes['bg'].color().name()};"
+                f"font-size:16px; font-weight:700; color:{brushes['bg'].color().name()}; background:transparent;"
             )
         elif warn:
-            value_label.setStyleSheet(f"font-size:16px; font-weight:700; color:{get_palette().get('danger').name()};")
+            value_label.setStyleSheet(
+                f"font-size:16px; font-weight:700; color:{get_palette().get('danger').name()}; background:transparent;"
+            )
         else:
-            value_label.setStyleSheet("font-size:16px; font-weight:700;")
+            value_label.setStyleSheet("font-size:16px; font-weight:700; background:transparent;")
 
     # ------------------------------------------------------------------
     # Save logic
@@ -968,23 +1091,36 @@ class WorkAssignmentDetailWindow(QWidget):
 
     def _schedule_save(self) -> None:
         """Restart the debounce timer; called whenever any field changes."""
+        self._set_save_state("dirty", "Unsaved changes")
         self._save_timer.start()
+
+    def _set_save_state(self, state: str, text: str) -> None:
+        self._save_state = state
+        if not hasattr(self, "_save_state_label"):
+            return
+        self._save_state_label.setText(text)
+        self._save_state_label.setProperty("saveState", state)
+        self._save_state_label.style().unpolish(self._save_state_label)
+        self._save_state_label.style().polish(self._save_state_label)
 
     def _auto_save(self) -> None:
         """Called by the debounce timer — save silently if a name is present."""
         data = self._collect_header_data()
         if not data.get("assignment_name"):
+            self._set_save_state("dirty", "Enter a name to save")
             return  # wait until the user types a name
         self._save(quiet=True)
 
     def _save(self, quiet: bool = False) -> bool:
         data = self._collect_header_data()
         if not data.get("assignment_name"):
+            self._set_save_state("error", "Assignment name is required")
             if not quiet:
                 QMessageBox.warning(self, "Save", "Assignment name is required.")
             return False
         # Temporarily block field signals to prevent re-triggering auto-save
         self._save_timer.stop()
+        self._set_save_state("saving", "Saving…")
         try:
             repo = WorkAssignmentRepository(self._db_path)
             if self._work_assignment_id is None:
@@ -1006,6 +1142,7 @@ class WorkAssignmentDetailWindow(QWidget):
                     repo.add_log_entry(self._work_assignment_id, "Work Assignment updated.", entry_type="System")
             saved_wa = repo.get_work_assignment(self._work_assignment_id)
         except Exception as exc:
+            self._set_save_state("error", "Save failed")
             if not quiet:
                 QMessageBox.critical(self, "Save", f"Failed to save:\n{exc}")
             return False
@@ -1022,6 +1159,12 @@ class WorkAssignmentDetailWindow(QWidget):
         self._reload_outputs()
         self._reload_approvals()
         self._refresh_header()
+        saved_text = "Saved"
+        if self._updated_at:
+            saved_text += f" · last updated {_format_display_timestamp(self._updated_at)}"
+            if self._updated_by:
+                saved_text += f" by {resolve_person_name(self._updated_by)}"
+        self._set_save_state("saved", saved_text)
         self.saved.emit(self._work_assignment_id)
         return True
 
@@ -1103,6 +1246,7 @@ class WorkAssignmentDetailWindow(QWidget):
         )
         layout.addWidget(preview_btn)
         generate_btn = QPushButton("Regenerate" if is_current or generated_at else "Generate")
+        generate_btn.setObjectName("workAssignmentPrimaryButton")
         generate_btn.clicked.connect(lambda _checked=False, t=output_type: self._generate_output(t))
         layout.addWidget(generate_btn)
         return row
@@ -1187,6 +1331,10 @@ class WorkAssignmentDetailWindow(QWidget):
 
         if self._work_assignment_id is None:
             self._approvals_summary_label.setText("Save the work assignment first to request sign-offs.")
+            self._tabs.setTabText(
+                self._approvals_tab_index,
+                f"Approvals  0/{len(_WA_APPROVAL_STEPS)}",
+            )
             return
 
         service = self._approval_service()
@@ -1211,6 +1359,7 @@ class WorkAssignmentDetailWindow(QWidget):
             if gate is not None and gate.status != "completed":
                 note = "  ·  Safety approval pending"
         self._approvals_summary_label.setText(f"{completed} of {total} sign-offs complete{note}")
+        self._tabs.setTabText(self._approvals_tab_index, f"Approvals  {completed}/{total}")
 
         for step_id, label, code, is_gate in _WA_APPROVAL_STEPS:
             row = self._build_approval_row(step_id, label, code, is_gate, steps_by_id.get(step_id), instance)

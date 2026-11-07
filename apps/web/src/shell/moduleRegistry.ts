@@ -9,6 +9,7 @@ import {
   Shield,
   ClipboardList,
   Activity,
+  Target,
   Truck,
   Radio,
   HeartPulse,
@@ -60,7 +61,6 @@ export const MODULE_REGISTRY: ModuleSection[] = [
       { key: "planning-dashboard", label: "Planning Dashboard", path: "/planning", status: "live" },
       { key: "operational-periods", label: "Operational Periods", path: "/planning/operational-periods", status: "live" },
       { key: "meetings", label: "Meetings", path: "/planning/meetings", status: "live" },
-      { key: "work-assignments", label: "Work Assignments", path: "/planning/work-assignments", status: "live" },
       { key: "approvals", label: "Approvals", path: "/planning/approvals", status: "live" },
       { key: "demobilization", label: "Demobilization", path: "/planning/demobilization", status: "live" },
     ],
@@ -74,6 +74,16 @@ export const MODULE_REGISTRY: ModuleSection[] = [
     ],
   },
   {
+    // Promoted out of Planning to its own root-level section, between
+    // Operations and Logistics — it spans both (tactical assignment
+    // planning plus the resourcing/gap side) rather than belonging under
+    // either one. "Work Assignments" renamed to "Assignment Board" to
+    // match.
+    section: "Tactics & Resource Planning",
+    icon: Target,
+    modules: [{ key: "assignment-board", label: "Assignment Board", path: "/tactics/assignments", status: "live" }],
+  },
+  {
     section: "Logistics",
     icon: Truck,
     modules: [
@@ -81,6 +91,7 @@ export const MODULE_REGISTRY: ModuleSection[] = [
       { key: "resource-status-board", label: "Resource Status Board", path: "/logistics/resources", status: "live" },
       { key: "resource-requests", label: "Resource Requests", path: "/logistics/resource-requests", status: "live" },
       { key: "checkin", label: "Check-In", path: "/logistics/checkin", status: "live" },
+      { key: "personnel-manager", label: "Personnel Manager", path: "/logistics/personnel", status: "live" },
       { key: "facilities", label: "Facilities", path: "/logistics/facilities", status: "live" },
     ],
   },
@@ -93,11 +104,25 @@ export const MODULE_REGISTRY: ModuleSection[] = [
     ],
   },
   {
+    // Order matches desktop's actual combined "Medical & Safety" menu
+    // (main.py): Medical Plan ICS 206, Safety Message 208, Incident Safety
+    // Analysis 215A / Incident Hazard Register, Safety Incident Reports
+    // (IWI), Weather — with the two dashboard landing pages (no desktop
+    // equivalent) leading their own group, and CAP ORM Worksheet (no
+    // desktop menu slot either) placed next to Hazard Dashboard since it's
+    // hazard-related.
     section: "Medical & Safety",
     icon: HeartPulse,
     modules: [
-      { key: "medical", label: "Medical", path: "/medical", status: "live" },
-      { key: "safety", label: "Safety / CAP ORM", path: "/safety", status: "live" },
+      { key: "medical-dashboard", label: "Medical Dashboard", path: "/medical", status: "live" },
+      { key: "ics206-builder", label: "ICS 206 Builder", path: "/medical/206", status: "live" },
+      { key: "medical-reports", label: "Medical Reports", path: "/medical/reports", status: "live" },
+      { key: "safety-dashboard", label: "Safety Dashboard", path: "/safety", status: "live" },
+      { key: "safety-message", label: "Safety Message", path: "/safety/208", status: "live" },
+      { key: "hazard-dashboard", label: "Hazard Dashboard", path: "/safety/hazards", status: "live" },
+      { key: "cap-orm-worksheet", label: "CAP ORM Worksheet", path: "/safety/orm", status: "live" },
+      { key: "iwi-dashboard", label: "IWI Dashboard", path: "/safety/iwi", status: "live" },
+      { key: "safety-reports", label: "Safety Reports", path: "/safety/reports", status: "live" },
       { key: "weather", label: "Weather", path: "/weather", status: "live" },
     ],
   },

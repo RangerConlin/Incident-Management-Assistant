@@ -54,9 +54,9 @@ export default function WorkAssignmentDetailPage() {
       <button
         className="secondary"
         style={{ width: "auto", marginBottom: 12 }}
-        onClick={() => navigate("/planning/work-assignments")}
+        onClick={() => navigate("/tactics/assignments")}
       >
-        ← Work Assignments
+        ← Assignment Board
       </button>
       <h2>
         {wa.assignment_number} — {wa.assignment_name || "Untitled"}

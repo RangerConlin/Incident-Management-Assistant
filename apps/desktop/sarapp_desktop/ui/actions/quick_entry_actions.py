@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Dict
 
 
@@ -9,33 +10,20 @@ class QuickEntryPermissionError(Exception):
     pass
 
 
+ActionDispatcher = Callable[[str, Dict], object]
+
+
 def dispatch(action: str, payload: Dict):
-    """Route quick entry actions to modules. Replace with real integrations.
+    """Reject unbound quick-entry calls instead of pretending they succeeded.
 
-    Do not hide options by role; raise :class:`QuickEntryPermissionError` at
-    action time when needed.
+    The desktop main window supplies the real dispatcher because it owns the
+    panel factories and ADS docking lifecycle.
     """
-    # TODO: integrate with actual panels/modules
-    # For now, just simulate success for known actions
-    allowed = {
-        "tasks.create",
-        "logs.createActivity",
-        "comms.createLogEntry",
-        "logistics.createResourceRequest",
-        "comms.createMessage",
-        "safety.createReport",
-        "files.upload",
-    }
-    if action not in allowed:
-        raise QuickEntryPermissionError(
-            f"Action not permitted or unknown: {action}"
-        )
-    # In a real implementation, open the relevant wizard/panel here
-    return True
+    raise RuntimeError(f"Quick Entry action is not connected: {action}")
 
 
-def execute_cli(command: str) -> str:
-    """Very small command router. Records would be audited in a real system."""
+def execute_cli(command: str, dispatcher: ActionDispatcher = dispatch) -> str:
+    """Parse a command and send it through the real Quick Entry dispatcher."""
     # Examples:
     # task new "Ground Sweep Alpha" priority=High team=G-2
     # log new "Team B departed ICP"
@@ -50,14 +38,14 @@ def execute_cli(command: str) -> str:
     text = next((a for a in args if "=" not in a), "")
 
     if domain == "task" and verb == "new":
-        dispatch("tasks.create", {"title": text, **kv})
+        dispatcher("tasks.create", {"title": text, **kv})
         return f"Task created: {text}"
     if domain == "log" and verb == "new":
-        dispatch("logs.createActivity", {"text": text, **kv})
-        return "Log entry created"
+        dispatcher("logs.createActivity", {"text": text, **kv})
+        return "Opened the ICS-214 activity log"
     if domain == "comms" and verb in {"add", "new"}:
-        dispatch("comms.createLogEntry", {"text": text, **kv})
-        return "Comms log entry created"
+        dispatcher("comms.createLogEntry", {"text": text, **kv})
+        return "Opened Communications Quick Entry"
     return f"Unknown command: {command}"
 
 

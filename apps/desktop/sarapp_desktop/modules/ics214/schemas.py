@@ -23,6 +23,7 @@ class SourceRecord(BaseModel):
 
 
 class EntryCreate(Associations):
+    log_keys: list[str] = Field(default_factory=list)
     text: str
     occurred_at: datetime | None = None
     critical_flag: bool = False
@@ -43,6 +44,7 @@ class EntryCreate(Associations):
 
 
 class EntryFilter(Associations):
+    log_keys: list[str] = Field(default_factory=list)
     operational_period_id: int | None = None
     incident_wide: bool | None = None
     unassigned: bool = False

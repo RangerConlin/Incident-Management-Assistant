@@ -4,10 +4,18 @@
 
 - `/api/incidents/{incident_id}/ics214/entries` is the canonical operational logging surface. There are no stored streams and no stream CRUD endpoints.
 - Entry writes go through `Ics214EntriesRepository`. Each entry is an independent immutable document; never add update or hard-delete entry endpoints.
-- Logical logs use filters over `person_ids`, `team_ids`, `task_ids`, `org_unit_ids`, `facility_ids`, `resource_ids`, and `external_agency_ids`.
-- `incident_wide=true` is intentional overall-incident scope. Empty association arrays with `incident_wide=false` are derived as unassigned and remain reviewable.
+- Immutable built-in logs use stable `log_keys` defined in
+  `sarapp_db.ics_reference`. They exist independently of incident organization
+  records and cannot be edited or archived through log-definition endpoints.
+- People, teams, tasks, organizational units, facilities, resources, and
+  agencies use typed ID arrays as optional secondary associations and filters;
+  they do not define the identity of a built-in log.
+- `incident_wide=true` is intentional overall-incident scope. Empty `log_keys`
+  and association arrays with `incident_wide=false` derive the unassigned state.
 - Corrections void the original and create a new entry linked by `corrects_entry_id`.
-- Saved definitions under `/ics214/log-definitions` store reusable filters and export header settings only.
+- `/ics214/log-definitions` returns immutable built-in definitions plus custom
+  saved filters. Custom definitions store reusable filters and export headers
+  only; they do not own or duplicate activity entries.
 - ICS-214 operational entries and technical audit records are separate systems.
 
 ## Core Rules

@@ -505,6 +505,39 @@ class SarAppApiClient {
     },
   );
 
+  Future<List<dynamic>> fetchIcs214Entries(
+    String incidentId, {
+    int? personRecord,
+    int? teamIntId,
+  }) => _getJsonList('/api/incidents/$incidentId/ics214/entries', {
+    'person_id': ?personRecord,
+    'team_id': ?teamIntId,
+  });
+
+  Future<Map<String, dynamic>> postIcs214Entry({
+    required String incidentId,
+    required String text,
+    required String actorUserId,
+    List<int> personIds = const [],
+    List<int> teamIds = const [],
+    bool incidentWide = false,
+    bool expandTeamMembers = false,
+    bool critical = false,
+  }) => _postJson(
+    '/api/incidents/$incidentId/ics214/entries',
+    body: {
+      'text': text,
+      'occurred_at': DateTime.now().toUtc().toIso8601String(),
+      'created_by': actorUserId,
+      'person_ids': personIds,
+      'team_ids': teamIds,
+      'incident_wide': incidentWide,
+      'expand_team_members': expandTeamMembers,
+      'critical_flag': critical,
+      'source': 'mobile',
+    },
+  );
+
   Future<Map<String, dynamic>> patchTeamStatus({
     required String incidentId,
     required String teamIntId,
@@ -532,6 +565,29 @@ class SarAppApiClient {
       _getJsonList('/api/incidents/$incidentId/safety/hazards', {
         'op_period': ?opPeriod,
       });
+
+  Future<List<dynamic>> fetchSafetyReports(String incidentId) =>
+      _getJsonList('/api/incidents/$incidentId/safety/reports');
+
+  Future<Map<String, dynamic>> createSafetyReport({
+    required String incidentId,
+    required String notes,
+    required String severity,
+    String? location,
+    String? reportedBy,
+    int? teamId,
+  }) => _postJson(
+    '/api/incidents/$incidentId/safety/reports',
+    body: {
+      'time': DateTime.now().toUtc().toIso8601String(),
+      'notes': notes,
+      'severity': severity,
+      'location': ?location,
+      'reported_by': ?reportedBy,
+      'team_id': ?teamId,
+      'flagged': severity == 'High' || severity == 'Emergency',
+    },
+  );
 
   /// IC objectives for the Incident Staff dashboard. Deliberately not
   /// filtered by operational period here — the objectives router's

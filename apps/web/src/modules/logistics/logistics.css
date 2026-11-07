@@ -16,6 +16,21 @@
 .logistics-print { line-height: 1.6; }
 .logistics-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 20px 0; }
 @media (max-width: 850px) { .logistics-grid, .logistics-form { grid-template-columns: 1fr; } }
+
+/* ---------------------------------------------------------------------
+ * Check-In workbench / Personnel Manager — cards, quick actions, and the
+ * small team-roster table used by the team check-in confirmation modal.
+ * ------------------------------------------------------------------- */
+.card { background: #17191d; border: 1px solid #2a2d33; border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; }
+.card > h3 { font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.04em; color: #9aa0a8; margin: 0 0 10px; font-weight: 700; }
+.hint { font-size: 0.74rem; color: #9aa0a8; margin-top: 6px; }
+.action-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 14px 0; }
+.preview-box { background: #1d2025; border: 1px solid #3a3f47; border-radius: 7px; padding: 10px 12px; font-size: 0.85rem; min-height: 38px; line-height: 1.5; margin-top: 10px; }
+.pm-section-label { font-size: 0.95rem; font-weight: 600; margin: 18px 0 8px; }
+.org-row { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
+.team-roster { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 8px; }
+.team-roster th { text-align: left; padding: 6px 8px; color: #9aa0a8; border-bottom: 1px solid #2a2d33; font-size: 0.75rem; text-transform: uppercase; }
+.team-roster td { padding: 6px 8px; border-bottom: 1px solid #202327; }
 @media print {
   body * { visibility: hidden; }
   .logistics-print, .logistics-print * { visibility: visible; }

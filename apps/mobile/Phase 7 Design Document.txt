@@ -84,7 +84,7 @@ Operations / Logs / Comms
 
 No unified feed endpoint currently exists. Candidate read model should aggregate operations, comms log, ICS 214, and status changes.
 
-sarapp_incident_<id>.tasks, communications_log, ics_214_logs, teams
+sarapp_incident_<id>.tasks, communications_log, ics_214_entries, teams
 
 Messaging System
 

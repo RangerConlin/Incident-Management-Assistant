@@ -122,7 +122,7 @@ export default function CommandDashboardPage() {
               summary={String(r.notes || "No notes recorded.")}
             >
               <p>Reported by {String(r.reported_by || "Unknown")} at {formatCommandTime(r.time as string | null)}.</p>
-              <Link className="panel-link" to="/safety">View safety reports →</Link>
+              <Link className="panel-link" to="/safety/reports">View safety reports →</Link>
             </EntryCard>
           ))}
       </section>

@@ -139,7 +139,7 @@ export default function PlanningDashboardPage() {
                 title={`${w.assignment_number} — ${w.assignment_name}`}
                 summary={`${w.planning_status} · ${w.branch || "No branch"}${w.division_group ? ` / ${w.division_group}` : ""}`}
               >
-                <Link className="panel-link" to="/planning/work-assignments">Open Work Assignments →</Link>
+                <Link className="panel-link" to="/tactics/assignments">Open Assignment Board →</Link>
               </EntryCard>
             ))}
         </section>

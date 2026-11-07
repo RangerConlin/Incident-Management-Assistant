@@ -1,15 +1,12 @@
 /// Hardcoded organization hierarchy used to populate the profile screen's
 /// "Organization" picker.
 ///
-/// This mirrors (by hand — kept in sync manually, not generated) the
-/// authoritative hardcoded data in
-/// `Incident-Management-Assistant/data/db/sarapp_db/org_catalog.py`
-/// (`org_data.py` there holds the lookup logic only). [bundled] below is the
-/// offline-first fallback so the profile screen always has options even on a
-/// device that has never reached a server; once the app has successfully
-/// synced via `OrganizationsSync`, the cached server copy (same shape) is
-/// used instead and takes precedence, so roster edits made server-side reach
-/// the field without an app update.
+/// [bundled] below is the mobile client's hand-maintained, offline-first
+/// fallback so the profile screen always has options even on a device that
+/// has never reached a server. Once the app has successfully synced via
+/// `OrganizationsSync`, the cached server copy (same shape) is used instead
+/// and takes precedence, so roster edits made server-side reach the field
+/// without an app update.
 library;
 
 /// One node in the flat organization list, as served by
@@ -49,11 +46,9 @@ class OrgEntry {
 class Organizations {
   Organizations._();
 
-  // Manual mirror of org_catalog.py's ORGANIZATIONS — update by hand when
-  // that file changes (regenerated wholesale 2026-10 via a one-off script
-  // reading the live Python catalog, not retyped; see the TODO still in
-  // org_catalog.py for what's still a draft -- the non-MSP state-agency
-  // list).
+  // Hand-maintained offline fallback. Keep changes aligned with the central
+  // master catalog; the cached server roster takes precedence after a
+  // successful sync.
   static const List<OrgEntry> bundled = [
     OrgEntry(
       key: 'cap',

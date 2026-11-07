@@ -34,7 +34,7 @@ def _query(filters: EntryFilter | None) -> dict[str, Any]:
         "person_ids": "person_id", "team_ids": "team_id", "task_ids": "task_id",
         "org_unit_ids": "org_unit_id", "facility_ids": "facility_id",
         "resource_ids": "resource_id", "external_agency_ids": "external_agency_id",
-        "sources": "source",
+        "sources": "source", "log_keys": "log_key",
     }
     data = filters.model_dump(mode="json", exclude_none=True)
     for field, value in data.items():
@@ -57,6 +57,10 @@ def create_entry(incident_id: str, data: EntryCreate) -> dict[str, Any]:
 
 def list_entries(incident_id: str, filters: EntryFilter | None = None) -> list[dict[str, Any]]:
     return _client().get(f"/api/incidents/{incident_id}/ics214/entries", params=_query(filters))
+
+
+def get_entry(incident_id: str, entry_id: str) -> dict[str, Any]:
+    return _client().get(f"/api/incidents/{incident_id}/ics214/entries/{entry_id}")
 
 
 def association_options(incident_id: str) -> dict[str, list[dict[str, Any]]]:

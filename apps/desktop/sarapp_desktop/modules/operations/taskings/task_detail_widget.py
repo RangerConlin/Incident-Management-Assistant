@@ -1749,20 +1749,21 @@ class TaskDetailWindow(QWidget):
             log_layout.setContentsMargins(0, 0, 0, 0)
             self._log_tabs = QTabWidget(log_container)
             log_layout.addWidget(self._log_tabs)
-            # ICS-214 (team-specific)
+            # ICS-214 entries associated with this task.
             ics214 = QWidget(self); ics_layout = QVBoxLayout(ics214); ics_layout.setContentsMargins(0, 0, 0, 0)
             ics_bar = QHBoxLayout()
-            # Toolbar actions only; ICS-214 stream is always scoped to this task
+            # This is a filtered view of the incident-wide stream, scoped to this task.
+            self._btn_214_add = QPushButton("Add Entry")
             self._btn_214_refresh = QPushButton("Refresh")
             self._btn_214_export = QPushButton("Export 214")
             self._btn_214_edit = QPushButton("Correct")
             self._btn_214_delete = QPushButton("Void")
             self._btn_214_open_full = QPushButton("Open Full Log")
-            for b in (self._btn_214_refresh, self._btn_214_export, self._btn_214_edit, self._btn_214_delete, self._btn_214_open_full): ics_bar.addWidget(b)
+            for b in (self._btn_214_add, self._btn_214_refresh, self._btn_214_export, self._btn_214_edit, self._btn_214_delete, self._btn_214_open_full): ics_bar.addWidget(b)
             ics_bar.addStretch(1); ics_layout.addLayout(ics_bar)
             self._tbl_214 = QTableView(self)
-            self._model_214 = QStandardItemModel(0, 3, self)
-            self._model_214.setHorizontalHeaderLabels(["Timestamp", "Entry", "Entered By"])
+            self._model_214 = QStandardItemModel(0, 5, self)
+            self._model_214.setHorizontalHeaderLabels(["Occurred", "Entry", "Entered By", "Source", "Critical"])
             self._tbl_214.setModel(self._model_214); self._tbl_214.setSortingEnabled(True)
             apply_statusboard_table_behavior(self._tbl_214)
             # Resize behavior: Timestamp autosize to contents; Entry stretches
@@ -1828,6 +1829,7 @@ class TaskDetailWindow(QWidget):
             self._tlog_field.returnPressed.connect(self._load_task_log)
             self._tlog_from.returnPressed.connect(self._load_task_log)
             self._tlog_to.returnPressed.connect(self._load_task_log)
+            self._btn_214_add.clicked.connect(self._add_ics214_entry)
             self._btn_214_refresh.clicked.connect(self._load_ics214)
             self._btn_214_export.clicked.connect(self._export_ics214)
             self._btn_214_delete.clicked.connect(self._delete_ics214_entry)
@@ -3303,7 +3305,7 @@ class TaskDetailWindow(QWidget):
             try:
                 from PySide6.QtWidgets import QMessageBox
                 if ok:
-                    QMessageBox.information(self, "ICS-214", "Added entry to Team log.")
+                    QMessageBox.information(self, "ICS-214", "Added entry to the task-scoped ICS-214 view.")
                 else:
                     QMessageBox.warning(self, "ICS-214", "Unable to add to ICS-214. Ensure a team is selected and an active incident is set.")
             except Exception:
@@ -3341,7 +3343,7 @@ class TaskDetailWindow(QWidget):
             try:
                 from PySide6.QtWidgets import QMessageBox
                 if ok:
-                    QMessageBox.information(self, "ICS-214", "Added entry to Team log.")
+                    QMessageBox.information(self, "ICS-214", "Added entry to the task-scoped ICS-214 view.")
                 else:
                     QMessageBox.warning(self, "ICS-214", "Unable to add to ICS-214. Ensure a team is selected and an active incident is set.")
             except Exception:
@@ -3527,7 +3529,11 @@ class TaskDetailWindow(QWidget):
                 it_ts.setData(str(r.get("id") or ""), Qt.UserRole)
             except Exception:
                 pass
-            self._model_214.appendRow([it_ts, it_entry, it_by])
+            self._model_214.appendRow([
+                it_ts, it_entry, it_by,
+                QStandardItem(str(r.get("source") or "manual")),
+                QStandardItem("Yes" if r.get("critical_flag") else ""),
+            ])
 
     def _export_ics214(self) -> None:
         try:
@@ -3574,38 +3580,22 @@ class TaskDetailWindow(QWidget):
         except Exception:
             pass
 
+    def _add_ics214_entry(self) -> None:
+        inc, task_id = self._get_ops_214_scope()
+        if not inc or not task_id:
+            return
+        from modules.ics214.widgets.activity_log import create_scoped_entry
+        if create_scoped_entry(self, inc, "task_ids", task_id):
+            self._load_ics214()
+
     def _edit_ics214_entry(self) -> None:
-        try:
-            inc, task_id = self._get_ops_214_scope()
-            entry_id = self._selected_214_entry_id()
-            if not inc or not entry_id:
-                return
-            try:
-                r = self._tbl_214.selectionModel().selectedRows()[0].row()
-                current = str(self._model_214.item(r, 1).text() or "")
-            except Exception:
-                current = ""
-            from PySide6.QtWidgets import QDialog, QVBoxLayout, QTextEdit, QHBoxLayout, QPushButton
-            dlg = QDialog(self); dlg.setWindowTitle("Edit 214 Entry")
-            lay = QVBoxLayout(dlg)
-            te = QTextEdit(dlg); te.setPlainText(current); lay.addWidget(te)
-            btns = QHBoxLayout(); ok = QPushButton("Save"); cancel = QPushButton("Cancel"); btns.addStretch(1); btns.addWidget(ok); btns.addWidget(cancel); lay.addLayout(btns)
-            ok.clicked.connect(dlg.accept); cancel.clicked.connect(dlg.reject)
-            if dlg.exec_():
-                new_txt = te.toPlainText().strip()
-                if new_txt:
-                    from modules.ics214 import services
-                    from modules.ics214.schemas import CorrectionCreate
-                    from utils.state import AppState
-                    services.correct_entry(inc, entry_id, CorrectionCreate(
-                        text=new_txt, task_ids=[int(task_id)],
-                        created_by=str(AppState.get_active_user_id() or ""),
-                        voided_by=str(AppState.get_active_user_id() or "unknown"),
-                        void_reason="Corrected from task detail",
-                    ))
-                    self._load_ics214()
-        except Exception:
-            pass
+        inc, _task_id = self._get_ops_214_scope()
+        entry_id = self._selected_214_entry_id()
+        if not inc or not entry_id:
+            return
+        from modules.ics214.widgets.activity_log import correct_entry_with_dialog
+        if correct_entry_with_dialog(self, inc, entry_id):
+            self._load_ics214()
 
     def _is_row_critical(self, row: int) -> bool:
         try:

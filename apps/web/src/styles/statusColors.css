@@ -161,6 +161,13 @@
   --status-approval-step-completed-bg: #16a34a; --status-approval-step-completed-fg: #16a34a;
   --status-approval-step-skipped-bg: #6b7280; --status-approval-step-skipped-fg: #6b7280;
 
+  /* SPE_BAND — safety.py's _spe_band (Hazard Register / SPE scoring) */
+  --status-spe-band-slight-bg: #16a34a; --status-spe-band-slight-fg: #ffffff;
+  --status-spe-band-possible-bg: #0ea5a5; --status-spe-band-possible-fg: #ffffff;
+  --status-spe-band-substantial-bg: #d97706; --status-spe-band-substantial-fg: #ffffff;
+  --status-spe-band-high-bg: #b91c1c; --status-spe-band-high-fg: #ffffff;
+  --status-spe-band-very-high-bg: #7f1d1d; --status-spe-band-very-high-fg: #ffffff;
+
   /* INTEL_PRIORITY_COLORS */
   --status-intel-priority-critical-bg: #3d1414; --status-intel-priority-critical-fg: #cf222e;
   --status-intel-priority-high-bg: #3d2c08; --status-intel-priority-high-fg: #d29922;
@@ -352,6 +359,13 @@
   --status-approval-step-active-bg: #fb8c00; --status-approval-step-active-fg: #fb8c00;
   --status-approval-step-completed-bg: #2e7d32; --status-approval-step-completed-fg: #2e7d32;
   --status-approval-step-skipped-bg: #bdbdbd; --status-approval-step-skipped-fg: #bdbdbd;
+
+  /* SPE_BAND — safety.py's _spe_band (Hazard Register / SPE scoring) */
+  --status-spe-band-slight-bg: #2e7d32; --status-spe-band-slight-fg: #ffffff;
+  --status-spe-band-possible-bg: #00838f; --status-spe-band-possible-fg: #ffffff;
+  --status-spe-band-substantial-bg: #fb8c00; --status-spe-band-substantial-fg: #1a1a1a;
+  --status-spe-band-high-bg: #c62828; --status-spe-band-high-fg: #ffffff;
+  --status-spe-band-very-high-bg: #7f1d1d; --status-spe-band-very-high-fg: #ffffff;
 
   /* INTEL_PRIORITY_COLORS */
   --status-intel-priority-critical-bg: #3d1414; --status-intel-priority-critical-fg: #cf222e;

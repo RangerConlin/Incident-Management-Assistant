@@ -585,7 +585,8 @@ class OperationalPeriodManagerPanel(QWidget):
             self.safety_edit.setPlainText(period.safety_message)
             summary = self.repository.period_summary(period.id or 0)
             for key, label in self.summary_labels.items():
-                label.setText(str(summary.get(key, 0)))
+                count = summary.get(key)
+                label.setText(str(count) if count is not None else "—")
             self._set_active_btn.setEnabled(period.status != "Active")
             self._clear_dirty()
         finally:

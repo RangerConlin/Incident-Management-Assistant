@@ -18,6 +18,7 @@ import {
   approvalStatusVar,
   approvalStepStatusVar,
   intelPriorityVar,
+  speBandVar,
 } from "../../styles/statusColors";
 
 type Domain =
@@ -39,7 +40,8 @@ type Domain =
   | "facility"
   | "approval"
   | "approval-step"
-  | "intel-priority";
+  | "intel-priority"
+  | "spe-band";
 
 interface StatusPillProps {
   domain?: Domain;
@@ -67,6 +69,7 @@ const RESOLVERS: Record<Domain, (key: string) => { bg: string; fg: string }> = {
   approval: approvalStatusVar,
   "approval-step": approvalStepStatusVar,
   "intel-priority": intelPriorityVar,
+  "spe-band": speBandVar,
 };
 
 export default function StatusPill({ domain, statusKey, label }: StatusPillProps) {

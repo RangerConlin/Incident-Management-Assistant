@@ -23,6 +23,14 @@ import SitrepsBoardPage from "./modules/planning/sitreps/SitrepsBoardPage";
 import SitrepDetailPage from "./modules/planning/sitreps/SitrepDetailPage";
 import WorkAssignmentsBoardPage from "./modules/planning/workAssignments/WorkAssignmentsBoardPage";
 import WorkAssignmentDetailPage from "./modules/planning/workAssignments/WorkAssignmentDetailPage";
+import MedicalDashboardPage from "./modules/medical/MedicalDashboardPage";
+import Ics206BuilderPage from "./modules/medical/Ics206BuilderPage";
+import SafetyDashboardPage from "./modules/safety/SafetyDashboardPage";
+import SafetyMessagePage from "./modules/safety/SafetyMessagePage";
+import HazardDashboardPage from "./modules/safety/HazardDashboardPage";
+import CapOrmWorksheetPage from "./modules/safety/CapOrmWorksheetPage";
+import IwiDashboardPage from "./modules/safety/IwiDashboardPage";
+import IwiDetailPage from "./modules/safety/IwiDetailPage";
 
 import CommandDashboardPage from "./modules/command/CommandDashboardPage";
 import IncidentOverviewPage from "./modules/command/IncidentOverviewPage";
@@ -32,6 +40,7 @@ import IapPackagesPage from "./modules/command/IapPackagesPage";
 import ResourceStatusBoardPage from "./modules/logistics/resourceStatus/ResourceStatusBoardPage";
 import ResourceDetailPage from "./modules/logistics/resourceStatus/ResourceDetailPage";
 import CheckInPage from "./modules/logistics/checkin/CheckInPage";
+import PersonnelManagerPage from "./modules/logistics/personnelManager/PersonnelManagerPage";
 
 import PublicInformationLayout from "./modules/publicInformation/PublicInformationLayout";
 import PioOverviewPage from "./modules/publicInformation/PioOverviewPage";
@@ -227,6 +236,14 @@ export default function App() {
           }
         />
         <Route
+          path="logistics/personnel"
+          element={
+            <RequireIncident>
+              <PersonnelManagerPage />
+            </RequireIncident>
+          }
+        />
+        <Route
           path="planning"
           element={
             <RequireIncident>
@@ -299,7 +316,7 @@ export default function App() {
           }
         />
         <Route
-          path="planning/work-assignments"
+          path="tactics/assignments"
           element={
             <RequireIncident>
               <WorkAssignmentsBoardPage />
@@ -307,10 +324,74 @@ export default function App() {
           }
         />
         <Route
-          path="planning/work-assignments/:waId"
+          path="tactics/assignments/:waId"
           element={
             <RequireIncident>
               <WorkAssignmentDetailPage />
+            </RequireIncident>
+          }
+        />
+        <Route
+          path="medical"
+          element={
+            <RequireIncident>
+              <MedicalDashboardPage />
+            </RequireIncident>
+          }
+        />
+        <Route
+          path="medical/206"
+          element={
+            <RequireIncident>
+              <Ics206BuilderPage />
+            </RequireIncident>
+          }
+        />
+        <Route
+          path="safety"
+          element={
+            <RequireIncident>
+              <SafetyDashboardPage />
+            </RequireIncident>
+          }
+        />
+        <Route
+          path="safety/208"
+          element={
+            <RequireIncident>
+              <SafetyMessagePage />
+            </RequireIncident>
+          }
+        />
+        <Route
+          path="safety/hazards"
+          element={
+            <RequireIncident>
+              <HazardDashboardPage />
+            </RequireIncident>
+          }
+        />
+        <Route
+          path="safety/orm"
+          element={
+            <RequireIncident>
+              <CapOrmWorksheetPage />
+            </RequireIncident>
+          }
+        />
+        <Route
+          path="safety/iwi"
+          element={
+            <RequireIncident>
+              <IwiDashboardPage />
+            </RequireIncident>
+          }
+        />
+        <Route
+          path="safety/iwi/:reportId"
+          element={
+            <RequireIncident>
+              <IwiDetailPage />
             </RequireIncident>
           }
         />

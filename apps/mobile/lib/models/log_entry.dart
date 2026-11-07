@@ -1,6 +1,6 @@
 import '../utils/json_parsing.dart';
 
-/// A canonical ICS 214 activity entry associated with a team
+/// A canonical ICS 214 activity entry, viewed through a team association
 /// (`GET/POST .../incidents/{id}/mobile/teams/{team_id}/log`).
 ///
 /// The server stores one free-text `text` field per entry, so the sheet's

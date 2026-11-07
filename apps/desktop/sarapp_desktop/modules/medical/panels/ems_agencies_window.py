@@ -276,7 +276,6 @@ class EMSAgenciesWindow(QMainWindow):
         self.export_button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
         export_menu = QMenu(self)
         self.act_export_csv = export_menu.addAction("Export CSV…")
-        self.act_export_print = export_menu.addAction("Print…")
         self.export_button.setMenu(export_menu)
         toolbar.addWidget(self.export_button)
 
@@ -418,7 +417,6 @@ class EMSAgenciesWindow(QMainWindow):
         self.act_import_append.triggered.connect(lambda: self._import_selected("append"))
         self.act_import_create.triggered.connect(lambda: self._import_selected("create"))
         self.act_export_csv.triggered.connect(self._export_csv)
-        self.act_export_print.triggered.connect(self._print_placeholder)
         self.import_button.clicked.connect(lambda: self._import_selected("append"))
         self.export_button.clicked.connect(self._export_csv)
         self.search_edit.textChanged.connect(self._on_search_changed)
@@ -652,9 +650,6 @@ class EMSAgenciesWindow(QMainWindow):
             QMessageBox.critical(self, "Export failed", str(exc))
         else:
             QMessageBox.information(self, "Export", f"Exported {len(self.model._rows)} rows to {path}.")
-
-    def _print_placeholder(self) -> None:
-        QMessageBox.information(self, "Print", "Print support coming soon.")
 
     def _open_context_menu(self, point: QPoint) -> None:
         menu = QMenu(self)

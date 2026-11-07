@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from typing import List, Dict, TYPE_CHECKING
 
 from PySide6.QtWidgets import (
@@ -10,7 +11,6 @@ from PySide6.QtWidgets import (
 from ui.widgets.base import snap_width
 from ui.widgets import registry as W
 from ui.widgets.components import QuickEntryWidget
-from ui.actions.quick_entry_actions import dispatch as qe_dispatch, execute_cli as qe_cli
 from utils.settingsmanager import SettingsManager
 
 if TYPE_CHECKING:
@@ -29,10 +29,14 @@ class HomeDashboard(QWidget):
         settings: SettingsManager | None = None,
         parent=None,
         customization_repo: "UICustomizationRepository | None" = None,
+        quick_entry_dispatch: Callable[[str, dict], object] | None = None,
+        quick_entry_cli: Callable[[str], str] | None = None,
     ):
         super().__init__(parent)
         self._settings = settings or SettingsManager()
         self._customization_repo = customization_repo
+        self._quick_entry_dispatch = quick_entry_dispatch
+        self._quick_entry_cli = quick_entry_cli
 
         outer = QVBoxLayout(self)
         scroll = QScrollArea(self)
@@ -64,7 +68,9 @@ class HomeDashboard(QWidget):
             # construct component
             comp: QWidget
             if wid == "quickEntry":
-                comp = QuickEntryWidget(qe_dispatch, qe_cli)
+                if self._quick_entry_dispatch is None or self._quick_entry_cli is None:
+                    continue
+                comp = QuickEntryWidget(self._quick_entry_dispatch, self._quick_entry_cli)
             else:
                 if callable(spec.component):
                     comp = spec.component()  # type: ignore

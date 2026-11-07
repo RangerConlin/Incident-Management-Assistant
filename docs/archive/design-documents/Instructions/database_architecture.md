@@ -56,6 +56,18 @@
 - FastAPI/services should accept `incident_id` explicitly where practical so routing stays obvious and testable.
 - Tests can set `AppState.set_active_incident("TEST-123")` or `incident_context.set_active_incident("TEST-123")`; use `CHECKIN_DATA_DIR` for sandboxed paths.
 
+## ICS-214 Built-In Logs
+- Built-in ICS logs are immutable application reference definitions in
+  `sarapp_db.ics_reference`; they are not editable catalog records and do not
+  depend on the incident organization chart or staffing.
+- ICS-214 entries identify their built-in logs with stable `log_keys`. People,
+  teams, tasks, facilities, resources, and incident organization records are
+  optional secondary associations and must not be used to infer log identity.
+- Desktop menu launchers pass a built-in log key directly. A menu log must
+  always open and accept entries even when the incident has no organization
+  records. Incident-created organizational elements may still use their own
+  ID-based associations and custom saved filters.
+
 ## Resource Associations And Resource Packages (sarapp_master)
 - `MasterCollections.RESOURCE_ASSOCIATIONS` (`resource_associations.py` router,
   `server/sarapp_db/sarapp_db/mongo/resource_kinds.py` helper) holds

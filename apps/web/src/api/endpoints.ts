@@ -11,7 +11,8 @@ export const listCertificationTypes=()=>api.get<RecordData[]>("/api/master/certi
 export const listPersonCertifications=(p:string)=>api.get<RecordData[]>(`/api/master/certifications/personnel/${encodeURIComponent(p)}`);
 export const assignPersonCertification=(p:string,c:string,l:number)=>api.post<RecordData>(`/api/master/certifications/personnel/${encodeURIComponent(p)}/${encodeURIComponent(c)}`,{level:l});
 export const removePersonCertification=(p:string,c:string)=>api.delete<void>(`/api/master/certifications/personnel/${encodeURIComponent(p)}/${encodeURIComponent(c)}`);
-export const getWeatherConfig=(id:string)=>api.get<RecordData>(`/api/incidents/${encodeURIComponent(id)}/weather/config`);
+export const getWeatherConfig=(id:string)=>api.get<WeatherConfig>(`/api/incidents/${encodeURIComponent(id)}/weather/config`);
+export const updateWeatherConfig=(id:string,b:Record<string,unknown>)=>api.put<WeatherConfig>(`/api/incidents/${encodeURIComponent(id)}/weather/config`,b);
 export const addWeatherLocation=(id:string,b:RecordData)=>api.post<RecordData>(`/api/incidents/${encodeURIComponent(id)}/weather/locations`,b);
 export const removeWeatherLocation=(id:string,l:string)=>api.delete<RecordData>(`/api/incidents/${encodeURIComponent(id)}/weather/locations/${encodeURIComponent(l)}`);
 export const setWeatherDefault=(id:string,l:string)=>api.patch<RecordData>(`/api/incidents/${encodeURIComponent(id)}/weather/locations/${encodeURIComponent(l)}/default`,{});
@@ -19,6 +20,8 @@ export const weatherHistory=(id:string,l:string)=>api.get<{samples:RecordData[]}
 import type {
   ChannelsPlanValidation,
   CheckinRosterRow,
+  CheckinTeamRow,
+  CheckinHistoryItem,
   CommsContact,
   CommsLogEntry,
   CommunicationsPlan,
@@ -47,6 +50,16 @@ import type {
   PioRecord,
   PioTimelineEvent,
   LoginResponse,
+  CapOrmForm,
+  CapOrmHazard,
+  Hazard,
+  Ics208,
+  IwiReport,
+  WeatherConfig,
+  MedicalPlan,
+  MedicalPlanAidStation,
+  MedicalPlanTable,
+  MedicalPlanVersionSummary,
   Meeting,
   MeetingAttendee,
   MeetingChecklistItem,
@@ -707,6 +720,60 @@ export function patchCheckin(incidentId: string, personRecord: number, body: Rec
   return api.patch<Record<string, unknown>>(`/api/incidents/${incidentId}/checkin/${personRecord}`, body);
 }
 
+export function listCheckinHistory(incidentId: string, personRecord: number) {
+  return api.get<CheckinHistoryItem[]>(`/api/incidents/${incidentId}/checkin/history/${personRecord}`);
+}
+
+// Logistics: Check-In — Groups/Teams tab (ICS-211 team check-in/disband).
+export function listCheckinTeams(incidentId: string, checkedIn: boolean, includeDisbanded = false) {
+  return api.get<CheckinTeamRow[]>(
+    `/api/incidents/${incidentId}/checkin/teams/checked-state?checked_in=${checkedIn}&include_disbanded=${includeDisbanded}`
+  );
+}
+
+export function teamCheckIn(
+  incidentId: string,
+  teamId: number | string,
+  body: { keep_together: boolean; checked_in_by?: string; checkin_notes?: string; status?: string }
+) {
+  return api.post<Record<string, unknown>>(`/api/incidents/${incidentId}/checkin/teams/${teamId}/checkin`, body);
+}
+
+export function teamDisband(incidentId: string, teamId: number | string, body: { disbanded_by?: string } = {}) {
+  return api.post<Record<string, unknown>>(`/api/incidents/${incidentId}/checkin/teams/${teamId}/disband`, body);
+}
+
+// Logistics: Check-In — status actions (Enroute / Prep Demob / Cancelled)
+// on an already-tracked resource_status row, mirrors the desktop ICS-211
+// window's use of the resource-status router (a different mount than the
+// /resources router the Resource Status Board uses above).
+export function getResourceStatusByEntity(incidentId: string, entityType: string, recordId: string | number) {
+  return api.get<ResourceStatusRow | null>(
+    `/api/incidents/${incidentId}/resource-status/by-entity?entity_type=${encodeURIComponent(entityType)}&record_id=${encodeURIComponent(String(recordId))}`
+  );
+}
+
+export function setResourceStatusStatus(incidentId: string, itemId: string, status: string) {
+  return api.patch<ResourceStatusRow>(`/api/incidents/${incidentId}/resource-status/${itemId}/status`, {
+    status,
+    changed_by: "Check-In",
+  });
+}
+
+// Logistics: Check-In — "Add New Record" (master catalog create).
+export function createMasterPersonnel(body: Record<string, unknown>) {
+  return api.post<MasterPersonnelSummary>(`/api/master/personnel`, body);
+}
+export function createMasterVehicle(body: Record<string, unknown>) {
+  return api.post<MasterVehicle>(`/api/master/vehicles`, body);
+}
+export function createMasterAircraft(body: Record<string, unknown>) {
+  return api.post<MasterAircraft>(`/api/master/aircraft`, body);
+}
+export function createMasterEquipment(body: Record<string, unknown>) {
+  return api.post<MasterEquipment>(`/api/master/equipment`, body);
+}
+
 // Liaison coordination uses the shared API; only supported write paths are exposed.
 export type LiaisonSection = "agencies" | "requests" | "reporting-digests" | "interactions";
 const liaisonBase = (id: string) => `/api/incidents/${encodeURIComponent(id)}/liaison`;
@@ -838,3 +905,101 @@ const gisFeaturesBase = (incidentId: string) => `/api/incidents/${encodeURICompo
 export const listSpatialFeatures = (incidentId: string) => api.get<SpatialFeature[]>(gisFeaturesBase(incidentId));
 export const archiveSpatialFeature = (incidentId: string, featureId: number) =>
   api.patch<SpatialFeature>(`${gisFeaturesBase(incidentId)}/${featureId}/archive`, {});
+
+// ---------------------------------------------------------------------------
+// Medical: the editable ICS-206 plan. Mirrors medical.py's "Editable ICS-206
+// plan API" section — one doc per (op_period, version), locked once
+// approval_status leaves "not_started".
+// ---------------------------------------------------------------------------
+const medicalBase = (incidentId: string) => `/api/incidents/${encodeURIComponent(incidentId)}/medical`;
+const opVersionQs = (op: number, version?: number) => `op=${op}${version !== undefined ? `&version=${version}` : ""}`;
+
+export const getMedicalPlan = (incidentId: string, op: number, version?: number, prepared?: { name?: string; personnelId?: string; position?: string }) => {
+  const qs = new URLSearchParams({ op: String(op) });
+  if (version !== undefined) qs.set("version", String(version));
+  if (prepared?.name) qs.set("prepared_name", prepared.name);
+  if (prepared?.personnelId) qs.set("prepared_personnel_id", prepared.personnelId);
+  if (prepared?.position) qs.set("prepared_position", prepared.position);
+  return api.get<MedicalPlan>(`${medicalBase(incidentId)}/plan?${qs.toString()}`);
+};
+export const listMedicalPlanVersions = (incidentId: string, op: number) =>
+  api.get<MedicalPlanVersionSummary[]>(`${medicalBase(incidentId)}/plan/versions?op=${op}`);
+export const createMedicalPlanNewVersion = (incidentId: string, op: number, version: number | undefined, body: { change_note?: string; person?: Record<string, unknown> }) =>
+  api.post<{ version: number }>(`${medicalBase(incidentId)}/plan/new-version?${opVersionQs(op, version)}`, body);
+export const duplicateMedicalPlanLastOp = (incidentId: string, op: number, version: number | undefined, body: { person?: Record<string, unknown> }) =>
+  api.post<{ duplicated: boolean }>(`${medicalBase(incidentId)}/plan/duplicate-last-op?${opVersionQs(op, version)}`, body);
+export const saveMedicalPlanProcedures = (incidentId: string, op: number, version: number | undefined, content: string) =>
+  api.patch<{ content: string }>(`${medicalBase(incidentId)}/plan/procedures?${opVersionQs(op, version)}`, { content });
+export const submitMedicalPlanForApproval = (incidentId: string, op: number, version: number | undefined) =>
+  api.patch<{ approval_status: string }>(`${medicalBase(incidentId)}/plan/status?${opVersionQs(op, version)}`, { status: "pending" });
+export const applyMedicalPlanApproval = (incidentId: string, op: number, version: number | undefined, outcome: "approved" | "rejected", person?: Record<string, unknown>) =>
+  api.post<MedicalPlan>(`${medicalBase(incidentId)}/plan/approval?${opVersionQs(op, version)}`, { outcome, person });
+
+export const addMedicalPlanRow = (incidentId: string, table: MedicalPlanTable, op: number, version: number | undefined, body: Record<string, unknown>) =>
+  api.post<Record<string, unknown>>(`${medicalBase(incidentId)}/plan/${table}?${opVersionQs(op, version)}`, body);
+export const updateMedicalPlanRow = (incidentId: string, table: MedicalPlanTable, rowId: number, op: number, version: number | undefined, body: Record<string, unknown>) =>
+  api.patch<Record<string, unknown>>(`${medicalBase(incidentId)}/plan/${table}/${rowId}?${opVersionQs(op, version)}`, body);
+export const deleteMedicalPlanRow = (incidentId: string, table: MedicalPlanTable, rowId: number, op: number, version: number | undefined) =>
+  api.delete<void>(`${medicalBase(incidentId)}/plan/${table}/${rowId}?${opVersionQs(op, version)}`);
+export const importMedicalPlanTable = (incidentId: string, table: MedicalPlanTable, op: number, version: number | undefined) =>
+  api.post<{ count: number }>(`${medicalBase(incidentId)}/plan/${table}/import?${opVersionQs(op, version)}`);
+
+export const listMedicalAidStations = (incidentId: string, op: number, version?: number) =>
+  api.get<MedicalPlanAidStation[]>(`${medicalBase(incidentId)}/aid-stations?${opVersionQs(op, version)}`);
+export const createMedicalAidStation = (incidentId: string, op: number, version: number | undefined, body: Record<string, unknown>) =>
+  api.post<MedicalPlanAidStation>(`${medicalBase(incidentId)}/aid-stations?${opVersionQs(op, version)}`, body);
+export const updateMedicalAidStation = (incidentId: string, rowId: number, op: number, version: number | undefined, body: Record<string, unknown>) =>
+  api.patch<MedicalPlanAidStation>(`${medicalBase(incidentId)}/aid-stations/${rowId}?${opVersionQs(op, version)}`, body);
+export const deleteMedicalAidStation = (incidentId: string, rowId: number, op: number, version: number | undefined) =>
+  api.delete<void>(`${medicalBase(incidentId)}/aid-stations/${rowId}?${opVersionQs(op, version)}`);
+export const importMedicalAidStations = (incidentId: string, op: number, version: number | undefined) =>
+  api.post<{ count: number }>(`${medicalBase(incidentId)}/aid-stations/import?${opVersionQs(op, version)}`);
+
+// ---------------------------------------------------------------------------
+// Safety: canonical Hazard Register (SPE) and ICS-208 Safety Message.
+// Mirrors routers/safety.py.
+// ---------------------------------------------------------------------------
+const safetyBase = (incidentId: string) => `/api/incidents/${encodeURIComponent(incidentId)}/safety`;
+
+export const listHazards = (incidentId: string, opPeriod?: number) =>
+  api.get<Hazard[]>(`${safetyBase(incidentId)}/hazards${opPeriod !== undefined ? `?op_period=${opPeriod}` : ""}`);
+export const getHazard = (incidentId: string, hazardId: number) => api.get<Hazard>(`${safetyBase(incidentId)}/hazards/${hazardId}`);
+export const createHazard = (incidentId: string, body: Record<string, unknown>) => api.post<Hazard>(`${safetyBase(incidentId)}/hazards`, body);
+export const updateHazard = (incidentId: string, hazardId: number, body: Record<string, unknown>) =>
+  api.patch<Hazard>(`${safetyBase(incidentId)}/hazards/${hazardId}`, body);
+export const deleteHazard = (incidentId: string, hazardId: number) => api.delete<void>(`${safetyBase(incidentId)}/hazards/${hazardId}`);
+
+export const getIcs208 = (incidentId: string, op: number) => api.get<Ics208>(`${safetyBase(incidentId)}/ics208?op=${op}`);
+export const saveIcs208 = (incidentId: string, body: Record<string, unknown>) => api.put<Ics208>(`${safetyBase(incidentId)}/ics208`, body);
+
+// ---------------------------------------------------------------------------
+// CAP ORM Worksheet (CAPF-160 compatibility view). Mirrors routers/safety.py.
+// ---------------------------------------------------------------------------
+const ormBase = (incidentId: string) => `${safetyBase(incidentId)}/orm`;
+export const getCapOrmForm = (incidentId: string, op: number) => api.get<CapOrmForm>(`${ormBase(incidentId)}/form?op=${op}`);
+export const saveCapOrmForm = (incidentId: string, body: Record<string, unknown>) => api.put<CapOrmForm>(`${ormBase(incidentId)}/form`, body);
+export const listCapOrmHazards = (incidentId: string, op: number) => api.get<CapOrmHazard[]>(`${ormBase(incidentId)}/hazards?op=${op}`);
+export const createCapOrmHazard = (incidentId: string, body: Record<string, unknown>) => api.post<CapOrmHazard>(`${ormBase(incidentId)}/hazards`, body);
+export const updateCapOrmHazard = (incidentId: string, hazardId: number, op: number, body: Record<string, unknown>) =>
+  api.put<CapOrmHazard>(`${ormBase(incidentId)}/hazards/${hazardId}?op=${op}`, body);
+export const deleteCapOrmHazard = (incidentId: string, hazardId: number, op: number) => api.delete<void>(`${ormBase(incidentId)}/hazards/${hazardId}?op=${op}`);
+export const approveCapOrmForm = (incidentId: string, op: number) => api.post<CapOrmForm>(`${ormBase(incidentId)}/approve`, { op_period: op });
+
+// ---------------------------------------------------------------------------
+// IWI (Illness/Injury "Safety Incident") reports. Mirrors routers/safety.py.
+// ---------------------------------------------------------------------------
+const iwiBase = (incidentId: string) => `${safetyBase(incidentId)}/iwi`;
+export function listIwiReports(incidentId: string, params: { severity?: string; status?: string } = {}) {
+  const qs = new URLSearchParams();
+  if (params.severity) qs.set("severity", params.severity);
+  if (params.status) qs.set("status", params.status);
+  const q = qs.toString();
+  return api.get<IwiReport[]>(`${iwiBase(incidentId)}${q ? `?${q}` : ""}`);
+}
+export const getIwiReport = (incidentId: string, reportId: string) => api.get<IwiReport>(`${iwiBase(incidentId)}/${encodeURIComponent(reportId)}`);
+export const createIwiReport = (incidentId: string, body: Record<string, unknown>) => api.post<IwiReport>(iwiBase(incidentId), body);
+export const updateIwiReport = (incidentId: string, reportId: string, body: Record<string, unknown>) =>
+  api.put<IwiReport>(`${iwiBase(incidentId)}/${encodeURIComponent(reportId)}`, body);
+export const signoffIwiReport = (incidentId: string, reportId: string, role: string, name: string) =>
+  api.post<IwiReport>(`${iwiBase(incidentId)}/${encodeURIComponent(reportId)}/signoff`, { role, name });
+export const deleteIwiReport = (incidentId: string, reportId: string) => api.delete<void>(`${iwiBase(incidentId)}/${encodeURIComponent(reportId)}`);

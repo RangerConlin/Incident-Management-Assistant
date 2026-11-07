@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field, field_validator
 from sarapp_db.mongo.collection_names import IncidentCollections
 from sarapp_db.mongo.database_manager import get_incident_db
 from sarapp_db.mongo.repository import BaseRepository
+from sarapp_db.ics_reference import BUILTIN_LOG_KEYS, builtin_log_definitions
 
 router = APIRouter()
 
@@ -81,6 +82,7 @@ class SourceRecord(BaseModel):
 
 
 class EntryCreate(Associations):
+    log_keys: List[str] = Field(default_factory=list)
     text: str = Field(min_length=1)
     occurred_at: Optional[datetime] = None
     critical_flag: bool = False
@@ -99,6 +101,15 @@ class EntryCreate(Associations):
             raise ValueError("text must not be blank")
         return value
 
+    @field_validator("log_keys")
+    @classmethod
+    def validate_log_keys(cls, value: List[str]) -> List[str]:
+        normalized = sorted({item.strip() for item in value if item.strip()})
+        unknown = set(normalized) - BUILTIN_LOG_KEYS
+        if unknown:
+            raise ValueError(f"unknown built-in log key(s): {', '.join(sorted(unknown))}")
+        return normalized
+
 
 class VoidRequest(BaseModel):
     voided_by: str = Field(min_length=1)
@@ -111,6 +122,7 @@ class CorrectionCreate(EntryCreate):
 
 
 class LogFilter(Associations):
+    log_keys: List[str] = Field(default_factory=list)
     operational_period_id: Optional[int] = None
     incident_wide: Optional[bool] = None
     unassigned: bool = False
@@ -179,6 +191,7 @@ def _entry_document(incident_id: str, data: EntryCreate) -> Dict[str, Any]:
         "source_record": data.source_record.model_dump() if data.source_record else None,
         "critical_flag": data.critical_flag,
         "incident_wide": data.incident_wide,
+        "log_keys": list(data.log_keys),
         **associations,
         "idempotency_hash": data.idempotency_hash
         or hashlib.sha256(f"manual:{uuid.uuid4()}".encode()).hexdigest(),
@@ -192,7 +205,7 @@ def _entry_document(incident_id: str, data: EntryCreate) -> Dict[str, Any]:
 def _map_entry(doc: Dict[str, Any]) -> Dict[str, Any]:
     result = {key: value for key, value in doc.items() if key != "_id"}
     result["id"] = doc.get("entry_id") or str(doc.get("_id", ""))
-    result["unassigned"] = not bool(doc.get("incident_wide")) and not any(
+    result["unassigned"] = not bool(doc.get("incident_wide")) and not doc.get("log_keys") and not any(
         doc.get(field) for field in ASSOCIATION_FIELDS
     )
     result["voided"] = bool(doc.get("voided_at"))
@@ -215,6 +228,8 @@ def _entry_query(incident_id: str, filters: LogFilter) -> Dict[str, Any]:
     query: Dict[str, Any] = {"incident_id": incident_id}
     if not filters.include_voided:
         query["voided_at"] = None
+    if filters.log_keys:
+        query["log_keys"] = {"$in": filters.log_keys}
     for field in ASSOCIATION_FIELDS:
         values = getattr(filters, field)
         if values:
@@ -223,6 +238,7 @@ def _entry_query(incident_id: str, filters: LogFilter) -> Dict[str, Any]:
         query["incident_wide"] = filters.incident_wide
     if filters.unassigned:
         query["incident_wide"] = False
+        query["log_keys"] = {"$size": 0}
         for field in ASSOCIATION_FIELDS:
             query[field] = {"$size": 0}
     occurred_from = filters.occurred_from
@@ -298,6 +314,7 @@ def create_entry(incident_id: str, data: EntryCreate):
 @router.get("/incidents/{incident_id}/ics214/entries")
 def list_entries(
     incident_id: str,
+    log_key: List[str] = Query(default=[]),
     person_id: List[int] = Query(default=[]),
     team_id: List[int] = Query(default=[]),
     task_id: List[int] = Query(default=[]),
@@ -315,6 +332,7 @@ def list_entries(
     critical_only: bool = False,
 ):
     filters = LogFilter(
+        log_keys=log_key,
         person_ids=person_id, team_ids=team_id, task_ids=task_id,
         org_unit_ids=org_unit_id, facility_ids=facility_id,
         resource_ids=resource_id, external_agency_ids=external_agency_id,
@@ -376,9 +394,10 @@ def _map_definition(doc: Dict[str, Any]) -> Dict[str, Any]:
 
 @router.get("/incidents/{incident_id}/ics214/log-definitions")
 def list_log_definitions(incident_id: str):
-    return [_map_definition(doc) for doc in _definitions_repo(incident_id).find_many(
+    custom = [_map_definition(doc) for doc in _definitions_repo(incident_id).find_many(
         {"incident_id": incident_id}, sort=[("name", 1)]
     )]
+    return [*builtin_log_definitions(), *custom]
 
 
 @router.post("/incidents/{incident_id}/ics214/log-definitions", status_code=201)
@@ -392,6 +411,8 @@ def create_log_definition(incident_id: str, data: LogDefinitionCreate):
 
 @router.patch("/incidents/{incident_id}/ics214/log-definitions/{definition_id}")
 def update_log_definition(incident_id: str, definition_id: str, data: LogDefinitionUpdate):
+    if definition_id.startswith("builtin:"):
+        raise HTTPException(status_code=405, detail="Built-in ICS logs are immutable")
     repo = _definitions_repo(incident_id)
     doc = repo.find_one({"incident_id": incident_id, "definition_id": definition_id})
     if not doc:
@@ -403,6 +424,8 @@ def update_log_definition(incident_id: str, definition_id: str, data: LogDefinit
 
 @router.delete("/incidents/{incident_id}/ics214/log-definitions/{definition_id}", status_code=204)
 def archive_log_definition(incident_id: str, definition_id: str):
+    if definition_id.startswith("builtin:"):
+        raise HTTPException(status_code=405, detail="Built-in ICS logs are immutable")
     repo = _definitions_repo(incident_id)
     doc = repo.find_one({"incident_id": incident_id, "definition_id": definition_id})
     if not doc:

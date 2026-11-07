@@ -1,19 +1,21 @@
 """Filtered desktop view over the canonical incident ICS-214 entry stream."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QDateTime, Qt
 from PySide6.QtGui import QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDialog,
+    QDateTimeEdit,
     QHeaderView,
     QHBoxLayout,
     QInputDialog,
     QLabel,
+    QLineEdit,
     QListWidget,
     QListWidgetItem,
     QMessageBox,
@@ -46,6 +48,7 @@ ASSOCIATION_TYPES = (
     ("Resource", "resource_ids"),
     ("External agency", "external_agency_ids"),
 )
+ASSOCIATION_FIELDS = tuple(field for _, field in ASSOCIATION_TYPES if field)
 
 
 def _active_user() -> str:
@@ -54,6 +57,15 @@ def _active_user() -> str:
         return str(AppState.get_active_user_id() or "unknown")
     except Exception:
         return "unknown"
+
+
+def _as_datetime(value: Any) -> datetime | None:
+    if isinstance(value, datetime):
+        return value
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
 
 
 class EntryDialog(QDialog):
@@ -67,13 +79,30 @@ class EntryDialog(QDialog):
         default_field: str = "",
         default_id: int | None = None,
         initial_associations: dict[str, list[int]] | None = None,
+        occurred_at: datetime | None = None,
+        critical_flag: bool = False,
     ):
         super().__init__(parent)
         self.setWindowTitle(title)
         layout = QVBoxLayout(self)
         self.text_edit = QTextEdit(self)
         self.text_edit.setPlainText(text)
+        self.text_edit.setPlaceholderText("Describe the activity or event")
         layout.addWidget(self.text_edit)
+        details = QHBoxLayout()
+        details.addWidget(QLabel("Occurred:", self))
+        self.occurred_at = QDateTimeEdit(self)
+        self.occurred_at.setCalendarPopup(True)
+        self.occurred_at.setDisplayFormat("yyyy-MM-dd HH:mm:ss 'UTC'")
+        self.occurred_at.setTimeSpec(Qt.UTC)
+        initial_time = occurred_at or datetime.now(timezone.utc)
+        self.occurred_at.setDateTime(QDateTime(initial_time))
+        details.addWidget(self.occurred_at)
+        self.critical_flag = QCheckBox("Critical", self)
+        self.critical_flag.setChecked(critical_flag)
+        details.addWidget(self.critical_flag)
+        details.addStretch(1)
+        layout.addLayout(details)
         self.incident_wide = QCheckBox("Also include in the incident-wide log", self)
         layout.addWidget(self.incident_wide)
         scope = QHBoxLayout()
@@ -135,6 +164,19 @@ class EntryDialog(QDialog):
         result["expand_team_members"] = bool(result["team_ids"])
         return result
 
+    def entry_values(self) -> dict[str, Any]:
+        """Return the canonical user-controlled portion of an entry payload."""
+        occurred_at = self.occurred_at.dateTime().toUTC().toPython()
+        if occurred_at.tzinfo is None:
+            occurred_at = occurred_at.replace(tzinfo=timezone.utc)
+        return {
+            "text": self.text_edit.toPlainText(),
+            "occurred_at": occurred_at,
+            "critical_flag": self.critical_flag.isChecked(),
+            "incident_wide": self.incident_wide.isChecked(),
+            **self.associations(),
+        }
+
     def _add_association(self) -> None:
         field = str(self.type_combo.currentData() or "")
         record_id = self.entity_combo.currentData()
@@ -160,6 +202,69 @@ class EntryDialog(QDialog):
         row.setData(Qt.UserRole, key)
 
 
+def create_scoped_entry(parent: QWidget, incident_id: str, field: str, record_id: int) -> bool:
+    """Open the one canonical manual-entry form with a required initial scope."""
+    try:
+        options = services.association_options(incident_id)
+        dialog = EntryDialog(
+            parent, options=options, default_field=field, default_id=record_id,
+        )
+        if not dialog.exec():
+            return False
+        values = dialog.entry_values()
+        # A contextual form is an entry *for* that entity.  It may add more
+        # associations, but it cannot accidentally be saved without the
+        # scope that launched it.
+        values[field] = sorted({*values[field], record_id})
+        if field == "team_ids":
+            values["expand_team_members"] = True
+        services.create_entry(incident_id, EntryCreate(
+            created_by=_active_user(), **values,
+        ))
+        return True
+    except Exception as exc:
+        QMessageBox.warning(parent, "ICS-214", f"Could not add entry:\n{exc}")
+        return False
+
+
+def correct_entry_with_dialog(
+    parent: QWidget, incident_id: str, entry_id: str,
+) -> bool:
+    """Void and replace an entry while retaining all of its existing scope."""
+    try:
+        original = services.get_entry(incident_id, entry_id)
+        initial = {
+            field: list(original.get(field) or [])
+            for field in ASSOCIATION_FIELDS
+        }
+        dialog = EntryDialog(
+            parent,
+            text=str(original.get("text") or ""),
+            title="Correct 214 Entry",
+            options=services.association_options(incident_id),
+            initial_associations=initial,
+            occurred_at=_as_datetime(original.get("occurred_at")),
+            critical_flag=bool(original.get("critical_flag")),
+        )
+        dialog.incident_wide.setChecked(bool(original.get("incident_wide")))
+        if not dialog.exec():
+            return False
+        reason, ok = QInputDialog.getText(parent, "Correction Reason", "Reason:")
+        if not ok or not reason.strip():
+            return False
+        services.correct_entry(incident_id, entry_id, CorrectionCreate(
+            created_by=_active_user(),
+            voided_by=_active_user(),
+            void_reason=reason.strip(),
+            log_keys=list(original.get("log_keys") or []),
+            **dialog.entry_values(),
+        ))
+        return True
+    except Exception as exc:
+        QMessageBox.warning(parent, "ICS-214", f"Could not correct entry:\n{exc}")
+        return False
+
+
 class Ics214ActivityLogPanel(QWidget):
     """One timeline whose apparent logs are filters or saved definitions."""
 
@@ -172,7 +277,9 @@ class Ics214ActivityLogPanel(QWidget):
         super().__init__(parent)
         self.incident_id = str(incident_id or incident_context.get_active_incident_id() or "")
         self.launch_context = launch_context or {}
+        self._active_log_keys: list[str] = []
         self._definitions: dict[str, dict[str, Any]] = {}
+        self._log_labels: dict[str, str] = {}
         self._options: dict[str, list[dict[str, Any]]] = {}
         self._labels: dict[str, dict[int, str]] = {}
         self._periods: list[dict[str, Any]] = []
@@ -185,10 +292,12 @@ class Ics214ActivityLogPanel(QWidget):
 
     def _build_ui(self) -> None:
         root = QVBoxLayout(self)
-        title = QLabel("ICS 214 — Incident Activity Stream", self)
-        root.addWidget(title)
+        self.title = QLabel("ICS 214 — Incident Activity Stream", self)
+        root.addWidget(self.title)
 
-        saved_bar = QHBoxLayout()
+        self.saved_bar_widget = QWidget(self)
+        saved_bar = QHBoxLayout(self.saved_bar_widget)
+        saved_bar.setContentsMargins(0, 0, 0, 0)
         saved_bar.addWidget(QLabel("Saved log:", self))
         self.saved_combo = QComboBox(self)
         self.saved_combo.addItem("Ad hoc filter", None)
@@ -197,9 +306,21 @@ class Ics214ActivityLogPanel(QWidget):
         save_filter = QPushButton("Save Current Filter", self)
         save_filter.clicked.connect(self._save_filter)
         saved_bar.addWidget(save_filter)
-        root.addLayout(saved_bar)
+        root.addWidget(self.saved_bar_widget)
+
+        quick_entry = QHBoxLayout()
+        quick_entry.addWidget(QLabel("New activity:", self))
+        self.quick_entry = QLineEdit(self)
+        self.quick_entry.setPlaceholderText("Type an activity and press Enter")
+        self.quick_entry.returnPressed.connect(self._quick_add_entry)
+        quick_entry.addWidget(self.quick_entry, 1)
+        quick_add = QPushButton("Add", self)
+        quick_add.clicked.connect(self._quick_add_entry)
+        quick_entry.addWidget(quick_add)
+        root.addLayout(quick_entry)
 
         filters = QHBoxLayout()
+        filters.addWidget(QLabel("Additional filters:", self))
         self.type_combo = QComboBox(self)
         for label, field in ASSOCIATION_TYPES:
             self.type_combo.addItem(label, field)
@@ -221,7 +342,7 @@ class Ics214ActivityLogPanel(QWidget):
         root.addLayout(filters)
 
         actions = QHBoxLayout()
-        add = QPushButton("Add Entry", self)
+        add = QPushButton("Detailed Entry", self)
         void = QPushButton("Void", self)
         correct = QPushButton("Correct", self)
         export = QPushButton("Export ICS-214", self)
@@ -250,11 +371,18 @@ class Ics214ActivityLogPanel(QWidget):
         root.addWidget(self.status)
 
     def _apply_launch_context(self) -> None:
+        log_key = str(self.launch_context.get("default_log_key") or "").strip()
+        if log_key:
+            self._active_log_keys = [log_key]
+            log_name = str(self.launch_context.get("default_log_name") or log_key)
+            self.title.setText(f"ICS 214 — {log_name} Log")
+            self.saved_bar_widget.hide()
+            return
         category = str(self.launch_context.get("default_log_for_type") or "")
         raw_ref = str(self.launch_context.get("default_log_for_ref") or "")
         field_by_category = {
             "person": "person_ids", "individual": "person_ids", "team": "team_ids",
-            "task": "task_ids", "section": "org_unit_ids", "org_unit": "org_unit_ids",
+            "task": "task_ids", "org_unit": "org_unit_ids",
             "facility": "facility_ids", "resource": "resource_ids",
             "external_agency": "external_agency_ids",
         }
@@ -270,6 +398,7 @@ class Ics214ActivityLogPanel(QWidget):
 
     def _current_filter(self) -> EntryFilter:
         data: dict[str, Any] = {
+            "log_keys": list(self._active_log_keys),
             "incident_wide": True if self.incident_wide.isChecked() else None,
             "operational_period_id": self.period_combo.currentData(),
             "unassigned": self.unassigned.isChecked(),
@@ -283,6 +412,12 @@ class Ics214ActivityLogPanel(QWidget):
 
     def _scope_text(self, entry: dict[str, Any]) -> str:
         parts = []
+        log_names = [
+            self._log_labels.get(str(key), str(key).replace("_", " ").title())
+            for key in (entry.get("log_keys") or [])
+        ]
+        if log_names:
+            parts.append(f"Logs: {', '.join(log_names)}")
         if entry.get("incident_wide"):
             parts.append("Incident")
         labels = {
@@ -346,11 +481,33 @@ class Ics214ActivityLogPanel(QWidget):
             return
         try:
             services.create_entry(self.incident_id, EntryCreate(
-                text=dialog.text_edit.toPlainText(),
-                incident_wide=dialog.incident_wide.isChecked(),
                 created_by=_active_user(),
-                **dialog.associations(),
+                log_keys=list(self._active_log_keys),
+                **dialog.entry_values(),
             ))
+            self.refresh()
+        except Exception as exc:
+            QMessageBox.warning(self, "ICS-214", f"Could not add entry:\n{exc}")
+
+    def _quick_add_entry(self) -> None:
+        text = self.quick_entry.text().strip()
+        if not text:
+            return
+        entry_data: dict[str, Any] = {
+            "text": text,
+            "created_by": _active_user(),
+            "log_keys": list(self._active_log_keys),
+            "incident_wide": self.incident_wide.isChecked(),
+        }
+        field = str(self.type_combo.currentData() or "")
+        record_id = self.entity_combo.currentData()
+        if field and record_id is not None:
+            entry_data[field] = [int(record_id)]
+            if field == "team_ids":
+                entry_data["expand_team_members"] = True
+        try:
+            services.create_entry(self.incident_id, EntryCreate(**entry_data))
+            self.quick_entry.clear()
             self.refresh()
         except Exception as exc:
             QMessageBox.warning(self, "ICS-214", f"Could not add entry:\n{exc}")
@@ -369,32 +526,10 @@ class Ics214ActivityLogPanel(QWidget):
 
     def _correct_entry(self) -> None:
         entry_id = self._selected_entry_id()
-        rows = self.table.selectionModel().selectedRows()
-        if not entry_id or not rows:
+        if not entry_id:
             return
-        current = self.model.item(rows[0].row(), 1).text().removeprefix("[VOID] ")
-        original = self._entries_by_id.get(entry_id, {})
-        initial = {
-            field: list(original.get(field) or [])
-            for _, field in ASSOCIATION_TYPES if field
-        }
-        dialog = EntryDialog(
-            self, text=current, title="Correct 214 Entry", options=self._options,
-            initial_associations=initial,
-        )
-        dialog.incident_wide.setChecked(bool(original.get("incident_wide")))
-        if not dialog.exec():
-            return
-        reason, ok = QInputDialog.getText(self, "Correction Reason", "Reason:")
-        if not ok or not reason.strip():
-            return
-        services.correct_entry(self.incident_id, entry_id, CorrectionCreate(
-            text=dialog.text_edit.toPlainText(),
-            incident_wide=dialog.incident_wide.isChecked(),
-            created_by=_active_user(), voided_by=_active_user(),
-            void_reason=reason.strip(), **dialog.associations(),
-        ))
-        self.refresh()
+        if correct_entry_with_dialog(self, self.incident_id, entry_id):
+            self.refresh()
 
     def _reload_definitions(self) -> None:
         try:
@@ -402,11 +537,20 @@ class Ics214ActivityLogPanel(QWidget):
         except Exception:
             definitions = []
         self._definitions = {str(item["id"]): item for item in definitions}
+        self._log_labels = {
+            str(item.get("key")): str(item.get("name") or item.get("key"))
+            for item in definitions if item.get("key")
+        }
         self.saved_combo.blockSignals(True)
         self.saved_combo.clear()
         self.saved_combo.addItem("Ad hoc filter", None)
         for item in definitions:
             self.saved_combo.addItem(str(item.get("name") or "Saved log"), str(item["id"]))
+        if self._active_log_keys:
+            builtin_id = f"builtin:{self._active_log_keys[0]}"
+            index = self.saved_combo.findData(builtin_id)
+            if index >= 0:
+                self.saved_combo.setCurrentIndex(index)
         self.saved_combo.blockSignals(False)
 
     def _reload_options(self) -> None:
@@ -456,6 +600,11 @@ class Ics214ActivityLogPanel(QWidget):
         if not definition:
             return
         filters = EntryFilter(**(definition.get("filters") or {}))
+        self._active_log_keys = list(filters.log_keys)
+        if definition.get("builtin"):
+            self.title.setText(f"ICS 214 — {definition.get('name')} Log")
+        elif not self._active_log_keys:
+            self.title.setText("ICS 214 — Incident Activity Stream")
         self.incident_wide.setChecked(filters.incident_wide is True)
         self.unassigned.setChecked(filters.unassigned)
         self.include_voided.setChecked(filters.include_voided)

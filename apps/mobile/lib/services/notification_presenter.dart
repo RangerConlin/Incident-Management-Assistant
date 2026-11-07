@@ -26,6 +26,8 @@ class NotificationPresenter {
   NotificationPresenter._();
 
   static OverlayEntry? _bannerEntry;
+  static const _navigationRetryDelay = Duration(milliseconds: 100);
+  static const _navigationRetryLimit = 50;
 
   /// Shows [notification] in-app if its [ToastPlan] calls for it. Safe to
   /// call for any notification — one below its category's toast threshold
@@ -49,75 +51,98 @@ class NotificationPresenter {
   }
 
   static void _showBanner(AppNotification notification, ToastPlan plan) {
-    final context = AppNavigation.currentContext;
-    if (context == null) return;
-    final overlay = Overlay.of(context, rootOverlay: true);
+    _whenNavigationReady((context) {
+      final overlay = AppNavigation.navigatorKey.currentState?.overlay;
+      if (overlay == null) return;
 
-    _bannerEntry?.remove();
-    late OverlayEntry entry;
-    void dismiss() {
-      entry.remove();
-      if (identical(_bannerEntry, entry)) _bannerEntry = null;
-    }
+      _bannerEntry?.remove();
+      late OverlayEntry entry;
+      void dismiss() {
+        entry.remove();
+        if (identical(_bannerEntry, entry)) _bannerEntry = null;
+      }
 
-    entry = OverlayEntry(
-      builder: (context) => Positioned(
-        top: MediaQuery.of(context).padding.top + 8,
-        left: 12,
-        right: 12,
-        child: _BannerWithAutoDismiss(
-          notification: notification,
-          durationMs: plan.durationMs,
-          onDismiss: dismiss,
-          onTap: () {
-            dismiss();
-            openNotification(notification);
-          },
+      entry = OverlayEntry(
+        builder: (context) => Positioned(
+          top: MediaQuery.of(context).padding.top + 8,
+          left: 12,
+          right: 12,
+          child: _BannerWithAutoDismiss(
+            notification: notification,
+            durationMs: plan.durationMs,
+            onDismiss: dismiss,
+            onTap: () {
+              dismiss();
+              openNotification(notification);
+            },
+          ),
         ),
-      ),
-    );
-    _bannerEntry = entry;
-    overlay.insert(entry);
+      );
+      _bannerEntry = entry;
+      overlay.insert(entry);
+    });
   }
 
   static void _showEmergencyDialog(AppNotification notification) {
-    final context = AppNavigation.currentContext;
-    if (context == null) return;
-
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) {
-        return AlertDialog(
-          icon: const Icon(Icons.warning_amber_rounded, color: Colors.red),
-          title: Text(notification.title),
-          content: Text(notification.body),
-          actions: [
-            TextButton(
-              onPressed: () async {
-                Navigator.of(dialogContext).pop();
-                await _dismiss(notification);
-              },
-              child: const Text('Dismiss'),
-            ),
-            FilledButton(
-              onPressed: () async {
-                Navigator.of(dialogContext).pop();
-                if (notification.requiresAcknowledgement) {
-                  await _acknowledge(notification);
-                } else {
+    _whenNavigationReady((context) {
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) {
+          return AlertDialog(
+            icon: const Icon(Icons.warning_amber_rounded, color: Colors.red),
+            title: Text(notification.title),
+            content: Text(notification.body),
+            actions: [
+              TextButton(
+                onPressed: () async {
+                  Navigator.of(dialogContext).pop();
                   await _dismiss(notification);
-                }
-                openNotification(notification);
-              },
-              child: Text(
-                notification.requiresAcknowledgement ? 'Acknowledge' : 'View',
+                },
+                child: const Text('Dismiss'),
               ),
-            ),
-          ],
-        );
-      },
-    );
+              FilledButton(
+                onPressed: () async {
+                  Navigator.of(dialogContext).pop();
+                  if (notification.requiresAcknowledgement) {
+                    await _acknowledge(notification);
+                  } else {
+                    await _dismiss(notification);
+                  }
+                  openNotification(notification);
+                },
+                child: Text(
+                  notification.requiresAcknowledgement ? 'Acknowledge' : 'View',
+                ),
+              ),
+            ],
+          );
+        },
+      );
+    });
+  }
+
+  /// FCM can deliver a foreground message while the root navigator is
+  /// rebuilding during startup or a route change. Keep the visual response
+  /// pending briefly instead of dropping it after its sound has played.
+  static void _whenNavigationReady(
+    void Function(BuildContext context) show, {
+    int attempt = 0,
+  }) {
+    final context = AppNavigation.currentContext;
+    if (context != null) {
+      show(context);
+      return;
+    }
+    if (attempt >= _navigationRetryLimit) {
+      debugPrint(
+        'NotificationPresenter: no navigation context; presentation skipped',
+      );
+      return;
+    }
+    Timer(_navigationRetryDelay, () {
+      _whenNavigationReady(show, attempt: attempt + 1);
+    });
   }
 
   static Future<void> _acknowledge(AppNotification notification) =>
@@ -263,12 +288,20 @@ class _BannerWithAutoDismiss extends StatefulWidget {
 }
 
 class _BannerWithAutoDismissState extends State<_BannerWithAutoDismiss> {
+  Timer? _dismissTimer;
+
   @override
   void initState() {
     super.initState();
-    Future.delayed(Duration(milliseconds: widget.durationMs), () {
+    _dismissTimer = Timer(Duration(milliseconds: widget.durationMs), () {
       if (mounted) widget.onDismiss();
     });
+  }
+
+  @override
+  void dispose() {
+    _dismissTimer?.cancel();
+    super.dispose();
   }
 
   @override

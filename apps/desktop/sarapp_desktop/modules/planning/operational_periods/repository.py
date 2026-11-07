@@ -205,9 +205,44 @@ class OperationalPeriodRepository:
             )
             return None
 
-    def period_summary(self, period_id: int) -> dict[str, int]:
-        # Returns stub counts — accurate counts would require querying multiple collections
-        return {"meetings": 0, "assignments": 0, "forms": 0, "objectives": 0}
+    def period_summary(self, period_id: int) -> dict[str, Optional[int]]:
+        """Return live linked-record counts for one operational period.
+
+        Each collection is queried independently so a temporarily unavailable
+        module is represented as unknown instead of a misleading zero.
+        """
+        requests = {
+            "meetings": (
+                f"/api/incidents/{self.incident_id}/planning/meetings",
+                {"operational_period_id": str(period_id)},
+            ),
+            "assignments": (
+                f"/api/incidents/{self.incident_id}/planning/work-assignments",
+                {"op_period_id": period_id},
+            ),
+            "forms": (
+                f"/api/incidents/{self.incident_id}/forms",
+                {"operational_period_id": str(period_id)},
+            ),
+            "objectives": (
+                f"/api/incidents/{self.incident_id}/objectives",
+                {"op_period_id": str(period_id)},
+            ),
+        }
+        summary: dict[str, Optional[int]] = {}
+        for key, (path, params) in requests.items():
+            try:
+                rows = _client().get(path, params=params) or []
+                summary[key] = len(rows)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to load %s count for operational period %s: %s",
+                    key,
+                    period_id,
+                    exc,
+                )
+                summary[key] = None
+        return summary
 
 
 __all__ = ["OperationalPeriodRecord", "OperationalPeriodRepository"]

@@ -116,7 +116,7 @@ Docs / Logs
 
 No current summary endpoint. Future summary should aggregate current module routers and form/log collections.
 
-sarapp_incident_<id>.communications_log, ics_214_logs, unit_logs, tasks, teams, hazards, forms
+sarapp_incident_<id>.communications_log, ics_214_entries, tasks, teams, hazards, forms
 
 🧭 UI & Navigation Additions
 

@@ -1669,8 +1669,7 @@ class MainWindow(QMainWindow):
         from modules import ics214
         incident_id = AppState.get_active_incident()
         panel = ics214.get_ics214_panel(incident_id, launch_context={
-            "default_log_for_type": "section",
-            "default_log_for_ref": "section:command",
+            "default_log_key": "command",
             "default_log_name": "Command",
             "default_prepared_by_position": "Incident Commander",
         })
@@ -1733,9 +1732,8 @@ class MainWindow(QMainWindow):
         from modules import ics214
         incident_id = AppState.get_active_incident()
         panel = ics214.get_ics214_panel(incident_id, launch_context={
-            "default_log_for_type": "section",
-            "default_log_for_ref": "section:planning",
-            "default_log_name": "Planning",
+            "default_log_key": "planning_section",
+            "default_log_name": "Planning Section",
             "default_prepared_by_position": "Planning Section Chief",
         })
         self._open_dock_widget(panel, title="ICS-214 Activity Log — Planning", preferred_size=(950, 600))
@@ -1838,9 +1836,8 @@ class MainWindow(QMainWindow):
         from modules import ics214
         incident_id = AppState.get_active_incident()
         panel = ics214.get_ics214_panel(incident_id, launch_context={
-            "default_log_for_type": "section",
-            "default_log_for_ref": "section:operations",
-            "default_log_name": "Operations",
+            "default_log_key": "operations_section",
+            "default_log_name": "Operations Section",
             "default_prepared_by_position": "Operations Section Chief",
         })
         self._open_dock_widget(panel, title="ICS-214 Activity Log — Operations", preferred_size=(950, 600))
@@ -2197,9 +2194,8 @@ class MainWindow(QMainWindow):
         from modules import ics214
         incident_id = AppState.get_active_incident()
         panel = ics214.get_ics214_panel(incident_id, launch_context={
-            "default_log_for_type": "section",
-            "default_log_for_ref": "section:logistics",
-            "default_log_name": "Logistics",
+            "default_log_key": "logistics_section",
+            "default_log_name": "Logistics Section",
             "default_prepared_by_position": "Logistics Section Chief",
         })
         self._open_dock_widget(panel, title="ICS-214 Activity Log — Logistics", preferred_size=(950, 600))
@@ -2363,9 +2359,8 @@ class MainWindow(QMainWindow):
         from modules import ics214
         incident_id = AppState.get_active_incident()
         panel = ics214.get_ics214_panel(incident_id, launch_context={
-            "default_log_for_type": "section",
-            "default_log_for_ref": "section:communications",
-            "default_log_name": "Communications",
+            "default_log_key": "communications_unit",
+            "default_log_name": "Communications Unit",
             "default_prepared_by_position": "Communications Unit Leader",
         })
         self._open_dock_widget(panel, title="ICS-214 Activity Log — Communications", preferred_size=(950, 600))
@@ -2499,9 +2494,8 @@ class MainWindow(QMainWindow):
         from modules import ics214
         incident_id = AppState.get_active_incident()
         panel = ics214.get_ics214_panel(incident_id, launch_context={
-            "default_log_for_type": "section",
-            "default_log_for_ref": "section:intel",
-            "default_log_name": "Intelligence",
+            "default_log_key": "intelligence_investigations",
+            "default_log_name": "Intelligence / Investigations",
             "default_prepared_by_position": "Intelligence Section Chief",
         })
         self._open_dock_widget(panel, title="ICS-214 Activity Log — Intelligence", preferred_size=(950, 600))
@@ -2520,9 +2514,8 @@ class MainWindow(QMainWindow):
         from modules import ics214
         incident_id = AppState.get_active_incident()
         panel = ics214.get_ics214_panel(incident_id, launch_context={
-            "default_log_for_type": "section",
-            "default_log_for_ref": "section:medical",
-            "default_log_name": "Medical",
+            "default_log_key": "medical_unit",
+            "default_log_name": "Medical Unit",
             "default_prepared_by_position": "Medical Unit Leader",
         })
         self._open_dock_widget(panel, title="ICS-214 Activity Log — Medical", preferred_size=(950, 600))
@@ -2531,8 +2524,7 @@ class MainWindow(QMainWindow):
         from modules import ics214
         incident_id = AppState.get_active_incident()
         panel = ics214.get_ics214_panel(incident_id, launch_context={
-            "default_log_for_type": "section",
-            "default_log_for_ref": "section:safety",
+            "default_log_key": "position:safety_officer",
             "default_log_name": "Safety",
             "default_prepared_by_position": "Safety Officer",
         })
@@ -2578,8 +2570,7 @@ class MainWindow(QMainWindow):
         from modules import ics214
         incident_id = AppState.get_active_incident()
         panel = ics214.get_ics214_panel(incident_id, launch_context={
-            "default_log_for_type": "section",
-            "default_log_for_ref": "section:liaison",
+            "default_log_key": "position:liaison_officer",
             "default_log_name": "Liaison",
             "default_prepared_by_position": "Liaison Officer",
         })
@@ -2625,8 +2616,7 @@ class MainWindow(QMainWindow):
         from modules import ics214
         incident_id = AppState.get_active_incident()
         panel = ics214.get_ics214_panel(incident_id, launch_context={
-            "default_log_for_type": "section",
-            "default_log_for_ref": "section:public_information",
+            "default_log_key": "position:public_information_officer",
             "default_log_name": "Public Information",
             "default_prepared_by_position": "Public Information Officer",
         })
@@ -2820,9 +2810,8 @@ class MainWindow(QMainWindow):
         from modules import ics214
         incident_id = AppState.get_active_incident()
         panel = ics214.get_ics214_panel(incident_id, launch_context={
-            "default_log_for_type": "section",
-            "default_log_for_ref": "section:finance_admin",
-            "default_log_name": "Finance / Admin",
+            "default_log_key": "finance_admin_section",
+            "default_log_name": "Finance / Administration Section",
             "default_prepared_by_position": "Finance/Admin Section Chief",
         })
         self._open_dock_widget(panel, title="ICS-214 Activity Log — Finance/Admin", preferred_size=(950, 600))
@@ -3838,16 +3827,56 @@ class MainWindow(QMainWindow):
 
     def open_home_dashboard(self) -> None:
         from ui.dashboard.home_dashboard import HomeDashboard
-        panel = HomeDashboard(self.settings_manager, customization_repo=self.customization_repo)
+        panel = HomeDashboard(
+            self.settings_manager,
+            customization_repo=self.customization_repo,
+            quick_entry_dispatch=self._dispatch_home_quick_entry,
+            quick_entry_cli=self._execute_home_quick_entry_cli,
+        )
         # docked by default
         self._open_dock_widget(panel, title="Home Dashboard", float_on_open=False)
+
+    def _dispatch_home_quick_entry(self, action: str, payload: dict) -> object:
+        """Open the real editor for a Home Dashboard Quick Entry action."""
+        if not AppState.get_active_incident():
+            raise RuntimeError("Select an active incident before using Quick Entry.")
+
+        if action == "tasks.create":
+            from modules.operations.taskings.repository import create_task
+            from modules.operations.taskings.windows import open_task_detail_window
+
+            title = str(payload.get("title") or "<New Task>").strip() or "<New Task>"
+            task_id = create_task(
+                title=title,
+                priority=payload.get("priority", 2),
+                location=str(payload.get("location") or "").strip() or None,
+            )
+            open_task_detail_window(task_id)
+            return task_id
+        if action == "logs.createActivity":
+            self.open_command_unit_log()
+            return None
+        if action == "comms.createLogEntry":
+            self.open_comms_quick_entry()
+            return None
+        if action == "logistics.createResourceRequest":
+            self.open_logistics_213rr()
+            return None
+        if action == "safety.createReport":
+            self.open_safety_iwi()
+            return None
+        raise RuntimeError(f"Unknown Quick Entry action: {action}")
+
+    def _execute_home_quick_entry_cli(self, command: str) -> str:
+        from ui.actions.quick_entry_actions import execute_cli
+
+        return execute_cli(command, dispatcher=self._dispatch_home_quick_entry)
 
     def open_widget_with_id(self, widget_id: str) -> None:
         """Instantiate a registered widget by id and open it in a dock."""
         try:
             from ui.widgets import registry as W
             from ui.widgets.components import QuickEntryWidget
-            from ui.actions.quick_entry_actions import dispatch as qe_dispatch, execute_cli as qe_cli
         except Exception as e:
             QMessageBox.critical(self, "Widgets", f"Widget system unavailable: {e}")
             return
@@ -3860,7 +3889,10 @@ class MainWindow(QMainWindow):
         # Construct component
         try:
             if widget_id == "quickEntry":
-                comp = QuickEntryWidget(qe_dispatch, qe_cli)
+                comp = QuickEntryWidget(
+                    self._dispatch_home_quick_entry,
+                    self._execute_home_quick_entry_cli,
+                )
             else:
                 comp_factory = spec.component
                 comp = comp_factory() if callable(comp_factory) else comp_factory  # type: ignore

@@ -121,7 +121,7 @@
     "statusboard.team.columns.hidden": [
         "vehicle"
     ],
-    "lastIncidentNumber": "test-incident",
+    "lastIncidentNumber": "5af1a964-e810-4978-87ef-e25ac55095fa",
     "statusboard.task.textSize": "large",
     "statusboard.team.refreshMs": 15000,
     "statusboard.team.columns.widths": {
@@ -177,5 +177,5 @@
     "rememberLogin": true,
     "rememberedUsername": "405021",
     "rememberedRole": "Incident Commander",
-    "rememberedPassword": "AQAAANCMnd8BFdERjHoAwE/Cl+sBAAAA//5ZTOtJUEqI9vv8pwlGTwAAAAACAAAAAAAQZgAAAAEAACAAAACacmFRvod/feNb+uXIkJAsOhB/duXZS0QTuAk7/4l+vAAAAAAOgAAAAAIAACAAAAATjQZn8cPRLqTX3Eb7S/eqPrQiKpKlh9HOep+WDruBVRAAAABQF1J+R8g3bg+n3O9nW4gYQAAAAKSXBqdVaHtJziEtWWBjknQFeIcLg6OpLlQ42RnxNXzTQ0gfAO/1GPFtrY8RzAuLAxVz4wtXNRyifVOJr3pXZ9c="
+    "rememberedPassword": "AQAAANCMnd8BFdERjHoAwE/Cl+sBAAAA//5ZTOtJUEqI9vv8pwlGTwAAAAACAAAAAAAQZgAAAAEAACAAAAAonjZ32GdocF1+1NahUWwV+Ad/6kL6BAksGB0BAeknhQAAAAAOgAAAAAIAACAAAACoq4l2Y730WMyoJf/0oCp95/86E6i4EO+lGsNmMF57mxAAAABTgfiUUQYH0Zx/H6+XONhXQAAAADFTshRAK6G/XyHXD8zNRQCM0EGRDCHjOLk+ICNaTkiQmFG+cMJyjwAfsCtBGaN6GfYXpNhvsJGPUQPvSTr7XYw="
 }

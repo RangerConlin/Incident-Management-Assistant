@@ -73,14 +73,14 @@ export default function WorkAssignmentsBoardPage() {
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-        <h2 style={{ margin: 0 }}>Work Assignments</h2>
+        <h2 style={{ margin: 0 }}>Assignment Board</h2>
         <button
           style={{ width: "auto" }}
           disabled={createWA.isPending}
           onClick={() =>
             createWA.mutate(
               { created_by: user?.username },
-              { onSuccess: (created) => navigate(`/planning/work-assignments/${created.id}`) }
+              { onSuccess: (created) => navigate(`/tactics/assignments/${created.id}`) }
             )
           }
         >
@@ -114,7 +114,7 @@ export default function WorkAssignmentsBoardPage() {
           columns={columns}
           rows={filteredRows}
           rowKey={(w) => w.id}
-          onRowActivate={(w) => navigate(`/planning/work-assignments/${w.id}`)}
+          onRowActivate={(w) => navigate(`/tactics/assignments/${w.id}`)}
           emptyMessage="No work assignments yet. Click New Work Assignment to create one."
         />
       )}

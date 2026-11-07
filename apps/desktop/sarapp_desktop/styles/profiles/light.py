@@ -59,6 +59,7 @@ PALETTE: Dict[str, str] = {
     "btn_focus":    "#2F80ED",
     "btn_disabled": "#D2D4D7",
     "btn_checked":  "#2F80ED",
+    "btn_primary_fg": "#FFFFFF",
 }
 
 # Additional semantic groupings from the original palette module are exposed so

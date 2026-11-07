@@ -420,6 +420,131 @@ export interface WorkAssignmentTaskLink {
   notes: string;
 }
 
+// Mirrors work_assignments.py's _hazard_out — the legacy embedded hazard
+// shape on each Work Assignment (risk_level/likelihood/severity vocab),
+// distinct from the canonical SPE-scored Hazard register above. Hazard
+// Dashboard's Consolidated/By Assignment views read these; its Register tab
+// reads the canonical Hazard model instead.
+export interface WorkAssignmentHazard {
+  id: number;
+  hazard_type_id: number | null;
+  hazard_type_text: string;
+  category: string;
+  risk_level: string;
+  likelihood: string;
+  severity: string;
+  control_measure: string;
+  mitigation_text: string;
+  ppe_text: string;
+  safety_message: string;
+  source: string;
+  is_resolved: boolean;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// Mirrors routers/safety.py's CAP ORM compatibility surface
+// (get_orm_form/update_orm_form/list_orm_hazards/approve_orm_form) — the
+// legacy CAPF-160 worksheet view, synthesized from "cap_orm"-sourced rows in
+// the same hazards collection the canonical Hazard Register uses (confirmed
+// via safety/orm/README.md: the SPE register "replaces the earlier CAP-style
+// severity/likelihood ORM form workflow"; these endpoints keep that form
+// shape available). No desktop UI exists for this specific form.
+export type CapOrmRiskLevel = "L" | "M" | "H" | "EH";
+export type CapOrmStatus = "draft" | "pending_mitigation" | "approved";
+
+export interface CapOrmForm {
+  id: number;
+  incident_id: string;
+  op_period: number;
+  activity: string;
+  prepared_by_id: number | null;
+  date_iso: string;
+  highest_residual_risk: CapOrmRiskLevel;
+  status: CapOrmStatus;
+  approval_blocked: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CapOrmHazard {
+  id: number;
+  incident_id: string;
+  form_id: number;
+  sub_activity: string;
+  hazard_outcome: string;
+  initial_risk: CapOrmRiskLevel;
+  control_text: string;
+  residual_risk: CapOrmRiskLevel;
+  implement_how: string;
+  implement_who: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// Mirrors routers/safety.py's IWI (Illness/Injury "Safety Incident")
+// reports — IWICreate's fields exactly. Nested sub-records have no separate
+// endpoints; the whole document is read/written as one PUT, so they're
+// typed loosely (Record<string, unknown>) rather than modeled field-by-
+// field — the UI owns their shape, the server just stores whatever's sent.
+export interface IwiSignoffEntry {
+  name: string;
+  signed_at: string;
+}
+
+export interface IwiReport {
+  _id: string;
+  id: number;
+  form_number: number;
+  incident_id: string;
+  status: "draft" | "submitted" | "reviewed" | "closed";
+  op_period: number | null;
+  date_of_occurrence: string | null;
+  day_of_event: number | null;
+  time_of_occurrence: string | null;
+  time_reported: string | null;
+  reported_by: string | null;
+  location_general: string | null;
+  location_zone: string | null;
+  location_sector: string | null;
+  location_specific: string | null;
+  incident_types: string[];
+  incident_type_other: string | null;
+  actual_outcome: string | null;
+  actual_severity: string | null;
+  activity_impact: string | null;
+  activity_suspension_ref: string | null;
+  conditions: Record<string, unknown>;
+  persons_involved: Record<string, unknown>[];
+  injury_details: Record<string, unknown>[];
+  equipment: Record<string, unknown>;
+  sequence_of_events: Record<string, unknown>[];
+  narrative: string | null;
+  contributing_factors: Record<string, unknown>;
+  immediate_actions: string | null;
+  notifications: Record<string, unknown>[];
+  corrective_actions: Record<string, unknown>[];
+  escalation_decision: string | null;
+  escalation_rationale: string | null;
+  witnesses: Record<string, unknown>[];
+  prepared_by: string | null;
+  signoffs: Record<string, IwiSignoffEntry | null>;
+  created_at: string;
+  updated_at: string;
+}
+
+export const IWI_SEVERITIES = ["MINOR", "MODERATE", "SERIOUS", "CRITICAL"] as const;
+export const IWI_INCIDENT_TYPES = [
+  "Near-Miss",
+  "Unsafe Condition",
+  "Unsafe Act",
+  "Equipment Failure",
+  "Medical / Injury",
+  "Environmental",
+  "Crowd / Public Safety",
+] as const;
+
 export interface TaskWorkAssignmentLink {
   id: number;
   assignment_number: string;
@@ -457,6 +582,7 @@ export interface WorkAssignment {
   notes: string;
   resources: WorkAssignmentResourceRequirement[];
   task_links: WorkAssignmentTaskLink[];
+  hazards: WorkAssignmentHazard[];
 }
 
 export interface SitrepDistribution {
@@ -513,6 +639,34 @@ export interface ResourceStatusRow {
   created_at: string;
   updated_at: string;
   status_log: { status: string; timestamp: string; changed_by: string }[];
+  // Present on GET /resource-status/by-entity (a different router than the
+  // one above) — needed to PATCH .../resource-status/{id}/status.
+  id?: string;
+  int_id?: number;
+}
+
+// GET /api/incidents/{id}/checkin/teams/checked-state
+export interface CheckinTeamRow {
+  int_id: number;
+  name: string | null;
+  status: string | null;
+  checked_in: boolean;
+  disbanded: boolean;
+  member_person_records?: number[];
+  vehicles_json?: unknown[];
+  equipment_json?: unknown[];
+  aircraft_json?: unknown[];
+  current_task_id?: number | string | null;
+  operational_unit_id?: number | string | null;
+}
+
+// GET /api/incidents/{id}/checkin/history/{person_record}
+export interface CheckinHistoryItem {
+  person_record: number;
+  ts: string;
+  actor: string;
+  event_type: string;
+  payload: Record<string, unknown>;
 }
 
 // GET /api/incidents/{id}/checkin/roster — personnel roster derived from resource_status.
@@ -830,5 +984,243 @@ export interface SpatialFeature {
   created_at: string | null;
   updated_at: string | null;
   created_by: string | null;
+  updated_by: string | null;
+}
+
+// Mirrors routers/medical.py's editable ICS-206 plan API — one Mongo doc per
+// (op_period, version), approval-gated (locked once approval_status leaves
+// "not_started"). The "served" read endpoints (ics206/aid-stations etc.)
+// resolve to whichever version is approved/latest; this is the live
+// working-copy shape the builder edits directly.
+export interface MedicalPlanAidStation {
+  id: number;
+  op_period: number;
+  version: number;
+  facility_id: string;
+  name: string;
+  type: string;
+  level: string;
+  contact_frequency: string;
+  is_24_7: number;
+  location_text: string;
+  latitude: number | null;
+  longitude: number | null;
+  manager_personnel_id: string;
+  manager_name: string;
+  notes: string;
+}
+
+export interface MedicalPlanAmbulance {
+  id: number;
+  op_period: number;
+  source_ref: string | null;
+  name: string;
+  type: string;
+  service_level: number;
+  phone: string;
+  location: string;
+  notes: string;
+}
+
+export interface MedicalPlanHospital {
+  id: number;
+  op_period: number;
+  source_ref: string | null;
+  name: string;
+  address: string;
+  phone: string;
+  helipad: number;
+  burn_center: number;
+  level: string;
+  adult_trauma_level: number;
+  pediatric_trauma_level: number;
+  lat: number | null;
+  lon: number | null;
+  travel_time_min: number | null;
+  travel_time_air_min: number | null;
+  travel_time_ground_min: number | null;
+  notes: string;
+}
+
+export interface MedicalPlanAirAmbulance {
+  id: number;
+  op_period: number;
+  name: string;
+  phone: string;
+  base: string;
+  contact: string;
+  notes: string;
+}
+
+export interface MedicalPlanComms {
+  id: number;
+  op_period: number;
+  channel: string;
+  function: string;
+  frequency: string;
+  mode: string;
+  notes: string;
+}
+
+export interface MedicalPlanProcedures {
+  id: number;
+  op_period: number;
+  content: string;
+}
+
+export interface MedicalPlanSignatures {
+  id: number;
+  op_period: number;
+  prepared_by: string;
+  prepared_by_id: string;
+  position: string;
+  prepared_at: string;
+  date: string;
+  approved_by: string;
+  approved_by_id: string;
+  approved_by_position: string;
+  approved_at: string;
+}
+
+export type MedicalPlanApprovalStatus = "not_started" | "pending" | "approved" | "rejected";
+
+export interface MedicalPlan {
+  plan_id: string;
+  incident_id: string;
+  op_period: number;
+  version: number;
+  approval_status: MedicalPlanApprovalStatus;
+  change_note: string;
+  ambulance_services: MedicalPlanAmbulance[];
+  hospitals: MedicalPlanHospital[];
+  air_ambulance: MedicalPlanAirAmbulance[];
+  medical_comms: MedicalPlanComms[];
+  procedures: MedicalPlanProcedures;
+  signatures: MedicalPlanSignatures;
+}
+
+export interface MedicalPlanVersionSummary {
+  version: number;
+  approval_status: MedicalPlanApprovalStatus;
+  change_note: string;
+  created_at: string;
+  prepared_by: string;
+  prepared_at: string;
+  approved_by: string;
+  approved_at: string;
+}
+
+export const MEDICAL_PLAN_TABLES = ["ambulance_services", "hospitals", "air_ambulance", "medical_comms"] as const;
+export type MedicalPlanTable = (typeof MEDICAL_PLAN_TABLES)[number];
+
+// Mirrors routers/safety.py's canonical Hazard Register (SPE scoring) — the
+// "Safety Risk Manager" collection. score = severity * probability *
+// exposure, banded server-side in _spe_band (Slight/Possible/Substantial/
+// High/Very High, score floors 1/20/40/60/80).
+export interface SpeAssessment {
+  severity: number;
+  probability: number;
+  exposure: number;
+  score: number;
+  band: string;
+  action: string;
+}
+
+export interface Hazard {
+  id: number;
+  incident_id: string;
+  hazard_type_id: number | null;
+  title: string;
+  description: string;
+  category: string;
+  controls: string[];
+  ppe: string[];
+  safety_language: string;
+  default_spe: SpeAssessment | null;
+  spe_residual: SpeAssessment | null;
+  location_text: string;
+  notes: string;
+  op_period_ids: number[];
+  task_ids: number[];
+  team_ids: number[];
+  work_assignment_ids: number[];
+  hazard_zone_ids: number[];
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// Mirrors routers/safety.py's ICS208Body — one upserted doc per op_period,
+// no auto-generated "briefing blocks" on the backend (that's desktop-only
+// assistive UI over the same hazard data); this is just the final saved
+// safety message plus its source fields.
+export interface Ics208 {
+  incident_id?: string;
+  op_period: number;
+  op_period_from: string | null;
+  op_period_to: string | null;
+  safety_message: string | null;
+  site_safety_plan_required: boolean;
+  site_safety_plan_location: string | null;
+  weather_summary: string | null;
+  prepared_by_name: string | null;
+  prepared_by_position: string | null;
+  prepared_by_datetime: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+// Mirrors routers/weather.py's WeatherConfigModel — locations, polling
+// interval, and the Go/No-Go thresholds desktop's WeatherDetailPanel shows
+// as colored threshold tiles. Live forecast/METAR/TAF/HWO are fetched
+// directly from NWS client-side on desktop (not proxied by this backend),
+// so they aren't modeled here — only what this API actually stores.
+export interface WeatherGroundThresholds {
+  wind_gust_marginal_mph: number;
+  wind_gust_nogo_mph: number;
+  visibility_marginal_mi: number;
+  visibility_nogo_mi: number;
+  ceiling_marginal_ft: number;
+  ceiling_nogo_ft: number;
+  heat_index_marginal_f: number;
+  heat_index_nogo_f: number;
+}
+
+export interface WeatherAviationThresholds {
+  wind_gust_marginal_kt: number;
+  wind_gust_nogo_kt: number;
+  visibility_marginal_sm: number;
+  visibility_nogo_sm: number;
+  ceiling_marginal_ft_agl: number;
+  ceiling_nogo_ft_agl: number;
+  crosswind_marginal_kt: number;
+  crosswind_nogo_kt: number;
+}
+
+export interface WeatherThresholds {
+  ground: WeatherGroundThresholds;
+  aviation: WeatherAviationThresholds;
+}
+
+export interface WeatherLocation {
+  location_id: string;
+  label: string;
+  latitude: number | null;
+  longitude: number | null;
+  icao_codes: string[];
+  is_default: boolean;
+  source: string;
+  source_ref_id: string | null;
+  created_at: string | null;
+  created_by: string | null;
+}
+
+export interface WeatherConfig {
+  incident_id: string;
+  polling_minutes: number;
+  locations: WeatherLocation[];
+  thresholds: WeatherThresholds;
+  updated_at: string | null;
   updated_by: string | null;
 }

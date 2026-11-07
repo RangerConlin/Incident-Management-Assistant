@@ -119,7 +119,20 @@ Field operations endpoints:
 - PATCH /api/incidents/{incident_id}/operations/teams/{team_id}/checkin
 - GET /api/incidents/{incident_id}/operations/tasks/{task_id}/team-status-log
 
+Incident safety endpoints:
+- GET /api/incidents/{incident_id}/safety/hazards — active incident hazard
+  register, including SPE assessments and controls.
+- GET /api/incidents/{incident_id}/safety/reports — field safety reports.
+- POST /api/incidents/{incident_id}/safety/reports — submit a field report.
+  Body: {time, location?, severity?, notes?, flagged, reported_by?, team_id?}.
+
 ICS 214 team logbook endpoints (entries are independent documents in the canonical incident stream, associated through team_ids and the team's current person_ids; source=mobile; {team_id} is the operations team int_id):
+- GET /api/incidents/{incident_id}/ics214/entries?person_id={person_record}
+  — personal-log view used as the mobile default.
+- GET /api/incidents/{incident_id}/ics214/entries?team_id={team_id}
+  — team-log view. Omitting both filters returns the incident log stream.
+- POST /api/incidents/{incident_id}/ics214/entries — creates an entry associated
+  with the selected personal, team, or incident-wide stream.
 - GET /api/incidents/{incident_id}/mobile/teams/{team_id}/log?since=<iso>
 - POST /api/incidents/{incident_id}/mobile/teams/{team_id}/log  (body: text, actor_user_id, occurred_at, critical_flag)
   Responses use occurred_at and created_by. Entries are immutable; corrections use the shared void-and-correct API rather than mobile delete/edit.

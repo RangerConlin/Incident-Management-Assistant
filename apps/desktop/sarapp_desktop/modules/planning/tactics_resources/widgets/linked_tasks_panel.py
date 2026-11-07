@@ -84,6 +84,7 @@ class LinkedTasksPanel(QWidget):
         self._summary_label = QLabel("")
         self._summary_label.setStyleSheet(f"color:{get_palette().get('fg_muted').name()};")
         self._create_btn = QPushButton("Generate Task")
+        self._create_btn.setObjectName("workAssignmentPrimaryButton")
         self._link_btn = QPushButton("Link Existing")
         self._open_btn = QPushButton("Open Task Detail")
         self._unlink_btn = QPushButton("Unlink Task")

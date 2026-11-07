@@ -1,45 +1,67 @@
 import 'package:flutter/material.dart';
 
 import '../models/home_nav_args.dart';
+import '../services/sarapp_api_client.dart';
 import '../widgets/app_drawer.dart';
 
-/// Field hazard/safety report submission (Phase 3.5). No
-/// `POST /api/safety/report`-equivalent mobile endpoint exists yet — the
-/// form is a placeholder; submitting shows a not-ready message instead of
-/// silently pretending to succeed.
+/// Field safety report submission backed by the shared incident safety API.
 class ReportHazardScreen extends StatefulWidget {
-  const ReportHazardScreen({super.key, required this.args});
+  const ReportHazardScreen({super.key, required this.args, this.apiClient});
 
   final HomeNavArgs args;
+  final SarAppApiClient? apiClient;
 
   @override
   State<ReportHazardScreen> createState() => _ReportHazardScreenState();
 }
 
 class _ReportHazardScreenState extends State<ReportHazardScreen> {
+  final _formKey = GlobalKey<FormState>();
   final _descriptionController = TextEditingController();
   final _locationController = TextEditingController();
-  String? _hazardType;
+  late final SarAppApiClient _apiClient = widget.apiClient ?? SarAppApiClient();
+  late final bool _ownsApiClient = widget.apiClient == null;
+  String _severity = 'Routine';
+  bool _submitting = false;
 
-  static const _hazardTypes = [
-    'Terrain / Fall Hazard',
-    'Wildlife',
-    'Weather',
-    'Structural',
-    'Medical',
-    'Other',
-  ];
+  static const _severityOptions = ['Routine', 'Priority', 'High', 'Emergency'];
 
-  void _submit() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Hazard reporting is not available yet in this build.')),
-    );
+  Future<void> _submit() async {
+    if (!(_formKey.currentState?.validate() ?? false) || _submitting) return;
+    setState(() => _submitting = true);
+    try {
+      await _apiClient.createSafetyReport(
+        incidentId: widget.args.incidentId,
+        notes: _descriptionController.text.trim(),
+        severity: _severity,
+        location: _locationController.text.trim().isEmpty
+            ? null
+            : _locationController.text.trim(),
+        reportedBy: '${widget.args.session['person_id'] ?? ''}'.trim(),
+        teamId: int.tryParse(widget.args.teamId),
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Safety report submitted.')));
+      Navigator.of(context).pop(true);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Unable to submit the safety report. Try again.'),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
   }
 
   @override
   void dispose() {
     _descriptionController.dispose();
     _locationController.dispose();
+    if (_ownsApiClient) _apiClient.dispose();
     super.dispose();
   }
 
@@ -48,43 +70,62 @@ class _ReportHazardScreenState extends State<ReportHazardScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Report Hazard')),
       drawer: AppDrawer(args: widget.args),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          DropdownButtonFormField<String>(
-            initialValue: _hazardType,
-            decoration: const InputDecoration(labelText: 'Hazard Type'),
-            items: _hazardTypes
-                .map((type) => DropdownMenuItem(value: type, child: Text(type)))
-                .toList(),
-            onChanged: (value) => setState(() => _hazardType = value),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _locationController,
-            decoration: const InputDecoration(
-              labelText: 'Location',
-              border: OutlineInputBorder(),
+      body: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            DropdownButtonFormField<String>(
+              initialValue: _severity,
+              decoration: const InputDecoration(
+                labelText: 'Severity',
+                border: OutlineInputBorder(),
+              ),
+              items: _severityOptions
+                  .map(
+                    (value) =>
+                        DropdownMenuItem(value: value, child: Text(value)),
+                  )
+                  .toList(),
+              onChanged: _submitting
+                  ? null
+                  : (value) => setState(() => _severity = value ?? 'Routine'),
             ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _descriptionController,
-            maxLines: 4,
-            decoration: const InputDecoration(
-              labelText: 'Description',
-              border: OutlineInputBorder(),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _locationController,
+              enabled: !_submitting,
+              decoration: const InputDecoration(
+                labelText: 'Location',
+                border: OutlineInputBorder(),
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
-            onPressed: _submit,
-            icon: const Icon(Icons.camera_alt_outlined),
-            label: const Text('Attach Photo'),
-          ),
-          const SizedBox(height: 16),
-          FilledButton(onPressed: _submit, child: const Text('Submit Report')),
-        ],
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _descriptionController,
+              maxLines: 4,
+              decoration: const InputDecoration(
+                labelText: 'Safety concern or hazard',
+                border: OutlineInputBorder(),
+              ),
+              enabled: !_submitting,
+              validator: (value) => (value ?? '').trim().isEmpty
+                  ? 'Describe the safety concern or hazard.'
+                  : null,
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: _submitting ? null : _submit,
+              icon: _submitting
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.send_outlined),
+              label: Text(_submitting ? 'Submitting…' : 'Submit Report'),
+            ),
+          ],
+        ),
       ),
     );
   }

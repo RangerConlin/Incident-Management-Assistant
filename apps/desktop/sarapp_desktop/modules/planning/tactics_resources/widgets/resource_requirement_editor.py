@@ -109,16 +109,19 @@ class ResourceRequirementEditor(QWidget):
         self._summary_label = QLabel("")
         self._summary_label.setStyleSheet(f"color:{get_palette().get('fg_muted').name()};")
         self._add_btn = QPushButton("Add Requirement")
+        self._edit_btn = QPushButton("Edit")
+        self._remove_btn = QPushButton("Remove")
+        self._remove_btn.setObjectName("workAssignmentDangerButton")
+        self._logistics_btn = QPushButton("Create Logistics Request")
+        self._logistics_btn.setToolTip("Create a Logistics Resource Request (ICS-213RR) for the selected requirement.")
         header.addWidget(title)
         header.addStretch(1)
         header.addWidget(self._summary_label)
         header.addWidget(self._add_btn)
+        header.addWidget(self._edit_btn)
+        header.addWidget(self._remove_btn)
+        header.addWidget(self._logistics_btn)
         top_layout.addLayout(header)
-
-        self._edit_btn = QPushButton("Edit")
-        self._remove_btn = QPushButton("Remove")
-        self._logistics_btn = QPushButton("Create Logistics Request")
-        self._logistics_btn.setToolTip("Create a Logistics Resource Request (ICS-213RR) for the selected requirement.")
 
         # Requirements table
         req_columns = ["Resource Type", "Capability", "Priority", "Req.", "Assn.", "Avail.", "Gap", "Notes", "Logistics Request"]
@@ -141,9 +144,11 @@ class ResourceRequirementEditor(QWidget):
         self._assigned_summary_label.setStyleSheet(f"color:{get_palette().get('fg_muted').name()};")
         self._assign_btn = QPushButton("Assign Resource")
         self._remove_assign_btn = QPushButton("Remove Assigned")
+        self._remove_assign_btn.setObjectName("workAssignmentDangerButton")
         assign_btn_bar.addWidget(self._assigned_summary_label)
         assign_btn_bar.addStretch(1)
         assign_btn_bar.addWidget(self._assign_btn)
+        assign_btn_bar.addWidget(self._remove_assign_btn)
         bottom_layout.addLayout(assign_btn_bar)
 
         assign_columns = ["Kind", "Name", "Status", "Assigned"]

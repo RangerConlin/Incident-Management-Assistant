@@ -11,7 +11,7 @@ import { WORKSPACES } from "../workspaces/config";
 import { useCreateObjective } from "./objectives/hooks";
 import NewObjectiveDialog from "./objectives/NewObjectiveDialog";
 
-export const SAFETY_REPORTS_DATASET = WORKSPACES.find((w) => w.path === "/safety")!.datasets.find((d) => d.key === "reports")!;
+export const SAFETY_REPORTS_DATASET = WORKSPACES.find((w) => w.path === "/safety/reports")!.datasets.find((d) => d.key === "reports")!;
 const SAFETY_SEVERITIES = SAFETY_REPORTS_DATASET.fields.find((f) => f.key === "severity")!.options!;
 
 type QuickEntryType = "task" | "comm" | "resource" | "safety" | "objective" | "work";
@@ -113,7 +113,7 @@ export default function QuickEntryBar() {
               {
                 onSuccess: (wa) => {
                   setOpen(null);
-                  navigate(`/planning/work-assignments/${wa.id}`);
+                  navigate(`/tactics/assignments/${wa.id}`);
                 },
               }
             )

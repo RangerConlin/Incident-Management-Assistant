@@ -56,6 +56,7 @@ PALETTE: Dict[str, str] = {
     "btn_focus":    "#2F80ED",
     "btn_disabled": "#1B1F2A",
     "btn_checked":  "#2F80ED",
+    "btn_primary_fg": "#FFFFFF",
 }
 
 SURFACE: Dict[str, str] = {

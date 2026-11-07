@@ -138,3 +138,70 @@ def test_repository_rejects_overlapping_periods(fake_client) -> None:
         assert "overlaps" in str(exc).lower()
     else:
         raise AssertionError("Expected overlap validation to fail")
+
+
+def test_period_summary_counts_filtered_api_results(monkeypatch) -> None:
+    calls: list[tuple[str, dict]] = []
+    results = {
+        "/api/incidents/INC-4/planning/meetings": [{"id": 1}, {"id": 2}],
+        "/api/incidents/INC-4/planning/work-assignments": [{"id": 3}],
+        "/api/incidents/INC-4/forms": [{"id": 4}, {"id": 5}, {"id": 6}],
+        "/api/incidents/INC-4/objectives": [{"id": 7}],
+    }
+
+    class SummaryClient:
+        def get(self, path, *, params=None):
+            calls.append((path, params or {}))
+            return results[path]
+
+    monkeypatch.setattr(
+        "modules.planning.operational_periods.repository._client",
+        lambda: SummaryClient(),
+    )
+    repo = OperationalPeriodRepository(incident_id="INC-4")
+
+    assert repo.period_summary(9) == {
+        "meetings": 2,
+        "assignments": 1,
+        "forms": 3,
+        "objectives": 1,
+    }
+    assert calls == [
+        (
+            "/api/incidents/INC-4/planning/meetings",
+            {"operational_period_id": "9"},
+        ),
+        (
+            "/api/incidents/INC-4/planning/work-assignments",
+            {"op_period_id": 9},
+        ),
+        (
+            "/api/incidents/INC-4/forms",
+            {"operational_period_id": "9"},
+        ),
+        (
+            "/api/incidents/INC-4/objectives",
+            {"op_period_id": "9"},
+        ),
+    ]
+
+
+def test_period_summary_marks_only_failed_collection_unknown(monkeypatch) -> None:
+    class PartialClient:
+        def get(self, path, *, params=None):
+            if path.endswith("/forms"):
+                raise OSError("forms unavailable")
+            return []
+
+    monkeypatch.setattr(
+        "modules.planning.operational_periods.repository._client",
+        lambda: PartialClient(),
+    )
+    repo = OperationalPeriodRepository(incident_id="INC-5")
+
+    assert repo.period_summary(3) == {
+        "meetings": 0,
+        "assignments": 0,
+        "forms": None,
+        "objectives": 0,
+    }

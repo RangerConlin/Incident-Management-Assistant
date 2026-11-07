@@ -1362,7 +1362,7 @@ class QuickEntryWidget(QWidget):
         self.cli_edit = QLineEdit(self)
         try:
             self.cli_edit.setPlaceholderText(
-                'Command, e.g.: task new "Ground Sweep Alpha" priority=High team=G-2'
+                'Command, e.g.: task new "Ground Sweep Alpha" priority=High'
             )
         except Exception:
             pass
@@ -1380,7 +1380,6 @@ class QuickEntryWidget(QWidget):
     def _safe_dispatch(self, action: str, payload: dict):
         try:
             self._router(action, payload)
-            QMessageBox.information(self, "Success", f"Action executed: {action}")
         except PermissionError as e:
             QMessageBox.warning(self, "Permission", str(e))
         except Exception as e:

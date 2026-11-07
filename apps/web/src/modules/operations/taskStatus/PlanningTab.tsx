@@ -40,7 +40,7 @@ export default function PlanningTab({ incidentId, task }: { incidentId: string; 
           <div key={link.link_id} className="list-item" style={{ cursor: "default" }}>
             <div>
               <div style={{ fontWeight: 600 }}>
-                <a href={`#/planning/work-assignments/${link.id}`}>
+                <a href={`#/tactics/assignments/${link.id}`}>
                   {link.assignment_number || `WA #${link.id}`} — {link.assignment_name}
                 </a>
               </div>

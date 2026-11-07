@@ -24,7 +24,9 @@ The window shows:
 - Server name, host, port, server ID, version, started time, and discovery status.
 - Start, stop, restart, copy-address, and health-check actions.
 - Basic persistent settings.
-- A placeholder client-connections table for future connected-client metadata.
+- A live client-connections table combining recently heartbeating mobile/web
+  device registrations with active desktop login sessions. It shows user,
+  team, platform, device, tracking, push, status, and last-heartbeat metadata.
 - Runtime log and error messages.
 
 ## Settings

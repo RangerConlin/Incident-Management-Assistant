@@ -75,7 +75,8 @@ type StatusDomain =
   | "approval"
   | "approval-step"
   | "intel-priority"
-  | "iap";
+  | "iap"
+  | "spe-band";
 
 function slug(key: string): string {
   return key.trim().toLowerCase().replace(/\s+/g, "-").replace(/\//g, "-");
@@ -169,6 +170,10 @@ export function iapStatusVar(key: IapStatusKey | string) { return statusVar("iap
 
 export type IntelPriorityKey = "Critical" | "High" | "Medium" | "Low";
 export function intelPriorityVar(key: IntelPriorityKey | string) { return statusVar("intel-priority", key); }
+
+// safety.py's SPE_BANDS: Slight / Possible / Substantial / High / Very High.
+export type SpeBandKey = "Slight" | "Possible" | "Substantial" | "High" | "Very High";
+export function speBandVar(key: SpeBandKey | string) { return statusVar("spe-band", key); }
 
 // Generic severity scale for computed flags with no domain status enum of
 // their own (team attention flags, task overdue/due-soon, safety report

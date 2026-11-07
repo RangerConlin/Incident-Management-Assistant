@@ -17,6 +17,7 @@ interface DataTableProps<T> {
   columns: ColumnDef<T>[];
   rows: T[];
   rowKey: (row: T) => string | number;
+  onRowClick?: (row: T) => void;
   onRowActivate?: (row: T) => void;
   onRowContextMenu?: (row: T, e: React.MouseEvent) => void;
   getRowClassName?: (row: T) => string | undefined;
@@ -31,6 +32,7 @@ export default function DataTable<T>({
   columns,
   rows,
   rowKey,
+  onRowClick,
   onRowActivate,
   onRowContextMenu,
   getRowClassName,
@@ -138,7 +140,10 @@ export default function DataTable<T>({
                 <tr
                   key={key}
                   className={[selected ? "selected" : "", getRowClassName?.(row) ?? ""].filter(Boolean).join(" ")}
-                  onClick={() => setSelectedKey(key)}
+                  onClick={() => {
+                    setSelectedKey(key);
+                    onRowClick?.(row);
+                  }}
                   onDoubleClick={() => onRowActivate?.(row)}
                   onContextMenu={(e) => {
                     e.preventDefault();

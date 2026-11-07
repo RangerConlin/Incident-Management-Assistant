@@ -78,6 +78,7 @@ def _create_ics214_indexes(incident_db: Database) -> None:
     _ensure_index(entries, [("incident_id", ASCENDING), ("idempotency_hash", ASCENDING)], unique=True)
     _ensure_index(entries, [("voided_at", ASCENDING)])
     _ensure_index(entries, [("incident_wide", ASCENDING)])
+    _ensure_index(entries, [("log_keys", ASCENDING)])
     for field in (
         "person_ids", "team_ids", "task_ids", "org_unit_ids", "facility_ids",
         "resource_ids", "external_agency_ids",
