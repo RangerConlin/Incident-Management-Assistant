@@ -84,7 +84,7 @@ both:
      already fronts; set to a `Host(...)` rule for a dedicated subdomain
      instead).
 
-   Production target: `client.arcadiacommandsolutions.com`, as its own
+   Production target: `client.arc-horizon.net`, as its own
    subdomain, backed by the `cloud_server` already running on the same
    VPS. The actual host/connect-code values are deployment-specific and
    live only in that VPS's own `apps/web/.env` (gitignored) — not

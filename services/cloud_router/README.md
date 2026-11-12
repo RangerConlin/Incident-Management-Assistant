@@ -56,7 +56,7 @@ Required environment variables (see `docker-compose.yml`):
 - `SARAPP_CLOUD_ROUTER_TOKEN` — shared secret LAN/cloud servers must present
   to register a tunnel.
 - `SARAPP_CLOUD_ROUTER_HOST` — public DNS host Traefik should route to this
-  router, for example `sarapp.arcadiacommandsolutions.com`.
+  router, for example `sarapp.arc-horizon.net`.
 - `CENTRAL_MASTER_SESSION_SECRET` — stable random string used to sign the
   central master console login cookie. Generate with `openssl rand -base64 48`.
 - `SARAPP_SERVER_NAME` (optional)

@@ -27,7 +27,7 @@ from .tls import system_ssl_context
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_CLOUD_ROUTER_URL = "https://sarapp.arcadiacommandsolutions.com"
+DEFAULT_CLOUD_ROUTER_URL = "https://sarapp.arc-horizon.net"
 DEFAULT_CLOUD_CONNECT_CODE = "OURS-9165"
 
 

@@ -11,7 +11,7 @@ Server runtime:
 - cloud_server is a hosted VPS/container server that wraps the shared API with
   connect-code path handling. It has its own MongoDB container and no copied
   sarapp_db router tree.
-- Remote base URL: https://sarapp.arcadiacommandsolutions.com/r/<connect_code>
+- Remote base URL: https://sarapp.arc-horizon.net/r/<connect_code>
 - Current default connect code: OURS-9165
 - Remote health check: GET /r/<connect_code>/health
 - Remote server metadata: GET /r/<connect_code>/server-info

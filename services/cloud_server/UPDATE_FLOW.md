@@ -60,7 +60,7 @@ Minimum required `.env` settings:
 ```env
 COMPOSE_PROJECT_NAME=sarapp-cloud-server-db-test
 SARAPP_CONNECT_CODE=DEMO-0001
-SARAPP_CLOUD_ROUTER_URL=wss://sarapp.arcadiacommandsolutions.com/tunnel/register
+SARAPP_CLOUD_ROUTER_URL=wss://sarapp.arc-horizon.net/tunnel/register
 SARAPP_CLOUD_ROUTER_TOKEN=<old-router-token>
 TRAEFIK_DIRECT_ENABLE=false
 CLOUD_ADMIN_USERNAME=admin
