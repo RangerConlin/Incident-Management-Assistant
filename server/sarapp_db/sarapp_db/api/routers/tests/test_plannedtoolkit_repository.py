@@ -116,3 +116,51 @@ def test_planned_toolkit_compound_id_sequence_survives_double_digits():
     assert ids == list(range(1, 12))
 
     _clear(db)
+
+
+def test_quick_assignment_promotion_is_idempotent():
+    """Phase 0 brief requirement: exactly one Operations Tasking record may
+    ever be created from a given Quick Assignment, and promoting twice must
+    not create a second one."""
+    db = get_incident_db(INCIDENT_ID)
+    _clear(db)
+
+    app = create_app()
+    with TestClient(app) as client:
+        res = client.post(
+            f"{BASE}/planned/quick-assignments",
+            json={"title": "Open south gate", "summary": "Unlock before surge"},
+        )
+        assert res.status_code == 201, res.text
+        quick_assignment = res.json()
+
+        first = client.post(
+            f"{BASE}/planned/quick-assignments/{quick_assignment['id']}/promote", json={}
+        )
+        assert first.status_code == 200, first.text
+        linked_tasking_id = first.json()["linked_tasking_id"]
+        assert linked_tasking_id
+
+        second = client.post(
+            f"{BASE}/planned/quick-assignments/{quick_assignment['id']}/promote", json={}
+        )
+        assert second.status_code == 200, second.text
+        assert second.json()["linked_tasking_id"] == linked_tasking_id
+
+        third = client.post(
+            f"{BASE}/planned/quick-assignments/{quick_assignment['id']}/promote",
+            json={"promoted_by": "someone_else"},
+        )
+        assert third.json()["linked_tasking_id"] == linked_tasking_id
+        assert third.json()["promoted_by"] != "someone_else", (
+            "a second promote call must not overwrite the original promoted_by"
+        )
+
+    tasks = list(
+        db[IncidentCollections.OPERATIONS_TASKS].find(
+            {"incident_id": INCIDENT_ID, "source_type": "planned_quick_assignment"}
+        )
+    )
+    assert len(tasks) == 1, "promoting the same Quick Assignment twice must not create a second task"
+
+    _clear(db)

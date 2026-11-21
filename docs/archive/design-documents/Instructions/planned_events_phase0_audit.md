@@ -1,8 +1,10 @@
 # Planned Events Toolkit — Phase 0 Audit
 
-Status: Phase 0 complete (documentation only). No toolkit feature code was written in this
-phase. This document is the audit report, reuse matrix, domain-boundary decisions, shared
-service contracts, and hardening backlog required before Phase 1 implementation begins.
+Status: Phase 0 (documentation) and Phase 0.5 (backend tests + thin vertical prototype, see
+below) are both complete as of 2026-11-21, except for the two Phase 0.5 tests that depend on
+the Registration system, which doesn't exist yet and is correctly out of scope here. This
+document is the audit report, reuse matrix, domain-boundary decisions, shared service
+contracts, and hardening backlog required before Phase 1 implementation begins.
 
 **Update 2026-11-21 (3)**: `plannedtoolkit.py`'s own pre-trigger-engine `PLANNED_NOTIFICATIONS`
 CRUD (`PlannedNotificationsRepository`, the `/planned-meta/notifications` endpoints, the
@@ -432,25 +434,49 @@ These are the service interfaces Phase 1 needs from shared subsystems. Contracts
 
 ---
 
-## Phase 0.5 (deferred, not started)
+## Phase 0.5 (completed 2026-11-21, except where a dependency doesn't exist yet)
 
-The following deliverables from the original Phase 0 brief require writing code and were
-explicitly deferred pending a separate go-ahead:
+The deliverables below were explicitly deferred pending a separate go-ahead; that go-ahead
+was given and this section records what's now done and what remains genuinely blocked.
 
-- **Backend tests** proving: a planned schedule trigger emits through the main notification
-  system; one trigger occurrence creates no more than one delivered notification; a Quick
-  Assignment promotes to exactly one Operations Tasking record (partially exists already —
-  needs a test written against current `promote_quick_assignment` behavior); a registration
-  can link to Personnel without overwriting the Personnel record; existing Check-In data can
-  produce expected-vs-checked-in results; cross-module entity links resolve correctly; missed
-  recurring occurrences follow configured behavior; trigger execution survives
-  reconnect/sync without duplication.
-- **Thin vertical prototype**: create schedule item → attach trigger → persist → execute via
-  authoritative scheduler → emit through shared notification subsystem → persist delivered
-  notification → link back to source → resolve from notification → sync without duplicates.
+**Backend tests** — added:
+- `server/sarapp_db/sarapp_db/services/tests/test_trigger_engine.py`: a due one-shot trigger
+  emits through the shared notification system with the correct source link; a trigger fires
+  at most once across repeated evaluations (the "survives reconnect/sync without duplication"
+  requirement — re-running the poll loop never re-fires an already-fired trigger); a future
+  trigger is not fired; a disabled trigger is not fired; a recurring trigger is skipped rather
+  than silently fired (pins down the *current*, deliberately incomplete behavior so a future
+  change has to touch this test on purpose).
+- `server/sarapp_db/sarapp_db/services/tests/test_notification_service.py`: persistence +
+  incident scope + source entity link; audience resolution to a person_record; acknowledge/
+  dismiss recipient-state updates; acknowledge is rejected for a person outside the resolved
+  audience; `list_notifications` filters by source_type/source_id (cross-module entity link
+  resolution); a desktop-toast broadcast failure never blocks persistence.
+- `server/sarapp_db/sarapp_db/api/routers/tests/test_plannedtoolkit_repository.py` gained
+  `test_quick_assignment_promotion_is_idempotent`: promoting the same Quick Assignment three
+  times (including with a different `promoted_by` on the third call) returns the same
+  `linked_tasking_id` every time, never overwrites the original `promoted_by`, and never
+  creates a second Operations Tasking record.
 
-Both require the §3.2 stakeholder decision (shared notification store shape) and the trigger
-execution engine (§4 item 3) to exist first, since they are prerequisites, not test targets.
+Still blocked, not a gap in this pass: **a registration can link to Personnel without
+overwriting the Personnel record** and **existing Check-In data can produce
+expected-vs-checked-in results** cannot be tested because Registration doesn't exist yet
+(§1.4/§1.6 — greenfield, out of Phase 0 scope). These become real tests once Registration is
+built, not before.
+
+**Thin vertical prototype** — implemented as an automated integration test (per the brief's
+own allowance: "a minimal development-facing control or test harness is acceptable"), not a
+UI: `server/sarapp_db/sarapp_db/api/routers/tests/test_planned_events_thin_vertical_prototype.py`.
+Walks the full chain through the real API layer: create schedule item → attach + persist
+trigger via `/planned-meta/schedule-triggers` → fire via `trigger_engine.evaluate_due_triggers`
+(the same function the `NotificationTriggerLoop` poll tick calls) → notification persists in
+the shared store → resolved back to the trigger via `source_id` → resolved further back to the
+schedule item via `schedule_item_id`, starting from nothing but the notification → re-running
+the scheduler produces no duplicate.
+
+All four files were logic-verified against `mongomock` before being committed, since this
+development container has no `mongod` binary to run the real Mongo-backed pytest suite — an
+environment gap, not a reason to skip writing or verifying the tests.
 
 ---
 
