@@ -4,6 +4,19 @@ Status: Phase 0 complete (documentation only). No toolkit feature code was writt
 phase. This document is the audit report, reuse matrix, domain-boundary decisions, shared
 service contracts, and hardening backlog required before Phase 1 implementation begins.
 
+**Update 2026-11-21**: Phase 1 item (1), `plannedtoolkit.py`'s raw-write pattern, is resolved
+differently than originally scoped. The router already called `BaseRepository` methods
+(`insert_one`/`update_one`/`soft_delete`/`find_many`/`find_by_id`) for every write — the
+`_next_compound_id` helper's O(n) full-collection scan for the max existing ID suffix (§5)
+was the only "Blocking Phase 1" item actually still open. That scan is replaced with an
+indexed `seq` field (via the existing `next_record_id` helper, the same pattern `aircraft.py`/
+`personnel.py`/etc. already use) with a unique index added in
+`server/sarapp_db/sarapp_db/mongo/indexes.py` (`_create_plannedtoolkit_indexes`). The
+Quick-Assignment-promotion path's own redundant compound-ID scan for the new task's `task_id`
+is also removed — it now derives `task_id` directly from the `int_id` already minted via
+`next_int_id`, with no second scan. No data-shape change beyond the new `seq` field; existing
+`PlannedRecordCreate`/`ScheduleItemCreate`/etc. field set is unchanged.
+
 **Update 2026-07-18**: the program-wide notification engine identified as missing in §1.2
 finding 3 has been built as a first Phase 1 slice, ahead of the rest of this document's
 Phase 1 recommendation — see `server/sarapp_db/sarapp_db/services/notification_service.py`,
@@ -365,7 +378,7 @@ These are the service interfaces Phase 1 needs from shared subsystems. Contracts
 
 | Finding | File(s) | Category |
 |---|---|---|
-| `plannedtoolkit.py` still uses raw pymongo writes and O(n) compound-ID scanning (`_next_compound_id`) instead of `BaseRepository` | `server/sarapp_db/sarapp_db/api/routers/plannedtoolkit.py` | **Blocking Phase 1** — new toolkit writes should not extend a raw-write pattern the rest of the codebase has moved off of |
+| ~~`plannedtoolkit.py` still uses raw pymongo writes and O(n) compound-ID scanning (`_next_compound_id`) instead of `BaseRepository`~~ — resolved 2026-11-21: writes already used `BaseRepository`; `_next_compound_id` now uses an indexed `seq` field instead of scanning | `server/sarapp_db/sarapp_db/api/routers/plannedtoolkit.py`, `server/sarapp_db/sarapp_db/mongo/indexes.py` | **Resolved** |
 | No trigger evaluation/execution engine exists | (missing) | **Blocking Phase 1** for any "reminder actually fires" feature |
 | No shared, persisted, multi-user notification store | `IncidentCollections.NOTIFICATIONS` (dead), `plannedtoolkit.py` | **Blocking Phase 1** for cross-workstation notification delivery |
 | Desktop `Notifier` has no bridge from server-persisted/broadcast data | `notifications/services/notifier.py` | **Required during Phase 1** if toolkit notifications must produce toasts |

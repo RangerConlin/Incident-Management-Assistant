@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 from sarapp_db.mongo.collection_names import IncidentCollections
 from sarapp_db.mongo.database_manager import get_incident_db
-from sarapp_db.mongo.int_id import next_int_id
+from sarapp_db.mongo.int_id import next_int_id, next_record_id
 from sarapp_db.mongo.repository import BaseRepository
 
 router = APIRouter()
@@ -151,16 +151,14 @@ def _tool_config(tool: str) -> dict[str, Any]:
 
 
 def _next_compound_id(repo: BaseRepository, incident_id: str, config: dict[str, Any]) -> str:
-    marker = f"{incident_id}-{config['prefix']}-"
-    max_id = 0
-    for doc in repo.find_many({"incident_id": incident_id}, include_deleted=True):
-        raw = doc.get(config["id_field"], "")
-        if isinstance(raw, str) and raw.startswith(marker):
-            try:
-                max_id = max(max_id, int(raw[len(marker):]))
-            except ValueError:
-                pass
-    return f"{marker}{max_id + 1}"
+    """Mint the next compound id for a planned-toolkit collection.
+
+    Each of these collections lives in a single per-incident database, so a
+    dedicated indexed `seq` field (see `next_record_id`) replaces the old
+    O(n) full-collection scan for the max existing suffix.
+    """
+    seq = next_record_id(repo._col, "seq")
+    return f"{incident_id}-{config['prefix']}-{seq}"
 
 
 def _public_id(compound_id: object) -> int | None:
@@ -418,6 +416,7 @@ def create_record(incident_id: str, tool: str, body: PlannedRecordCreate):
     now = _utcnow()
     doc: Dict[str, Any] = {
         config["id_field"]: record_id,
+        "seq": _public_id(record_id),
         "incident_id": incident_id,
         "tool": tool,
         "title": body.title,
@@ -474,6 +473,7 @@ def create_schedule(incident_id: str, body: ScheduleItemCreate):
     now = _utcnow()
     doc: Dict[str, Any] = {
         config["id_field"]: record_id,
+        "seq": _public_id(record_id),
         "incident_id": incident_id,
         "tool": "promotions/schedule",
         "name": body.name,
@@ -588,6 +588,7 @@ def create_schedule_trigger(incident_id: str, body: ScheduleTriggerCreate):
     now = _utcnow()
     doc: Dict[str, Any] = {
         config["id_field"]: record_id,
+        "seq": _public_id(record_id),
         "incident_id": incident_id,
         "schedule_item_id": body.schedule_item_id or "",
         "trigger_type": body.trigger_type or "notification",
@@ -687,6 +688,7 @@ def create_notification(incident_id: str, body: NotificationCreate):
     now = _utcnow()
     doc: Dict[str, Any] = {
         config["id_field"]: record_id,
+        "seq": _public_id(record_id),
         "incident_id": incident_id,
         "title": body.title,
         "message": body.message,
@@ -748,13 +750,9 @@ def promote_quick_assignment(incident_id: str, record_id: int, body: PromotionRe
     if doc.get("linked_tasking_id"):
         return _map_doc(doc, config)
 
-    task_config = {
-        "id_field": "task_id",
-        "prefix": "TASK",
-    }
     tasks_repo = _repo(incident_id, IncidentCollections.OPERATIONS_TASKS)
-    task_id = _next_compound_id(tasks_repo, incident_id, task_config)
     task_int_id = next_int_id(tasks_repo._col)
+    task_id = f"{incident_id}-TASK-{task_int_id}"
     now = _utcnow()
     task_doc: Dict[str, Any] = {
         "int_id": task_int_id,

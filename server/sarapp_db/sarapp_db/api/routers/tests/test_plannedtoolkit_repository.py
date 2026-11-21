@@ -108,3 +108,27 @@ def test_planned_toolkit_writes_use_base_repository():
             _assert_repository_doc(doc)
 
     _clear(db)
+
+
+def test_planned_toolkit_compound_id_sequence_survives_double_digits():
+    """`_next_compound_id` mints ids off an indexed `seq` field; guard
+    against a lexicographic-sort regression that would reorder e.g. 9 and
+    10 if the index-backed sequence were ever swapped for a string scan.
+    """
+    db = get_incident_db(INCIDENT_ID)
+    _clear(db)
+
+    app = create_app()
+    with TestClient(app) as client:
+        ids = []
+        for i in range(11):
+            res = client.post(
+                f"{BASE}/planned/promotions",
+                json={"title": f"Campaign {i}"},
+            )
+            assert res.status_code == 201, res.text
+            ids.append(res.json()["id"])
+
+    assert ids == list(range(1, 12))
+
+    _clear(db)
