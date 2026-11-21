@@ -107,6 +107,7 @@ MODULE_ACTIONS: dict[str, str] = {
     "toolkit.disaster.damage": "Damage Assessment",
     "toolkit.disaster.urban_interview": "Urban Interview Log",
     "toolkit.disaster.photos": "Damage Photos",
+    "planned.schedule": "Event Schedule",
     "planned.promotions": "External Messaging",
     "planned.vendors": "Vendors & Permits",
     "planned.tasking": "Quick Assignments",

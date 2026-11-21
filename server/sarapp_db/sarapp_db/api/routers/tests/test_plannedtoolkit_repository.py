@@ -29,7 +29,6 @@ def _clear(db):
         IncidentCollections.PLANNED_CAMPAIGNS,
         IncidentCollections.PLANNED_EVENT_SCHEDULES,
         IncidentCollections.PLANNED_QUICK_ASSIGNMENTS,
-        IncidentCollections.PLANNED_NOTIFICATIONS,
         IncidentCollections.OPERATIONS_TASKS,
     ):
         db[collection].delete_many({})
@@ -66,20 +65,6 @@ def test_planned_toolkit_writes_use_base_repository():
         assert res.status_code == 201, res.text
 
         res = client.post(
-            f"{BASE}/planned-meta/notifications",
-            json={"title": "Reminder", "message": "Briefing in 15 minutes"},
-        )
-        assert res.status_code == 201, res.text
-        notification = res.json()
-
-        res = client.post(
-            f"{BASE}/planned-meta/notifications/{notification['id']}/acknowledge",
-            json={"acknowledged_by": "planner"},
-        )
-        assert res.status_code == 200, res.text
-        assert res.json()["acknowledged_by"] == "planner"
-
-        res = client.post(
             f"{BASE}/planned/quick-assignments",
             json={
                 "title": "Open south gate",
@@ -99,12 +84,83 @@ def test_planned_toolkit_writes_use_base_repository():
         IncidentCollections.PLANNED_CAMPAIGNS,
         IncidentCollections.PLANNED_EVENT_SCHEDULES,
         IncidentCollections.PLANNED_QUICK_ASSIGNMENTS,
-        IncidentCollections.PLANNED_NOTIFICATIONS,
         IncidentCollections.OPERATIONS_TASKS,
     ):
         docs = list(db[collection].find({"incident_id": INCIDENT_ID}))
         assert docs, collection
         for doc in docs:
             _assert_repository_doc(doc)
+
+    _clear(db)
+
+
+def test_planned_toolkit_compound_id_sequence_survives_double_digits():
+    """`_next_compound_id` mints ids off an indexed `seq` field; guard
+    against a lexicographic-sort regression that would reorder e.g. 9 and
+    10 if the index-backed sequence were ever swapped for a string scan.
+    """
+    db = get_incident_db(INCIDENT_ID)
+    _clear(db)
+
+    app = create_app()
+    with TestClient(app) as client:
+        ids = []
+        for i in range(11):
+            res = client.post(
+                f"{BASE}/planned/promotions",
+                json={"title": f"Campaign {i}"},
+            )
+            assert res.status_code == 201, res.text
+            ids.append(res.json()["id"])
+
+    assert ids == list(range(1, 12))
+
+    _clear(db)
+
+
+def test_quick_assignment_promotion_is_idempotent():
+    """Phase 0 brief requirement: exactly one Operations Tasking record may
+    ever be created from a given Quick Assignment, and promoting twice must
+    not create a second one."""
+    db = get_incident_db(INCIDENT_ID)
+    _clear(db)
+
+    app = create_app()
+    with TestClient(app) as client:
+        res = client.post(
+            f"{BASE}/planned/quick-assignments",
+            json={"title": "Open south gate", "summary": "Unlock before surge"},
+        )
+        assert res.status_code == 201, res.text
+        quick_assignment = res.json()
+
+        first = client.post(
+            f"{BASE}/planned/quick-assignments/{quick_assignment['id']}/promote", json={}
+        )
+        assert first.status_code == 200, first.text
+        linked_tasking_id = first.json()["linked_tasking_id"]
+        assert linked_tasking_id
+
+        second = client.post(
+            f"{BASE}/planned/quick-assignments/{quick_assignment['id']}/promote", json={}
+        )
+        assert second.status_code == 200, second.text
+        assert second.json()["linked_tasking_id"] == linked_tasking_id
+
+        third = client.post(
+            f"{BASE}/planned/quick-assignments/{quick_assignment['id']}/promote",
+            json={"promoted_by": "someone_else"},
+        )
+        assert third.json()["linked_tasking_id"] == linked_tasking_id
+        assert third.json()["promoted_by"] != "someone_else", (
+            "a second promote call must not overwrite the original promoted_by"
+        )
+
+    tasks = list(
+        db[IncidentCollections.OPERATIONS_TASKS].find(
+            {"incident_id": INCIDENT_ID, "source_type": "planned_quick_assignment"}
+        )
+    )
+    assert len(tasks) == 1, "promoting the same Quick Assignment twice must not create a second task"
 
     _clear(db)

@@ -1,8 +1,267 @@
 # Planned Events Toolkit — Phase 0 Audit
 
-Status: Phase 0 complete (documentation only). No toolkit feature code was written in this
-phase. This document is the audit report, reuse matrix, domain-boundary decisions, shared
-service contracts, and hardening backlog required before Phase 1 implementation begins.
+Status: Phase 0 (documentation) and Phase 0.5 (backend tests + thin vertical prototype, see
+below) are both complete as of 2026-11-21, except for the two Phase 0.5 tests that depend on
+the Registration system, which doesn't exist yet and is correctly out of scope here. This
+document is the audit report, reuse matrix, domain-boundary decisions, shared service
+contracts, and hardening backlog required before Phase 1 implementation begins.
+
+**Phase 1E (Execution Controls and Schedule Reliability) — completed 2026-11-21, and with it
+Phase 1 as a whole.** Hardens Phase 1A–1D for real operational use: a tighter lifecycle, an
+explicit correction path, optimistic concurrency, and a genuine (not assumed) fix to a
+trigger-delivery race. Four real pre-existing/newly-introduced bugs were found and fixed in
+the course of this hardening pass — see below; each was caught by a test written for the
+requirement it violated, not found by inspection first.
+- **Lifecycle tightened to the brief's exact matrix**: `Delayed -> Completed` is no longer a
+  direct transition (resume first); `Resume` now targets `In Progress` if the activity had
+  actually started before the delay, or back to `Scheduled` if it never did ("as appropriate",
+  not an unconditional `In Progress` as Phase 1A/1B shipped it). `Delay` accepts an optional
+  `revised_start_at`, which just reschedules `starts_at` through the existing field and its
+  existing trigger-resync — no new "revised time" model.
+- **New `/correct` endpoint** is the one sanctioned way to reopen a terminal (Completed/
+  Cancelled) status or fix a wrong actual timestamp, bypassing the routine transition table on
+  purpose. No role/permission system exists anywhere in this router to check "authorized"
+  against, so "authorized correction" here means: a separate, deliberate action that requires
+  a mandatory `reason`, audited as `schedule_item.corrected` — the same shape delay/cancel's
+  existing reason requirements already established, not a new access-control system.
+- **Optimistic concurrency via a `revision` integer**, not `updated_at`. `updated_at` was the
+  first thing tried, since every document already has one — and was rejected once proven
+  empirically unreliable: `BaseRepository` stamps it at one-second resolution, so two writes
+  to the same record inside the same second (realistic for two operators, let alone two
+  automated calls back to back) produce an identical value and a "stale update" silently
+  passes. `revision` starts at 0 and is incremented by exactly 1 on every write to a schedule
+  item (`update_schedule`, every event-day action, `/correct`); an optional `expected_revision`
+  on any of those requests is compared against it, and a mismatch returns 409 with the
+  server's current record so the client can reload — entirely opt-in, so a caller that never
+  sends it keeps the prior last-write-wins behavior.
+- **Trigger-delivery race fixed for real**: `trigger_engine.py`'s old docstring claimed "only
+  one `lan_server` process runs per incident... a stronger distributed lock isn't needed" —
+  false for any cloud-connected incident, where `lan_server` *and* `cloud_server` each run
+  their own `NotificationTriggerLoop` (confirmed in the Phase 0.5 update note above). The old
+  code queried due triggers, then separately wrote `fired_at` after emitting — two evaluators
+  racing on the same trigger could each pass the query before either wrote the flag, and both
+  would emit. Fixed with `_claim_trigger`: a single atomic `find_one_and_update` that sets
+  `fired_at` only if unset, so at most one evaluator ever proceeds to emit; the other sees
+  `None` and moves on. Emission happens only after a successful claim, so a crash between claim
+  and emission costs a missed notification, never a duplicate — the brief's explicit
+  requirement. A failed emission after a successful claim is recorded on the trigger
+  (`fire_error`, new field) rather than retried, for the same reason.
+- **Four bugs found and fixed while hardening**, each via a test that exercised the exact
+  requirement it violated:
+  1. The `updated_at`-resolution problem above (concurrency design, not shipped code — caught
+     before the first commit of this phase by the test for "stale update rejected").
+  2. The genuine trigger-delivery race above (`trigger_engine.py`, pre-existing since Phase 0.5).
+  3. `ScheduleController.refresh()` wiped `_items` to `[]` on *any* fetch failure, including a
+     transient disconnect — directly violating this phase's own "temporary connection failures
+     do not destroy the displayed schedule" requirement. Now preserves the last known-good list
+     and only reports the error.
+  4. Eight call sites across `ActivityDetailDialog`/`ScheduleListWidget` called `self.accept()`
+     (closing the dialog) *unconditionally* after a mutation, even when the controller method
+     returned `False` for failure — silently discarding the user's attempted action with no
+     way to retry. Every action now only closes its dialog on success.
+  5. `OperationalTimelineWidget`'s NOW-marker row only ever wrote column 0 before `continue`-ing
+     the render loop; a filter change that reused that row index for a different item in a
+     prior render left that item's text sitting in columns 1+ of the marker row — invisible
+     (the column span hides it) but still returned by a direct `table.item(row, col)` read.
+     Fixed by blanking the marker row's other columns on every render.
+- Tests: `test_plannedtoolkit_phase1e.py` (14, backend lifecycle/correction/concurrency),
+  `test_trigger_engine_reliability.py` (5, backend — simulated racing evaluators, restart-
+  between-claim-and-delivery, failure distinguishability), `test_schedule_controller_phase1e.py`
+  (4, desktop — refresh resilience, conflict resync), `test_timeline_phase1e.py` (4, desktop —
+  the marker-row regression, the Correct dialog), all passing alongside a full re-run of every
+  earlier Planned Events Toolkit test (116 total across backend + desktop).
+- Out of scope per the brief (not implemented): recurring generation, advanced dependencies,
+  automated readiness gates, automatic assignment generation, Registration, Vendor/Permit
+  management, calendar integration, a second notification or synchronization system, a
+  separate scheduling database.
+
+**Phase 1D (Event Schedule Integration) — completed 2026-11-21.** Connects schedule activities
+to Meeting Planner, Personnel, Teams, GIS, and Quick Assignments — "the Event Schedule
+coordinates existing records, it does not replace the systems that own them." No new backend
+capability was built where one already existed; two real pre-existing bugs were found and
+fixed in passing because the integration work depended on the broken code paths being correct:
+`PersonnelPicker._on_completion_selected` read `result.get("id")`, but `/api/master/personnel`
+normalizes every record's id onto `person_record` (see `personnel.py`'s `_normalize`) — there
+is no `id` key, so every existing caller (including `facilities_manager_panel.py`, which
+persists `manager_personnel_id` from this) has always gotten an empty id. And
+`schedule_time_utils.to_qdatetime` called `QDateTime(year, month, day, hour, minute)` — a
+5-argument form this PySide6 version doesn't have — so opening the activity editor for any item
+with a start time already set would have crashed; fixed to build via `QDate`/`QTime` instead.
+A second Phase 1A/1B bug surfaced by the same testing pass: the editor's End field, when a
+loaded item had a start but no stored end, kept showing "now + 30 min" from before `_load()`
+ran instead of being derived from the item's actual start.
+- Backend (`plannedtoolkit.py`, purely additive, no renamed/removed fields): `gis_feature_id`
+  and `quick_assignment_id` join `meeting_id` as single-value link fields on `ScheduledItem`
+  (one field per link kind structurally prevents duplicate associations — no extra validation
+  needed). A new `severity` field on `ScheduleTrigger` is threaded through to
+  `notification_service.emit_notification` via `trigger_engine._fire_trigger` (closes a real
+  gap: the existing severity support had never been wired up for schedule triggers). Relative
+  reminders ("15 min before start") resolve to an absolute `trigger_at` at write time inside
+  `create_schedule_trigger`/`update_schedule_trigger` — the trigger engine itself is untouched
+  and still only ever reads absolute timestamps, so no second scheduler was built. Rescheduling
+  an activity recomputes every not-yet-fired relative trigger's `trigger_at`; cancelling or
+  deleting an activity disables (never deletes, never touches an already-`fired_at` trigger)
+  its pending triggers. A new `POST .../schedule/{id}/create-quick-assignment` endpoint creates
+  a Quick Assignment prefilled from the activity and sets both sides' link fields atomically;
+  a second call is rejected (409) rather than creating a duplicate. Every mutation here already
+  flowed through the existing generic `_audit` call Phase 1A/1B added, so meeting/GIS link
+  changes and responsibility changes were already producing audit records for free; trigger
+  create/update/cancel gained their own `_audit` calls in this phase.
+- Desktop: `PersonnelPicker` (from `modules.logistics.facilities.widgets`) is reused as-is
+  (after the id-field fix above) for the Personnel link; a new `TeamPicker`
+  (`widgets/team_picker.py`) mirrors its shape for Teams, since no reusable Team picker existed
+  anywhere in the app (checked first). `record_resolvers.py` is the one place that reads
+  Meeting/GIS/Personnel/Team data for display — every call is wrapped to return `None` on a
+  404/unreachable record rather than raising, so a deleted linked record degrades to "(not
+  found)" with a working Unlink button instead of crashing the dialog. Meeting navigation
+  reuses the Meeting Planner's own detail window via a new tiny public function,
+  `modules.planning.meetings.panel.open_meeting_detail` (previously only reachable from inside
+  that module's own list panel). Reminders get a dedicated `ReminderDialog`
+  (absolute / "before start" / "at start" modes, severity, audience) that edits the *same*
+  `ScheduleTrigger` record in place rather than ever creating a second one.
+- **Documented gap, not built around**: there is no existing desktop entry point that opens the
+  GIS module centered on a specific feature (checked before writing anything) — linking,
+  display, and unlink all work for a GIS location, but there is no "Open" action for it, unlike
+  Meeting. Building one would mean either a new map-opening mechanism (explicitly out of scope)
+  or modifying the GIS module itself (not part of this phase's brief). Likewise, "Open" for a
+  linked Quick Assignment opens the whole Quick Assignments panel (reusing
+  `windows.get_tasking_panel` as a plain top-level window) rather than deep-linking to the one
+  record, since no such deep-link exists either; this also means it can display awkwardly
+  under a modal `ActivityDetailDialog` — a real, documented UX limitation, not a crash risk.
+- Tests: `test_plannedtoolkit_schedule_integration.py` (9, backend — link round-trip, relative-
+  reminder resolution, reschedule/cancel cascades distinguishing fired-vs-pending triggers,
+  Quick-Assignment-from-activity with duplicate-link rejection, incident isolation, backward
+  compatibility) and `test_schedule_integration_widgets.py` (12, desktop — picker loading,
+  both bugs above pinned as regressions, resolved/missing-record display, unlink scoping,
+  reminder delivery-state display, edit-blocked-once-fired, `ReminderDialog` mode mapping).
+  All run for real under `QApplication`, same EGL-stub approach as Phase 1C.
+
+**Phase 1C (Operational Timeline) — completed 2026-11-21.** A dedicated timeline view inside
+the existing Event Schedule panel, reusing Phase 1A/1B's backend and service layer with zero
+server-side changes. Rather than let the new Timeline view and the existing Activity List view
+each fetch/filter/mutate independently (which would have been a second scheduling system in
+practice even without a second collection), both now read from one new
+`modules.plannedtoolkit.schedule_controller.ScheduleController` — a `QObject` that owns the
+current item list, every mutation (`create`/`update`/`delete`/`start`/`resume`/`complete`/
+`delay`/`cancel`, each a thin call into the same `services.py` wrappers Phase 1A/1B built), and
+the live-update subscription. `ScheduleWidget` is now a container with two tabs ("Timeline",
+"Activity List") sharing one controller instance; the former top-level `ScheduleWidget` table
+logic moved into `ScheduleListWidget` unchanged in behavior.
+- Live refresh reuses the existing mechanism end to end: `BaseRepository` already broadcasts
+  every write on `planned_event_schedules` over the incident WebSocket regardless of client;
+  the desktop WS client already routes that into `utils.incident_cache.incident_cache`:
+  `ScheduleController` just subscribes to its `changed` signal and calls `refresh()` when the
+  collection matches. No new WebSocket, no polling. (Caught and fixed in the same pass: the
+  controller must be constructed with its owning widget as Qt parent, or it never gets torn
+  down and keeps refreshing after its panel closes — a real lifecycle bug a test for "live
+  update only fires for the right collection" surfaced immediately.)
+- "Needs Attention" (overdue) is purely computed (`schedule_time_utils.is_overdue`) from planned
+  timestamps + current status on every render — nothing is written back, and status never
+  changes on a timer, per the brief's explicit requirement.
+- Planned-vs-actual deltas ("Started 8 min late", "Finished 12 min early", "On schedule") are
+  computed the same way (`planned_vs_actual_text`), never stored.
+- `ActivityDetailDialog` (opened by selecting/double-clicking a row) reuses the Phase 1A/1B
+  `ScheduleItemDialog` for Edit and the controller's action methods for Start/Resume/Complete/
+  Delay/Cancel — no separate status-changing logic.
+- Tests: `test_schedule_controller.py` (8 — refresh/empty/sorted, error handling, that every
+  mutation delegates to `services.py` and not local logic, live-update collection filtering),
+  `test_schedule_time_utils.py` (9 — parse/format/diff/overdue pure functions),
+  `test_operational_timeline_widget.py` (9 — chronological ordering, status/date filtering,
+  overdue flagging without a status change, selection, refresh reflecting backend changes,
+  cancelled-item visibility, backward compatibility with a minimal legacy item). All 26 pass
+  under a real `QApplication` (`QT_QPA_PLATFORM=offscreen`) — this container's usual missing-
+  `libEGL.so.1` gap was worked around this time with a throwaway stub `.so` built from the
+  undefined EGL symbols `libQt6Gui`/`libQt6Multimedia` actually need (never called by anything
+  these tests exercise; present only to satisfy the dynamic linker), rather than skipping real
+  widget tests again — not part of the repo, environment-local only.
+- Out of scope per the brief (not implemented): calendar sync, recurring generation, automatic
+  Quick Assignment creation, advanced dependencies, readiness gates, Vendor/Registration/Permit
+  management, new notification infrastructure, a separate event database. None needed.
+
+**Phase 1A/1B (Event Schedule) — completed 2026-11-21.** Built on the existing
+`ScheduledItem`/`ScheduleTrigger` backend (§2 reuse matrix row 1) rather than a new
+subsystem. Summary (file-level detail in each commit):
+- `ScheduledItem` extended with `actual_start_at`/`actual_end_at`/`time_zone`,
+  `assigned_to`/`assigned_team_id`/`assigned_person_id`, `meeting_id` (the one straightforward
+  link to Meeting Planner this phase implements — Personnel/Teams links are the assignment
+  fields; GIS and Quick Assignment links are deferred, see §3.1/§3.4), and
+  `delay_reason`/`cancellation_reason`. No fields renamed or removed; a pre-Phase-1A record
+  with none of these fields, or a legacy free-text `status`, still reads back unchanged
+  (tested — see below).
+- `status` is now a validated 5-value enum (`Scheduled`/`In Progress`/`Completed`/
+  `Delayed`/`Cancelled`) with a server-enforced transition table, both via generic `PATCH`
+  and five new dedicated action endpoints (`/start`, `/resume`, `/complete`, `/delay`,
+  `/cancel`) mirroring the brief's five event-day actions 1:1. Nothing changes status on a
+  timer — every transition is an explicit user action, per the brief's "do not automatically
+  change status" requirement.
+- Every schedule-item mutation now calls `sarapp_db.mongo.audit.write_audit` — the first
+  caller of that function from any router (§1.2 finding 6 had flagged it as defined but never
+  called automatically). `source_module="plannedtoolkit"`, `entity_type="planned_schedule_item"`.
+- Desktop: `ScheduleWidget` rebuilt as a real operational view (chronological table, status
+  color-coding via a new `EVENT_SCHEDULE_STATUS` palette entry in both theme profiles, date/
+  status/type/responsible filters, an editor dialog with `QDateTimeEdit` controls, and the five
+  event-day action buttons) rather than the previous bare add-row form. Also fixed a pre-existing
+  bug where `schedule_from_dict` read `name`/`notes` keys the API never actually sent (it sends
+  `title`/`summary` — see `_map_doc`), so activity names and notes were silently always blank on
+  the desktop client before this phase.
+- The Event Schedule is promoted to its own top-level tab/menu entry (`Tools → Planned Event
+  Toolkit → Event Schedule`, `planned.schedule`) instead of being nested two levels deep under
+  the unrelated "External Messaging" (Campaigns) panel, where it was easy to miss.
+- Tests: `test_plannedtoolkit_event_schedule.py` (12 tests — creation/defaults, time-range and
+  status-enum validation, edit-and-persist, full lifecycle with planned-vs-actual preservation,
+  cancellation/delay reason requirements, 404s, incident isolation, backward compatibility with
+  a pre-Phase-1A doc, audit records, and that existing schedule triggers still fire unaffected).
+  All logic-verified against `mongomock` (no `mongod` in this container; same environment gap
+  as Phase 0.5, not a reason to skip verification).
+- Out of scope per the brief (not implemented): recurring schedule generation, dependencies,
+  readiness gates, automatic Quick Assignment generation, conflict resolution, Registration,
+  Vendor/Permit management, calendar integration.
+
+**Update 2026-11-21 (3)**: `plannedtoolkit.py`'s own pre-trigger-engine `PLANNED_NOTIFICATIONS`
+CRUD (`PlannedNotificationsRepository`, the `/planned-meta/notifications` endpoints, the
+`PlannedNotification` dataclass and `notification_from_dict` on the desktop side) is retired —
+this is the other half of the §1.6 item 1 decision that update (2) above didn't cover. It had
+zero live callers anywhere (no desktop UI window called the repository/service wrappers that
+called it), so this was a straight deletion, not a migration: the shared
+`notification_service`/`trigger_engine` was already the only thing anything calls for planned
+toolkit notifications. The `PLANNED_NOTIFICATIONS` collection constant is left as a removed,
+commented placeholder in `collection_names.py` rather than deleted outright, so a stale Mongo
+collection of that name (if one exists in any deployed incident database from earlier testing)
+is traceable back to this entry rather than looking like a typo.
+
+**Any future planned-toolkit work that touches notifications must call
+`sarapp_db.services.notification_service.emit_notification` — never add a toolkit-local
+notification collection, model, or CRUD endpoint again.** This applies repo-wide, not just to
+plannedtoolkit: per the §1.6 item 1 decision, delivered-notification storage is shared
+infrastructure owned by `notification_service.py`, and any module (safety, logistics, comms,
+etc.) that needs to notify someone is a caller of it, never an owner of its own notification
+store.
+
+**Update 2026-11-21 (2)**: the desktop toast delivery bridge flagged missing in §1.2 finding 3
+and §1.4 is now wired up. `sarapp_db.services.notification_service.emit_notification` broadcasts
+a `type: "notification"` WebSocket event — the same event shape `intel.py`'s urgent-intel alert
+already defines and `notifications/services/incident_bridge.py` already consumes on the desktop
+side — alongside its existing mobile-push delivery, rather than inventing a second desktop
+delivery path. Resolved recipients (`person_record`s, already computed server-side for push/ack)
+are passed as a new `target_person_records` field; `incident_bridge.handle_notification_event`
+now checks that field first (exact match against the active user, no section lookup) and falls
+back to the existing `target_sections` resolution only when it's absent, so `intel.py`'s
+existing broadcast is unaffected. A notification with no resolved recipients still broadcasts to
+every connected client, matching the existing no-`target_sections` behavior. `emit_notification`
+is unchanged in every other respect; a broadcast failure still never blocks persistence.
+
+**Update 2026-11-21**: Phase 1 item (1), `plannedtoolkit.py`'s raw-write pattern, is resolved
+differently than originally scoped. The router already called `BaseRepository` methods
+(`insert_one`/`update_one`/`soft_delete`/`find_many`/`find_by_id`) for every write — the
+`_next_compound_id` helper's O(n) full-collection scan for the max existing ID suffix (§5)
+was the only "Blocking Phase 1" item actually still open. That scan is replaced with an
+indexed `seq` field (via the existing `next_record_id` helper, the same pattern `aircraft.py`/
+`personnel.py`/etc. already use) with a unique index added in
+`server/sarapp_db/sarapp_db/mongo/indexes.py` (`_create_plannedtoolkit_indexes`). The
+Quick-Assignment-promotion path's own redundant compound-ID scan for the new task's `task_id`
+is also removed — it now derives `task_id` directly from the `int_id` already minted via
+`next_int_id`, with no second scan. No data-shape change beyond the new `seq` field; existing
+`PlannedRecordCreate`/`ScheduleItemCreate`/etc. field set is unchanged.
 
 **Update 2026-07-18**: the program-wide notification engine identified as missing in §1.2
 finding 3 has been built as a first Phase 1 slice, ahead of the rest of this document's
@@ -365,10 +624,10 @@ These are the service interfaces Phase 1 needs from shared subsystems. Contracts
 
 | Finding | File(s) | Category |
 |---|---|---|
-| `plannedtoolkit.py` still uses raw pymongo writes and O(n) compound-ID scanning (`_next_compound_id`) instead of `BaseRepository` | `server/sarapp_db/sarapp_db/api/routers/plannedtoolkit.py` | **Blocking Phase 1** — new toolkit writes should not extend a raw-write pattern the rest of the codebase has moved off of |
+| ~~`plannedtoolkit.py` still uses raw pymongo writes and O(n) compound-ID scanning (`_next_compound_id`) instead of `BaseRepository`~~ — resolved 2026-11-21: writes already used `BaseRepository`; `_next_compound_id` now uses an indexed `seq` field instead of scanning | `server/sarapp_db/sarapp_db/api/routers/plannedtoolkit.py`, `server/sarapp_db/sarapp_db/mongo/indexes.py` | **Resolved** |
 | No trigger evaluation/execution engine exists | (missing) | **Blocking Phase 1** for any "reminder actually fires" feature |
 | No shared, persisted, multi-user notification store | `IncidentCollections.NOTIFICATIONS` (dead), `plannedtoolkit.py` | **Blocking Phase 1** for cross-workstation notification delivery |
-| Desktop `Notifier` has no bridge from server-persisted/broadcast data | `notifications/services/notifier.py` | **Required during Phase 1** if toolkit notifications must produce toasts |
+| ~~Desktop `Notifier` has no bridge from server-persisted/broadcast data~~ — resolved 2026-11-21: `emit_notification` broadcasts the existing `type: "notification"` WS event with resolved recipients, consumed by `incident_bridge.py` | `server/sarapp_db/sarapp_db/services/notification_service.py`, `apps/desktop/sarapp_desktop/notifications/services/incident_bridge.py` | **Resolved** |
 | Inconsistent origin-link convention (`source_type/source_id` vs `origin_module/origin_id`) | `plannedtoolkit.py`, `operations.py` (`create_task`), `objectives.py` | **Required during Phase 1** — pick one before Registration/Quick Assignment linking expands |
 | Check-in roster hardcodes `team_id: None` | `server/sarapp_db/sarapp_db/api/routers/checkin.py` (`fetch_roster`) | **Required during Phase 1** — blocks reliable Registration→Team joins |
 | `ScheduleWidget` has no date pickers, recurrence UI, or trigger/notification UI | `modules/plannedtoolkit/widgets/schedule_widget.py` | **Important, non-blocking** for Phase 0→1 backend work; blocking for any user-facing schedule UI |
@@ -386,25 +645,49 @@ These are the service interfaces Phase 1 needs from shared subsystems. Contracts
 
 ---
 
-## Phase 0.5 (deferred, not started)
+## Phase 0.5 (completed 2026-11-21, except where a dependency doesn't exist yet)
 
-The following deliverables from the original Phase 0 brief require writing code and were
-explicitly deferred pending a separate go-ahead:
+The deliverables below were explicitly deferred pending a separate go-ahead; that go-ahead
+was given and this section records what's now done and what remains genuinely blocked.
 
-- **Backend tests** proving: a planned schedule trigger emits through the main notification
-  system; one trigger occurrence creates no more than one delivered notification; a Quick
-  Assignment promotes to exactly one Operations Tasking record (partially exists already —
-  needs a test written against current `promote_quick_assignment` behavior); a registration
-  can link to Personnel without overwriting the Personnel record; existing Check-In data can
-  produce expected-vs-checked-in results; cross-module entity links resolve correctly; missed
-  recurring occurrences follow configured behavior; trigger execution survives
-  reconnect/sync without duplication.
-- **Thin vertical prototype**: create schedule item → attach trigger → persist → execute via
-  authoritative scheduler → emit through shared notification subsystem → persist delivered
-  notification → link back to source → resolve from notification → sync without duplicates.
+**Backend tests** — added:
+- `server/sarapp_db/sarapp_db/services/tests/test_trigger_engine.py`: a due one-shot trigger
+  emits through the shared notification system with the correct source link; a trigger fires
+  at most once across repeated evaluations (the "survives reconnect/sync without duplication"
+  requirement — re-running the poll loop never re-fires an already-fired trigger); a future
+  trigger is not fired; a disabled trigger is not fired; a recurring trigger is skipped rather
+  than silently fired (pins down the *current*, deliberately incomplete behavior so a future
+  change has to touch this test on purpose).
+- `server/sarapp_db/sarapp_db/services/tests/test_notification_service.py`: persistence +
+  incident scope + source entity link; audience resolution to a person_record; acknowledge/
+  dismiss recipient-state updates; acknowledge is rejected for a person outside the resolved
+  audience; `list_notifications` filters by source_type/source_id (cross-module entity link
+  resolution); a desktop-toast broadcast failure never blocks persistence.
+- `server/sarapp_db/sarapp_db/api/routers/tests/test_plannedtoolkit_repository.py` gained
+  `test_quick_assignment_promotion_is_idempotent`: promoting the same Quick Assignment three
+  times (including with a different `promoted_by` on the third call) returns the same
+  `linked_tasking_id` every time, never overwrites the original `promoted_by`, and never
+  creates a second Operations Tasking record.
 
-Both require the §3.2 stakeholder decision (shared notification store shape) and the trigger
-execution engine (§4 item 3) to exist first, since they are prerequisites, not test targets.
+Still blocked, not a gap in this pass: **a registration can link to Personnel without
+overwriting the Personnel record** and **existing Check-In data can produce
+expected-vs-checked-in results** cannot be tested because Registration doesn't exist yet
+(§1.4/§1.6 — greenfield, out of Phase 0 scope). These become real tests once Registration is
+built, not before.
+
+**Thin vertical prototype** — implemented as an automated integration test (per the brief's
+own allowance: "a minimal development-facing control or test harness is acceptable"), not a
+UI: `server/sarapp_db/sarapp_db/api/routers/tests/test_planned_events_thin_vertical_prototype.py`.
+Walks the full chain through the real API layer: create schedule item → attach + persist
+trigger via `/planned-meta/schedule-triggers` → fire via `trigger_engine.evaluate_due_triggers`
+(the same function the `NotificationTriggerLoop` poll tick calls) → notification persists in
+the shared store → resolved back to the trigger via `source_id` → resolved further back to the
+schedule item via `schedule_item_id`, starting from nothing but the notification → re-running
+the scheduler produces no duplicate.
+
+All four files were logic-verified against `mongomock` before being committed, since this
+development container has no `mongod` binary to run the real Mongo-backed pytest suite — an
+environment gap, not a reason to skip writing or verifying the tests.
 
 ---
 

@@ -20,6 +20,16 @@ changes it observes locally (see `notifications/services/notifier.py` on the
 desktop side). This service's job is specifically to push notifications out
 to the appropriate place(s) — starting with mobile, since that's the one
 channel with no client-local fallback.
+
+Desktop toast delivery rides the same `type: "notification"` WebSocket event
+`intel.py`'s urgent-intel alert already defines and
+`notifications/services/incident_bridge.py` already consumes on the desktop
+side — `emit_notification` below is just a second producer of that event,
+not a new delivery mechanism. Resolved recipients are passed as
+`target_person_records` so each connected desktop only toasts for its own
+logged-in user; a notification with no resolved recipients broadcasts to
+every connected client, matching intel.py's existing "no target_sections"
+behavior for alerts meant for everyone.
 """
 
 from __future__ import annotations
@@ -116,6 +126,54 @@ def _resolve_audience(
     return deduped
 
 
+# This service's severity vocabulary ("routine", "priority", ...) already
+# matches notifications/models/notification.py's Severity literal on the
+# desktop side 1:1 — no translation needed, just pass it through.
+_VALID_SEVERITIES = {"informational", "routine", "priority", "emergency"}
+_VALID_CATEGORIES = {
+    "operations", "communications", "safety", "logistics", "planning",
+    "administrative", "system",
+}
+
+
+def _broadcast_toast(
+    incident_id: str,
+    *,
+    title: str,
+    message: str,
+    severity: str,
+    category: str,
+    source_type: str,
+    source_id: str,
+    source_label: Optional[str],
+    recipients: List[int],
+) -> None:
+    """Push this notification to connected desktop clients as a toast.
+
+    Reuses the `type: "notification"` WebSocket event intel.py's urgent-alert
+    broadcast already defines (see module docstring) rather than inventing a
+    second desktop delivery path.
+    """
+    try:
+        from sarapp_db.api.ws_hub import hub
+
+        hub.broadcast(incident_id, {
+            "type": "notification",
+            "notification": {
+                "title": title,
+                "message": message,
+                "severity": severity if severity in _VALID_SEVERITIES else "routine",
+                "category": category if category in _VALID_CATEGORIES else "operations",
+                "source": source_label or source_type,
+                "entity_type": source_type,
+                "entity_id": source_id,
+                "target_person_records": recipients,
+            },
+        })
+    except Exception:
+        logger.exception("Failed to broadcast desktop toast for notification source=%s/%s", source_type, source_id)
+
+
 def emit_notification(
     incident_id: str,
     *,
@@ -169,6 +227,18 @@ def emit_notification(
             ],
         }
     )
+    _broadcast_toast(
+        incident_id,
+        title=title,
+        message=message,
+        severity=severity,
+        category=category,
+        source_type=source_type,
+        source_id=source_id,
+        source_label=source_label,
+        recipients=recipients,
+    )
+
     delivery: Dict[str, Any] = {"recipients": recipients, "push_sent": 0, "push_attempted": 0}
     for person_record in recipients:
         try:
