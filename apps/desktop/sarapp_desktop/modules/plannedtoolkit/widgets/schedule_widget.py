@@ -1,47 +1,41 @@
-"""Event Schedule — Planned Events Toolkit (Phase 1A/1B).
+"""Event Schedule — Planned Events Toolkit (Phase 1A/1B + 1C).
 
-An operational run-of-show: activities shown chronologically with planned
-vs. actual timing, responsibility, location, and status, plus the five
-event-day actions (Start/Complete/Delay/Resume/Cancel) that drive the
-status machine the backend enforces (see plannedtoolkit.py).
+`ScheduleWidget` is the top-level container opened from the menu: a
+"Timeline" tab (Phase 1C's operational run-of-show,
+`operational_timeline_widget.py`) and an "Activity List" tab (Phase 1A/1B's
+sortable/filterable table, `ScheduleListWidget` below). Both tabs share one
+`ScheduleController` so there is exactly one place that fetches schedule
+items, applies mutations, and reacts to live updates — not two competing
+scheduling systems.
 """
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any
 
-from PySide6.QtCore import QDateTime, Qt
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
-    QDateTimeEdit,
     QDialog,
-    QDialogButtonBox,
-    QFormLayout,
     QHBoxLayout,
-    QInputDialog,
     QLabel,
     QLineEdit,
     QMessageBox,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
-    QTextEdit,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
 
-from .. import services
+from .operational_timeline_widget import OperationalTimelineWidget
+from .schedule_dialogs import ACTIVITY_TYPE_PRESETS, ScheduleItemDialog, prompt_cancellation_reason, prompt_delay_reason
+from .schedule_time_utils import friendly_dt
 from ..records import ScheduledItem
-from utils.api_client import APIError
-from utils.styles import event_schedule_status_colors, subscribe_theme
-from utils.table_view_styles import apply_statusboard_table_behavior
+from ..schedule_controller import ScheduleController
 
 STATUSES = ("Scheduled", "In Progress", "Completed", "Delayed", "Cancelled")
-ACTIVITY_TYPE_PRESETS = (
-    "Milestone", "Briefing", "Opening", "Closure", "Shift Change",
-    "Inspection", "Performance", "Announcement", "Demobilization", "Other",
-)
 _ALL = "All"
 
 _COLUMNS = (
@@ -50,153 +44,18 @@ _COLUMNS = (
 )
 
 
-def _parse_dt(value: str) -> datetime | None:
-    if not value:
-        return None
-    text = value[:-1] + "+00:00" if value.endswith("Z") else value
-    try:
-        return datetime.fromisoformat(text)
-    except ValueError:
-        try:
-            return datetime.fromisoformat(text.replace(" ", "T"))
-        except ValueError:
-            return None
+class ScheduleListWidget(QWidget):
+    """Phase 1A/1B's sortable/filterable activity table."""
 
-
-def _friendly_dt(value: str) -> str:
-    dt = _parse_dt(value)
-    if dt is None:
-        return ""
-    return dt.strftime("%b %d  %H:%M")
-
-
-def _to_qdatetime(value: str) -> QDateTime:
-    dt = _parse_dt(value)
-    if dt is None:
-        return QDateTime.currentDateTime()
-    return QDateTime(dt.year, dt.month, dt.day, dt.hour, dt.minute)
-
-
-def _storage_dt(editor: QDateTimeEdit) -> str:
-    return editor.dateTime().toString(Qt.ISODate)
-
-
-class ScheduleItemDialog(QDialog):
-    """Create or edit an activity's planned details.
-
-    Deliberately does not touch status/actual times/delay-cancel reasons —
-    those are event-day actions with their own validated transitions, kept
-    separate so this dialog can't put a record into an inconsistent state.
-    """
-
-    def __init__(self, item: ScheduledItem | None = None, parent: QWidget | None = None):
+    def __init__(self, controller: ScheduleController, parent: QWidget | None = None):
         super().__init__(parent)
-        self.setWindowTitle("Edit Activity" if item else "New Activity")
-        self.setMinimumWidth(420)
-        self._item = item
+        self.controller = controller
         self._build_ui()
-        if item is not None:
-            self._load(item)
-
-    def _build_ui(self) -> None:
-        layout = QVBoxLayout(self)
-        form = QFormLayout()
-
-        self.name_edit = QLineEdit()
-        self.kind_combo = QComboBox()
-        self.kind_combo.setEditable(True)
-        self.kind_combo.addItems(ACTIVITY_TYPE_PRESETS)
-
-        self.starts_edit = QDateTimeEdit(QDateTime.currentDateTime())
-        self.starts_edit.setCalendarPopup(True)
-        self.starts_edit.setDisplayFormat("MM/dd/yyyy  HH:mm")
-        self.ends_edit = QDateTimeEdit(QDateTime.currentDateTime().addSecs(1800))
-        self.ends_edit.setCalendarPopup(True)
-        self.ends_edit.setDisplayFormat("MM/dd/yyyy  HH:mm")
-
-        self.time_zone_edit = QLineEdit()
-        self.time_zone_edit.setPlaceholderText("e.g. America/New_York")
-
-        self.location_edit = QLineEdit()
-        self.assigned_to_edit = QLineEdit()
-        self.assigned_to_edit.setPlaceholderText("Responsible person or team (display name)")
-        self.assigned_team_id_edit = QLineEdit()
-        self.assigned_team_id_edit.setPlaceholderText("Team ID (optional)")
-        self.assigned_person_id_edit = QLineEdit()
-        self.assigned_person_id_edit.setPlaceholderText("Person record ID (optional)")
-        self.meeting_id_edit = QLineEdit()
-        self.meeting_id_edit.setPlaceholderText("Linked Meeting Planner ID (optional)")
-
-        self.notes_edit = QTextEdit()
-        self.notes_edit.setFixedHeight(70)
-
-        form.addRow("Activity Name", self.name_edit)
-        form.addRow("Activity Type", self.kind_combo)
-        form.addRow("Planned Start", self.starts_edit)
-        form.addRow("Planned End", self.ends_edit)
-        form.addRow("Time Zone", self.time_zone_edit)
-        form.addRow("Location", self.location_edit)
-        form.addRow("Responsible", self.assigned_to_edit)
-        form.addRow("Team ID", self.assigned_team_id_edit)
-        form.addRow("Person ID", self.assigned_person_id_edit)
-        form.addRow("Linked Meeting ID", self.meeting_id_edit)
-        form.addRow("Notes", self.notes_edit)
-        layout.addLayout(form)
-
-        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        buttons.accepted.connect(self._on_accept)
-        buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
-
-    def _load(self, item: ScheduledItem) -> None:
-        self.name_edit.setText(item.name)
-        if item.kind:
-            self.kind_combo.setCurrentText(item.kind)
-        if item.starts_at:
-            self.starts_edit.setDateTime(_to_qdatetime(item.starts_at))
-        if item.ends_at:
-            self.ends_edit.setDateTime(_to_qdatetime(item.ends_at))
-        self.time_zone_edit.setText(item.time_zone)
-        self.location_edit.setText(item.location)
-        self.assigned_to_edit.setText(item.assigned_to)
-        self.assigned_team_id_edit.setText(item.assigned_team_id)
-        self.assigned_person_id_edit.setText(item.assigned_person_id)
-        self.meeting_id_edit.setText(item.meeting_id)
-        self.notes_edit.setPlainText(item.notes)
-
-    def _on_accept(self) -> None:
-        if not self.name_edit.text().strip():
-            QMessageBox.warning(self, "Activity Name required", "Enter a name for this activity.")
-            return
-        if self.ends_edit.dateTime() < self.starts_edit.dateTime():
-            QMessageBox.warning(self, "Invalid time range", "Planned end cannot be before planned start.")
-            return
-        self.accept()
-
-    def values(self) -> dict[str, Any]:
-        return {
-            "name": self.name_edit.text().strip(),
-            "kind": self.kind_combo.currentText().strip() or "Milestone",
-            "starts_at": _storage_dt(self.starts_edit),
-            "ends_at": _storage_dt(self.ends_edit),
-            "time_zone": self.time_zone_edit.text().strip(),
-            "location": self.location_edit.text().strip(),
-            "assigned_to": self.assigned_to_edit.text().strip(),
-            "assigned_team_id": self.assigned_team_id_edit.text().strip(),
-            "assigned_person_id": self.assigned_person_id_edit.text().strip(),
-            "meeting_id": self.meeting_id_edit.text().strip(),
-            "notes": self.notes_edit.toPlainText().strip(),
-        }
-
-
-class ScheduleWidget(QWidget):
-    def __init__(self, incident_id: object | None = None, parent: QWidget | None = None):
-        super().__init__(parent)
-        self.incident_id = None if incident_id is None else str(incident_id)
-        self._items: list[ScheduledItem] = []
-        self._build_ui()
+        self.controller.itemsChanged.connect(self._populate)
+        self.controller.statusMessage.connect(self._set_status)
+        from utils.styles import subscribe_theme
         subscribe_theme(self, self._on_theme_changed)
-        self.refresh()
+        self._populate()
 
     def _on_theme_changed(self, _name: str) -> None:
         self._populate()
@@ -205,8 +64,8 @@ class ScheduleWidget(QWidget):
         layout = QVBoxLayout(self)
 
         header = QHBoxLayout()
-        title = QLabel("Event Schedule")
-        title.setStyleSheet("font-size: 18px; font-weight: 600;")
+        title = QLabel("Activity List")
+        title.setStyleSheet("font-size: 16px; font-weight: 600;")
         self.status_label = QLabel("")
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         header.addWidget(title)
@@ -247,13 +106,13 @@ class ScheduleWidget(QWidget):
         refresh_btn = QPushButton("Refresh")
         new_btn.clicked.connect(self._new_item)
         edit_btn.clicked.connect(self._edit_selected)
-        start_btn.clicked.connect(self._start_selected)
-        resume_btn.clicked.connect(self._resume_selected)
-        complete_btn.clicked.connect(self._complete_selected)
+        start_btn.clicked.connect(lambda: self._selected_item() and self.controller.start(self._selected_item().id))
+        resume_btn.clicked.connect(lambda: self._selected_item() and self.controller.resume(self._selected_item().id))
+        complete_btn.clicked.connect(lambda: self._selected_item() and self.controller.complete(self._selected_item().id))
         delay_btn.clicked.connect(self._delay_selected)
         cancel_btn.clicked.connect(self._cancel_selected)
         delete_btn.clicked.connect(self._delete_selected)
-        refresh_btn.clicked.connect(self.refresh)
+        refresh_btn.clicked.connect(self.controller.refresh)
         self._action_buttons = {
             "start": start_btn, "resume": resume_btn, "complete": complete_btn,
             "delay": delay_btn, "cancel": cancel_btn, "edit": edit_btn, "delete": delete_btn,
@@ -266,45 +125,15 @@ class ScheduleWidget(QWidget):
         self.table = QTableWidget(0, len(_COLUMNS))
         self.table.setHorizontalHeaderLabels(list(_COLUMNS))
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        from utils.table_view_styles import apply_statusboard_table_behavior
         apply_statusboard_table_behavior(self.table, stretch_last_section=True)
         self.table.itemSelectionChanged.connect(self._update_action_buttons)
         layout.addWidget(self.table)
         self._update_action_buttons()
 
-    # -- data -----------------------------------------------------------
-
-    def _iid(self) -> str | None:
-        return self.incident_id
-
-    def _set_status(self, message: str, *, error: bool = False) -> None:
+    def _set_status(self, message: str, is_error: bool) -> None:
         self.status_label.setText(message)
-        self.status_label.setStyleSheet(f"color: {'#b00020' if error else '#375a2b'};")
-
-    def _describe_error(self, exc: Exception) -> str:
-        if isinstance(exc, APIError):
-            if exc.status_code is None:
-                return f"Schedule API unavailable: {exc}"
-            return f"Schedule API error {exc.status_code}: {exc}"
-        return str(exc)
-
-    def refresh(self) -> None:
-        if not self._iid():
-            self._items = []
-            self._populate()
-            self._set_status("Select an incident to use the Event Schedule.", error=True)
-            return
-        try:
-            rows = services.list_schedule_items(self._iid())
-        except Exception as exc:
-            self._items = []
-            self._populate()
-            self._set_status(self._describe_error(exc), error=True)
-            return
-        self._items = sorted(rows, key=lambda row: row.starts_at or "")
-        self._populate()
-        self._set_status(f"{len(self._items)} activities")
-
-    # -- selection --------------------------------------------------------
+        self.status_label.setStyleSheet(f"color: {'#b00020' if is_error else '#375a2b'};")
 
     def _selected_item(self) -> ScheduledItem | None:
         row = self.table.currentRow()
@@ -329,8 +158,6 @@ class ScheduleWidget(QWidget):
         for key, button in self._action_buttons.items():
             button.setEnabled(enabled[key])
 
-    # -- filtering --------------------------------------------------------
-
     def _filtered_items(self) -> list[ScheduledItem]:
         date_text = self.date_filter_edit.text().strip()
         status_text = self.status_filter_combo.currentText()
@@ -348,24 +175,24 @@ class ScheduleWidget(QWidget):
                 return False
             return True
 
-        return [item for item in self._items if matches(item)]
-
-    # -- rendering --------------------------------------------------------
+        return [item for item in self.controller.items() if matches(item)]
 
     def _populate(self, *_args: Any) -> None:
+        from utils.styles import event_schedule_status_colors
+
         items = self._filtered_items()
         colors = event_schedule_status_colors()
         self.table.setRowCount(len(items))
         for row_idx, item in enumerate(items):
             values = [
-                _friendly_dt(item.starts_at),
+                friendly_dt(item.starts_at),
                 item.name,
                 item.kind,
                 item.assigned_to,
                 item.location,
                 item.status,
-                _friendly_dt(item.actual_start_at),
-                _friendly_dt(item.actual_end_at),
+                friendly_dt(item.actual_start_at),
+                friendly_dt(item.actual_end_at),
             ]
             badge = colors.get(item.status)
             for col_idx, value in enumerate(values):
@@ -374,22 +201,16 @@ class ScheduleWidget(QWidget):
                     cell.setBackground(badge["bg"])
                     cell.setForeground(badge["fg"])
                 self.table.setItem(row_idx, col_idx, cell)
-
-    # -- actions ------------------------------------------------------------
+        self._update_action_buttons()
 
     def _new_item(self) -> None:
-        if not self._iid():
-            self._set_status("Select an incident before creating activities.", error=True)
+        if not self.controller.incident_id:
+            self._set_status("Select an incident before creating activities.", True)
             return
         dialog = ScheduleItemDialog(parent=self)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
-        try:
-            services.create_schedule_item(self._iid(), **dialog.values())
-        except Exception as exc:
-            self._set_status(self._describe_error(exc), error=True)
-            return
-        self.refresh()
+        self.controller.create(**dialog.values())
 
     def _edit_selected(self) -> None:
         item = self._selected_item()
@@ -398,12 +219,7 @@ class ScheduleWidget(QWidget):
         dialog = ScheduleItemDialog(item, parent=self)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
-        try:
-            services.update_schedule_item(item.id, dialog.values(), self._iid())
-        except Exception as exc:
-            self._set_status(self._describe_error(exc), error=True)
-            return
-        self.refresh()
+        self.controller.update(item.id, dialog.values())
 
     def _delete_selected(self) -> None:
         item = self._selected_item()
@@ -413,70 +229,46 @@ class ScheduleWidget(QWidget):
             self, "Delete Activity", f"Delete '{item.name}'?",
         ) != QMessageBox.StandardButton.Yes:
             return
-        try:
-            services.delete_schedule_item(item.id, self._iid())
-        except Exception as exc:
-            self._set_status(self._describe_error(exc), error=True)
-            return
-        self.refresh()
-
-    def _start_selected(self) -> None:
-        item = self._selected_item()
-        if item is None or item.id is None:
-            return
-        try:
-            services.start_schedule_item(item.id, self._iid())
-        except Exception as exc:
-            self._set_status(self._describe_error(exc), error=True)
-            return
-        self.refresh()
-
-    def _resume_selected(self) -> None:
-        item = self._selected_item()
-        if item is None or item.id is None:
-            return
-        try:
-            services.resume_schedule_item(item.id, self._iid())
-        except Exception as exc:
-            self._set_status(self._describe_error(exc), error=True)
-            return
-        self.refresh()
-
-    def _complete_selected(self) -> None:
-        item = self._selected_item()
-        if item is None or item.id is None:
-            return
-        try:
-            services.complete_schedule_item(item.id, self._iid())
-        except Exception as exc:
-            self._set_status(self._describe_error(exc), error=True)
-            return
-        self.refresh()
+        self.controller.delete(item.id)
 
     def _delay_selected(self) -> None:
         item = self._selected_item()
         if item is None or item.id is None:
             return
-        reason, ok = QInputDialog.getMultiLineText(self, "Mark Delayed", "Delay reason (required):")
-        if not ok or not reason.strip():
+        reason = prompt_delay_reason(self)
+        if reason is None:
             return
-        try:
-            services.delay_schedule_item(item.id, self._iid(), delay_reason=reason.strip())
-        except Exception as exc:
-            self._set_status(self._describe_error(exc), error=True)
-            return
-        self.refresh()
+        self.controller.delay(item.id, delay_reason=reason)
 
     def _cancel_selected(self) -> None:
         item = self._selected_item()
         if item is None or item.id is None:
             return
-        reason, ok = QInputDialog.getMultiLineText(self, "Cancel Activity", "Cancellation reason (required):")
-        if not ok or not reason.strip():
+        reason = prompt_cancellation_reason(self)
+        if reason is None:
             return
-        try:
-            services.cancel_schedule_item(item.id, self._iid(), cancellation_reason=reason.strip())
-        except Exception as exc:
-            self._set_status(self._describe_error(exc), error=True)
-            return
-        self.refresh()
+        self.controller.cancel(item.id, cancellation_reason=reason)
+
+
+class ScheduleWidget(QWidget):
+    """Top-level Event Schedule panel: Timeline + Activity List tabs."""
+
+    def __init__(self, incident_id: object | None = None, parent: QWidget | None = None):
+        super().__init__(parent)
+        incident_id = None if incident_id is None else str(incident_id)
+        layout = QVBoxLayout(self)
+        title = QLabel("Event Schedule")
+        title.setStyleSheet("font-size: 18px; font-weight: 600;")
+        layout.addWidget(title)
+
+        # Parented to self so Qt destroys it (and drops its incident_cache
+        # subscription) when this panel closes, instead of leaking a
+        # controller that keeps refreshing forever after the panel is gone.
+        self.controller = ScheduleController(incident_id, parent=self)
+        tabs = QTabWidget()
+        tabs.addTab(OperationalTimelineWidget(self.controller), "Timeline")
+        tabs.addTab(ScheduleListWidget(self.controller), "Activity List")
+        layout.addWidget(tabs)
+
+    def refresh(self) -> None:
+        self.controller.refresh()

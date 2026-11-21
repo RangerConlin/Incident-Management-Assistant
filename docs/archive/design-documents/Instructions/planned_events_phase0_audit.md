@@ -6,6 +6,48 @@ the Registration system, which doesn't exist yet and is correctly out of scope h
 document is the audit report, reuse matrix, domain-boundary decisions, shared service
 contracts, and hardening backlog required before Phase 1 implementation begins.
 
+**Phase 1C (Operational Timeline) — completed 2026-11-21.** A dedicated timeline view inside
+the existing Event Schedule panel, reusing Phase 1A/1B's backend and service layer with zero
+server-side changes. Rather than let the new Timeline view and the existing Activity List view
+each fetch/filter/mutate independently (which would have been a second scheduling system in
+practice even without a second collection), both now read from one new
+`modules.plannedtoolkit.schedule_controller.ScheduleController` — a `QObject` that owns the
+current item list, every mutation (`create`/`update`/`delete`/`start`/`resume`/`complete`/
+`delay`/`cancel`, each a thin call into the same `services.py` wrappers Phase 1A/1B built), and
+the live-update subscription. `ScheduleWidget` is now a container with two tabs ("Timeline",
+"Activity List") sharing one controller instance; the former top-level `ScheduleWidget` table
+logic moved into `ScheduleListWidget` unchanged in behavior.
+- Live refresh reuses the existing mechanism end to end: `BaseRepository` already broadcasts
+  every write on `planned_event_schedules` over the incident WebSocket regardless of client;
+  the desktop WS client already routes that into `utils.incident_cache.incident_cache`:
+  `ScheduleController` just subscribes to its `changed` signal and calls `refresh()` when the
+  collection matches. No new WebSocket, no polling. (Caught and fixed in the same pass: the
+  controller must be constructed with its owning widget as Qt parent, or it never gets torn
+  down and keeps refreshing after its panel closes — a real lifecycle bug a test for "live
+  update only fires for the right collection" surfaced immediately.)
+- "Needs Attention" (overdue) is purely computed (`schedule_time_utils.is_overdue`) from planned
+  timestamps + current status on every render — nothing is written back, and status never
+  changes on a timer, per the brief's explicit requirement.
+- Planned-vs-actual deltas ("Started 8 min late", "Finished 12 min early", "On schedule") are
+  computed the same way (`planned_vs_actual_text`), never stored.
+- `ActivityDetailDialog` (opened by selecting/double-clicking a row) reuses the Phase 1A/1B
+  `ScheduleItemDialog` for Edit and the controller's action methods for Start/Resume/Complete/
+  Delay/Cancel — no separate status-changing logic.
+- Tests: `test_schedule_controller.py` (8 — refresh/empty/sorted, error handling, that every
+  mutation delegates to `services.py` and not local logic, live-update collection filtering),
+  `test_schedule_time_utils.py` (9 — parse/format/diff/overdue pure functions),
+  `test_operational_timeline_widget.py` (9 — chronological ordering, status/date filtering,
+  overdue flagging without a status change, selection, refresh reflecting backend changes,
+  cancelled-item visibility, backward compatibility with a minimal legacy item). All 26 pass
+  under a real `QApplication` (`QT_QPA_PLATFORM=offscreen`) — this container's usual missing-
+  `libEGL.so.1` gap was worked around this time with a throwaway stub `.so` built from the
+  undefined EGL symbols `libQt6Gui`/`libQt6Multimedia` actually need (never called by anything
+  these tests exercise; present only to satisfy the dynamic linker), rather than skipping real
+  widget tests again — not part of the repo, environment-local only.
+- Out of scope per the brief (not implemented): calendar sync, recurring generation, automatic
+  Quick Assignment creation, advanced dependencies, readiness gates, Vendor/Registration/Permit
+  management, new notification infrastructure, a separate event database. None needed.
+
 **Phase 1A/1B (Event Schedule) — completed 2026-11-21.** Built on the existing
 `ScheduledItem`/`ScheduleTrigger` backend (§2 reuse matrix row 1) rather than a new
 subsystem. Summary (file-level detail in each commit):
