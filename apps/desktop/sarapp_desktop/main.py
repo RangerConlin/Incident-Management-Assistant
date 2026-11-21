@@ -956,7 +956,7 @@ class MainWindow(QMainWindow):
         plan_menu = m_tool.addMenu("Planned Event Toolkit")
         self._add_action(plan_menu, "External Messaging", None, "planned.promotions")
         self._add_action(plan_menu, "Vendors && Permits", None, "planned.vendors")
-        self._add_action(plan_menu, "Quick Assignments", None, "planned.tasking")
+        self._add_action(plan_menu, "Assignments", None, "planned.tasking")
         self._add_action(plan_menu, "Health && Sanitation", None, "planned.health_sanitation")
 
         init_menu = m_tool.addMenu("Initial Response")

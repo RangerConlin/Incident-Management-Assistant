@@ -196,7 +196,6 @@ class IncidentCollections:
     PLANNED_EVENT_SCHEDULES = "planned_event_schedules"
     PLANNED_VENDORS = "planned_vendors"
     PLANNED_PERMITS = "planned_permits"
-    PLANNED_TASKS = "planned_tasks"
     PLANNED_QUICK_ASSIGNMENTS = "planned_quick_assignments"
     PLANNED_HEALTH_INSPECTIONS = "planned_health_inspections"
     PLANNED_SCHEDULE_TRIGGERS = "planned_schedule_triggers"

@@ -25,10 +25,13 @@ def create_record(
     status: str | None = None,
     priority: str | None = None,
     assigned_to: str = "",
+    assigned_team_id: str = "",
+    assigned_person_id: str = "",
     location: str = "",
     scheduled_at: str = "",
     due_at: str = "",
     metadata: dict[str, Any] | None = None,
+    **extra: Any,
 ) -> PlannedRecord:
     return PlannedToolkitRepository(incident_id).create_record(
         tool,
@@ -37,10 +40,13 @@ def create_record(
         status=status,
         priority=priority,
         assigned_to=assigned_to,
+        assigned_team_id=assigned_team_id,
+        assigned_person_id=assigned_person_id,
         location=location,
         scheduled_at=scheduled_at,
         due_at=due_at,
         metadata=metadata,
+        **extra,
     )
 
 
