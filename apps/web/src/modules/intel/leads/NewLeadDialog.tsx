@@ -3,7 +3,12 @@ import { INFORMATION_CONFIDENCE_VALUES, LEAD_PRIORITIES, LEAD_SOURCE_CATEGORIES,
 import { CheckboxField, SelectField, TextField } from "../IntelFormFields";
 
 interface NewLeadDialogProps {
-  onCreate: (body: Record<string, unknown>) => void;
+  /** `subjectToCreate` matches desktop's `_build_subject`: Public Tip
+   * always produces one, Agency/Liaison produces one when a representative
+   * is given, Other produces one only when its checkbox is checked. The
+   * caller creates the subject first, then the lead with its id attached
+   * (see LeadsBoardPage) — same order desktop's `_new_lead` follows. */
+  onCreate: (body: Record<string, unknown>, subjectToCreate: Record<string, unknown> | null) => void;
   onCancel: () => void;
   busy?: boolean;
 }
@@ -85,6 +90,37 @@ export default function NewLeadDialog({ onCreate, onCancel, busy }: NewLeadDialo
     return base;
   };
 
+  // Matches desktop's leads_tab.py's _build_subject exactly: Public Tip
+  // always creates a Subject for the informant; Agency/Liaison creates a
+  // Contact Subject when a representative name is given; Other creates one
+  // only when its own checkbox is checked and a contact name is given.
+  const buildSubjectToCreate = (): Record<string, unknown> | null => {
+    if (category === "Public Tip" && f.tip_name?.trim()) {
+      const typeMap: Record<string, string> = { "Reporting Party": "Reporting Party", Witness: "Witness", Contact: "Contact" };
+      return {
+        subject_type: typeMap[f.tip_subject_type ?? "Reporting Party"] ?? "Reporting Party",
+        name: f.tip_name.trim(),
+        phone: f.tip_phone || undefined,
+        email: f.tip_email || undefined,
+        address: f.tip_address || undefined,
+        relationship_to_incident: f.tip_relationship || undefined,
+      };
+    }
+    if (category === "Agency / Liaison" && f.agency_contact?.trim()) {
+      return {
+        subject_type: "Contact",
+        name: f.agency_contact.trim(),
+        organization: f.agency_name || undefined,
+        phone: f.agency_phone || undefined,
+        email: f.agency_email || undefined,
+      };
+    }
+    if (category === "Other" && createContactSubject && f.other_contact_name?.trim()) {
+      return { subject_type: "Contact", name: f.other_contact_name.trim() };
+    }
+    return null;
+  };
+
   return (
     <div className="modal-backdrop" onClick={onCancel}>
       <div className="modal" style={{ maxWidth: 580, maxHeight: "85vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
@@ -130,6 +166,12 @@ export default function NewLeadDialog({ onCreate, onCancel, busy }: NewLeadDialo
               <TextField label="Email" value={f.tip_email ?? ""} onChange={set("tip_email")} />
               <TextField label="Address" value={f.tip_address ?? ""} onChange={set("tip_address")} />
               <TextField label="Relationship" value={f.tip_relationship ?? ""} onChange={set("tip_relationship")} />
+              <SelectField
+                label="Subject Type"
+                value={f.tip_subject_type ?? "Reporting Party"}
+                onChange={set("tip_subject_type")}
+                options={["Reporting Party", "Witness", "Contact"]}
+              />
               <p style={{ fontSize: "0.82rem", opacity: 0.6, fontStyle: "italic" }}>A Subject will be created for this informant.</p>
             </>
           )}
@@ -158,7 +200,7 @@ export default function NewLeadDialog({ onCreate, onCancel, busy }: NewLeadDialo
           <button className="secondary" onClick={onCancel}>
             Cancel
           </button>
-          <button disabled={!title.trim() || busy} onClick={() => onCreate(buildBody())}>
+          <button disabled={!title.trim() || busy} onClick={() => onCreate(buildBody(), buildSubjectToCreate())}>
             {busy ? "Saving…" : "Save"}
           </button>
         </div>

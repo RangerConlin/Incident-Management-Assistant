@@ -60,7 +60,11 @@ const hasty = incidentDataset("hasty", "Hasty tasks", "initialresponse/hasty", "
 planned.push(incidentDataset("schedule", "Event schedule", "planned/promotions/schedule", "planned_event_schedules", [f("title", "Name", { required: true, writeKey: "name" }), f("kind", "Kind", { initial: "Milestone" }), f("starts_at", "Starts at", { kind: "datetime-local" }), f("ends_at", "Ends at", { kind: "datetime-local" }), f("location", "Location"), f("zone", "Zone"), f("owner", "Owner"), status, f("summary", "Notes", { kind: "textarea", writeKey: "notes" })], { update: "patch", remove: true }));
 const reflex = incidentDataset("reflex", "Reflex actions", "initialresponse/reflex", "initial_reflex_actions", [f("trigger", "Trigger", { required: true }), f("action", "Action", { kind: "textarea" }), f("communications_alert_id", "Communications alert ID")]);
 export const WORKSPACES: Workspace[] = [
-  { path: "/intel", title: "Intel", description: "Subjects, incoming leads, intelligence items, and analyst assessments.", datasets: intel },
+  // "/intel" itself is now a full bespoke module (IntelDashboardPage +
+  // Subjects/Leads/Items/Assessments board+detail pages + IntelLogPage,
+  // under src/modules/intel/) — this generic workspace entry moved out so
+  // it doesn't collide with those real routes. The `intel` dataset array
+  // above stays, since the SAR Toolkit workspace below still reuses it.
   // "/medical" itself is now MedicalDashboardPage + Ics206BuilderPage (real
   // pages, not the generic scaffold) — this workspace moved to its own path
   // so medical incidents/triage reporting (which has no custom UI yet)

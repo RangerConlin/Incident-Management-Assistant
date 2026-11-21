@@ -39,6 +39,17 @@ MVP mobile endpoints:
 - GET /api/incidents/{incident_id}/checkin/roles
 - GET /api/incidents/{incident_id}/checkin/teams
 - GET /api/incidents/{incident_id}/checkin/personnel/search?q={query}
+- POST /api/incidents/{incident_id}/checkin/resource-qr/preview
+  Body: {resource_kind: "personnel", profile: {...}}. Validates a decoded
+  SARAPP:PROFILE:v2 payload and reports whether person_id is new, matched, or
+  ambiguous, plus incident-copy field differences. This endpoint does not write.
+- POST /api/incidents/{incident_id}/checkin/resource-qr/apply
+  Body: {resource_kind: "personnel", profile: {...}, check_in: bool,
+  team_id?, approved_by_person_record?}. After staff approval, creates a new
+  master personnel record only when person_id is unknown, creates or refreshes
+  the incident-person copy from the QR profile, optionally checks the person in,
+  and optionally adds person_record to the selected team's member roster.
+  Existing master personnel fields are not overwritten by scanned profile data.
 - PUT /api/incidents/{incident_id}/checkin/{person_id}
 - GET /api/incidents/{incident_id}/checkin/roster
 - POST /api/incidents/{incident_id}/mobile/entry

@@ -14,12 +14,18 @@ typedef QrScannerViewBuilder =
 /// codes. Interpreting a scanned payload belongs to the workflow that consumes
 /// it; this screen deliberately preserves and displays the exact QR contents.
 class QrScannerScreen extends StatefulWidget {
-  const QrScannerScreen({super.key, required this.args, this.scannerBuilder});
+  const QrScannerScreen({
+    super.key,
+    required this.args,
+    this.scannerBuilder,
+    this.onScanned,
+  });
 
   final HomeNavArgs args;
 
   @visibleForTesting
   final QrScannerViewBuilder? scannerBuilder;
+  final Future<void> Function(String payload)? onScanned;
 
   @override
   State<QrScannerScreen> createState() => _QrScannerScreenState();
@@ -88,6 +94,8 @@ class _QrScannerScreenState extends State<QrScannerScreen>
       return;
     }
     setState(() => _result = value);
+    final onScanned = widget.onScanned;
+    if (onScanned != null) unawaited(onScanned(value));
     if (_controller.value.isRunning) {
       unawaited(_controller.stop());
     }

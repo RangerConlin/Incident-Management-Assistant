@@ -85,6 +85,7 @@ export default function CheckInPage() {
 
 function PersonnelCheckIn({ incidentId }: { incidentId: string }) {
   const [search, setSearch] = useState("");
+  const [scannerMode, setScannerMode] = useState(false);
   const [reportingLocation, setReportingLocation] = useState("");
   const [selected, setSelected] = useState<MasterPersonnelSummary | CheckinRosterRow | null>(null);
   const [showAdd, setShowAdd] = useState(false);
@@ -141,62 +142,92 @@ function PersonnelCheckIn({ incidentId }: { incidentId: string }) {
 
   return (
     <div>
-      <div className="card">
-        <h3>Fast Check-In</h3>
-        <div className="field" style={{ maxWidth: 360 }}>
-          <label>Search personnel by name, ID, or callsign</label>
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Scan badge/QR, or type…" />
-        </div>
-        <div className="hint">A badge/QR scan types straight into this box like a keyboard — no separate scanner UI needed.</div>
-      </div>
-
-      {search.trim() && notYetCheckedIn.length > 0 && (
-        <div className="card">
-          <h3>Not Yet Checked In</h3>
-          {notYetCheckedIn.map((p: MasterPersonnelSummary) => (
-            <div key={p.person_record} className="list-item" style={{ cursor: "default" }}>
-              <div>
-                <div style={{ fontWeight: 600 }}>{p.name}</div>
-                <div style={{ fontSize: "0.85rem", opacity: 0.7 }}>
-                  {p.person_id} · {p.primary_role ?? "—"}
-                </div>
-              </div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button className="secondary" style={{ width: "auto" }} onClick={() => setSelected(p)}>
-                  Select
-                </button>
-                <button
-                  style={{ width: "auto" }}
-                  disabled={saveCheckinMutation.isPending}
-                  onClick={() =>
-                    saveCheckinMutation.mutate({
-                      personRecord: p.person_record,
-                      body: { status: "Checked In", location: reportingLocation || "ICP" },
-                    })
-                  }
-                >
-                  Check In
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <div className="card">
-        <h3>Reporting Location</h3>
+      <div className="logistics-toolbar">
         <input
-          placeholder="e.g. ICP, Staging Area B"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key !== "Enter" || !scannerMode) return;
+            e.preventDefault();
+            const term = search.trim().toLowerCase();
+            if (!term) return;
+            const match =
+              notYetCheckedIn.find((p) => p.person_id?.toLowerCase() === term) ??
+              (notYetCheckedIn.length === 1 ? notYetCheckedIn[0] : undefined);
+            if (!match) return;
+            saveCheckinMutation.mutate(
+              { personRecord: match.person_record, body: { status: "Checked In", location: reportingLocation || "ICP" } },
+              { onSuccess: () => setSearch("") }
+            );
+          }}
+          placeholder="Scan badge/QR, or type name, ID, or callsign…"
+          style={{ width: 260 }}
+        />
+        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.82rem", whiteSpace: "nowrap" }}>
+          <input type="checkbox" checked={scannerMode} onChange={(e) => setScannerMode(e.target.checked)} /> Scanner Mode
+        </label>
+        <input
+          placeholder="Reporting location — e.g. ICP, Staging Area B"
           value={reportingLocation}
           onChange={(e) => setReportingLocation(e.target.value)}
-          style={{ width: "100%" }}
+          style={{ width: 240 }}
         />
-        <div className="hint">Applied the next time you check someone in from this tab.</div>
+        <button className="ghost" style={{ marginLeft: "auto" }} onClick={() => setShowAdd(true)}>
+          + Add New Personnel Record
+        </button>
       </div>
+      <div className="hint">A badge/QR scan types straight into the search box like a keyboard — no separate scanner UI needed.</div>
 
-      <div className="card">
-        <h3>Status Actions</h3>
-        <div className="action-row">
+      {search.trim() && notYetCheckedIn.length > 0 && (
+        <>
+          <h3 className="pm-section-label">Not Yet Checked In</h3>
+          <table className="logistics-approvals-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Person ID</th>
+                <th>Role</th>
+                <th style={{ width: 110 }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {notYetCheckedIn.map((p: MasterPersonnelSummary) => (
+                <tr key={p.person_record}>
+                  <td style={{ fontWeight: 600 }}>{p.name}</td>
+                  <td>{p.person_id}</td>
+                  <td>{p.primary_role ?? "—"}</td>
+                  <td>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button className="secondary" style={{ width: "auto" }} onClick={() => setSelected(p)}>
+                        Select
+                      </button>
+                      <button
+                        style={{ width: "auto" }}
+                        disabled={saveCheckinMutation.isPending}
+                        onClick={() =>
+                          saveCheckinMutation.mutate(
+                            {
+                              personRecord: p.person_record,
+                              body: { status: "Checked In", location: reportingLocation || "ICP" },
+                            },
+                            { onSuccess: () => setSearch("") }
+                          )
+                        }
+                      >
+                        Check In
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+
+      <div className="logistics-toolbar">
+        <span className="muted">{selected ? `Selected: ${selected.name}` : "Select a person below to apply a status."}</span>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
           {STATUS_ACTIONS.map((a) => (
             <button
               key={a.status}
@@ -213,15 +244,8 @@ function PersonnelCheckIn({ incidentId }: { incidentId: string }) {
             </button>
           ))}
         </div>
-        <div className="preview-box">{selected ? `Selected: ${selected.name}` : "Select a person above (or from the roster row) to apply a status."}</div>
       </div>
 
-      <div className="card">
-        <h3>Add New Record</h3>
-        <button className="ghost" onClick={() => setShowAdd(true)}>
-          + Add New Personnel Record
-        </button>
-      </div>
       {showAdd && (
         <AddRecordDialog
           kind="personnel"
@@ -287,65 +311,74 @@ function ResourceCheckIn({ incidentId, kind }: { incidentId: string; kind: Resou
 
   return (
     <div>
-      <div className="card">
-        <h3>Fast Check-In</h3>
-        <div className="field" style={{ maxWidth: 360 }}>
-          <label>Search {kind} catalog</label>
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Scan asset tag, or type…" />
-        </div>
-      </div>
-
-      <div className="card">
-        <h3>Reporting Location</h3>
+      <div className="logistics-toolbar">
+        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={`Scan asset tag, or search the ${kind} catalog…`} style={{ width: 300 }} />
         <input
-          placeholder="e.g. Staging Area B"
+          placeholder="Reporting location — e.g. Staging Area B"
           value={reportingLocation}
           onChange={(e) => setReportingLocation(e.target.value)}
-          style={{ width: "100%" }}
+          style={{ width: 240 }}
         />
+        <button className="ghost" style={{ marginLeft: "auto" }} onClick={() => setShowAdd(true)}>
+          + Add New {kind === "vehicle" ? "Vehicle" : kind === "aircraft" ? "Aircraft" : "Equipment"} Record
+        </button>
       </div>
 
-      <div className="card">
-        <h3>Results</h3>
-        {isLoading ? (
-          <p>Loading…</p>
-        ) : results.length === 0 ? (
-          <p style={{ opacity: 0.6 }}>No matches.</p>
-        ) : (
-          results.map((item) => {
-            const recordId = recordIdOf(item);
-            const already = checkedInIds.has(recordId);
-            return (
-              <div key={recordId} className="list-item" style={{ cursor: "default" }}>
-                <div style={{ fontWeight: 600 }}>{labelOf(item)}</div>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button className={selectedId === recordId ? undefined : "secondary"} style={{ width: "auto" }} onClick={() => setSelectedId(recordId)}>
-                    {selectedId === recordId ? "Selected" : "Select"}
-                  </button>
-                  <button
-                    className={already ? "secondary" : undefined}
-                    style={{ width: "auto" }}
-                    disabled={already || checkIn.isPending}
-                    onClick={() =>
-                      checkIn.mutate({
-                        resourceType: kind,
-                        recordId,
-                        overrides: reportingLocation ? { location: reportingLocation } : undefined,
-                      })
-                    }
-                  >
-                    {already ? "Checked In" : "Check In"}
-                  </button>
-                </div>
-              </div>
-            );
-          })
-        )}
-      </div>
+      {isLoading ? (
+        <p>Loading…</p>
+      ) : (
+        <table className="logistics-approvals-table">
+          <thead>
+            <tr>
+              <th>Record</th>
+              <th style={{ width: 150 }}>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {results.length === 0 && (
+              <tr>
+                <td colSpan={2} className="muted">
+                  No matches.
+                </td>
+              </tr>
+            )}
+            {results.map((item) => {
+              const recordId = recordIdOf(item);
+              const already = checkedInIds.has(recordId);
+              return (
+                <tr key={recordId}>
+                  <td style={{ fontWeight: 600 }}>{labelOf(item)}</td>
+                  <td>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button className={selectedId === recordId ? undefined : "secondary"} style={{ width: "auto" }} onClick={() => setSelectedId(recordId)}>
+                        {selectedId === recordId ? "Selected" : "Select"}
+                      </button>
+                      <button
+                        className={already ? "secondary" : undefined}
+                        style={{ width: "auto" }}
+                        disabled={already || checkIn.isPending}
+                        onClick={() =>
+                          checkIn.mutate({
+                            resourceType: kind,
+                            recordId,
+                            overrides: reportingLocation ? { location: reportingLocation } : undefined,
+                          })
+                        }
+                      >
+                        {already ? "Checked In" : "Check In"}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
 
-      <div className="card">
-        <h3>Status Actions</h3>
-        <div className="action-row">
+      <div className="logistics-toolbar">
+        <span className="muted">{selectedId ? `Selected record: ${selectedId}` : "Select a record above to apply a status."}</span>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
           {STATUS_ACTIONS.map((a) => (
             <button
               key={a.status}
@@ -357,20 +390,13 @@ function ResourceCheckIn({ incidentId, kind }: { incidentId: string; kind: Resou
             </button>
           ))}
         </div>
-        <div className="preview-box">{selectedId ? `Selected record: ${selectedId}` : "Select a record above to apply a status."}</div>
-        {setStatus.isError && (
-          <div className="hint" style={{ color: "var(--red, #e08a8a)" }}>
-            {(setStatus.error as Error).message}
-          </div>
-        )}
       </div>
+      {setStatus.isError && (
+        <p className="error" role="alert">
+          {(setStatus.error as Error).message}
+        </p>
+      )}
 
-      <div className="card">
-        <h3>Add New Record</h3>
-        <button className="ghost" onClick={() => setShowAdd(true)}>
-          + Add New {kind === "vehicle" ? "Vehicle" : kind === "aircraft" ? "Aircraft" : "Equipment"} Record
-        </button>
-      </div>
       {showAdd && (
         <AddRecordDialog
           kind={kind}
@@ -469,55 +495,64 @@ function TeamsCheckIn({ incidentId }: { incidentId: string }) {
 
   return (
     <div>
-      <div className="card">
-        <h3>Team</h3>
-        <div className="org-row">
-          <select
-            style={{ flex: 1 }}
-            value={selectedTeamId}
-            onChange={(e) => setSelectedTeamId(e.target.value ? Number(e.target.value) : "")}
+      <div className="logistics-toolbar">
+        <select
+          style={{ minWidth: 220 }}
+          value={selectedTeamId}
+          onChange={(e) => setSelectedTeamId(e.target.value ? Number(e.target.value) : "")}
+        >
+          <option value="">{isLoading ? "Loading teams…" : "Select a team"}</option>
+          {teams.map((t) => (
+            <option key={t.int_id} value={t.int_id}>
+              {t.name || `Team ${t.int_id}`}
+            </option>
+          ))}
+        </select>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button disabled={!selectedTeam} onClick={() => setShowConfirm(true)}>
+            Open Team Check-In Confirmation
+          </button>
+          <button
+            className="secondary"
+            disabled={!selectedTeam || setPlanning.isPending}
+            onClick={() => selectedTeam && setPlanning.mutate({ teamId: selectedTeam.int_id, status: "Expected" })}
           >
-            <option value="">{isLoading ? "Loading teams…" : "Select a team"}</option>
-            {teams.map((t) => (
-              <option key={t.int_id} value={t.int_id}>
-                {t.name || `Team ${t.int_id}`}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="preview-box" style={{ marginTop: 10 }}>
-          {selectedTeam ? (
-            <>
-              Team: {selectedTeam.name || selectedTeam.int_id}
-              <br />
-              Checked In: {selectedTeam.checked_in ? "Yes" : "No"} · Disbanded: {selectedTeam.disbanded ? "Yes" : "No"} · Status:{" "}
-              {selectedTeam.status || "—"}
-            </>
-          ) : (
-            "Select a team not yet checked in."
-          )}
+            Mark Team Expected
+          </button>
+          <button
+            className="secondary"
+            disabled={!selectedTeam || setPlanning.isPending}
+            onClick={() => selectedTeam && setPlanning.mutate({ teamId: selectedTeam.int_id, status: "Enroute" })}
+          >
+            Mark Team Enroute
+          </button>
         </div>
       </div>
 
-      <div className="action-row">
-        <button disabled={!selectedTeam} onClick={() => setShowConfirm(true)}>
-          Open Team Check-In Confirmation
-        </button>
-        <button
-          className="secondary"
-          disabled={!selectedTeam || setPlanning.isPending}
-          onClick={() => selectedTeam && setPlanning.mutate({ teamId: selectedTeam.int_id, status: "Expected" })}
-        >
-          Mark Team Expected
-        </button>
-        <button
-          className="secondary"
-          disabled={!selectedTeam || setPlanning.isPending}
-          onClick={() => selectedTeam && setPlanning.mutate({ teamId: selectedTeam.int_id, status: "Enroute" })}
-        >
-          Mark Team Enroute
-        </button>
-      </div>
+      <table className="logistics-approvals-table">
+        <tbody>
+          <tr>
+            <td style={{ width: 140 }} className="muted">Team</td>
+            <td>{selectedTeam ? selectedTeam.name || selectedTeam.int_id : <span className="muted">Select a team not yet checked in.</span>}</td>
+          </tr>
+          {selectedTeam && (
+            <>
+              <tr>
+                <td className="muted">Checked In</td>
+                <td>{selectedTeam.checked_in ? "Yes" : "No"}</td>
+              </tr>
+              <tr>
+                <td className="muted">Disbanded</td>
+                <td>{selectedTeam.disbanded ? "Yes" : "No"}</td>
+              </tr>
+              <tr>
+                <td className="muted">Status</td>
+                <td>{selectedTeam.status || "—"}</td>
+              </tr>
+            </>
+          )}
+        </tbody>
+      </table>
 
       {showConfirm && selectedTeam && (
         <TeamCheckInConfirmDialog incidentId={incidentId} team={selectedTeam} onClose={() => setShowConfirm(false)} />

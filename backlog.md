@@ -96,6 +96,13 @@ Task Board
 
 **************************************************************************************************************
 [Logistics]
+
+- Add a shared resource QR-label generator/print workflow for personnel, equipment, vehicles,
+  aircraft, and other supported master resources. It should use the same versioned envelope,
+  canonical-record payload rules, validation, staff review, and approval semantics as mobile
+  personnel profile QRs, with printable single labels and batch label sheets. Resource-specific
+  payloads must identify their resource kind and must never bypass repository-backed server
+  resolution when scanned.
 Logistics Dashboard
 
 Check In ICS-211
@@ -412,6 +419,20 @@ Cost Summary
 
 **************************************************************************************************************
 [Web Logistics follow-up]
+- `server/sarapp_db/sarapp_db/api/routers/logistics_resource_requests.py` still has no test
+  file of its own under `server/sarapp_db/sarapp_db/api/routers/tests/` — the 2026-11-08
+  approval `section` field (requesting/logistics/finance grouping) and the standalone
+  `FINANCE_APPROVE`/`FINANCE_DENY` actions are only exercised indirectly, through
+  `apps/desktop/sarapp_desktop/modules/logistics/resource_requests/tests/test_service.py`
+  (which hits this router's real FastAPI app via an in-process TestClient, through the
+  desktop `ResourceRequestService` wrapper). Write a router-level test module that imports
+  and calls `record_approval`/`change_status` directly, without the desktop service layer
+  in between.
+- Finance/Admin cost approval has no "does this request have a cost impact" flag in the data
+  model, so the web UI always shows it as "Not Required" unless a `FINANCE_APPROVE`/
+  `FINANCE_DENY` has already been recorded through some other path — there's currently no UI
+  control to trigger one. Add a cost-impact flag (and the control to set it) if Finance needs
+  to actively act on specific requests rather than only after the fact.
 - Shared request API hardening: enforce terminal/edit locks on item and fulfillment endpoints,
   not just header PATCH; item replacement currently does not advance version or append an
   audit entry, and fulfillment updates lack actor audit attribution. Preserve the existing

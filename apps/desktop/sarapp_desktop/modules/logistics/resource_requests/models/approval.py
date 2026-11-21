@@ -16,6 +16,10 @@ class ApprovalRecord:
     actor_id: str
     ts_utc: str
     note: Optional[str] = None
+    # ICS-213RR responsibility tier this approval belongs to (requesting /
+    # logistics / finance) — None for records written before this field
+    # existed; see backfill_resource_request_approval_section.py.
+    section: Optional[str] = None
 
     def to_row(self) -> Dict[str, object]:
         return {
@@ -25,6 +29,7 @@ class ApprovalRecord:
             "actor_id": self.actor_id,
             "note": self.note,
             "ts_utc": self.ts_utc,
+            "section": self.section,
         }
 
     @classmethod
@@ -36,4 +41,5 @@ class ApprovalRecord:
             actor_id=row["actor_id"],
             note=row.get("note"),
             ts_utc=row["ts_utc"],
+            section=row.get("section"),
         )

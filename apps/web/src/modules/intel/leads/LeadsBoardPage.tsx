@@ -4,7 +4,7 @@ import DataTable, { type ColumnDef } from "../../../components/table/DataTable";
 import FilterBar from "../../../components/table/FilterBar";
 import KpiStrip from "../../../components/KpiStrip";
 import StatusPill from "../../../components/table/StatusPill";
-import { INFORMATION_CONFIDENCE_VALUES, LEAD_PRIORITIES, LEAD_SOURCE_CATEGORIES, LEAD_STATUSES } from "../../../api/endpoints";
+import { createIntelSubject, INFORMATION_CONFIDENCE_VALUES, LEAD_PRIORITIES, LEAD_SOURCE_CATEGORIES, LEAD_STATUSES } from "../../../api/endpoints";
 import type { IntelLead } from "../../../api/types";
 import { useSession } from "../../../auth/SessionContext";
 import { formatDateTime } from "../../../utils/formatDateTime";
@@ -175,7 +175,20 @@ export default function LeadsBoardPage() {
         <NewLeadDialog
           busy={createLead.isPending}
           onCancel={() => setShowNew(false)}
-          onCreate={(body) => createLead.mutate({ ...body, created_by: user?.display_name }, { onSuccess: () => setShowNew(false) })}
+          onCreate={async (body, subjectToCreate) => {
+            // Matches desktop's IntelWindow._new_lead order: create the
+            // Subject first (if the dialog produced one), then the lead
+            // with that subject's id attached.
+            let sourceSubjectId: string | undefined;
+            if (subjectToCreate) {
+              const created = await createIntelSubject(incidentId!, { ...subjectToCreate, created_by: user?.display_name });
+              sourceSubjectId = created.id;
+            }
+            createLead.mutate(
+              { ...body, source_subject_id: sourceSubjectId, created_by: user?.display_name },
+              { onSuccess: () => setShowNew(false) },
+            );
+          }}
         />
       )}
 

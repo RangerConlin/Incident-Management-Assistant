@@ -13,13 +13,13 @@ from .. import get_service
 from ..api import printers
 from ..api.service import ResourceRequestService
 from ..export_service import generate_ics213rr
-from ..api.validators import ValidationError
-from ..models.enums import ApprovalAction, Priority, RequestStatus
-from .dialogs import AssignDialog, EtaDialog, NoteDialog
-from .widgets.approvals_timeline import ApprovalsTimeline
+from ..api.validators import ValidationError, available_approval_actions
+from ..models.enums import ApprovalAction, ApprovalSection, Priority, RequestStatus, TERMINAL_STATUSES
+from .dialogs import AssignDialog, EtaDialog
 from .widgets.audit_view import AuditView
 from .widgets.fulfillment_view import FulfillmentView
 from .widgets.items_table import ItemsTable
+from .widgets.required_approvals_table import RequiredApprovalsTable
 
 
 class ResourceRequestDetailPanel(QtWidgets.QWidget):
@@ -83,29 +83,15 @@ class ResourceRequestDetailPanel(QtWidgets.QWidget):
         self.items_table = ItemsTable(self.tabs)
         self.tabs.addTab(self.items_table, "Items")
 
-        # Approvals tab
+        # Approvals tab — one table, rows grouped by responsibility
+        # section (Requesting/Logistics/Finance), not a flat timeline with
+        # a separate fixed action-button row. Each section's still-pending
+        # row carries its own inline note field and action buttons.
         approvals_widget = QtWidgets.QWidget(self.tabs)
         approvals_layout = QtWidgets.QVBoxLayout(approvals_widget)
-        self.approvals_view = ApprovalsTimeline(approvals_widget)
+        self.approvals_view = RequiredApprovalsTable(approvals_widget)
+        self.approvals_view.actionRequested.connect(self._on_approval_action)
         approvals_layout.addWidget(self.approvals_view)
-        approval_buttons = QtWidgets.QHBoxLayout()
-        self.submit_button = QtWidgets.QPushButton("Submit")
-        self.submit_button.clicked.connect(lambda: self._record_action(ApprovalAction.SUBMIT))
-        self.review_button = QtWidgets.QPushButton("Review")
-        self.review_button.clicked.connect(lambda: self._record_action(ApprovalAction.REVIEW))
-        self.approve_button = QtWidgets.QPushButton("Approve")
-        self.approve_button.clicked.connect(lambda: self._record_action(ApprovalAction.APPROVE))
-        self.deny_button = QtWidgets.QPushButton("Deny")
-        self.deny_button.clicked.connect(lambda: self._record_action(ApprovalAction.DENY, require_note=True))
-        self.cancel_button = QtWidgets.QPushButton("Cancel")
-        self.cancel_button.clicked.connect(lambda: self._record_action(ApprovalAction.CANCEL))
-        approval_buttons.addWidget(self.submit_button)
-        approval_buttons.addWidget(self.review_button)
-        approval_buttons.addWidget(self.approve_button)
-        approval_buttons.addWidget(self.deny_button)
-        approval_buttons.addWidget(self.cancel_button)
-        approval_buttons.addStretch(1)
-        approvals_layout.addLayout(approval_buttons)
         self.tabs.addTab(approvals_widget, "Approvals")
 
         # Fulfillment tab
@@ -141,7 +127,7 @@ class ResourceRequestDetailPanel(QtWidgets.QWidget):
         QtGui.QShortcut(
             QtGui.QKeySequence(QtCore.Qt.CTRL | QtCore.Qt.Key_Return),
             self,
-            lambda: self._record_action(ApprovalAction.SUBMIT),
+            lambda: self._on_approval_action(ApprovalAction.SUBMIT, ApprovalSection.REQUESTING, ""),
         )
 
 
@@ -157,7 +143,7 @@ class ResourceRequestDetailPanel(QtWidgets.QWidget):
         self.links_edit.clear()
         self.justification_edit.clear()
         self.items_table.set_items([])
-        self.approvals_view.clear()
+        self.approvals_view.set_data([], available_approval_actions(RequestStatus.DRAFT), False)
         self.fulfillment_view.set_fulfillment(None)
         self.audit_view.clear()
         self.status_label.setText(RequestStatus.DRAFT.value)
@@ -190,9 +176,15 @@ class ResourceRequestDetailPanel(QtWidgets.QWidget):
         priority_index = self.priority_combo.findData(record.get("priority"))
         if priority_index >= 0:
             self.priority_combo.setCurrentIndex(priority_index)
-        self.status_label.setText(record.get("status", RequestStatus.DRAFT.value))
+        status_value = record.get("status", RequestStatus.DRAFT.value)
+        self.status_label.setText(status_value)
         self.items_table.set_items(record.get("items", []))
-        self.approvals_view.set_approvals(record.get("approvals", []))
+        status = RequestStatus(status_value)
+        self.approvals_view.set_data(
+            record.get("approvals", []),
+            available_approval_actions(status),
+            status in TERMINAL_STATUSES,
+        )
         fulfillments = record.get("fulfillments", [])
         self.fulfillment_view.set_fulfillment(fulfillments[-1] if fulfillments else None)
         self.audit_view.set_entries(record.get("audit", []))
@@ -233,36 +225,27 @@ class ResourceRequestDetailPanel(QtWidgets.QWidget):
         if self.current_request_id:
             self.load_request(self.current_request_id)
 
-    def _record_action(self, action: ApprovalAction, require_note: bool = False) -> None:
+    def _on_approval_action(self, action: ApprovalAction, section: ApprovalSection, note: str) -> None:
         if not self.current_request_id:
             self.save()
         if not self.current_request_id:
             return
 
-        note = None
-        if require_note:
-            dialog = NoteDialog("Provide Note", "A note is required for this action.", True, self)
-            if dialog.exec() != QtWidgets.QDialog.Accepted:
-                return
-            note = dialog.note
-        action_buttons = (
-            self.submit_button,
-            self.review_button,
-            self.approve_button,
-            self.deny_button,
-            self.cancel_button,
-        )
-        for button in action_buttons:
-            button.setEnabled(False)
+        self.approvals_view.setEnabled(False)
         try:
-            self.service.record_approval(self.current_request_id, action.value, actor_id="ui", note=note)
+            self.service.record_approval(
+                self.current_request_id,
+                action.value,
+                actor_id="ui",
+                note=note or None,
+                section=section.value,
+            )
             self.load_request(self.current_request_id)
             self.requestSaved.emit(self.current_request_id)
         except ValidationError as exc:
             QtWidgets.QMessageBox.warning(self, "Validation", str(exc))
         finally:
-            for button in action_buttons:
-                button.setEnabled(True)
+            self.approvals_view.setEnabled(True)
 
     def _assign_fulfillment(self) -> None:
         if not self.current_request_id:

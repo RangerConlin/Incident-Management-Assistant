@@ -85,6 +85,8 @@ Substantial but uneven. Logistics has several real, usable workspaces and some o
 
 Desktop is the primary logistics experience. It contains the dashboard, resource status board, personnel manager, inventory management, facilities, resource requests, check-in, and team asset assignment. The desktop logistics surface is powerful but spread across multiple panels.
 
+Resource Request Detail's Approvals tab shows one table (`RequiredApprovalsTable`), rows grouped by the same ICS-213RR responsibility tier the web client uses (Requesting Section / Logistics Section / Finance-Admin Section) instead of the old flat approval timeline with a separate fixed Submit/Review/Approve/Deny/Cancel button row. Each section's still-pending row carries its own inline note field and action buttons. Finance/Admin's cost approval (`FINANCE_APPROVE`/`FINANCE_DENY`) is independent of the request's status chain and shows "Not Required" until a record exists.
+
 ## Mobile Experience
 
 Mobile logistics is mostly embedded in team management today. A mobile user can manage team resources for the selected team, choosing from vehicle, aircraft, and equipment catalogs and updating assignment/resource status. Mobile does not yet appear to expose the broader logistics dashboard, request workflow, facilities manager, or inventory administration.
@@ -133,6 +135,21 @@ and browser-printable summaries. Submitted critical header fields are locked; cl
 requests are read-only and denied/cancelled requests can be reopened. Unsaved item edits
 block section/lifecycle changes until saved or discarded. Filled ICS-213RR PDF downloads are available through the shared export API, alongside
 the browser-printable request summary. Signatures and unrecorded fields remain blank.
+
+Request Detail is a single scrollable page, not a tabbed one — Details, Items, Fulfillment,
+and approval/audit history stack top to bottom. Required Approvals is one table grouped by
+ICS-213RR responsibility tier (Requesting Section / Logistics Section / Finance-Admin
+Section, matching the real form's approval blocks) instead of a flat chronological list;
+each section's still-pending row carries its own inline note field and action buttons, so
+there's no separate floating "action note" control. Finance/Admin's cost approval
+(`FINANCE_APPROVE`/`FINANCE_DENY`) is independent of the request's status chain and shows
+"Not Required" until the record has one. Print is two toolbar buttons (print/save summary,
+download filled ICS-213RR) rather than its own section — the printable summary stays in the
+DOM off-screen so the browser Print dialog still has content.
+
+Check-In's Personnel/Vehicles/Aircraft/Equipment/Teams sub-views use dense toolbars and
+plain tables (search, reporting location, status actions, roster/results) instead of
+stacked card lists, matching the rest of the module's desktop-density pass.
 
 Facilities provide searchable/filterable lists and create/update/delete detail pages,
 primary-by-type selection, personnel manager search, contact details, addresses/coordinates,

@@ -152,6 +152,20 @@ def _full_name(person: dict[str, Any]) -> str:
 # profile (all stored as plain text on the personnel record).
 _PROFILE_TEXT_FIELDS = ("organization", "title", "phone", "email", "radio_id")
 
+# Additional catalog fields returned on a successful `/lookup` so a mobile
+# device can pre-populate a new local profile from the existing master
+# record instead of making the operator retype everything (see
+# `LocalProfile.fromJson` in the mobile client, which these keys match).
+# Emergency contacts and free-text notes are left out of this unauthenticated
+# response; the operator still gets those from a sync after they sign in.
+_CATALOG_PREFILL_FIELDS = (
+    "home_unit",
+    "primary_role",
+    "rank",
+    "callsign",
+    "status",
+)
+
 
 def _login_person(person: dict[str, Any]) -> dict[str, Any]:
     """The slice of a personnel record that login clients may see."""
@@ -162,7 +176,10 @@ def _login_person(person: dict[str, Any]) -> dict[str, Any]:
         "first_name": person.get("first_name") or "",
         "last_name": person.get("last_name") or "",
         "name": _full_name(person),
+        "is_medic": bool(person.get("is_medic", False)),
+        "certifications": person.get("certifications") or [],
         **{field: person.get(field) or "" for field in _PROFILE_TEXT_FIELDS},
+        **{field: person.get(field) or "" for field in _CATALOG_PREFILL_FIELDS},
     }
 
 
@@ -264,8 +281,10 @@ def lookup_person(person_id: str = Query(...)) -> dict[str, Any]:
     """Check a login ID against the personnel roster.
 
     Returns ``status`` of ``found`` (with the person), ``not_found`` (the client
-    should offer to create a profile) or ``ambiguous`` (several records share
-    the ID, so it cannot be used to sign in until the roster is fixed).
+    should offer to create a profile) or ``ambiguous``. For ``ambiguous``,
+    ``candidates`` lists every matching record (each including its
+    ``person_record``) so the caller can let the operator pick the right one
+    instead of being blocked until an administrator cleans up the roster.
     """
 
     value = person_id.strip()
@@ -275,7 +294,11 @@ def lookup_person(person_id: str = Query(...)) -> dict[str, Any]:
     if not matches:
         return {"status": "not_found", "person": None}
     if len(matches) > 1:
-        return {"status": "ambiguous", "person": None}
+        return {
+            "status": "ambiguous",
+            "person": None,
+            "candidates": [_login_person(match) for match in matches],
+        }
     return {"status": "found", "person": _login_person(matches[0])}
 
 
@@ -374,7 +397,16 @@ def set_password(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
     person_record = _resolve_person_record(body, existing_user)
     person = _find_person(person_record)
     if person is None:
-        raise HTTPException(status_code=404, detail="No personnel record matches this ID; create a profile first.")
+        ambiguous = len(_person_id_matches(username)) > 1
+        raise HTTPException(
+            status_code=409 if ambiguous else 404,
+            detail=(
+                "Several personnel records share this ID; pick the right one or ask an "
+                "administrator to fix the roster."
+                if ambiguous
+                else "No personnel record matches this ID; create a profile first."
+            ),
+        )
 
     now = _utcnow()
     salt = secrets.token_hex(16)

@@ -10,7 +10,7 @@ export function useRequestWrites(id: string, requestId: string) {
   const invalidate = () => client.invalidateQueries({ queryKey: ["incident", id, "resource_requests"] });
   const success = (data: ResourceRequestDetail) => { client.setQueryData(["incident", id, "resource_requests", data.id], data); return invalidate(); };
   const save = useMutation({ mutationFn: (body: Record<string, unknown>) => requestId === "new" ? api.createResourceRequest(id, body) : api.updateResourceRequest(id, requestId, body), onSuccess: success });
-  const approval = useMutation({ mutationFn: (v: { action: string; actor: string; note: string }) => api.resourceRequestApproval(id, requestId, v.action, v.actor, v.note), onSuccess: invalidate });
+  const approval = useMutation({ mutationFn: (v: { action: string; actor: string; note: string; section?: string }) => api.resourceRequestApproval(id, requestId, v.action, v.actor, v.note, v.section), onSuccess: invalidate });
   const status = useMutation({ mutationFn: (v: { status: string; actor: string; note: string }) => api.resourceRequestStatus(id, requestId, v.status, v.actor, v.note), onSuccess: success });
   const items = useMutation({ mutationFn: (body: apiParametersItems) => api.replaceResourceRequestItems(id, requestId, body), onSuccess: invalidate });
   const fulfillment = useMutation({ mutationFn: async (v: { fulfillmentId?: string; body: Record<string, unknown> }): Promise<unknown> => v.fulfillmentId ? api.updateResourceRequestFulfillment(id, requestId, v.fulfillmentId, v.body) : api.assignResourceRequestFulfillment(id, requestId, v.body), onSuccess: invalidate });
