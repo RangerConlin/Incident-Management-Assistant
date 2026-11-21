@@ -29,7 +29,6 @@ def _clear(db):
         IncidentCollections.PLANNED_CAMPAIGNS,
         IncidentCollections.PLANNED_EVENT_SCHEDULES,
         IncidentCollections.PLANNED_QUICK_ASSIGNMENTS,
-        IncidentCollections.PLANNED_NOTIFICATIONS,
         IncidentCollections.OPERATIONS_TASKS,
     ):
         db[collection].delete_many({})
@@ -66,20 +65,6 @@ def test_planned_toolkit_writes_use_base_repository():
         assert res.status_code == 201, res.text
 
         res = client.post(
-            f"{BASE}/planned-meta/notifications",
-            json={"title": "Reminder", "message": "Briefing in 15 minutes"},
-        )
-        assert res.status_code == 201, res.text
-        notification = res.json()
-
-        res = client.post(
-            f"{BASE}/planned-meta/notifications/{notification['id']}/acknowledge",
-            json={"acknowledged_by": "planner"},
-        )
-        assert res.status_code == 200, res.text
-        assert res.json()["acknowledged_by"] == "planner"
-
-        res = client.post(
             f"{BASE}/planned/quick-assignments",
             json={
                 "title": "Open south gate",
@@ -99,7 +84,6 @@ def test_planned_toolkit_writes_use_base_repository():
         IncidentCollections.PLANNED_CAMPAIGNS,
         IncidentCollections.PLANNED_EVENT_SCHEDULES,
         IncidentCollections.PLANNED_QUICK_ASSIGNMENTS,
-        IncidentCollections.PLANNED_NOTIFICATIONS,
         IncidentCollections.OPERATIONS_TASKS,
     ):
         docs = list(db[collection].find({"incident_id": INCIDENT_ID}))

@@ -6,11 +6,9 @@ from typing import Any
 from utils import incident_context
 
 from .records import (
-    PlannedNotification,
     PlannedRecord,
     ScheduleTrigger,
     ScheduledItem,
-    notification_from_dict,
     record_from_dict,
     schedule_from_dict,
     trigger_from_dict,
@@ -153,36 +151,6 @@ class PlannedToolkitRepository:
 
     def delete_schedule_trigger(self, record_id: int) -> None:
         _client().delete(f"/api/incidents/{self._incident()}/planned-meta/schedule-triggers/{record_id}")
-
-    def list_notifications(self) -> list[PlannedNotification]:
-        rows = _client().get(f"/api/incidents/{self._incident()}/planned-meta/notifications") or []
-        return [notification_from_dict(row) for row in rows]
-
-    def create_notification(self, **payload: Any) -> PlannedNotification:
-        result = _client().post(
-            f"/api/incidents/{self._incident()}/planned-meta/notifications",
-            json=dict(payload),
-        )
-        return notification_from_dict(result or {})
-
-    def acknowledge_notification(
-        self,
-        record_id: int,
-        *,
-        acknowledged_by: str = "",
-    ) -> PlannedNotification:
-        result = _client().post(
-            f"/api/incidents/{self._incident()}/planned-meta/notifications/{record_id}/acknowledge",
-            json={"acknowledged_by": acknowledged_by},
-        )
-        return notification_from_dict(result or {})
-
-    def dismiss_notification(self, record_id: int) -> PlannedNotification:
-        result = _client().post(
-            f"/api/incidents/{self._incident()}/planned-meta/notifications/{record_id}/dismiss",
-            json={},
-        )
-        return notification_from_dict(result or {})
 
     def promote_quick_assignment(
         self,

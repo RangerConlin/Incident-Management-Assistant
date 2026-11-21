@@ -4,6 +4,26 @@ Status: Phase 0 complete (documentation only). No toolkit feature code was writt
 phase. This document is the audit report, reuse matrix, domain-boundary decisions, shared
 service contracts, and hardening backlog required before Phase 1 implementation begins.
 
+**Update 2026-11-21 (3)**: `plannedtoolkit.py`'s own pre-trigger-engine `PLANNED_NOTIFICATIONS`
+CRUD (`PlannedNotificationsRepository`, the `/planned-meta/notifications` endpoints, the
+`PlannedNotification` dataclass and `notification_from_dict` on the desktop side) is retired —
+this is the other half of the §1.6 item 1 decision that update (2) above didn't cover. It had
+zero live callers anywhere (no desktop UI window called the repository/service wrappers that
+called it), so this was a straight deletion, not a migration: the shared
+`notification_service`/`trigger_engine` was already the only thing anything calls for planned
+toolkit notifications. The `PLANNED_NOTIFICATIONS` collection constant is left as a removed,
+commented placeholder in `collection_names.py` rather than deleted outright, so a stale Mongo
+collection of that name (if one exists in any deployed incident database from earlier testing)
+is traceable back to this entry rather than looking like a typo.
+
+**Any future planned-toolkit work that touches notifications must call
+`sarapp_db.services.notification_service.emit_notification` — never add a toolkit-local
+notification collection, model, or CRUD endpoint again.** This applies repo-wide, not just to
+plannedtoolkit: per the §1.6 item 1 decision, delivered-notification storage is shared
+infrastructure owned by `notification_service.py`, and any module (safety, logistics, comms,
+etc.) that needs to notify someone is a caller of it, never an owner of its own notification
+store.
+
 **Update 2026-11-21 (2)**: the desktop toast delivery bridge flagged missing in §1.2 finding 3
 and §1.4 is now wired up. `sarapp_db.services.notification_service.emit_notification` broadcasts
 a `type: "notification"` WebSocket event — the same event shape `intel.py`'s urgent-intel alert

@@ -102,7 +102,6 @@ def _create_plannedtoolkit_indexes(incident_db: Database) -> None:
         IncidentCollections.PLANNED_QUICK_ASSIGNMENTS,
         IncidentCollections.PLANNED_HEALTH_INSPECTIONS,
         IncidentCollections.PLANNED_SCHEDULE_TRIGGERS,
-        IncidentCollections.PLANNED_NOTIFICATIONS,
     ):
         collection = incident_db[name]
         # `seq` backs the compound-id minting in plannedtoolkit.py's

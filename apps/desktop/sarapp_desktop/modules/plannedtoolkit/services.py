@@ -99,30 +99,6 @@ def delete_schedule_trigger(record_id: int, incident_id: str | None = None) -> N
     PlannedToolkitRepository(incident_id).delete_schedule_trigger(record_id)
 
 
-def list_notifications(incident_id: str | None = None):
-    return PlannedToolkitRepository(incident_id).list_notifications()
-
-
-def create_notification(incident_id: str | None = None, **payload: Any):
-    return PlannedToolkitRepository(incident_id).create_notification(**payload)
-
-
-def acknowledge_notification(
-    record_id: int,
-    incident_id: str | None = None,
-    *,
-    acknowledged_by: str = "",
-):
-    return PlannedToolkitRepository(incident_id).acknowledge_notification(
-        record_id,
-        acknowledged_by=acknowledged_by,
-    )
-
-
-def dismiss_notification(record_id: int, incident_id: str | None = None):
-    return PlannedToolkitRepository(incident_id).dismiss_notification(record_id)
-
-
 def promote_quick_assignment(
     record_id: int,
     incident_id: str | None = None,

@@ -47,10 +47,6 @@ class PlannedScheduleTriggersRepository(BaseRepository):
     collection_name = IncidentCollections.PLANNED_SCHEDULE_TRIGGERS
 
 
-class PlannedNotificationsRepository(BaseRepository):
-    collection_name = IncidentCollections.PLANNED_NOTIFICATIONS
-
-
 class OperationsTasksRepository(BaseRepository):
     collection_name = IncidentCollections.OPERATIONS_TASKS
 
@@ -64,7 +60,6 @@ _REPOSITORIES: dict[str, type[BaseRepository]] = {
     IncidentCollections.PLANNED_QUICK_ASSIGNMENTS: PlannedQuickAssignmentsRepository,
     IncidentCollections.PLANNED_HEALTH_INSPECTIONS: PlannedHealthInspectionsRepository,
     IncidentCollections.PLANNED_SCHEDULE_TRIGGERS: PlannedScheduleTriggersRepository,
-    IncidentCollections.PLANNED_NOTIFICATIONS: PlannedNotificationsRepository,
     IncidentCollections.OPERATIONS_TASKS: OperationsTasksRepository,
 }
 
@@ -288,28 +283,8 @@ class ScheduleTriggerCreate(BaseModel):
     missed_occurrence_behavior: Optional[str] = None
 
 
-class NotificationCreate(BaseModel):
-    title: str = ""
-    message: str = ""
-    severity: str = ""
-    audience_role: Optional[str] = None
-    audience_user_id: Optional[str] = None
-    notification_channel: Optional[str] = None
-    location: Optional[str] = None
-    zone: Optional[str] = None
-    scheduled_at: Optional[str] = None
-    triggered_at: Optional[str] = None
-    source_type: Optional[str] = None
-    source_id: Optional[str] = None
-    source_label: Optional[str] = None
-
-
 class PromotionRequest(BaseModel):
     promoted_by: str = ""
-
-
-class AcknowledgeRequest(BaseModel):
-    acknowledged_by: str = ""
 
 
 def _schedule_trigger_config() -> dict[str, Any]:
@@ -318,15 +293,6 @@ def _schedule_trigger_config() -> dict[str, Any]:
         "id_field": "trigger_id",
         "prefix": "PLAN-TRIGGER",
         "sort": "trigger_at",
-    }
-
-
-def _notification_config() -> dict[str, Any]:
-    return {
-        "collection": IncidentCollections.PLANNED_NOTIFICATIONS,
-        "id_field": "notification_id",
-        "prefix": "PLAN-NOTIFY",
-        "sort": "scheduled_at",
     }
 
 
@@ -360,32 +326,6 @@ def _map_schedule_trigger(doc: Dict[str, Any]) -> Dict[str, Any]:
         "recurring": doc.get("recurring", False),
         "recurrence_rule": doc.get("recurrence_rule", ""),
         "missed_occurrence_behavior": doc.get("missed_occurrence_behavior", ""),
-        "created_at": doc.get("created_at", ""),
-        "updated_at": doc.get("updated_at", ""),
-    }
-
-
-def _map_notification(doc: Dict[str, Any]) -> Dict[str, Any]:
-    return {
-        "id": _public_id(doc.get("notification_id")),
-        "notification_id": doc.get("notification_id", ""),
-        "incident_id": doc.get("incident_id", ""),
-        "title": doc.get("title", ""),
-        "message": doc.get("message", ""),
-        "severity": doc.get("severity", ""),
-        "audience_role": doc.get("audience_role", ""),
-        "audience_user_id": doc.get("audience_user_id", ""),
-        "notification_channel": doc.get("notification_channel", ""),
-        "location": doc.get("location", ""),
-        "zone": doc.get("zone", ""),
-        "scheduled_at": doc.get("scheduled_at", ""),
-        "triggered_at": doc.get("triggered_at", ""),
-        "acknowledged_at": doc.get("acknowledged_at", ""),
-        "acknowledged_by": doc.get("acknowledged_by", ""),
-        "dismissed_at": doc.get("dismissed_at", ""),
-        "source_type": doc.get("source_type", ""),
-        "source_id": doc.get("source_id", ""),
-        "source_label": doc.get("source_label", ""),
         "created_at": doc.get("created_at", ""),
         "updated_at": doc.get("updated_at", ""),
     }
@@ -670,74 +610,6 @@ def delete_schedule_trigger(incident_id: str, record_id: int):
     existing = _find_by_compound_id(repo, incident_id, config, record_id)
     if not existing or not repo.soft_delete(existing["_id"]):
         raise HTTPException(status_code=404, detail="Schedule trigger not found")
-
-
-@router.get("/incidents/{incident_id}/planned-meta/notifications")
-def list_notifications(incident_id: str):
-    config = _notification_config()
-    repo = _repo_for_config(incident_id, config)
-    docs = repo.find_many({"incident_id": incident_id}, sort=[(config["sort"], 1)])
-    return [_map_notification(doc) for doc in docs]
-
-
-@router.post("/incidents/{incident_id}/planned-meta/notifications", status_code=201)
-def create_notification(incident_id: str, body: NotificationCreate):
-    config = _notification_config()
-    repo = _repo_for_config(incident_id, config)
-    record_id = _next_compound_id(repo, incident_id, config)
-    now = _utcnow()
-    doc: Dict[str, Any] = {
-        config["id_field"]: record_id,
-        "seq": _public_id(record_id),
-        "incident_id": incident_id,
-        "title": body.title,
-        "message": body.message,
-        "severity": body.severity,
-        "audience_role": body.audience_role or "",
-        "audience_user_id": body.audience_user_id or "",
-        "notification_channel": body.notification_channel or "",
-        "location": body.location or "",
-        "zone": body.zone or "",
-        "scheduled_at": body.scheduled_at or "",
-        "triggered_at": body.triggered_at or now,
-        "acknowledged_at": "",
-        "acknowledged_by": "",
-        "dismissed_at": "",
-        "source_type": body.source_type or "",
-        "source_id": body.source_id or "",
-        "source_label": body.source_label or "",
-        "created_at": now,
-        "updated_at": now,
-        "deleted": False,
-    }
-    saved = repo.insert_one(doc)
-    return _map_notification(saved)
-
-
-@router.post("/incidents/{incident_id}/planned-meta/notifications/{record_id}/acknowledge")
-def acknowledge_notification(incident_id: str, record_id: int, body: AcknowledgeRequest):
-    config = _notification_config()
-    repo = _repo_for_config(incident_id, config)
-    now = _utcnow()
-    existing = _find_by_compound_id(repo, incident_id, config, record_id)
-    if not existing:
-        raise HTTPException(status_code=404, detail="Notification not found")
-    repo.update_one(existing["_id"], {"acknowledged_at": now, "acknowledged_by": body.acknowledged_by})
-    doc = repo.find_by_id(existing["_id"])
-    return _map_notification(doc)
-
-
-@router.post("/incidents/{incident_id}/planned-meta/notifications/{record_id}/dismiss")
-def dismiss_notification(incident_id: str, record_id: int):
-    config = _notification_config()
-    repo = _repo_for_config(incident_id, config)
-    now = _utcnow()
-    existing = _find_by_compound_id(repo, incident_id, config, record_id)
-    if not existing:
-        raise HTTPException(status_code=404, detail="Notification not found")
-    repo.update_one(existing["_id"], {"dismissed_at": now})
-    doc = repo.find_by_id(existing["_id"])
-    return _map_notification(doc)
 
 
 @router.post("/incidents/{incident_id}/planned/quick-assignments/{record_id}/promote")

@@ -158,31 +158,6 @@ class ScheduleTrigger:
     updated_at: str = ""
 
 
-@dataclass(frozen=True)
-class PlannedNotification:
-    id: int | None = None
-    notification_id: str = ""
-    incident_id: str = ""
-    title: str = ""
-    message: str = ""
-    severity: str = ""
-    audience_role: str = ""
-    audience_user_id: str = ""
-    notification_channel: str = ""
-    location: str = ""
-    zone: str = ""
-    scheduled_at: str = ""
-    triggered_at: str = ""
-    acknowledged_at: str = ""
-    acknowledged_by: str = ""
-    dismissed_at: str = ""
-    source_type: str = ""
-    source_id: str = ""
-    source_label: str = ""
-    created_at: str = ""
-    updated_at: str = ""
-
-
 def record_from_dict(data: dict[str, Any]) -> PlannedRecord:
     return PlannedRecord(
         id=data.get("id"),
@@ -274,32 +249,6 @@ def trigger_from_dict(data: dict[str, Any]) -> ScheduleTrigger:
         recurring=bool(data.get("recurring", False)),
         recurrence_rule=str(data.get("recurrence_rule") or ""),
         missed_occurrence_behavior=str(data.get("missed_occurrence_behavior") or ""),
-        created_at=str(data.get("created_at") or ""),
-        updated_at=str(data.get("updated_at") or ""),
-    )
-
-
-def notification_from_dict(data: dict[str, Any]) -> PlannedNotification:
-    return PlannedNotification(
-        id=data.get("id"),
-        notification_id=str(data.get("notification_id") or ""),
-        incident_id=str(data.get("incident_id") or ""),
-        title=str(data.get("title") or ""),
-        message=str(data.get("message") or ""),
-        severity=str(data.get("severity") or ""),
-        audience_role=str(data.get("audience_role") or ""),
-        audience_user_id=str(data.get("audience_user_id") or ""),
-        notification_channel=str(data.get("notification_channel") or ""),
-        location=str(data.get("location") or ""),
-        zone=str(data.get("zone") or ""),
-        scheduled_at=str(data.get("scheduled_at") or ""),
-        triggered_at=str(data.get("triggered_at") or ""),
-        acknowledged_at=str(data.get("acknowledged_at") or ""),
-        acknowledged_by=str(data.get("acknowledged_by") or ""),
-        dismissed_at=str(data.get("dismissed_at") or ""),
-        source_type=str(data.get("source_type") or ""),
-        source_id=str(data.get("source_id") or ""),
-        source_label=str(data.get("source_label") or ""),
         created_at=str(data.get("created_at") or ""),
         updated_at=str(data.get("updated_at") or ""),
     )

@@ -200,7 +200,11 @@ class IncidentCollections:
     PLANNED_QUICK_ASSIGNMENTS = "planned_quick_assignments"
     PLANNED_HEALTH_INSPECTIONS = "planned_health_inspections"
     PLANNED_SCHEDULE_TRIGGERS = "planned_schedule_triggers"
-    PLANNED_NOTIFICATIONS = "planned_notifications"
+    # Delivered notifications are shared infrastructure, not toolkit-owned —
+    # see sarapp_db.services.notification_service (IncidentCollections.NOTIFICATIONS).
+    # PLANNED_NOTIFICATIONS was the toolkit's own pre-trigger-engine CRUD
+    # scaffolding; retired 2026-11-21 (zero live callers in any client) per
+    # docs/archive/design-documents/Instructions/planned_events_phase0_audit.md §1.6 item 1.
 
     # Logistics
     RESOURCE_STATUS = "resource_status"
