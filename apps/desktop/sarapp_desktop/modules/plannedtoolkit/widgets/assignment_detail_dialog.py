@@ -3,8 +3,10 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QComboBox,
+    QCompleter,
     QDialog,
     QDialogButtonBox,
     QFormLayout,
@@ -18,11 +20,14 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from .. import services
 from ..records import PlannedRecord
 from .assignee_picker_dialog import AssigneePickerDialog
+from .schedule_time_utils import friendly_dt
 
 STATUSES = ["Draft", "Planned", "In Progress", "Completed", "Cancelled"]
 PRIORITIES = ["Low", "Medium", "High"]
+_NONE_LABEL = "— None —"
 
 
 class AssignmentDetailDialog(QDialog):
@@ -39,6 +44,7 @@ class AssignmentDetailDialog(QDialog):
         *,
         incident_id: str | None = None,
         record: PlannedRecord | None = None,
+        default_schedule_item_id: str = "",
     ) -> None:
         super().__init__(parent)
         self._incident_id = incident_id
@@ -91,6 +97,21 @@ class AssignmentDetailDialog(QDialog):
         self.location_edit.setPlaceholderText("Optional location")
         form.addRow("Location", self.location_edit)
 
+        schedule_row = QHBoxLayout()
+        self.schedule_combo = QComboBox()
+        self.schedule_combo.setEditable(True)
+        self.schedule_combo.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+        completer = self.schedule_combo.completer()
+        completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
+        completer.setFilterMode(Qt.MatchFlag.MatchContains)
+        completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        clear_schedule_btn = QPushButton("Clear")
+        clear_schedule_btn.clicked.connect(self._clear_schedule_item)
+        schedule_row.addWidget(self.schedule_combo, 1)
+        schedule_row.addWidget(clear_schedule_btn)
+        form.addRow("Related Schedule Activity", schedule_row)
+        self._populate_schedule_combo(record.schedule_item_id if record else default_schedule_item_id)
+
         self.notes_edit = QTextEdit(record.summary if record else "")
         self.notes_edit.setFixedHeight(90)
         self.notes_edit.setPlaceholderText("Optional notes")
@@ -111,6 +132,8 @@ class AssignmentDetailDialog(QDialog):
                 clear_btn,
                 self.due_edit,
                 self.location_edit,
+                self.schedule_combo,
+                clear_schedule_btn,
                 self.notes_edit,
             ):
                 widget.setEnabled(False)
@@ -123,6 +146,32 @@ class AssignmentDetailDialog(QDialog):
         layout.addWidget(buttons)
 
         self._payload: dict[str, Any] | None = None
+
+    def _populate_schedule_combo(self, selected_schedule_item_id: str) -> None:
+        self.schedule_combo.clear()
+        self.schedule_combo.addItem(_NONE_LABEL, "")
+        try:
+            items = services.list_schedule_items(self._incident_id)
+        except Exception:
+            items = []
+        for item in items:
+            when = friendly_dt(item.starts_at)
+            label = f"{item.name} ({when})" if when else item.name
+            self.schedule_combo.addItem(label, item.record_id)
+        if selected_schedule_item_id:
+            index = self.schedule_combo.findData(selected_schedule_item_id)
+            if index < 0:
+                # Linked activity no longer resolves -- keep the stored id
+                # selectable rather than silently dropping a link the user
+                # didn't ask to remove.
+                self.schedule_combo.addItem(f"(unavailable) {selected_schedule_item_id}", selected_schedule_item_id)
+                index = self.schedule_combo.count() - 1
+            self.schedule_combo.setCurrentIndex(index)
+        else:
+            self.schedule_combo.setCurrentIndex(0)
+
+    def _clear_schedule_item(self) -> None:
+        self.schedule_combo.setCurrentIndex(0)
 
     def _refresh_assignee_kind_label(self) -> None:
         if self._assigned_person_id:
@@ -169,6 +218,7 @@ class AssignmentDetailDialog(QDialog):
             "assigned_team_id": self._assigned_team_id,
             "due_at": self.due_edit.text().strip(),
             "location": self.location_edit.text().strip(),
+            "schedule_item_id": self.schedule_combo.currentData() or "",
         }
         self.accept()
 

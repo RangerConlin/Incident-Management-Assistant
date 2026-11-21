@@ -1,5 +1,20 @@
 # Planned Events Toolkit — Phase 0 Audit
 
+**Phase 2A (Assignment Cleanup and Management) and Phase 2B (Event Schedule and Assignment
+Integration) — both complete.** Phase 2A removed the obsolete planned-event `tasks`
+tool/collection, made `quick-assignments` the single user-facing "Assignments" system with a
+compact create/edit modal (`widgets/assignment_detail_dialog.py`) and a resource-or-free-text
+assignee picker (`widgets/assignee_picker_dialog.py`), and closed a promotion race that could
+create duplicate formal Operations tasks. Phase 2B added an optional many-assignments-to-one
+link from a Quick Assignment back to an Event Schedule item: a new `schedule_item_id` field on
+`PlannedRecord` (API: `PlannedRecordCreate.schedule_item_id`, the `update_record` allowlist, and
+an optional `schedule_item_id` filter on `GET /planned/{tool}`), a "Related Schedule Activity"
+searchable picker in the assignment modal, and a "Linked Assignments" group plus "Add
+Assignment" action in the Event Schedule's `ActivityDetailDialog`
+(`widgets/operational_timeline_widget.py`). This is distinct from, and does not touch, the
+existing single `ScheduledItem.quick_assignment_id` link (one auto-creatable companion
+assignment per activity, from Phase 1D).
+
 Status: Phase 0 (documentation) and Phase 0.5 (backend tests + thin vertical prototype, see
 below) are both complete as of 2026-11-21, except for the two Phase 0.5 tests that depend on
 the Registration system, which doesn't exist yet and is correctly out of scope here. This

@@ -85,6 +85,7 @@ class PlannedRecord:
     source_id: str = ""
     source_label: str = ""
     source_tool: str = ""
+    schedule_item_id: str = ""
     linked_tasking_id: str = ""
     promoted_at: str = ""
     promoted_by: str = ""
@@ -199,6 +200,7 @@ def record_from_dict(data: dict[str, Any]) -> PlannedRecord:
         source_id=str(data.get("source_id") or ""),
         source_label=str(data.get("source_label") or ""),
         source_tool=str(data.get("source_tool") or ""),
+        schedule_item_id=str(data.get("schedule_item_id") or ""),
         linked_tasking_id=str(data.get("linked_tasking_id") or ""),
         promoted_at=str(data.get("promoted_at") or ""),
         promoted_by=str(data.get("promoted_by") or ""),

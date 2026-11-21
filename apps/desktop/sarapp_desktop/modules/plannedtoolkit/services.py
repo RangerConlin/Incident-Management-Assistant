@@ -12,8 +12,11 @@ def list_records(
     *,
     status: str | None = None,
     search: str | None = None,
+    schedule_item_id: str | None = None,
 ) -> list[PlannedRecord]:
-    return PlannedToolkitRepository(incident_id).list_records(tool, status=status, search=search)
+    return PlannedToolkitRepository(incident_id).list_records(
+        tool, status=status, search=search, schedule_item_id=schedule_item_id
+    )
 
 
 def create_record(
