@@ -1,4 +1,5 @@
 from .windows import (
+    get_event_schedule_panel,
     get_promotions_panel,
     get_vendors_panel,
     get_permits_panel,
@@ -8,6 +9,7 @@ from .windows import (
 )
 
 __all__ = [
+    "get_event_schedule_panel",
     "get_promotions_panel",
     "get_vendors_panel",
     "get_permits_panel",

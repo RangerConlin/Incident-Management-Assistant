@@ -93,7 +93,10 @@ class PersonnelPicker(QWidget):
             self.line_edit.blockSignals(False)
             self.personnelSelected.emit("", text)
             return
-        self._personnel_id = str(result.get("id") or "")
+        # /api/master/personnel normalizes each record's stable id onto
+        # "person_record" (see personnel.py's _normalize) -- there is no
+        # "id" key, so reading it always produced an empty personnel_id.
+        self._personnel_id = str(result.get("person_record") or "")
         name = str(result.get("name") or "")
         self.line_edit.blockSignals(True)
         self.line_edit.setText(name)

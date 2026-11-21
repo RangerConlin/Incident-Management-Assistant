@@ -1,3 +1,3 @@
 """Version of the desktop deployable component."""
 
-DESKTOP_VERSION = "0.0.36"
+DESKTOP_VERSION = "0.0.37"

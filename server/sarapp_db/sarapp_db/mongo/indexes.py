@@ -68,6 +68,7 @@ def create_incident_indexes(incident_db: Database) -> None:
     _create_sitrep_indexes(incident_db)
     _create_package_activations_indexes(incident_db)
     _create_ics214_indexes(incident_db)
+    _create_plannedtoolkit_indexes(incident_db)
     logger.debug("Incident database indexes verified: %s", incident_db.name)
 
 
@@ -89,6 +90,28 @@ def _create_ics214_indexes(incident_db: Database) -> None:
     _ensure_index(definitions, [("definition_id", ASCENDING)], unique=True)
     _ensure_index(definitions, [("incident_id", ASCENDING), ("name", ASCENDING)])
     _ensure_index(definitions, [("deleted", ASCENDING)])
+
+
+def _create_plannedtoolkit_indexes(incident_db: Database) -> None:
+    for name in (
+        IncidentCollections.PLANNED_CAMPAIGNS,
+        IncidentCollections.PLANNED_EVENT_SCHEDULES,
+        IncidentCollections.PLANNED_VENDORS,
+        IncidentCollections.PLANNED_PERMITS,
+        IncidentCollections.PLANNED_TASKS,
+        IncidentCollections.PLANNED_QUICK_ASSIGNMENTS,
+        IncidentCollections.PLANNED_HEALTH_INSPECTIONS,
+        IncidentCollections.PLANNED_SCHEDULE_TRIGGERS,
+    ):
+        collection = incident_db[name]
+        # `seq` backs the compound-id minting in plannedtoolkit.py's
+        # `_next_compound_id` — unique + indexed so next_record_id can find
+        # the current max without scanning the collection.
+        _ensure_index(collection, [("seq", ASCENDING)], unique=True, sparse=True)
+        _ensure_index(collection, [("incident_id", ASCENDING), ("status", ASCENDING)])
+        _ensure_index(collection, [("deleted", ASCENDING)])
+    schedule_triggers = incident_db[IncidentCollections.PLANNED_SCHEDULE_TRIGGERS]
+    _ensure_index(schedule_triggers, [("schedule_item_id", ASCENDING)])
 
 
 def _create_package_activations_indexes(incident_db: Database) -> None:

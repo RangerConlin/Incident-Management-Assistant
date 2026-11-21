@@ -85,6 +85,7 @@ class PlannedRecord:
     source_id: str = ""
     source_label: str = ""
     source_tool: str = ""
+    schedule_item_id: str = ""
     linked_tasking_id: str = ""
     promoted_at: str = ""
     promoted_by: str = ""
@@ -106,14 +107,29 @@ class ScheduledItem:
     kind: str = ""
     starts_at: str = ""
     ends_at: str = ""
+    actual_start_at: str = ""
+    actual_end_at: str = ""
+    time_zone: str = ""
     location: str = ""
     zone: str = ""
     owner: str = ""
+    assigned_to: str = ""
+    assigned_team_id: str = ""
+    assigned_person_id: str = ""
+    meeting_id: str = ""
+    gis_feature_id: str = ""
+    quick_assignment_id: str = ""
     status: str = ""
+    delay_reason: str = ""
+    cancellation_reason: str = ""
     tags: list[str] = field(default_factory=list)
     notes: str = ""
+    revision: int = 0
     created_at: str = ""
     updated_at: str = ""
+
+    def replace(self, **changes: Any) -> "ScheduledItem":
+        return replace(self, **changes)
 
 
 @dataclass(frozen=True)
@@ -128,6 +144,9 @@ class ScheduleTrigger:
     trigger_at: str = ""
     relative_to: str = "start"
     enabled: bool = True
+    fired_at: str = ""
+    fire_error: str = ""
+    severity: str = ""
     audience_role: str = ""
     audience_user_id: str = ""
     notification_channel: str = ""
@@ -146,31 +165,6 @@ class ScheduleTrigger:
     recurring: bool = False
     recurrence_rule: str = ""
     missed_occurrence_behavior: str = ""
-    created_at: str = ""
-    updated_at: str = ""
-
-
-@dataclass(frozen=True)
-class PlannedNotification:
-    id: int | None = None
-    notification_id: str = ""
-    incident_id: str = ""
-    title: str = ""
-    message: str = ""
-    severity: str = ""
-    audience_role: str = ""
-    audience_user_id: str = ""
-    notification_channel: str = ""
-    location: str = ""
-    zone: str = ""
-    scheduled_at: str = ""
-    triggered_at: str = ""
-    acknowledged_at: str = ""
-    acknowledged_by: str = ""
-    dismissed_at: str = ""
-    source_type: str = ""
-    source_id: str = ""
-    source_label: str = ""
     created_at: str = ""
     updated_at: str = ""
 
@@ -206,6 +200,7 @@ def record_from_dict(data: dict[str, Any]) -> PlannedRecord:
         source_id=str(data.get("source_id") or ""),
         source_label=str(data.get("source_label") or ""),
         source_tool=str(data.get("source_tool") or ""),
+        schedule_item_id=str(data.get("schedule_item_id") or ""),
         linked_tasking_id=str(data.get("linked_tasking_id") or ""),
         promoted_at=str(data.get("promoted_at") or ""),
         promoted_by=str(data.get("promoted_by") or ""),
@@ -217,20 +212,36 @@ def record_from_dict(data: dict[str, Any]) -> PlannedRecord:
 
 
 def schedule_from_dict(data: dict[str, Any]) -> ScheduledItem:
+    # The schedule API maps its stored name/notes fields to the generic
+    # PlannedRecord shape's "title"/"summary" keys (see _map_doc in
+    # plannedtoolkit.py) -- read those, not "name"/"notes", which the API
+    # never actually sends.
     return ScheduledItem(
         id=data.get("id"),
         record_id=str(data.get("record_id") or ""),
         incident_id=str(data.get("incident_id") or ""),
-        name=str(data.get("name") or ""),
+        name=str(data.get("title") or data.get("name") or ""),
         kind=str(data.get("kind") or ""),
         starts_at=str(data.get("starts_at") or ""),
         ends_at=str(data.get("ends_at") or ""),
+        actual_start_at=str(data.get("actual_start_at") or ""),
+        actual_end_at=str(data.get("actual_end_at") or ""),
+        time_zone=str(data.get("time_zone") or ""),
         location=str(data.get("location") or ""),
         zone=str(data.get("zone") or ""),
         owner=str(data.get("owner") or ""),
+        assigned_to=str(data.get("assigned_to") or ""),
+        assigned_team_id=str(data.get("assigned_team_id") or ""),
+        assigned_person_id=str(data.get("assigned_person_id") or ""),
+        meeting_id=str(data.get("meeting_id") or ""),
+        gis_feature_id=str(data.get("gis_feature_id") or ""),
+        quick_assignment_id=str(data.get("quick_assignment_id") or ""),
         status=str(data.get("status") or ""),
+        delay_reason=str(data.get("delay_reason") or ""),
+        cancellation_reason=str(data.get("cancellation_reason") or ""),
         tags=list(data.get("tags") or []),
-        notes=str(data.get("notes") or ""),
+        notes=str(data.get("summary") or data.get("notes") or ""),
+        revision=int(data.get("revision") or 0),
         created_at=str(data.get("created_at") or ""),
         updated_at=str(data.get("updated_at") or ""),
     )
@@ -248,6 +259,9 @@ def trigger_from_dict(data: dict[str, Any]) -> ScheduleTrigger:
         trigger_at=str(data.get("trigger_at") or ""),
         relative_to=str(data.get("relative_to") or "start"),
         enabled=bool(data.get("enabled", True)),
+        fired_at=str(data.get("fired_at") or ""),
+        fire_error=str(data.get("fire_error") or ""),
+        severity=str(data.get("severity") or ""),
         audience_role=str(data.get("audience_role") or ""),
         audience_user_id=str(data.get("audience_user_id") or ""),
         notification_channel=str(data.get("notification_channel") or ""),
@@ -266,32 +280,6 @@ def trigger_from_dict(data: dict[str, Any]) -> ScheduleTrigger:
         recurring=bool(data.get("recurring", False)),
         recurrence_rule=str(data.get("recurrence_rule") or ""),
         missed_occurrence_behavior=str(data.get("missed_occurrence_behavior") or ""),
-        created_at=str(data.get("created_at") or ""),
-        updated_at=str(data.get("updated_at") or ""),
-    )
-
-
-def notification_from_dict(data: dict[str, Any]) -> PlannedNotification:
-    return PlannedNotification(
-        id=data.get("id"),
-        notification_id=str(data.get("notification_id") or ""),
-        incident_id=str(data.get("incident_id") or ""),
-        title=str(data.get("title") or ""),
-        message=str(data.get("message") or ""),
-        severity=str(data.get("severity") or ""),
-        audience_role=str(data.get("audience_role") or ""),
-        audience_user_id=str(data.get("audience_user_id") or ""),
-        notification_channel=str(data.get("notification_channel") or ""),
-        location=str(data.get("location") or ""),
-        zone=str(data.get("zone") or ""),
-        scheduled_at=str(data.get("scheduled_at") or ""),
-        triggered_at=str(data.get("triggered_at") or ""),
-        acknowledged_at=str(data.get("acknowledged_at") or ""),
-        acknowledged_by=str(data.get("acknowledged_by") or ""),
-        dismissed_at=str(data.get("dismissed_at") or ""),
-        source_type=str(data.get("source_type") or ""),
-        source_id=str(data.get("source_id") or ""),
-        source_label=str(data.get("source_label") or ""),
         created_at=str(data.get("created_at") or ""),
         updated_at=str(data.get("updated_at") or ""),
     )

@@ -36,6 +36,7 @@ TASK_STATUSES = ["Draft", "Planned", "In Progress", "Completed", "Cancelled"]
 PRIORITIES = ["", "Low", "Medium", "High", "Critical"]
 
 __all__ = [
+    "get_event_schedule_panel",
     "get_promotions_panel",
     "get_vendors_panel",
     "get_permits_panel",
@@ -583,30 +584,21 @@ class _DashboardCard(QFrame):
         layout.addWidget(label)
 
 
-class PromotionsPanel(QWidget):
-    def __init__(self, incident_id: object | None = None, parent: QWidget | None = None):
-        super().__init__(parent)
-        layout = QVBoxLayout(self)
-        tabs = QTabWidget()
-        tabs.addTab(_ToolPanel(PROMOTION_SPEC, incident_id), "Campaigns")
-        tabs.addTab(ScheduleWidget(incident_id), "Schedule")
-        layout.addWidget(tabs)
-
-
 class PlannedToolkitHome(QWidget):
     def __init__(self, incident_id: object | None = None, parent: QWidget | None = None):
         super().__init__(parent)
         layout = QVBoxLayout(self)
 
         top = QGridLayout()
-        top.addWidget(_DashboardCard("Promotions", "Campaigns and event timing."), 0, 0)
+        top.addWidget(_DashboardCard("Event Schedule", "Chronological run-of-show for the event."), 0, 0)
         top.addWidget(_DashboardCard("Vendors", "Onsite partners, locations, and compliance."), 0, 1)
         top.addWidget(_DashboardCard("Operations", "Tasks and follow-up tracking."), 1, 0)
         top.addWidget(_DashboardCard("Health", "Health and sanitation oversight."), 1, 1)
         layout.addLayout(top)
 
         tabs = QTabWidget()
-        tabs.addTab(PromotionsPanel(incident_id), "Promotions")
+        tabs.addTab(ScheduleWidget(incident_id), "Event Schedule")
+        tabs.addTab(_ToolPanel(PROMOTION_SPEC, incident_id), "Promotions")
         tabs.addTab(_ToolPanel(VENDOR_SPEC, incident_id), "Vendors")
         tabs.addTab(_ToolPanel(PERMIT_SPEC, incident_id), "Permits")
         tabs.addTab(QuickAssignmentsPanel(incident_id), "Assignments")
@@ -614,8 +606,12 @@ class PlannedToolkitHome(QWidget):
         layout.addWidget(tabs)
 
 
+def get_event_schedule_panel(incident_id: object | None = None) -> QWidget:
+    return ScheduleWidget(incident_id)
+
+
 def get_promotions_panel(incident_id: object | None = None) -> QWidget:
-    return PromotionsPanel(incident_id)
+    return _ToolPanel(PROMOTION_SPEC, incident_id)
 
 
 def get_vendors_panel(incident_id: object | None = None) -> QWidget:
