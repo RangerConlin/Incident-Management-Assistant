@@ -7,12 +7,14 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
+    QDialog,
     QFormLayout,
     QFrame,
     QGridLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMessageBox,
     QPushButton,
     QTabWidget,
     QTableWidget,
@@ -27,6 +29,7 @@ from utils.table_view_styles import apply_statusboard_table_behavior
 
 from . import services
 from .records import PlannedRecord, PlannedToolDefinition, ScheduledItem, TOOLS
+from .widgets.assignment_detail_dialog import AssignmentDetailDialog
 from .widgets.schedule_widget import ScheduleWidget
 
 TASK_STATUSES = ["Draft", "Planned", "In Progress", "Completed", "Cancelled"]
@@ -67,13 +70,6 @@ PERMIT_SPEC = PanelSpec(
     title="Permits",
     tool_key="permits",
     columns=("ID", "Permit", "Status", "Issued By", "Expiry", "Updated"),
-)
-
-TASK_SPEC = PanelSpec(
-    title="Quick Assignments",
-    tool_key="quick-assignments",
-    columns=("ID", "Assignment", "Status", "Priority", "Assignee", "Due", "Updated"),
-    extra_rows=(("Assignee", "assigned_edit"), ("Due", "due_edit")),
 )
 
 HEALTH_SPEC = PanelSpec(
@@ -220,8 +216,6 @@ class _ToolPanel(QWidget):
             expiry = record.due_at or record.metadata.get("expires_on", "") if isinstance(record.metadata, dict) else record.due_at
             issuer = record.metadata.get("issuer", "") if isinstance(record.metadata, dict) else ""
             return [str(record.id or ""), record.title, record.status, issuer, expiry, record.updated_at or record.created_at]
-        if self.spec.tool_key == "tasks":
-            return [str(record.id or ""), record.title, record.status, record.priority, record.assigned_to, record.due_at, record.updated_at or record.created_at]
         if self.spec.tool_key == "health-inspections":
             target = record.location or record.assigned_to
             return [str(record.id or ""), record.title, record.status, target, record.updated_at or record.created_at]
@@ -259,7 +253,7 @@ class QuickAssignmentsPanel(QWidget):
         layout = QVBoxLayout(self)
 
         header = QHBoxLayout()
-        title = QLabel("Quick Assignments")
+        title = QLabel("Assignments")
         title.setStyleSheet("font-size: 18px; font-weight: 600;")
         self.status_label = QLabel("")
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
@@ -278,14 +272,17 @@ class QuickAssignmentsPanel(QWidget):
         self.due_edit = QLineEdit()
         self.due_edit.setPlaceholderText("Due")
         add_btn = QPushButton("Add")
+        new_btn = QPushButton("New…")
         refresh_btn = QPushButton("Refresh")
         add_btn.clicked.connect(self.add_assignment)
+        new_btn.clicked.connect(self.open_new_assignment_dialog)
         refresh_btn.clicked.connect(self.refresh)
         fast_row.addWidget(self.assignment_edit, 3)
         fast_row.addWidget(self.assignee_edit, 1)
         fast_row.addWidget(self.location_edit, 1)
         fast_row.addWidget(self.due_edit, 1)
         fast_row.addWidget(add_btn)
+        fast_row.addWidget(new_btn)
         fast_row.addWidget(refresh_btn)
         layout.addLayout(fast_row)
 
@@ -329,9 +326,10 @@ class QuickAssignmentsPanel(QWidget):
             "Scheduled",
             "Due",
             "Source",
-            "Action",
+            "Actions",
         ])
         apply_statusboard_table_behavior(self.table, stretch_last_section=True)
+        self.table.itemDoubleClicked.connect(self._on_row_double_clicked)
         layout.addWidget(self.table)
 
     def _iid(self) -> str | None:
@@ -401,6 +399,24 @@ class QuickAssignmentsPanel(QWidget):
         self.recurrence_edit.clear()
         self.refresh()
 
+    def open_new_assignment_dialog(self) -> None:
+        if not self._iid():
+            self._set_status("Select an incident before creating assignments.", error=True)
+            return
+        dialog = AssignmentDetailDialog(self, incident_id=self._iid(), record=None)
+        if dialog.exec() != QDialog.Accepted:
+            return
+        payload = dialog.result_payload()
+        if not payload:
+            return
+        try:
+            services.create_record("quick-assignments", self._iid(), **payload)
+        except Exception as exc:
+            self._set_status(self._describe_error(exc), error=True)
+            return
+        self._set_status("Assignment created")
+        self.refresh()
+
     def _make_status_combo(self, record: PlannedRecord) -> QComboBox:
         combo = QComboBox()
         combo.addItems(TASK_STATUSES)
@@ -421,14 +437,83 @@ class QuickAssignmentsPanel(QWidget):
             return
         self._set_status("Status updated")
 
-    def _make_action_button(self, record: PlannedRecord) -> QPushButton:
+    def _make_actions_widget(self, record: PlannedRecord) -> QWidget:
+        container = QWidget()
+        row = QHBoxLayout(container)
+        row.setContentsMargins(0, 0, 0, 0)
+
+        edit_btn = QPushButton("Edit")
+        edit_btn.clicked.connect(lambda _=False, rec_id=record.id: self._edit_assignment(rec_id))
+        row.addWidget(edit_btn)
+
+        if not record.promoted_read_only:
+            delete_btn = QPushButton("Delete")
+            delete_btn.clicked.connect(lambda _=False, rec_id=record.id: self._delete_assignment(rec_id))
+            row.addWidget(delete_btn)
+
         if record.linked_tasking_id:
-            button = QPushButton(f"Open Task {record.linked_tasking_id}")
-            button.clicked.connect(lambda _=False, task_id=record.linked_tasking_id: self._open_tasking(task_id))
-            return button
-        button = QPushButton("Promote")
-        button.clicked.connect(lambda _=False, rec_id=record.id: self._promote(rec_id))
-        return button
+            open_btn = QPushButton(f"Open Task {record.linked_tasking_id}")
+            open_btn.clicked.connect(lambda _=False, task_id=record.linked_tasking_id: self._open_tasking(task_id))
+            row.addWidget(open_btn)
+        else:
+            promote_btn = QPushButton("Promote")
+            promote_btn.clicked.connect(lambda _=False, rec_id=record.id: self._promote(rec_id))
+            row.addWidget(promote_btn)
+
+        return container
+
+    def _find_record(self, record_id: int | None) -> PlannedRecord | None:
+        if record_id is None:
+            return None
+        for record in self._records:
+            if record.id == record_id:
+                return record
+        return None
+
+    def _on_row_double_clicked(self, item: QTableWidgetItem) -> None:
+        if item is None:
+            return
+        record = self._records[item.row()] if 0 <= item.row() < len(self._records) else None
+        if record is not None:
+            self._edit_assignment(record.id)
+
+    def _edit_assignment(self, record_id: int | None) -> None:
+        record = self._find_record(record_id)
+        if record is None:
+            return
+        dialog = AssignmentDetailDialog(self, incident_id=self._iid(), record=record)
+        if dialog.exec() != QDialog.Accepted:
+            return
+        payload = dialog.result_payload()
+        if not payload or not record_id:
+            return
+        try:
+            services.update_record("quick-assignments", int(record_id), payload, self._iid())
+        except Exception as exc:
+            self._set_status(self._describe_error(exc), error=True)
+            return
+        self._set_status("Assignment updated")
+        self.refresh()
+
+    def _delete_assignment(self, record_id: int | None) -> None:
+        if not self._iid() or not record_id:
+            return
+        confirm = QMessageBox.question(
+            self,
+            "Delete Assignment",
+            "Delete this assignment? This cannot be undone.",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if confirm != QMessageBox.Yes:
+            return
+        try:
+            services.delete_record("quick-assignments", int(record_id), self._iid())
+        except Exception as exc:
+            self._set_status(self._describe_error(exc), error=True)
+            return
+        self._set_status("Assignment deleted")
+        self.refresh()
 
     def _promote(self, record_id: int | None) -> None:
         if not self._iid() or not record_id:
@@ -481,7 +566,7 @@ class QuickAssignmentsPanel(QWidget):
                     item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
                 self.table.setItem(row_idx, col_idx, item)
             self.table.setCellWidget(row_idx, 2, self._make_status_combo(record))
-            self.table.setCellWidget(row_idx, 9, self._make_action_button(record))
+            self.table.setCellWidget(row_idx, 9, self._make_actions_widget(record))
 
 
 class _DashboardCard(QFrame):
@@ -524,7 +609,7 @@ class PlannedToolkitHome(QWidget):
         tabs.addTab(PromotionsPanel(incident_id), "Promotions")
         tabs.addTab(_ToolPanel(VENDOR_SPEC, incident_id), "Vendors")
         tabs.addTab(_ToolPanel(PERMIT_SPEC, incident_id), "Permits")
-        tabs.addTab(QuickAssignmentsPanel(incident_id), "Quick Assignments")
+        tabs.addTab(QuickAssignmentsPanel(incident_id), "Assignments")
         tabs.addTab(_ToolPanel(HEALTH_SPEC, incident_id), "Health & Sanitation")
         layout.addWidget(tabs)
 
