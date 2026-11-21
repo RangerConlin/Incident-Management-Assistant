@@ -1,4 +1,4 @@
-import type { Facility, RequestItem, ResourceRequest, ResourceStatusRow } from "../../api/types";
+import type { Facility, LogisticsRecord, RequestItem, ResourceRequest, ResourceStatusRow } from "../../api/types";
 export const PRIORITIES = ["ROUTINE", "HIGH", "IMMEDIATE"];
 export const TRANSITIONS: Record<string, string[]> = {
   DRAFT: ["SUBMITTED", "CANCELLED"], SUBMITTED: ["REVIEWED", "APPROVED", "DENIED", "CANCELLED"],
@@ -8,6 +8,26 @@ export const TRANSITIONS: Record<string, string[]> = {
 };
 export const TERMINAL = ["CLOSED", "DENIED", "CANCELLED"];
 export const APPROVAL_TARGETS: Record<string, string> = { SUBMIT: "SUBMITTED", REVIEW: "REVIEWED", APPROVE: "APPROVED", DENY: "DENIED", CANCEL: "CANCELLED", REOPEN: "REVIEWED" };
+// ICS-213RR responsibility tiers, in the order a paper 213RR lays its
+// approval blocks out: the requesting Section Chief signs off the need,
+// Logistics Section sources/approves fulfillment, and Finance/Admin signs
+// off cost only when the request has one. SECTIONS order drives display
+// order; defaults here mirror ACTION_SECTION_MAP/FINANCE_ACTION_MAP in
+// server/sarapp_db/sarapp_db/api/routers/logistics_resource_requests.py.
+export const SECTIONS = ["requesting", "logistics", "finance"] as const;
+export type ApprovalSection = typeof SECTIONS[number];
+export const SECTION_LABELS: Record<ApprovalSection, string> = { requesting: "Requesting Section", logistics: "Logistics Section", finance: "Finance/Admin Section" };
+export const SECTION_ROLE_LABELS: Record<ApprovalSection, string> = { requesting: "Section Chief", logistics: "Logistics Section Chief", finance: "Cost Approval" };
+export const DEFAULT_ACTION_SECTION: Record<string, ApprovalSection> = { SUBMIT: "requesting", REVIEW: "logistics", APPROVE: "logistics", DENY: "logistics", CANCEL: "requesting", REOPEN: "requesting", FINANCE_APPROVE: "finance", FINANCE_DENY: "finance" };
+export function approvalsBySection(approvals: LogisticsRecord[]): Record<ApprovalSection, LogisticsRecord[]> {
+  const grouped: Record<ApprovalSection, LogisticsRecord[]> = { requesting: [], logistics: [], finance: [] };
+  for (const approval of approvals) {
+    const action = String(approval.action ?? "").toUpperCase();
+    const section = (approval.section as ApprovalSection) ?? DEFAULT_ACTION_SECTION[action] ?? "logistics";
+    (grouped[section] ??= []).push(approval);
+  }
+  return grouped;
+}
 export const ITEM_KINDS = ["PERSONNEL", "TEAM", "EQUIPMENT", "VEHICLE", "AIRCRAFT", "SUPPLY", "SERVICE", "COMMUNICATIONS"];
 export const FULFILLMENT_STATUSES = ["SOURCING", "ASSIGNED", "INTRANSIT", "DELIVERED", "PARTIAL", "FAILED"];
 export const FACILITY_TYPES = ["command_post", "staging", "base", "airport", "helibase", "helispot", "medical", "shelter", "supply", "parking", "other"];

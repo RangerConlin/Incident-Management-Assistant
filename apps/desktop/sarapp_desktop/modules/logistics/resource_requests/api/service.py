@@ -19,15 +19,6 @@ ENTITY_ITEM = "resource_request_item"
 ENTITY_FULFILLMENT = "resource_fulfillment"
 ENTITY_APPROVAL = "resource_request_approval"
 
-ACTION_STATUS_MAP = {
-    ApprovalAction.SUBMIT: RequestStatus.SUBMITTED,
-    ApprovalAction.REVIEW: RequestStatus.REVIEWED,
-    ApprovalAction.APPROVE: RequestStatus.APPROVED,
-    ApprovalAction.DENY: RequestStatus.DENIED,
-    ApprovalAction.CANCEL: RequestStatus.CANCELLED,
-    ApprovalAction.REOPEN: RequestStatus.REVIEWED,
-}
-
 
 class ResourceRequestService:
     """API-backed service implementing the resource request lifecycle."""
@@ -81,11 +72,24 @@ class ResourceRequestService:
             json={"status": new_status.value, "actor_id": actor_id, "note": note},
         )
 
-    def record_approval(self, request_id: str, action: str, actor_id: str, note: Optional[str] = None) -> str:
+    def record_approval(
+        self,
+        request_id: str,
+        action: str,
+        actor_id: str,
+        note: Optional[str] = None,
+        section: Optional[str] = None,
+    ) -> str:
         parsed_action = validators.validate_approval_action(action, note)
+        parsed_section = validators.validate_approval_section(section) if section else None
         result = self._client().post(
             f"{self._base()}/{request_id}/approvals",
-            json={"action": parsed_action.value, "actor_id": actor_id, "note": note},
+            json={
+                "action": parsed_action.value,
+                "actor_id": actor_id,
+                "note": note,
+                "section": parsed_section.value if parsed_section else None,
+            },
         )
         return result.get("id", "")
 

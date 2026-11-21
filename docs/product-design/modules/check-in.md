@@ -18,7 +18,7 @@ Record arrival, availability, planning/check-in status, and accountability for p
 - Working: Quick Check In can search by scanned mobile QR, personnel ID, CAPID/person ID, name, callsign, or phone.
 - Working: Quick Check In supports status buttons for Expected, Enroute, Checked In, and Check Out/Demobilized.
 - Working: Mobile Check-in QR screen generates a personal QR from the on-device profile and works without a network connection.
-- Working: Mobile generates a versioned `SARAPP:PROFILE:v2:` QR containing every user-editable personnel field, including emergency/contact information and certification references; staff-side import/check-in support is pending.
+- Working: Mobile generates a versioned `SARAPP:PROFILE:v2:` QR containing every user-editable personnel field, including emergency/contact information and certification references. Incident staff can scan, review, approve, and check in that profile; team leaders can use the same approval flow to check in and add the person to their team.
 - Working: ICS-211 Resource Check In desktop workbench has tabs for Personnel, Groups / Teams, Vehicles, Aircraft, and Equipment.
 - Working: Resource tabs support fast lookup, selecting existing records by organization, reporting location, LDW date/notes, check-in notes, status actions, and adding new records.
 - Working: Resource status actions include Enroute, Preparing for Demobilization, and Cancelled.
@@ -77,7 +77,7 @@ Desktop has two main check-in surfaces. Quick Check In is for rapid personnel in
 
 ## Mobile Experience
 
-Mobile currently provides a QR code generated from the local profile so a check-in desk can scan the person. Mobile also joins an incident with a selected team and attempts to associate that person/team through check-in data. The mobile app does not yet read as a full check-in/check-out workflow for the field user.
+Mobile provides a QR code generated from the local profile. Incident staff can scan it from the staff dashboard, review all carried fields, and approve creation or refresh of the incident-person copy and check-in status. Team leaders can launch the same scanner from Team Management to add the approved person to their roster. Mobile also joins an incident with a selected team and attempts to associate that person/team through check-in data. The app does not yet read as a full self-service check-in/check-out workflow for the field user.
 
 ## Current Gaps
 

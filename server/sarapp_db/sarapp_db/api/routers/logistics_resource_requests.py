@@ -22,6 +22,30 @@ ACTION_STATUS_MAP = {
     "REOPEN": "REVIEWED",
 }
 
+# Which ICS-213RR responsibility tier an approval action belongs to, by
+# default. The requesting Section Chief submits/cancels/reopens; the
+# Logistics Section Chief reviews/approves/denies sourcing. Finance/Admin's
+# cost approval doesn't move the request's lifecycle status at all, so it
+# is recorded through FINANCE_ACTION_MAP below instead of this one.
+ACTION_SECTION_MAP = {
+    "SUBMIT": "requesting",
+    "REVIEW": "logistics",
+    "APPROVE": "logistics",
+    "DENY": "logistics",
+    "CANCEL": "requesting",
+    "REOPEN": "requesting",
+}
+
+# Finance/Admin cost approval is conditional (only requests with a cost
+# impact need it) and independent of the request's status chain — recording
+# one never changes `status`.
+FINANCE_ACTION_MAP = {
+    "FINANCE_APPROVE": "Approved",
+    "FINANCE_DENY": "Denied",
+}
+
+VALID_SECTIONS = {"requesting", "logistics", "finance"}
+
 ALLOWED_STATUS_TRANSITIONS = {
     "DRAFT": {"DRAFT", "SUBMITTED", "CANCELLED"},
     "SUBMITTED": {"REVIEWED", "APPROVED", "DENIED", "CANCELLED"},
@@ -202,10 +226,37 @@ def record_approval(incident_id: str, request_id: str, body: dict[str, Any]) -> 
     action = str(body.get("action", "")).upper()
     actor_id = str(body.get("actor_id", "unknown"))
     note = body.get("note")
-    if action not in ACTION_STATUS_MAP:
-        raise HTTPException(400, f"Unknown approval action: {action}")
+    section = body.get("section")
+    if section is not None and section not in VALID_SECTIONS:
+        raise HTTPException(400, f"Unknown approval section: {section}")
     if action == "DENY" and not note:
         raise HTTPException(400, "Denial requires a note for audit trail compliance")
+
+    if action in FINANCE_ACTION_MAP:
+        # Finance/Admin's cost sign-off — recorded on its own, never touches
+        # the request's lifecycle `status`.
+        if action == "FINANCE_DENY" and not note:
+            raise HTTPException(400, "Denial requires a note for audit trail compliance")
+        approval_id = _new_id()
+        now = _now()
+        approval = {
+            "id": approval_id,
+            "action": action,
+            "section": section or "finance",
+            "actor_id": actor_id,
+            "note": note,
+            "ts_utc": now,
+        }
+        audit_entry = {"event": f"approval:{action}", "ts_utc": now, "actor_id": actor_id}
+        repo.apply_update(
+            doc["_id"],
+            {"$push": {"approvals": approval, "audit": audit_entry}, "$set": {"last_updated_utc": now}},
+            touch_updated_at=False,
+        )
+        return {"id": approval_id}
+
+    if action not in ACTION_STATUS_MAP:
+        raise HTTPException(400, f"Unknown approval action: {action}")
 
     current = doc.get("status", "DRAFT")
     target_status = ACTION_STATUS_MAP[action]
@@ -215,7 +266,14 @@ def record_approval(incident_id: str, request_id: str, body: dict[str, Any]) -> 
 
     approval_id = _new_id()
     now = _now()
-    approval = {"id": approval_id, "action": action, "actor_id": actor_id, "note": note, "ts_utc": now}
+    approval = {
+        "id": approval_id,
+        "action": action,
+        "section": section or ACTION_SECTION_MAP.get(action, "logistics"),
+        "actor_id": actor_id,
+        "note": note,
+        "ts_utc": now,
+    }
     updates: dict = {"status": target_status}
     if current != "DRAFT":
         updates["version"] = doc.get("version", 1) + 1

@@ -88,12 +88,15 @@ import type {
   IncidentProfile, OrgAssignment, OrgPosition, OrgTemplate, IapPackage,
   TeamTypeDefinition, ResourceType, SpatialFeature,
   IntelSubject, IntelLead, IntelItem, IntelAssessment, IntelLogEntry, IntelDashboard,
+  Attachment,
 } from "./types";
 
 export function lookupPerson(personId: string) {
-  return api.get<{ status: "found" | "not_found" | "ambiguous"; person: PersonnelSummary | null }>(
-    `/api/auth/lookup?person_id=${encodeURIComponent(personId)}`
-  );
+  return api.get<{
+    status: "found" | "not_found" | "ambiguous";
+    person: PersonnelSummary | null;
+    candidates?: PersonnelSummary[];
+  }>(`/api/auth/lookup?person_id=${encodeURIComponent(personId)}`);
 }
 
 const commandBase=(id:string)=>`/api/incidents/${encodeURIComponent(id)}`;
@@ -123,10 +126,11 @@ export function registerPerson(personId: string, firstName: string, lastName: st
   });
 }
 
-export function setPassword(username: string, password: string) {
+export function setPassword(username: string, password: string, personRecord?: number | null) {
   return api.post<{ status: string; username: string }>("/api/auth/password/set", {
     username,
     password,
+    ...(personRecord != null ? { person_record: personRecord } : {}),
   });
 }
 
@@ -793,7 +797,7 @@ export const listResourceRequests = (id: string) => api.get<ResourceRequest[]>(r
 export const getResourceRequest = (id: string, requestId: string) => api.get<ResourceRequestDetail>(`${requestBase(id)}/${encodeURIComponent(requestId)}`);
 export const createResourceRequest = (id: string, body: Record<string, unknown>) => api.post<ResourceRequestDetail>(requestBase(id), body);
 export const updateResourceRequest = (id: string, requestId: string, body: Record<string, unknown>) => api.patch<ResourceRequestDetail>(`${requestBase(id)}/${encodeURIComponent(requestId)}`, body);
-export const resourceRequestApproval = (id: string, requestId: string, action: string, actor_id: string, note: string) => api.post<{ id: string }>(`${requestBase(id)}/${encodeURIComponent(requestId)}/approvals`, { action, actor_id, note });
+export const resourceRequestApproval = (id: string, requestId: string, action: string, actor_id: string, note: string, section?: string) => api.post<{ id: string }>(`${requestBase(id)}/${encodeURIComponent(requestId)}/approvals`, { action, actor_id, note, section });
 export const resourceRequestStatus = (id: string, requestId: string, status: string, actor_id: string, note: string) => api.post<ResourceRequestDetail>(`${requestBase(id)}/${encodeURIComponent(requestId)}/status`, { status, actor_id, note });
 export const replaceResourceRequestItems = (id: string, requestId: string, items: RequestItem[]) => api.put<{ ids: string[] }>(`${requestBase(id)}/${encodeURIComponent(requestId)}/items`, items);
 export const assignResourceRequestFulfillment = (id: string, requestId: string, body: Record<string, unknown>) => api.post<{ id: string }>(`${requestBase(id)}/${encodeURIComponent(requestId)}/fulfillments`, body);
@@ -1110,4 +1114,39 @@ export function getIntelLog(
   const q = qs.toString();
   return api.get<IntelLogEntry[]>(`${intelBase(incidentId)}/log${q ? `?${q}` : ""}`);
 }
+
+// ---------------------------------------------------------------------------
+// Generic incident attachments (GridFS-backed). Mirrors routers/
+// attachments.py — owner_type/owner_id is generic (any module can use this,
+// not just Intel), so these helpers live here rather than in the Intel
+// block above.
+// ---------------------------------------------------------------------------
+const attachmentsBase = (incidentId: string) => `/api/incidents/${encodeURIComponent(incidentId)}/attachments`;
+
+export function listAttachments(incidentId: string, ownerType: string, ownerId: string) {
+  return api.get<Attachment[]>(
+    `${attachmentsBase(incidentId)}?owner_type=${encodeURIComponent(ownerType)}&owner_id=${encodeURIComponent(ownerId)}`,
+  );
+}
+
+export function uploadAttachment(
+  incidentId: string,
+  file: File,
+  params: { owner_type: string; owner_id: string; category?: string; uploaded_by?: string; description?: string },
+) {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("owner_type", params.owner_type);
+  formData.append("owner_id", params.owner_id);
+  if (params.category) formData.append("category", params.category);
+  if (params.uploaded_by) formData.append("uploaded_by", params.uploaded_by);
+  if (params.description) formData.append("description", params.description);
+  return api.uploadFile<Attachment>(attachmentsBase(incidentId), formData);
+}
+
+export const downloadAttachment = (incidentId: string, attachmentId: string) =>
+  api.fetchFile(`${attachmentsBase(incidentId)}/${encodeURIComponent(attachmentId)}/download`);
+
+export const deleteAttachment = (incidentId: string, attachmentId: string, purgeFile = false) =>
+  api.delete<void>(`${attachmentsBase(incidentId)}/${encodeURIComponent(attachmentId)}${purgeFile ? "?purge_file=true" : ""}`);
 export const deleteIwiReport = (incidentId: string, reportId: string) => api.delete<void>(`${iwiBase(incidentId)}/${encodeURIComponent(reportId)}`);

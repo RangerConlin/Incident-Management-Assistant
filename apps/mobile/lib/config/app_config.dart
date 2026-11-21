@@ -8,7 +8,7 @@ class AppConfig {
   /// `/r/<connect_code>/...` to reach a specific registered LAN server —
   /// see `build_cloud_url` in the desktop client's
   /// `core/networking/connection_manager.py`.
-  static const String cloudRouterBaseUrl = 'https://sarapp.arcadiacommandsolutions.com';
+  static const String cloudRouterBaseUrl = 'https://sarapp.arc-horizon.net';
 
   /// Connect code of the dev LAN server. Only used to carry a session saved
   /// before connections were user-configurable over to the new connection

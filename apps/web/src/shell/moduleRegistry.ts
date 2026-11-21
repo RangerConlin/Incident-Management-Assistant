@@ -129,7 +129,14 @@ export const MODULE_REGISTRY: ModuleSection[] = [
   {
     section: "Intel",
     icon: Search,
-    modules: [{ key: "intel", label: "Intel", path: "/intel", status: "live" }],
+    modules: [
+      { key: "intel-dashboard", label: "Intel Dashboard", path: "/intel", status: "live" },
+      { key: "intel-subjects", label: "Subjects", path: "/intel/subjects", status: "live" },
+      { key: "intel-leads", label: "Leads", path: "/intel/leads", status: "live" },
+      { key: "intel-items", label: "Intel Items", path: "/intel/items", status: "live" },
+      { key: "intel-assessments", label: "Assessments", path: "/intel/assessments", status: "live" },
+      { key: "intel-log", label: "Intel Log", path: "/intel/log", status: "live" },
+    ],
   },
   {
     section: "Liaison",

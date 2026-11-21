@@ -22,6 +22,8 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QListWidget,
+    QListWidgetItem,
     QPushButton,
     QStackedWidget,
     QVBoxLayout,
@@ -272,11 +274,66 @@ class CreateProfileDialog(QDialog):
         self.accept()
 
 
-def _resolve_person_record(parent: QWidget | None, person_id: str) -> str | None:
+class DuplicateRecordPickerDialog(QDialog):
+    """Lets the operator pick which record to sign in as when a login ID
+    matches more than one personnel record, instead of blocking sign-in
+    until an administrator deduplicates the roster."""
+
+    def __init__(self, parent: QWidget | None, person_id: str, candidates: List[dict]) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Multiple Matching Records")
+        self.setModal(True)
+        self._candidates = candidates
+
+        note = QLabel(
+            f"More than one personnel record uses ID \"{person_id}\". Pick the "
+            "one that is you, or ask an administrator to merge/delete the rest "
+            "later."
+        )
+        note.setWordWrap(True)
+
+        self.list_widget = QListWidget(self)
+        for candidate in candidates:
+            record = candidate.get("person_record")
+            name = candidate.get("name") or "(unnamed)"
+            details = " / ".join(
+                str(candidate.get(field))
+                for field in ("organization", "home_unit", "rank", "callsign", "phone")
+                if candidate.get(field)
+            )
+            label = f"#{record} — {name}"
+            if details:
+                label += f"  ({details})"
+            item = QListWidgetItem(label)
+            item.setData(Qt.UserRole, record)
+            self.list_widget.addItem(item)
+        if self.list_widget.count():
+            self.list_widget.setCurrentRow(0)
+
+        self.buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, self)
+        self.buttons.accepted.connect(self.accept)
+        self.buttons.rejected.connect(self.reject)
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(note)
+        layout.addWidget(self.list_widget)
+        layout.addWidget(self.buttons)
+
+    def selected_candidate(self) -> dict | None:
+        item = self.list_widget.currentItem()
+        if item is None:
+            return None
+        record = item.data(Qt.UserRole)
+        return next((c for c in self._candidates if c.get("person_record") == record), None)
+
+
+def _resolve_person_record(parent: QWidget | None, person_id: str) -> tuple[str, int | None] | None:
     """Match a login ID to a personnel record, creating one if needed.
 
-    Returns the person's display name, or None when sign-in should stop
-    (unknown/ambiguous ID the user declined to fix, or a server error).
+    Returns ``(display_name, person_record)``, or None when sign-in should
+    stop (unknown ID the user declined to fix, or a server error). When the
+    ID is ambiguous, the operator picks which record is theirs from a list
+    instead of being blocked.
     """
 
     from utils.api_client import api_client
@@ -289,14 +346,24 @@ def _resolve_person_record(parent: QWidget | None, person_id: str) -> str | None
 
     status = result.get("status")
     if status == "found":
-        return str((result.get("person") or {}).get("name") or person_id)
+        person = result.get("person") or {}
+        return str(person.get("name") or person_id), person.get("person_record")
     if status == "ambiguous":
-        QMessageBox.warning(
-            parent,
-            "Login Failed",
-            "More than one personnel record uses this ID. Ask an administrator to fix the roster.",
-        )
-        return None
+        candidates = result.get("candidates") or []
+        if not candidates:
+            QMessageBox.warning(
+                parent,
+                "Login Failed",
+                "More than one personnel record uses this ID, but the server returned no details.",
+            )
+            return None
+        dialog = DuplicateRecordPickerDialog(parent, person_id, candidates)
+        if dialog.exec() != QDialog.Accepted:
+            return None
+        chosen = dialog.selected_candidate()
+        if chosen is None:
+            return None
+        return str(chosen.get("name") or person_id), chosen.get("person_record")
 
     dialog = CreateProfileDialog(parent, person_id)
     if dialog.exec() != QDialog.Accepted:
@@ -310,7 +377,8 @@ def _resolve_person_record(parent: QWidget | None, person_id: str) -> str | None
     except Exception as exc:
         QMessageBox.warning(parent, "Login Failed", f"Could not create your profile: {exc}")
         return None
-    return str((created.get("person") or {}).get("name") or f"{first_name} {last_name}")
+    person = created.get("person") or {}
+    return str(person.get("name") or f"{first_name} {last_name}"), person.get("person_record")
 
 
 def _finish_session(
@@ -322,12 +390,16 @@ def _finish_session(
     display_name: str,
     incidents: List[IncidentItem],
     strict: bool = True,
+    person_record: int | None = None,
 ) -> tuple[str, str, str] | None:
     """Apply the active incident/user/role, start the session, and audit it.
 
     Returns (incident_id, person_record, role) on success. When `strict` is
     True and the server fails to resolve a person record, warns and returns
-    None instead.
+    None instead. ``person_record`` pins the session to a specific personnel
+    record (set when the login ID matched more than one record and the
+    operator picked which one is theirs); otherwise the server resolves it
+    from the username, which fails for an ID that is still ambiguous there.
     """
 
     AppState.set_active_incident(incident_id)
@@ -344,6 +416,7 @@ def _finish_session(
             username=username,
             display_name=display_name,
             role=role,
+            person_record=person_record,
             incident_id=str(incident_id),
             mode="cloud",
         )
@@ -889,11 +962,12 @@ class LoginDialog(QDialog):
         AppState.set_active_user_role("Offline")
         self.accept()
 
-    def _ensure_profile(self, person_id: str) -> str | None:
+    def _ensure_profile(self, person_id: str) -> tuple[str, int | None] | None:
         """Match the login ID to a personnel record, creating one if needed.
 
-        Returns the person's display name, or None when sign-in should stop
-        (unknown/ambiguous ID the user declined to fix, or a server error).
+        Returns ``(display_name, person_record)``, or None when sign-in
+        should stop (unknown ID the user declined to fix, or a server
+        error).
         """
 
         return _resolve_person_record(self, person_id)
@@ -950,11 +1024,12 @@ class LoginDialog(QDialog):
                 return
 
         display_name = username
+        person_record = None
         if username and not self._demo_mode:
-            resolved_name = self._ensure_profile(username)
-            if resolved_name is None:
+            resolved = self._ensure_profile(username)
+            if resolved is None:
                 return
-            display_name = resolved_name
+            display_name, person_record = resolved
 
         result = _finish_session(
             parent=self,
@@ -964,6 +1039,7 @@ class LoginDialog(QDialog):
             display_name=display_name,
             incidents=self._incidents,
             strict=bool(username) and not self._demo_mode,
+            person_record=person_record,
         )
         if result is None:
             return

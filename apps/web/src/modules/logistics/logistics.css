@@ -13,9 +13,23 @@
 .logistics-form input[type="checkbox"] { align-self: flex-start; }
 .logistics-wide { grid-column: 1 / -1; }
 .logistics-text { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.6; }
+.logistics-page .muted { color: #9aa0a8; }
 .logistics-print { line-height: 1.6; }
 .logistics-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 20px 0; }
 @media (max-width: 850px) { .logistics-grid, .logistics-form { grid-template-columns: 1fr; } }
+
+/* ---------------------------------------------------------------------
+ * Dense desktop tables used outside the main DataTable component — the
+ * Required Approvals / Audit History grid on Resource Request Detail,
+ * plain enough to read at a glance with a mouse, not touch-sized rows.
+ * ------------------------------------------------------------------- */
+.logistics-approvals-table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+.logistics-approvals-table th { text-align: left; padding: 8px 10px; color: #9aa0a8; border-bottom: 1px solid #2a2d33; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.03em; }
+.logistics-approvals-table td { padding: 7px 10px; border-bottom: 1px solid #202327; vertical-align: top; }
+.logistics-approvals-table tr:last-child td { border-bottom: none; }
+.logistics-approvals-table input { width: 100%; }
+.logistics-approval-role { font-size: 0.76rem; color: #9aa0a8; font-weight: 500; }
+.logistics-approvals-table .muted { color: #9aa0a8; }
 
 /* ---------------------------------------------------------------------
  * Check-In workbench / Personnel Manager — cards, quick actions, and the
@@ -38,3 +52,7 @@
   .logistics-print .data-table-toolbar { display: none; }
   .logistics-print .data-table-scroll { overflow: visible; }
 }
+/* Resource Request Detail's printable summary stays in the DOM (so
+ * window.print() has real content) but off screen — Print is just two
+ * toolbar buttons on screen now, not its own navigable section. */
+@media screen { .screen-hide { display: none; } }

@@ -101,6 +101,64 @@ def test_set_password_then_login_round_trip():
     _clear()
 
 
+def test_set_password_with_duplicate_person_id_is_conflict_without_a_pick():
+    """A username that matches more than one personnel record must not be
+    mistaken for "no such record" (404) -- it's a 409 the caller can resolve
+    by supplying an explicit person_record, not a dead end."""
+
+    _clear()
+    _seed_personnel()
+    other_record = PERSON_RECORD + 1
+    _personnel_col().insert_one(
+        {"person_record": other_record, "person_id": PERSON_ID, "first_name": "Dup", "last_name": "Auth"}
+    )
+    app = create_app()
+    try:
+        with TestClient(app) as client:
+            res = client.post(
+                "/api/auth/password/set",
+                json={"username": USERNAME, "password": "a-real-password"},
+            )
+        assert res.status_code == 409
+    finally:
+        _personnel_col().delete_many({"person_record": other_record})
+        _clear()
+
+
+def test_set_password_with_explicit_person_record_resolves_duplicate_person_id():
+    """Picking a specific person_record must let sign-in proceed even while
+    the roster still has a duplicated person_id waiting to be cleaned up."""
+
+    _clear()
+    _seed_personnel()
+    other_record = PERSON_RECORD + 1
+    _personnel_col().insert_one(
+        {"person_record": other_record, "person_id": PERSON_ID, "first_name": "Dup", "last_name": "Auth"}
+    )
+    app = create_app()
+    try:
+        with TestClient(app) as client:
+            set_res = client.post(
+                "/api/auth/password/set",
+                json={
+                    "username": USERNAME,
+                    "password": "a-real-password",
+                    "person_record": PERSON_RECORD,
+                },
+            )
+            assert set_res.status_code == 201
+
+            login_res = client.post(
+                "/api/auth/login",
+                json={"username": USERNAME, "password": "a-real-password"},
+            )
+        assert login_res.status_code == 200
+        assert login_res.json()["personnel"]["person_record"] == PERSON_RECORD
+    finally:
+        _personnel_col().delete_many({"person_record": other_record})
+        _clear()
+
+
 def test_set_password_twice_is_conflict():
     _clear()
     _seed_personnel()

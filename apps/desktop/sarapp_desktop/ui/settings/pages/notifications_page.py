@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QFormLayout,
+    QFrame,
     QGroupBox,
     QHBoxLayout,
     QPushButton,
@@ -51,7 +52,7 @@ class NotificationsPage(QWidget):
         # Outer scroll so the page doesn't overflow with 16 rows
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setFrameShape(scroll.NoFrame)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
 
         inner = QWidget()
         root = QVBoxLayout(inner)
@@ -178,7 +179,6 @@ class NotificationsPage(QWidget):
                 pass
 
     def _make_separator(self) -> QWidget:
-        from PySide6.QtWidgets import QFrame
         line = QFrame()
         line.setFrameShape(QFrame.HLine)
         line.setFrameShadow(QFrame.Sunken)

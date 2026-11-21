@@ -75,6 +75,17 @@ import WorkspacePage from "./modules/workspaces/WorkspacePage";
 import { WORKSPACES } from "./modules/workspaces/config";
 import IncidentMapPage from "./modules/incidentMap/IncidentMapPage";
 
+import IntelDashboardPage from "./modules/intel/IntelDashboardPage";
+import IntelLogPage from "./modules/intel/IntelLogPage";
+import SubjectsBoardPage from "./modules/intel/subjects/SubjectsBoardPage";
+import SubjectDetailPage from "./modules/intel/subjects/SubjectDetailPage";
+import LeadsBoardPage from "./modules/intel/leads/LeadsBoardPage";
+import LeadDetailPage from "./modules/intel/leads/LeadDetailPage";
+import ItemsBoardPage from "./modules/intel/items/ItemsBoardPage";
+import ItemDetailPage from "./modules/intel/items/ItemDetailPage";
+import AssessmentsBoardPage from "./modules/intel/assessments/AssessmentsBoardPage";
+import AssessmentDetailPage from "./modules/intel/assessments/AssessmentDetailPage";
+
 function RequireAuth({ children }: { children: JSX.Element }) {
   const { isAuthenticated } = useSession();
   return isAuthenticated ? children : <Navigate to="/login" replace />;
@@ -395,6 +406,16 @@ export default function App() {
             </RequireIncident>
           }
         />
+        <Route path="intel" element={<RequireIncident><IntelDashboardPage /></RequireIncident>} />
+        <Route path="intel/subjects" element={<RequireIncident><SubjectsBoardPage /></RequireIncident>} />
+        <Route path="intel/subjects/:subjectId" element={<RequireIncident><SubjectDetailPage /></RequireIncident>} />
+        <Route path="intel/leads" element={<RequireIncident><LeadsBoardPage /></RequireIncident>} />
+        <Route path="intel/leads/:leadId" element={<RequireIncident><LeadDetailPage /></RequireIncident>} />
+        <Route path="intel/items" element={<RequireIncident><ItemsBoardPage /></RequireIncident>} />
+        <Route path="intel/items/:itemId" element={<RequireIncident><ItemDetailPage /></RequireIncident>} />
+        <Route path="intel/assessments" element={<RequireIncident><AssessmentsBoardPage /></RequireIncident>} />
+        <Route path="intel/assessments/:assessmentId" element={<RequireIncident><AssessmentDetailPage /></RequireIncident>} />
+        <Route path="intel/log" element={<RequireIncident><IntelLogPage /></RequireIncident>} />
         {WORKSPACES.map((w) => (
           <Route
             key={w.path}

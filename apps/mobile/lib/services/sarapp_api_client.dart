@@ -15,7 +15,7 @@ enum PersonLookupStatus { found, notFound, ambiguous }
 
 /// Result of matching a login ID to the personnel roster.
 class PersonLookup {
-  const PersonLookup({required this.status, this.name});
+  const PersonLookup({required this.status, this.name, this.profile});
 
   factory PersonLookup.fromJson(Map<String, dynamic> json) {
     final status = switch (json['status']) {
@@ -25,13 +25,24 @@ class PersonLookup {
     };
     final person = json['person'];
     final name = person is Map ? '${person['name'] ?? ''}'.trim() : '';
-    return PersonLookup(status: status, name: name.isEmpty ? null : name);
+    return PersonLookup(
+      status: status,
+      name: name.isEmpty ? null : name,
+      profile: person is Map
+          ? LocalProfile.fromJson(Map<String, dynamic>.from(person))
+          : null,
+    );
   }
 
   final PersonLookupStatus status;
 
   /// The matched person's full name; null unless [status] is found.
   final String? name;
+
+  /// The matched record's catalog fields, parsed as a [LocalProfile] so a
+  /// new device can pre-populate the profile form instead of the operator
+  /// retyping everything; null unless [status] is found.
+  final LocalProfile? profile;
 }
 
 class SarAppApiException implements Exception {
@@ -277,6 +288,31 @@ class SarAppApiClient {
   }) => _patchJson(
     '/api/incidents/$incidentId/checkin/$personId',
     body: checkinPayload,
+  );
+
+  Future<Map<String, dynamic>> previewResourceQr({
+    required String incidentId,
+    required Map<String, dynamic> profile,
+  }) => _postJson(
+    '/api/incidents/$incidentId/checkin/resource-qr/preview',
+    body: {'resource_kind': 'personnel', 'profile': profile},
+  );
+
+  Future<Map<String, dynamic>> applyResourceQr({
+    required String incidentId,
+    required Map<String, dynamic> profile,
+    int? teamId,
+    bool checkIn = true,
+    int? approvedByPersonRecord,
+  }) => _postJson(
+    '/api/incidents/$incidentId/checkin/resource-qr/apply',
+    body: {
+      'resource_kind': 'personnel',
+      'profile': profile,
+      'check_in': checkIn,
+      'team_id': ?teamId,
+      'approved_by_person_record': ?approvedByPersonRecord,
+    },
   );
 
   /// Operations-module team list — has each team's `int_id`, which is the id

@@ -20,8 +20,7 @@ void main() {
     addTearDown(tester.view.reset);
     await tester.pumpWidget(const MaterialApp(home: ProfileScreen()));
 
-    await tester.ensureVisible(find.text('Save profile'));
-    await tester.tap(find.text('Save profile'));
+    await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
     expect(
       find.text('Person ID, first name and last name are required.'),
@@ -47,6 +46,9 @@ void main() {
       find.widgetWithText(TextField, 'Organization (not listed above)'),
       'CAP',
     );
+    await tester.ensureVisible(find.text('Operational details'));
+    await tester.tap(find.text('Operational details'));
+    await tester.pumpAndSettle();
     await tester.enterText(find.widgetWithText(TextField, 'Radio ID'), 'R-7');
     await tester.enterText(
       find.widgetWithText(TextField, 'Primary role'),
@@ -57,10 +59,8 @@ void main() {
       find.widgetWithText(TextField, 'Callsign'),
       'Rescue 7',
     );
-    await tester.ensureVisible(find.text('Medical responder'));
     await tester.tap(find.text('Medical responder'));
-    await tester.ensureVisible(find.text('Save profile'));
-    await tester.tap(find.text('Save profile'));
+    await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
 
     final saved = await LocalProfileStore.load();
@@ -92,7 +92,32 @@ void main() {
     );
 
     expect(find.text('Edit profile'), findsOneWidget);
+    await tester.tap(find.text('Contact'));
+    await tester.pumpAndSettle();
     expect(find.widgetWithText(TextField, '555'), findsOneWidget);
+  });
+
+  testWidgets('profile keeps save visible and groups optional details', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(400, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(const MaterialApp(home: ProfileScreen()));
+
+    expect(find.text('Save'), findsOneWidget);
+    expect(find.text('Identity'), findsOneWidget);
+    expect(find.text('Operational details'), findsOneWidget);
+    expect(find.text('Emergency information'), findsOneWidget);
+    expect(find.widgetWithText(TextField, 'Person ID *'), findsOneWidget);
+    expect(find.widgetWithText(TextField, 'Radio ID'), findsNothing);
+
+    await tester.ensureVisible(find.text('Operational details'));
+    await tester.tap(find.text('Operational details'));
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(TextField, 'Radio ID'), findsOneWidget);
+    expect(find.text('Save'), findsOneWidget);
   });
 
   testWidgets('a connect code is validated, saved, and made active', (

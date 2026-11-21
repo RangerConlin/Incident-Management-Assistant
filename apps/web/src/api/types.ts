@@ -1225,6 +1225,30 @@ export interface WeatherConfig {
   updated_by: string | null;
 }
 
+// Generic incident attachment storage (GridFS-backed) — matches
+// server/sarapp_db/sarapp_db/api/routers/attachments.py's _public_doc
+// exactly. owner_type/owner_id is a generic pointer (e.g. owner_type=
+// "intel_item", owner_id=<item id>), not Intel-specific, so this lives
+// alongside the other cross-module types rather than under the Intel
+// block below.
+export interface Attachment {
+  id: number;
+  attachment_id: string;
+  incident_id: string;
+  owner_type: string;
+  owner_id: string;
+  category: string;
+  filename: string;
+  mime_type: string;
+  size_bytes: number;
+  checksum_sha256: string;
+  gridfs_file_id: string;
+  uploaded_by: string | null;
+  uploaded_at: string;
+  description: string | null;
+  deleted: boolean;
+}
+
 // Intel module — matches server/sarapp_db/sarapp_db/api/routers/intel.py's
 // _map_subject/_map_lead/_map_item/_map_observation/_map_assessment exactly
 // (field-for-field), not the desktop dataclasses in

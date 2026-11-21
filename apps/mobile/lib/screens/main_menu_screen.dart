@@ -74,9 +74,16 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
   }
 
   Future<void> _openProfile() async {
-    final saved = await Navigator.of(
-      context,
-    ).push<bool>(MaterialPageRoute(builder: (_) => ProfileScreen(existing: _profile)));
+    final saved = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => ProfileScreen(
+          existing: _profile,
+          clientFactory: _status == _ServerStatus.connected
+              ? widget.clientFactory
+              : null,
+        ),
+      ),
+    );
     if (saved != true) return;
     await _load();
     await _syncProfile();

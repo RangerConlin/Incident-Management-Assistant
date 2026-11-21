@@ -54,8 +54,58 @@ async function request<T>(method: string, path: string, body?: unknown, response
 
 export interface DownloadResult { blob: Blob; filename: string; }
 
+// Generic attachment upload (multipart/form-data) — used by the attachments
+// router's owner_type/owner_id pattern (server/sarapp_db/.../routers/
+// attachments.py), not form-specific like `download` above. No
+// Content-Type header: the browser sets its own multipart boundary for a
+// FormData body, and setting one manually breaks that.
+async function requestUpload<T>(path: string, formData: FormData): Promise<T> {
+  const headers: Record<string, string> = {};
+  const token = getToken();
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const res = await fetch(buildUrl(path), { method: "POST", headers, body: formData });
+  if (!res.ok) {
+    let detail = res.statusText;
+    try {
+      const data = await res.json();
+      detail = data.detail || detail;
+    } catch {
+      // response had no JSON body; fall back to statusText
+    }
+    throw new ApiError(res.status, detail);
+  }
+  return (await res.json()) as T;
+}
+
+// Generic file download — any mime type, filename parsed from the
+// attachments router's RFC 5987 `filename*=UTF-8''...` header (not the
+// plain `filename="..."` the PDF-only `download` path above expects).
+async function requestFile(path: string): Promise<DownloadResult> {
+  const headers: Record<string, string> = {};
+  const token = getToken();
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const res = await fetch(buildUrl(path), { method: "GET", headers });
+  if (!res.ok) {
+    let detail = res.statusText;
+    try {
+      const data = await res.json();
+      detail = data.detail || detail;
+    } catch {
+      // response had no JSON body; fall back to statusText
+    }
+    throw new ApiError(res.status, detail);
+  }
+  const disposition = res.headers.get("Content-Disposition") || "";
+  const rawName =
+    disposition.match(/filename\*=UTF-8''([^;\r\n]+)/i)?.[1] ?? disposition.match(/filename="?([^"\r\n;]+)"?/i)?.[1] ?? "attachment";
+  const filename = decodeURIComponent(rawName);
+  return { blob: await res.blob(), filename };
+}
+
 export const api = {
   download: (path: string, body: unknown) => request<DownloadResult>("POST", path, body, "download"),
+  uploadFile: <T>(path: string, formData: FormData) => requestUpload<T>(path, formData),
+  fetchFile: (path: string) => requestFile(path),
   get: <T>(path: string) => request<T>("GET", path),
   post: <T>(path: string, body?: unknown) => request<T>("POST", path, body ?? {}),
   put: <T>(path: string, body?: unknown) => request<T>("PUT", path, body ?? {}),
