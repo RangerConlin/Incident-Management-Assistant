@@ -219,6 +219,16 @@ MEETING_STATUS: Dict[str, Dict[str, str]] = {
     "canceled":         {"bg": "#8c2f2f", "fg": "#f5f5f5"},
 }
 
+# Planned Events Toolkit Event Schedule item statuses (Phase 1A/1B). Keys
+# match the exact values in plannedtoolkit.py's SCHEDULE_STATUSES.
+EVENT_SCHEDULE_STATUS: Dict[str, Dict[str, str]] = {
+    "Scheduled":        {"bg": "#5c6b73", "fg": "#f5f5f5"},
+    "In Progress":      {"bg": "#1f6088", "fg": "#f5f5f5"},
+    "Delayed":          {"bg": "#a88f1a", "fg": "#f5f5f5"},
+    "Completed":        {"bg": "#2f6d34", "fg": "#f5f5f5"},
+    "Cancelled":        {"bg": "#8c2f2f", "fg": "#f5f5f5"},
+}
+
 # Exact hex values from modules/command/sitrep/panel.py's _STATUS_COLORS
 # dict (hardcoded there, no light variant, same violation pattern as
 # objectives' colors were) -- promoted here as the canonical source.
@@ -635,6 +645,7 @@ __all__ = [
     "SEGMENT_REVIEW_STATUS",
     "OPERATIONAL_PERIOD_STATUS",
     "MEETING_STATUS",
+    "EVENT_SCHEDULE_STATUS",
     "SITREP_STATUS",
     "NARRATIVE_STATUS",
     "CONNECTION_STATUS",

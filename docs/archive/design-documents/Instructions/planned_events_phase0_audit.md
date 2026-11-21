@@ -6,6 +6,45 @@ the Registration system, which doesn't exist yet and is correctly out of scope h
 document is the audit report, reuse matrix, domain-boundary decisions, shared service
 contracts, and hardening backlog required before Phase 1 implementation begins.
 
+**Phase 1A/1B (Event Schedule) — completed 2026-11-21.** Built on the existing
+`ScheduledItem`/`ScheduleTrigger` backend (§2 reuse matrix row 1) rather than a new
+subsystem. Summary (file-level detail in each commit):
+- `ScheduledItem` extended with `actual_start_at`/`actual_end_at`/`time_zone`,
+  `assigned_to`/`assigned_team_id`/`assigned_person_id`, `meeting_id` (the one straightforward
+  link to Meeting Planner this phase implements — Personnel/Teams links are the assignment
+  fields; GIS and Quick Assignment links are deferred, see §3.1/§3.4), and
+  `delay_reason`/`cancellation_reason`. No fields renamed or removed; a pre-Phase-1A record
+  with none of these fields, or a legacy free-text `status`, still reads back unchanged
+  (tested — see below).
+- `status` is now a validated 5-value enum (`Scheduled`/`In Progress`/`Completed`/
+  `Delayed`/`Cancelled`) with a server-enforced transition table, both via generic `PATCH`
+  and five new dedicated action endpoints (`/start`, `/resume`, `/complete`, `/delay`,
+  `/cancel`) mirroring the brief's five event-day actions 1:1. Nothing changes status on a
+  timer — every transition is an explicit user action, per the brief's "do not automatically
+  change status" requirement.
+- Every schedule-item mutation now calls `sarapp_db.mongo.audit.write_audit` — the first
+  caller of that function from any router (§1.2 finding 6 had flagged it as defined but never
+  called automatically). `source_module="plannedtoolkit"`, `entity_type="planned_schedule_item"`.
+- Desktop: `ScheduleWidget` rebuilt as a real operational view (chronological table, status
+  color-coding via a new `EVENT_SCHEDULE_STATUS` palette entry in both theme profiles, date/
+  status/type/responsible filters, an editor dialog with `QDateTimeEdit` controls, and the five
+  event-day action buttons) rather than the previous bare add-row form. Also fixed a pre-existing
+  bug where `schedule_from_dict` read `name`/`notes` keys the API never actually sent (it sends
+  `title`/`summary` — see `_map_doc`), so activity names and notes were silently always blank on
+  the desktop client before this phase.
+- The Event Schedule is promoted to its own top-level tab/menu entry (`Tools → Planned Event
+  Toolkit → Event Schedule`, `planned.schedule`) instead of being nested two levels deep under
+  the unrelated "External Messaging" (Campaigns) panel, where it was easy to miss.
+- Tests: `test_plannedtoolkit_event_schedule.py` (12 tests — creation/defaults, time-range and
+  status-enum validation, edit-and-persist, full lifecycle with planned-vs-actual preservation,
+  cancellation/delay reason requirements, 404s, incident isolation, backward compatibility with
+  a pre-Phase-1A doc, audit records, and that existing schedule triggers still fire unaffected).
+  All logic-verified against `mongomock` (no `mongod` in this container; same environment gap
+  as Phase 0.5, not a reason to skip verification).
+- Out of scope per the brief (not implemented): recurring schedule generation, dependencies,
+  readiness gates, automatic Quick Assignment generation, conflict resolution, Registration,
+  Vendor/Permit management, calendar integration.
+
 **Update 2026-11-21 (3)**: `plannedtoolkit.py`'s own pre-trigger-engine `PLANNED_NOTIFICATIONS`
 CRUD (`PlannedNotificationsRepository`, the `/planned-meta/notifications` endpoints, the
 `PlannedNotification` dataclass and `notification_from_dict` on the desktop side) is retired —

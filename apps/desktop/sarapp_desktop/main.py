@@ -954,6 +954,7 @@ class MainWindow(QMainWindow):
         self._add_action(dis_menu, "Damage Photos", None, "toolkit.disaster.photos")
 
         plan_menu = m_tool.addMenu("Planned Event Toolkit")
+        self._add_action(plan_menu, "Event Schedule", None, "planned.schedule")
         self._add_action(plan_menu, "External Messaging", None, "planned.promotions")
         self._add_action(plan_menu, "Vendors && Permits", None, "planned.vendors")
         self._add_action(plan_menu, "Quick Assignments", None, "planned.tasking")
@@ -1102,6 +1103,7 @@ class MainWindow(QMainWindow):
             "toolkit.disaster.damage": category == "disaster",
             "toolkit.disaster.urban_interview": category == "disaster",
             "toolkit.disaster.photos": category == "disaster",
+            "planned.schedule": True,
             "planned.promotions": True,
             "planned.vendors": True,
             "planned.tasking": True,
@@ -1256,6 +1258,7 @@ class MainWindow(QMainWindow):
             "toolkit.disaster.damage": self.open_toolkit_disaster_damage,
             "toolkit.disaster.urban_interview": self.open_toolkit_disaster_urban_interview,
             "toolkit.disaster.photos": self.open_toolkit_disaster_photos,
+            "planned.schedule": self.open_planned_schedule,
             "planned.promotions": self.open_planned_promotions,
             "toolkit.projection_dashboard": self.open_toolkit_projection_dashboard,
             "planned.vendors": self.open_planned_vendors,
@@ -2883,6 +2886,12 @@ class MainWindow(QMainWindow):
         incident_id = AppState.get_active_incident()
         panel = projection_dashboard.get_projection_dashboard_panel(incident_id)
         self._open_panel(panel, title="Projection Dashboard")
+    def open_planned_schedule(self) -> None:
+        from modules import plannedtoolkit
+        incident_id = AppState.get_active_incident()
+        panel = plannedtoolkit.get_event_schedule_panel(incident_id)
+        self._open_panel(panel, title="Event Schedule")
+
     def open_planned_promotions(self) -> None:
         from modules import plannedtoolkit
         incident_id = AppState.get_active_incident()

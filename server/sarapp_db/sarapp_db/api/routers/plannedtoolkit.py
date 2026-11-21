@@ -1,17 +1,20 @@
 """Planned Event Toolkit router (MongoDB-backed)."""
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Body, HTTPException
 from pydantic import BaseModel, Field
 
+from sarapp_db.mongo.audit import write_audit
 from sarapp_db.mongo.collection_names import IncidentCollections
 from sarapp_db.mongo.database_manager import get_incident_db
 from sarapp_db.mongo.int_id import next_int_id, next_record_id
 from sarapp_db.mongo.repository import BaseRepository
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -120,6 +123,30 @@ def _utcnow() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
+def _audit(
+    incident_id: str,
+    *,
+    entity_id: str,
+    action: str,
+    changed_by: str = "",
+    field_changes: Optional[list[dict[str, Any]]] = None,
+) -> None:
+    """Write an audit record; never blocks the caller's mutation on failure."""
+    try:
+        write_audit(
+            get_incident_db(incident_id),
+            incident_id=incident_id,
+            entity_type="planned_schedule_item",
+            entity_id=entity_id,
+            action=action,
+            changed_by=changed_by or "",
+            field_changes=field_changes,
+            source_module="plannedtoolkit",
+        )
+    except Exception:
+        logger.exception("Failed to write audit record for %s/%s", entity_id, action)
+
+
 def _repo(incident_id: str, collection_name: str) -> BaseRepository:
     return _REPOSITORIES[collection_name](get_incident_db(incident_id))
 
@@ -184,6 +211,12 @@ def _map_doc(doc: Dict[str, Any], config: dict[str, Any]) -> Dict[str, Any]:
         "due_at": doc.get("ends_at", doc.get("due_at", "")) if is_schedule else doc.get("due_at", ""),
         "starts_at": doc.get("starts_at", ""),
         "ends_at": doc.get("ends_at", ""),
+        "actual_start_at": doc.get("actual_start_at", ""),
+        "actual_end_at": doc.get("actual_end_at", ""),
+        "time_zone": doc.get("time_zone", ""),
+        "delay_reason": doc.get("delay_reason", ""),
+        "cancellation_reason": doc.get("cancellation_reason", ""),
+        "meeting_id": doc.get("meeting_id", ""),
         "kind": doc.get("kind", ""),
         "owner": doc.get("owner", ""),
         "tags": doc.get("tags", []),
@@ -247,12 +280,85 @@ class ScheduleItemCreate(BaseModel):
     kind: str = "Milestone"
     starts_at: Optional[str] = None
     ends_at: Optional[str] = None
+    actual_start_at: Optional[str] = None
+    actual_end_at: Optional[str] = None
+    time_zone: Optional[str] = None
     notes: Optional[str] = None
     location: Optional[str] = None
     zone: Optional[str] = None
     owner: Optional[str] = None
+    assigned_to: Optional[str] = None
+    assigned_team_id: Optional[str] = None
+    assigned_person_id: Optional[str] = None
+    meeting_id: Optional[str] = None
     status: Optional[str] = None
+    delay_reason: Optional[str] = None
+    cancellation_reason: Optional[str] = None
     tags: list[str] = Field(default_factory=list)
+    changed_by: Optional[str] = None
+
+
+class ScheduleStatusActionRequest(BaseModel):
+    """Body for the event-day action endpoints (start/complete/delay/resume/cancel).
+
+    All fields are optional: actual timestamps default to "now" when the
+    action records one, but remain overridable (e.g. backfilling an actual
+    start time that was recorded late).
+    """
+
+    actual_start_at: Optional[str] = None
+    actual_end_at: Optional[str] = None
+    delay_reason: Optional[str] = None
+    cancellation_reason: Optional[str] = None
+    changed_by: Optional[str] = None
+
+
+# The five statuses the Phase 1A/1B brief specifies. Kept as an explicit
+# allow-list (not a free string) so an invalid transition is rejected
+# consistently everywhere a status can change, per the brief's requirement.
+SCHEDULE_STATUSES = ("Scheduled", "In Progress", "Completed", "Delayed", "Cancelled")
+
+# A status may move to any status in its value set below, or stay unchanged.
+# Completed/Cancelled are terminal — no transition out, matching "do not
+# automatically change an activity's status solely because its scheduled
+# time has passed" (nothing times out of a terminal state either).
+_SCHEDULE_STATUS_TRANSITIONS: dict[str, set[str]] = {
+    "Scheduled": {"In Progress", "Delayed", "Cancelled"},
+    "In Progress": {"Completed", "Delayed", "Cancelled"},
+    "Delayed": {"In Progress", "Completed", "Cancelled"},
+    "Completed": set(),
+    "Cancelled": set(),
+}
+
+
+def _validate_schedule_status_transition(current: str, target: str) -> None:
+    if target == current:
+        return
+    if target not in SCHEDULE_STATUSES:
+        raise HTTPException(status_code=422, detail=f"Unknown schedule status: {target!r}")
+    allowed = _SCHEDULE_STATUS_TRANSITIONS.get(current, set())
+    if target not in allowed:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot move a schedule item from {current!r} to {target!r}",
+        )
+
+
+def _parse_schedule_timestamp(value: Any) -> Optional[datetime]:
+    if not isinstance(value, str) or not value:
+        return None
+    text = value[:-1] + "+00:00" if value.endswith("Z") else value
+    try:
+        return datetime.fromisoformat(text)
+    except ValueError:
+        raise HTTPException(status_code=422, detail=f"Invalid timestamp: {value!r}")
+
+
+def _validate_schedule_time_range(start: Any, end: Any, *, label: str) -> None:
+    start_dt = _parse_schedule_timestamp(start)
+    end_dt = _parse_schedule_timestamp(end)
+    if start_dt is not None and end_dt is not None and end_dt < start_dt:
+        raise HTTPException(status_code=422, detail=f"{label} end time cannot be before its start time")
 
 
 class ScheduleTriggerCreate(BaseModel):
@@ -409,6 +515,11 @@ def list_schedule(incident_id: str):
 def create_schedule(incident_id: str, body: ScheduleItemCreate):
     config = _tool_config("promotions/schedule")
     repo = _repo_for_config(incident_id, config)
+    status = body.status or "Scheduled"
+    if status not in SCHEDULE_STATUSES:
+        raise HTTPException(status_code=422, detail=f"Unknown schedule status: {status!r}")
+    _validate_schedule_time_range(body.starts_at, body.ends_at, label="Planned")
+    _validate_schedule_time_range(body.actual_start_at, body.actual_end_at, label="Actual")
     record_id = _next_compound_id(repo, incident_id, config)
     now = _utcnow()
     doc: Dict[str, Any] = {
@@ -420,31 +531,69 @@ def create_schedule(incident_id: str, body: ScheduleItemCreate):
         "kind": body.kind or "Milestone",
         "starts_at": body.starts_at or "",
         "ends_at": body.ends_at or "",
+        "actual_start_at": body.actual_start_at or "",
+        "actual_end_at": body.actual_end_at or "",
+        "time_zone": body.time_zone or "",
         "notes": body.notes or "",
         "location": body.location or "",
         "zone": body.zone or "",
         "owner": body.owner or "",
-        "status": body.status or "",
+        "assigned_to": body.assigned_to or "",
+        "assigned_team_id": body.assigned_team_id or "",
+        "assigned_person_id": body.assigned_person_id or "",
+        "meeting_id": body.meeting_id or "",
+        "status": status,
+        "delay_reason": body.delay_reason or "",
+        "cancellation_reason": body.cancellation_reason or "",
         "tags": body.tags or [],
         "created_at": now,
         "updated_at": now,
         "deleted": False,
     }
     saved = repo.insert_one(doc)
+    _audit(incident_id, entity_id=record_id, action="schedule_item.created", changed_by=body.changed_by or "")
     return _map_doc(saved, config)
+
+
+_SCHEDULE_PATCH_FIELDS = {
+    "name", "kind", "starts_at", "ends_at", "actual_start_at", "actual_end_at",
+    "time_zone", "notes", "location", "zone", "owner", "assigned_to",
+    "assigned_team_id", "assigned_person_id", "meeting_id", "status",
+    "delay_reason", "cancellation_reason", "tags",
+}
 
 
 @router.patch("/incidents/{incident_id}/planned/promotions/schedule/{record_id}")
 def update_schedule(incident_id: str, record_id: int, patch: Dict[str, Any] = Body(...)):
     config = _tool_config("promotions/schedule")
     repo = _repo_for_config(incident_id, config)
-    allowed = {"name", "kind", "starts_at", "ends_at", "notes", "location", "zone", "owner", "status", "tags"}
-    updates = {key: value for key, value in patch.items() if key in allowed}
     existing = _find_by_compound_id(repo, incident_id, config, record_id)
     if not existing:
         raise HTTPException(status_code=404, detail="Schedule item not found")
+
+    updates = {key: value for key, value in patch.items() if key in _SCHEDULE_PATCH_FIELDS}
+    changed_by = str(patch.get("changed_by") or "")
+
+    target_status = updates.get("status")
+    if target_status is not None:
+        _validate_schedule_status_transition(existing.get("status", ""), target_status)
+
+    starts_at = updates.get("starts_at", existing.get("starts_at"))
+    ends_at = updates.get("ends_at", existing.get("ends_at"))
+    _validate_schedule_time_range(starts_at, ends_at, label="Planned")
+    actual_start_at = updates.get("actual_start_at", existing.get("actual_start_at"))
+    actual_end_at = updates.get("actual_end_at", existing.get("actual_end_at"))
+    _validate_schedule_time_range(actual_start_at, actual_end_at, label="Actual")
+
+    field_changes = [
+        {"field": key, "old": existing.get(key), "new": value}
+        for key, value in updates.items()
+        if existing.get(key) != value
+    ]
     repo.update_one(existing["_id"], updates)
     doc = repo.find_by_id(existing["_id"])
+    if field_changes:
+        _audit(incident_id, entity_id=existing[config["id_field"]], action="schedule_item.updated", changed_by=changed_by, field_changes=field_changes)
     return _map_doc(doc, config)
 
 
@@ -455,6 +604,119 @@ def delete_schedule(incident_id: str, record_id: int):
     existing = _find_by_compound_id(repo, incident_id, config, record_id)
     if not existing or not repo.soft_delete(existing["_id"]):
         raise HTTPException(status_code=404, detail="Schedule item not found")
+    _audit(incident_id, entity_id=existing[config["id_field"]], action="schedule_item.deleted")
+
+
+def _schedule_status_action(
+    incident_id: str,
+    record_id: int,
+    *,
+    allowed_from: set[str],
+    target_status: str,
+    body: ScheduleStatusActionRequest,
+    require_delay_reason: bool = False,
+    require_cancellation_reason: bool = False,
+    stamp_actual_start: bool = False,
+    stamp_actual_end: bool = False,
+) -> Dict[str, Any]:
+    config = _tool_config("promotions/schedule")
+    repo = _repo_for_config(incident_id, config)
+    existing = _find_by_compound_id(repo, incident_id, config, record_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Schedule item not found")
+
+    current_status = existing.get("status", "")
+    if current_status not in allowed_from:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot move a schedule item from {current_status!r} to {target_status!r}",
+        )
+
+    now = _utcnow()
+    updates: Dict[str, Any] = {"status": target_status}
+
+    if stamp_actual_start:
+        updates["actual_start_at"] = body.actual_start_at or existing.get("actual_start_at") or now
+    if stamp_actual_end:
+        actual_end_at = body.actual_end_at or existing.get("actual_end_at") or now
+        # Preserve the planned timestamps — never overwrite starts_at/ends_at
+        # when recording an actual time.
+        updates["actual_end_at"] = actual_end_at
+        _validate_schedule_time_range(
+            updates.get("actual_start_at", existing.get("actual_start_at")), actual_end_at, label="Actual"
+        )
+
+    if require_delay_reason:
+        delay_reason = body.delay_reason or existing.get("delay_reason") or ""
+        if not delay_reason.strip():
+            raise HTTPException(status_code=422, detail="delay_reason is required to mark a schedule item delayed")
+        updates["delay_reason"] = delay_reason
+    if require_cancellation_reason:
+        cancellation_reason = body.cancellation_reason or existing.get("cancellation_reason") or ""
+        if not cancellation_reason.strip():
+            raise HTTPException(status_code=422, detail="cancellation_reason is required to cancel a schedule item")
+        updates["cancellation_reason"] = cancellation_reason
+
+    field_changes = [
+        {"field": key, "old": existing.get(key), "new": value}
+        for key, value in updates.items()
+        if existing.get(key) != value
+    ]
+    repo.update_one(existing["_id"], updates)
+    doc = repo.find_by_id(existing["_id"])
+    _audit(
+        incident_id,
+        entity_id=existing[config["id_field"]],
+        action=f"schedule_item.{target_status.lower().replace(' ', '_')}",
+        changed_by=body.changed_by or "",
+        field_changes=field_changes,
+    )
+    return _map_doc(doc, config)
+
+
+@router.post("/incidents/{incident_id}/planned/promotions/schedule/{record_id}/start")
+def start_schedule_item(incident_id: str, record_id: int, body: ScheduleStatusActionRequest = ScheduleStatusActionRequest()):
+    return _schedule_status_action(
+        incident_id, record_id,
+        allowed_from={"Scheduled"}, target_status="In Progress", body=body,
+        stamp_actual_start=True,
+    )
+
+
+@router.post("/incidents/{incident_id}/planned/promotions/schedule/{record_id}/resume")
+def resume_schedule_item(incident_id: str, record_id: int, body: ScheduleStatusActionRequest = ScheduleStatusActionRequest()):
+    return _schedule_status_action(
+        incident_id, record_id,
+        allowed_from={"Delayed"}, target_status="In Progress", body=body,
+        stamp_actual_start=True,
+    )
+
+
+@router.post("/incidents/{incident_id}/planned/promotions/schedule/{record_id}/complete")
+def complete_schedule_item(incident_id: str, record_id: int, body: ScheduleStatusActionRequest = ScheduleStatusActionRequest()):
+    return _schedule_status_action(
+        incident_id, record_id,
+        allowed_from={"In Progress", "Delayed"}, target_status="Completed", body=body,
+        stamp_actual_end=True,
+    )
+
+
+@router.post("/incidents/{incident_id}/planned/promotions/schedule/{record_id}/delay")
+def delay_schedule_item(incident_id: str, record_id: int, body: ScheduleStatusActionRequest = ScheduleStatusActionRequest()):
+    return _schedule_status_action(
+        incident_id, record_id,
+        allowed_from={"Scheduled", "In Progress"}, target_status="Delayed", body=body,
+        require_delay_reason=True,
+    )
+
+
+@router.post("/incidents/{incident_id}/planned/promotions/schedule/{record_id}/cancel")
+def cancel_schedule_item(incident_id: str, record_id: int, body: ScheduleStatusActionRequest = ScheduleStatusActionRequest()):
+    return _schedule_status_action(
+        incident_id, record_id,
+        allowed_from={"Scheduled", "In Progress", "Delayed"}, target_status="Cancelled", body=body,
+        require_cancellation_reason=True,
+    )
 
 
 @router.patch("/incidents/{incident_id}/planned/{tool}/{record_id}")

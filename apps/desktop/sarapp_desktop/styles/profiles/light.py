@@ -215,6 +215,16 @@ MEETING_STATUS: Dict[str, Dict[str, str]] = {
     "canceled":         {"bg": "#E53935", "fg": "#ffffff"},
 }
 
+# Planned Events Toolkit Event Schedule item statuses (Phase 1A/1B). Keys
+# match the exact values in plannedtoolkit.py's SCHEDULE_STATUSES.
+EVENT_SCHEDULE_STATUS: Dict[str, Dict[str, str]] = {
+    "Scheduled":        {"bg": "#90A4AE", "fg": "#1a1a1a"},
+    "In Progress":      {"bg": "#00ACC1", "fg": "#ffffff"},
+    "Delayed":          {"bg": "#FFC107", "fg": "#1a1a1a"},
+    "Completed":        {"bg": "#2E7D32", "fg": "#ffffff"},
+    "Cancelled":        {"bg": "#E53935", "fg": "#ffffff"},
+}
+
 SITREP_STATUS: Dict[str, Dict[str, str]] = {
     "draft":              {"bg": "#B0BEC5", "fg": "#1a1a1a"},
     "ready_for_review":   {"bg": "#FFC107", "fg": "#1a1a1a"},
@@ -625,6 +635,7 @@ __all__ = [
     "SEGMENT_REVIEW_STATUS",
     "OPERATIONAL_PERIOD_STATUS",
     "MEETING_STATUS",
+    "EVENT_SCHEDULE_STATUS",
     "SITREP_STATUS",
     "NARRATIVE_STATUS",
     "CONNECTION_STATUS",

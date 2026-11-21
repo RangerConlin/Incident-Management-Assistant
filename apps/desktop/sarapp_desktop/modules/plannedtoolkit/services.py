@@ -68,15 +68,61 @@ def create_schedule_item(
     kind: str = "Milestone",
     starts_at: str = "",
     ends_at: str = "",
+    time_zone: str = "",
     notes: str = "",
+    location: str = "",
+    zone: str = "",
+    owner: str = "",
+    assigned_to: str = "",
+    assigned_team_id: str = "",
+    assigned_person_id: str = "",
+    meeting_id: str = "",
+    status: str = "",
 ):
     return PlannedToolkitRepository(incident_id).create_schedule_item(
         name=name,
         kind=kind,
         starts_at=starts_at,
         ends_at=ends_at,
+        time_zone=time_zone,
         notes=notes,
+        location=location,
+        zone=zone,
+        owner=owner,
+        assigned_to=assigned_to,
+        assigned_team_id=assigned_team_id,
+        assigned_person_id=assigned_person_id,
+        meeting_id=meeting_id,
+        status=status,
     )
+
+
+def update_schedule_item(record_id: int, patch: dict[str, Any], incident_id: str | None = None):
+    return PlannedToolkitRepository(incident_id).update_schedule_item(record_id, patch)
+
+
+def delete_schedule_item(record_id: int, incident_id: str | None = None) -> None:
+    PlannedToolkitRepository(incident_id).delete_schedule_item(record_id)
+
+
+def start_schedule_item(record_id: int, incident_id: str | None = None, *, actual_start_at: str | None = None):
+    return PlannedToolkitRepository(incident_id).start_schedule_item(record_id, actual_start_at=actual_start_at)
+
+
+def resume_schedule_item(record_id: int, incident_id: str | None = None, *, actual_start_at: str | None = None):
+    return PlannedToolkitRepository(incident_id).resume_schedule_item(record_id, actual_start_at=actual_start_at)
+
+
+def complete_schedule_item(record_id: int, incident_id: str | None = None, *, actual_end_at: str | None = None):
+    return PlannedToolkitRepository(incident_id).complete_schedule_item(record_id, actual_end_at=actual_end_at)
+
+
+def delay_schedule_item(record_id: int, incident_id: str | None = None, *, delay_reason: str):
+    return PlannedToolkitRepository(incident_id).delay_schedule_item(record_id, delay_reason=delay_reason)
+
+
+def cancel_schedule_item(record_id: int, incident_id: str | None = None, *, cancellation_reason: str):
+    return PlannedToolkitRepository(incident_id).cancel_schedule_item(record_id, cancellation_reason=cancellation_reason)
 
 
 def list_schedule_triggers(incident_id: str | None = None, schedule_item_id: str | None = None):

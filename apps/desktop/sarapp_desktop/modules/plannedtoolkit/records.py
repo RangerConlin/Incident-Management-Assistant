@@ -114,14 +114,26 @@ class ScheduledItem:
     kind: str = ""
     starts_at: str = ""
     ends_at: str = ""
+    actual_start_at: str = ""
+    actual_end_at: str = ""
+    time_zone: str = ""
     location: str = ""
     zone: str = ""
     owner: str = ""
+    assigned_to: str = ""
+    assigned_team_id: str = ""
+    assigned_person_id: str = ""
+    meeting_id: str = ""
     status: str = ""
+    delay_reason: str = ""
+    cancellation_reason: str = ""
     tags: list[str] = field(default_factory=list)
     notes: str = ""
     created_at: str = ""
     updated_at: str = ""
+
+    def replace(self, **changes: Any) -> "ScheduledItem":
+        return replace(self, **changes)
 
 
 @dataclass(frozen=True)
@@ -200,20 +212,33 @@ def record_from_dict(data: dict[str, Any]) -> PlannedRecord:
 
 
 def schedule_from_dict(data: dict[str, Any]) -> ScheduledItem:
+    # The schedule API maps its stored name/notes fields to the generic
+    # PlannedRecord shape's "title"/"summary" keys (see _map_doc in
+    # plannedtoolkit.py) -- read those, not "name"/"notes", which the API
+    # never actually sends.
     return ScheduledItem(
         id=data.get("id"),
         record_id=str(data.get("record_id") or ""),
         incident_id=str(data.get("incident_id") or ""),
-        name=str(data.get("name") or ""),
+        name=str(data.get("title") or data.get("name") or ""),
         kind=str(data.get("kind") or ""),
         starts_at=str(data.get("starts_at") or ""),
         ends_at=str(data.get("ends_at") or ""),
+        actual_start_at=str(data.get("actual_start_at") or ""),
+        actual_end_at=str(data.get("actual_end_at") or ""),
+        time_zone=str(data.get("time_zone") or ""),
         location=str(data.get("location") or ""),
         zone=str(data.get("zone") or ""),
         owner=str(data.get("owner") or ""),
+        assigned_to=str(data.get("assigned_to") or ""),
+        assigned_team_id=str(data.get("assigned_team_id") or ""),
+        assigned_person_id=str(data.get("assigned_person_id") or ""),
+        meeting_id=str(data.get("meeting_id") or ""),
         status=str(data.get("status") or ""),
+        delay_reason=str(data.get("delay_reason") or ""),
+        cancellation_reason=str(data.get("cancellation_reason") or ""),
         tags=list(data.get("tags") or []),
-        notes=str(data.get("notes") or ""),
+        notes=str(data.get("summary") or data.get("notes") or ""),
         created_at=str(data.get("created_at") or ""),
         updated_at=str(data.get("updated_at") or ""),
     )

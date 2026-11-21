@@ -103,10 +103,15 @@ class PlannedToolkitRepository:
         kind: str = "Milestone",
         starts_at: str = "",
         ends_at: str = "",
+        time_zone: str = "",
         notes: str = "",
         location: str = "",
         zone: str = "",
         owner: str = "",
+        assigned_to: str = "",
+        assigned_team_id: str = "",
+        assigned_person_id: str = "",
+        meeting_id: str = "",
         status: str = "",
         tags: list[str] | None = None,
     ) -> ScheduledItem:
@@ -117,15 +122,52 @@ class PlannedToolkitRepository:
                 "kind": kind,
                 "starts_at": starts_at,
                 "ends_at": ends_at,
+                "time_zone": time_zone,
                 "notes": notes,
                 "location": location,
                 "zone": zone,
                 "owner": owner,
+                "assigned_to": assigned_to,
+                "assigned_team_id": assigned_team_id,
+                "assigned_person_id": assigned_person_id,
+                "meeting_id": meeting_id,
                 "status": status,
                 "tags": tags or [],
             },
         )
         return schedule_from_dict(result or {})
+
+    def update_schedule_item(self, record_id: int, patch: dict[str, Any]) -> ScheduledItem:
+        result = _client().patch(
+            f"/api/incidents/{self._incident()}/planned/promotions/schedule/{record_id}",
+            json=patch,
+        )
+        return schedule_from_dict(result or {})
+
+    def delete_schedule_item(self, record_id: int) -> None:
+        _client().delete(f"/api/incidents/{self._incident()}/planned/promotions/schedule/{record_id}")
+
+    def _schedule_action(self, record_id: int, action: str, **payload: Any) -> ScheduledItem:
+        result = _client().post(
+            f"/api/incidents/{self._incident()}/planned/promotions/schedule/{record_id}/{action}",
+            json={key: value for key, value in payload.items() if value is not None},
+        )
+        return schedule_from_dict(result or {})
+
+    def start_schedule_item(self, record_id: int, *, actual_start_at: str | None = None) -> ScheduledItem:
+        return self._schedule_action(record_id, "start", actual_start_at=actual_start_at)
+
+    def resume_schedule_item(self, record_id: int, *, actual_start_at: str | None = None) -> ScheduledItem:
+        return self._schedule_action(record_id, "resume", actual_start_at=actual_start_at)
+
+    def complete_schedule_item(self, record_id: int, *, actual_end_at: str | None = None) -> ScheduledItem:
+        return self._schedule_action(record_id, "complete", actual_end_at=actual_end_at)
+
+    def delay_schedule_item(self, record_id: int, *, delay_reason: str) -> ScheduledItem:
+        return self._schedule_action(record_id, "delay", delay_reason=delay_reason)
+
+    def cancel_schedule_item(self, record_id: int, *, cancellation_reason: str) -> ScheduledItem:
+        return self._schedule_action(record_id, "cancel", cancellation_reason=cancellation_reason)
 
     def list_schedule_triggers(self, schedule_item_id: str | None = None) -> list[ScheduleTrigger]:
         params = {"schedule_item_id": schedule_item_id} if schedule_item_id else None
