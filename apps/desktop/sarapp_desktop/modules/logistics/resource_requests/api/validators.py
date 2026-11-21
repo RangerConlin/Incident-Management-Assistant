@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Dict, Iterable, Optional
+from typing import Dict, Iterable, List, Optional
 
 from ..models.enums import (
+    ACTION_STATUS_MAP,
     ALLOWED_STATUS_TRANSITIONS,
     ApprovalAction,
+    ApprovalSection,
     FulfillmentStatus,
     ItemKind,
     Priority,
@@ -98,6 +100,32 @@ def validate_approval_action(action: object, note: Optional[str]) -> ApprovalAct
     except ValueError as exc:
         raise ValidationError(str(exc)) from exc
 
-    if parsed == ApprovalAction.DENY and not note:
+    if parsed in (ApprovalAction.DENY, ApprovalAction.FINANCE_DENY) and not note:
         raise ValidationError("Denial requires a note for audit trail compliance")
     return parsed
+
+
+def validate_approval_section(value: object) -> ApprovalSection:
+    try:
+        return ApprovalSection(str(value).lower())
+    except ValueError as exc:
+        raise ValidationError(str(exc)) from exc
+
+
+def available_approval_actions(status: RequestStatus) -> List[ApprovalAction]:
+    """Which non-Finance approval actions are currently legal for `status` —
+    mirrors web's model.ts `approvalActions()`. Finance actions are never
+    included here: Finance/Admin cost sign-off is conditional and
+    independent of the request's status chain, not gated by it."""
+
+    allowed_targets = ALLOWED_STATUS_TRANSITIONS.get(status, set())
+    actions: List[ApprovalAction] = []
+    for action, target in ACTION_STATUS_MAP.items():
+        if target not in allowed_targets:
+            continue
+        if action is ApprovalAction.REVIEW and status in (RequestStatus.DENIED, RequestStatus.CANCELLED):
+            continue
+        if action is ApprovalAction.REOPEN and status not in (RequestStatus.DENIED, RequestStatus.CANCELLED):
+            continue
+        actions.append(action)
+    return actions

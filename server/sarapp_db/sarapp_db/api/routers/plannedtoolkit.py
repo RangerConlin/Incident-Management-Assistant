@@ -34,10 +34,6 @@ class PlannedPermitsRepository(BaseRepository):
     collection_name = IncidentCollections.PLANNED_PERMITS
 
 
-class PlannedTasksRepository(BaseRepository):
-    collection_name = IncidentCollections.PLANNED_TASKS
-
-
 class PlannedQuickAssignmentsRepository(BaseRepository):
     collection_name = IncidentCollections.PLANNED_QUICK_ASSIGNMENTS
 
@@ -59,7 +55,6 @@ _REPOSITORIES: dict[str, type[BaseRepository]] = {
     IncidentCollections.PLANNED_EVENT_SCHEDULES: PlannedEventSchedulesRepository,
     IncidentCollections.PLANNED_VENDORS: PlannedVendorsRepository,
     IncidentCollections.PLANNED_PERMITS: PlannedPermitsRepository,
-    IncidentCollections.PLANNED_TASKS: PlannedTasksRepository,
     IncidentCollections.PLANNED_QUICK_ASSIGNMENTS: PlannedQuickAssignmentsRepository,
     IncidentCollections.PLANNED_HEALTH_INSPECTIONS: PlannedHealthInspectionsRepository,
     IncidentCollections.PLANNED_SCHEDULE_TRIGGERS: PlannedScheduleTriggersRepository,
@@ -94,13 +89,6 @@ _TOOLS = {
         "prefix": "PLAN-PERMIT",
         "defaults": {"status": "Pending", "issuer": "", "expires_on": ""},
         "sort": "expires_on",
-    },
-    "tasks": {
-        "collection": IncidentCollections.PLANNED_TASKS,
-        "id_field": "task_id",
-        "prefix": "PLAN-TASK",
-        "defaults": {"status": "Planned", "priority": "Medium", "assigned_to": ""},
-        "sort": "due_at",
     },
     "quick-assignments": {
         "collection": IncidentCollections.PLANNED_QUICK_ASSIGNMENTS,
@@ -1198,6 +1186,18 @@ def promote_quick_assignment(incident_id: str, record_id: int, body: PromotionRe
         raise HTTPException(status_code=404, detail="Quick Assignment not found")
     if doc.get("linked_tasking_id"):
         return _map_doc(doc, config)
+
+    # Atomically claim the promotion before creating the formal task, so two
+    # concurrent promote requests for the same Quick Assignment cannot both
+    # pass the not-yet-promoted check above and each create a duplicate task.
+    claimed = repo.update_one(
+        doc["_id"],
+        {"promoted_read_only": True},
+        extra_filter={"promoted_read_only": {"$ne": True}},
+    )
+    if not claimed:
+        current = repo.find_by_id(doc["_id"])
+        return _map_doc(current or doc, config)
 
     tasks_repo = _repo(incident_id, IncidentCollections.OPERATIONS_TASKS)
     task_int_id = next_int_id(tasks_repo._col)

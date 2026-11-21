@@ -61,6 +61,8 @@ This repository is the Flutter mobile client for ICS Command Assistant / SARApp 
 
 ## Testing And Validation
 
+Do not increment the mobile app version code for routine source edits or commits. Update it only when packaging a mobile build.
+
 Run these from the repository root when Flutter is available:
 
 ```powershell

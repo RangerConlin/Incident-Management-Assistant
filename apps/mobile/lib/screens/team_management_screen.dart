@@ -7,6 +7,8 @@ import '../services/sarapp_api_client.dart';
 import '../utils/json_parsing.dart';
 import '../utils/session_identity.dart';
 import '../widgets/app_drawer.dart';
+import 'profile_qr_review_screen.dart';
+import 'qr_scanner_screen.dart';
 
 /// Team management for mobile: assign people to the team, manage team-linked
 /// resources, and edit/remove those assignments from the drawer menu.
@@ -60,6 +62,44 @@ class _TeamManagementScreenState extends State<TeamManagementScreen>
     return SessionIdentity.displayName(
       widget.args.session,
       fallback: 'Mobile Team Menu',
+    );
+  }
+
+  int? get _approvedByPersonRecord => parseInt(
+    widget.args.session['person_record'] ??
+        widget.args.session['user']?['person_record'],
+  );
+
+  void _openQrScanner() {
+    final teamId = _teamIntId;
+    if (teamId == null) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => QrScannerScreen(
+          args: widget.args,
+          onScanned: (payload) async {
+            final result = await Navigator.of(context)
+                .push<Map<String, dynamic>>(
+                  MaterialPageRoute(
+                    builder: (_) => ProfileQrReviewScreen(
+                      incidentId: widget.args.incidentId,
+                      payload: payload,
+                      teamId: teamId,
+                      approvedByPersonRecord: _approvedByPersonRecord,
+                      apiClient: _apiClient,
+                    ),
+                  ),
+                );
+            if (result != null && mounted) {
+              await _load();
+              if (!mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Added scanned person to $_teamName.')),
+              );
+            }
+          },
+        ),
+      ),
     );
   }
 
@@ -570,6 +610,11 @@ class _TeamManagementScreenState extends State<TeamManagementScreen>
       appBar: AppBar(
         title: Text(_teamName),
         actions: [
+          IconButton(
+            onPressed: _loading ? null : _openQrScanner,
+            icon: const Icon(Icons.qr_code_scanner_outlined),
+            tooltip: 'Scan person or resource QR',
+          ),
           IconButton(
             onPressed: _loading
                 ? null

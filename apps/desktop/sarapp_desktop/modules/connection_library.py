@@ -411,8 +411,9 @@ class ConnectionLibraryDialog(QDialog):
             username = str(self._settings_manager.get("rememberedUsername") or "").strip()
             role = str(self._settings_manager.get("rememberedRole") or "").strip()
             if username and role:
-                display_name = _resolve_person_record(self, username)
-                if display_name is not None:
+                resolved = _resolve_person_record(self, username)
+                if resolved is not None:
+                    display_name, person_record = resolved
                     result = _finish_session(
                         parent=self,
                         username=username,
@@ -420,6 +421,7 @@ class ConnectionLibraryDialog(QDialog):
                         incident_id=incident_id,
                         display_name=display_name,
                         incidents=picker._incidents,
+                        person_record=person_record,
                     )
                     if result is not None:
                         self.sessionReady.emit(*result)

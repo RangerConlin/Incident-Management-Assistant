@@ -10,7 +10,7 @@ from fastapi import APIRouter, Body, HTTPException, Query
 
 from sarapp_db.mongo.database_manager import get_incident_db, get_master_db
 from sarapp_db.mongo.collection_names import MasterCollections, IncidentCollections
-from sarapp_db.mongo.int_id import _ensure_int_ids, _ensure_record_ids
+from sarapp_db.mongo.int_id import _ensure_int_ids, _ensure_record_ids, next_record_id
 from sarapp_db.mongo.repository import BaseRepository
 from sarapp_db.sync.readthrough import refresh_collection_before_read
 
@@ -68,6 +68,146 @@ def _utcnow() -> str:
 
 def _is_checked_in_status(status: Any) -> bool:
     return str(status or "").strip() in DERIVED_CHECKED_IN_STATUSES
+
+
+_PROFILE_QR_FIELDS = {
+    "person_id", "name", "first_name", "last_name", "organization",
+    "home_unit", "primary_role", "rank", "callsign", "title", "phone",
+    "email", "radio_id", "is_medic", "status", "notes", "photo_url",
+    "emergency_info", "contact_info", "certifications",
+}
+
+
+def _validated_profile_qr(body: dict[str, Any]) -> dict[str, Any]:
+    raw = body.get("profile")
+    if not isinstance(raw, dict):
+        raise HTTPException(422, "profile must be an object")
+    profile = {key: raw[key] for key in _PROFILE_QR_FIELDS if key in raw}
+    person_id = str(profile.get("person_id") or "").strip()
+    first_name = str(profile.get("first_name") or "").strip()
+    last_name = str(profile.get("last_name") or "").strip()
+    name = str(profile.get("name") or "").strip() or " ".join(
+        part for part in (first_name, last_name) if part
+    )
+    if not person_id or not name:
+        raise HTTPException(422, "profile person_id and name are required")
+    profile.update({"person_id": person_id, "name": name})
+    profile["first_name"] = first_name
+    profile["last_name"] = last_name
+    profile["is_medic"] = bool(profile.get("is_medic", False))
+    for nested in ("emergency_info", "contact_info"):
+        if not isinstance(profile.get(nested, {}), dict):
+            raise HTTPException(422, f"{nested} must be an object")
+    if not isinstance(profile.get("certifications", []), list):
+        raise HTTPException(422, "certifications must be an array")
+    return profile
+
+
+def _person_id_matches(repo: PersonnelRepository, person_id: str) -> list[dict[str, Any]]:
+    matches = repo.find_many({"person_id": person_id}, include_deleted=True)
+    if person_id.isdigit():
+        seen = {row.get("_id") for row in matches}
+        for row in repo.find_many({"person_id": int(person_id)}, include_deleted=True):
+            if row.get("_id") not in seen:
+                matches.append(row)
+    return matches
+
+
+def _profile_differences(profile: dict[str, Any], existing: dict[str, Any]) -> list[str]:
+    return sorted(
+        key for key, value in profile.items()
+        if value not in (None, "", [], {}) and existing.get(key) != value
+    )
+
+
+@router.post("/resource-qr/preview")
+def preview_resource_qr(incident_id: str, body: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    if str(body.get("resource_kind") or "personnel").lower() != "personnel":
+        raise HTTPException(422, "Only personnel profile QRs are currently supported")
+    profile = _validated_profile_qr(body)
+    matches = _person_id_matches(_personnel_repo(), profile["person_id"])
+    if len(matches) > 1:
+        return {"match_status": "ambiguous", "profile": profile, "differences": []}
+    existing = _normalize_person(matches[0]) if matches else None
+    return {
+        "match_status": "matched" if existing else "new",
+        "profile": profile,
+        "existing_master": existing,
+        "differences": _profile_differences(profile, existing) if existing else [],
+    }
+
+
+@router.post("/resource-qr/apply")
+def apply_resource_qr(incident_id: str, body: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    if str(body.get("resource_kind") or "personnel").lower() != "personnel":
+        raise HTTPException(422, "Only personnel profile QRs are currently supported")
+    profile = _validated_profile_qr(body)
+    team_id = body.get("team_id")
+    team: dict[str, Any] | None = None
+    teams_repo: TeamsRepository | None = None
+    if team_id not in (None, ""):
+        try:
+            normalized_team_id = int(team_id)
+        except (TypeError, ValueError):
+            raise HTTPException(422, "team_id must be an integer") from None
+        teams_repo = _teams_repo(incident_id)
+        _ensure_int_ids(teams_repo._col)
+        team = teams_repo.find_one({"int_id": normalized_team_id})
+        if not team:
+            raise HTTPException(404, "Team not found")
+        team_id = normalized_team_id
+    personnel_repo = _personnel_repo()
+    matches = _person_id_matches(personnel_repo, profile["person_id"])
+    if len(matches) > 1:
+        raise HTTPException(409, "Several personnel records share this Person ID")
+    if matches:
+        master = matches[0]
+        master_action = "matched"
+    else:
+        now = _utcnow()
+        master = personnel_repo.insert_one({
+            "person_record": next_record_id(personnel_repo._col, _PERSON_RECORD),
+            **profile,
+            "created_at": now,
+            "updated_at": now,
+        })
+        master_action = "created"
+    person_record = int(master[_PERSON_RECORD])
+    check_in = bool(body.get("check_in", True))
+    if check_in:
+        save_checkin(incident_id, person_record, {
+            "status": "Checked In",
+            "arrival_time": body.get("arrival_time") or _utcnow(),
+            "team_id": team_id,
+            "changed_by": body.get("approved_by_person_record") or "QR approval",
+        })
+    incident_repo = _incident_personnel_repo(incident_id)
+    existing_incident = incident_repo.find_one({_PERSON_RECORD: person_record})
+    incident_fields = {**profile, "incident_id": incident_id, _PERSON_RECORD: person_record}
+    if existing_incident:
+        incident_repo.update_one(existing_incident["_id"], incident_fields)
+        incident_action = "updated"
+    else:
+        from sarapp_db.mongo.master_link import build_master_link
+        from sarapp_db.mongo.server_identity import get_server_id
+        incident_fields["master_link"] = build_master_link(
+            master_collection="personnel", master_id=master["_id"],
+            master_server_origin=get_server_id(),
+        )
+        incident_repo.insert_one(incident_fields)
+        incident_action = "created"
+    if team is not None and teams_repo is not None:
+        members = [int(value) for value in team.get("member_person_records") or []]
+        if person_record not in members:
+            teams_repo.update_one(team["_id"], {"member_person_records": [*members, person_record]})
+    return {
+        "person_record": person_record,
+        "master_action": master_action,
+        "incident_person_action": incident_action,
+        "checkin_action": "checked_in" if check_in else "unchanged",
+        "team_id": team_id if team_id not in (None, "") else None,
+        "status": "Checked In" if check_in else None,
+    }
 
 
 def _normalize_person(doc: dict[str, Any]) -> dict[str, Any]:
@@ -335,6 +475,7 @@ def save_checkin(
 
     existing = _person_resource_status_doc(incident_id, person_record)
     status = body.get("status") or body.get("ci_status") or body.get("planning_status") or "Pending"
+    changed_by = str(body.get("changed_by") or "Check-In")
     now = _utcnow()
     resource_doc = {
         "entity_type": "personnel",
@@ -363,7 +504,7 @@ def save_checkin(
                 existing["_id"],
                 {
                     "$set": updates,
-                    "$push": {"status_log": {"status": status, "timestamp": now, "changed_by": "Check-In"}},
+                    "$push": {"status_log": {"status": status, "timestamp": now, "changed_by": changed_by}},
                 },
             )
         else:
@@ -376,7 +517,7 @@ def save_checkin(
             person_record,
         )
         resource_doc["created_at"] = now
-        resource_doc["status_log"] = [{"status": status, "timestamp": now, "changed_by": "Check-In"}]
+        resource_doc["status_log"] = [{"status": status, "timestamp": now, "changed_by": changed_by}]
         doc = repo.insert_one(resource_doc)
 
     # Mirror contact fields back to master personnel and keep incident_personnel in sync.

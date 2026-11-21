@@ -3,16 +3,16 @@ import { INFORMATION_CONFIDENCE_VALUES, ITEM_TYPES, LEAD_PRIORITIES } from "../.
 import { CheckboxField, SelectField, TextField } from "../IntelFormFields";
 
 interface NewItemDialogProps {
-  onCreate: (body: Record<string, unknown>) => void;
+  onCreate: (body: Record<string, unknown>, files: File[]) => void;
   onCancel: () => void;
   busy?: boolean;
 }
 
 // Matches desktop's intel_items_tab.py's _NewItemDialog: Type/Description/
 // Location/Priority/Confidence, the "Urgent response needed (SAR 135)"
-// checkbox, and Notes. Desktop's file-attachment picker is a native OS
-// dialog with no server endpoint behind it yet — omitted here rather than
-// faking an upload control with nothing to receive it.
+// checkbox, Notes, and a file-attachment picker — desktop queues picked
+// files as pending_attachments and uploads them once the item is saved and
+// has an id; the caller does the same here (see ItemsBoardPage's onCreate).
 export default function NewItemDialog({ onCreate, onCancel, busy }: NewItemDialogProps) {
   const [itemType, setItemType] = useState(ITEM_TYPES[0]);
   const [title, setTitle] = useState("");
@@ -21,6 +21,7 @@ export default function NewItemDialog({ onCreate, onCancel, busy }: NewItemDialo
   const [confidence, setConfidence] = useState("Unconfirmed");
   const [urgent, setUrgent] = useState(false);
   const [notes, setNotes] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
 
   return (
     <div className="modal-backdrop" onClick={onCancel}>
@@ -33,6 +34,13 @@ export default function NewItemDialog({ onCreate, onCancel, busy }: NewItemDialo
         <SelectField label="Confidence" value={confidence} onChange={setConfidence} options={INFORMATION_CONFIDENCE_VALUES} />
         <CheckboxField label="Urgent response needed (SAR 135)" checked={urgent} onChange={setUrgent} />
         <TextField label="Notes" value={notes} onChange={setNotes} textarea />
+        <div className="field">
+          <label>Attachments</label>
+          <input type="file" multiple onChange={(e) => setFiles(Array.from(e.target.files ?? []))} />
+          <span className="muted" style={{ fontSize: "0.82rem" }}>
+            {files.length === 0 ? "No files attached" : files.map((f) => f.name).join(", ")}
+          </span>
+        </div>
         <div className="modal-actions">
           <button className="secondary" onClick={onCancel}>
             Cancel
@@ -40,15 +48,18 @@ export default function NewItemDialog({ onCreate, onCancel, busy }: NewItemDialo
           <button
             disabled={!title.trim() || busy}
             onClick={() =>
-              onCreate({
-                item_type: itemType,
-                title: title.trim(),
-                location_text: location || undefined,
-                priority,
-                confidence,
-                urgent_response_needed: urgent,
-                notes: notes || undefined,
-              })
+              onCreate(
+                {
+                  item_type: itemType,
+                  title: title.trim(),
+                  location_text: location || undefined,
+                  priority,
+                  confidence,
+                  urgent_response_needed: urgent,
+                  notes: notes || undefined,
+                },
+                files,
+              )
             }
           >
             {busy ? "Saving…" : "Save"}

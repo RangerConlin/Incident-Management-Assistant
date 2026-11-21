@@ -9,8 +9,14 @@ os.environ.setdefault("SARAPP_MONGO_URI", "mongodb://localhost:27017")
 
 from modules.logistics.resource_requests.api import printers
 from modules.logistics.resource_requests.api.service import ResourceRequestService
-from modules.logistics.resource_requests.api.validators import ValidationError
-from modules.logistics.resource_requests.models.enums import ApprovalAction, FulfillmentStatus, Priority, RequestStatus
+from modules.logistics.resource_requests.api.validators import ValidationError, available_approval_actions
+from modules.logistics.resource_requests.models.enums import (
+    ApprovalAction,
+    ApprovalSection,
+    FulfillmentStatus,
+    Priority,
+    RequestStatus,
+)
 
 INCIDENT_ID = "resource-request-test"
 
@@ -178,3 +184,68 @@ def test_list_filters(service: ResourceRequestService):
 
     filtered_status = service.list_requests({"status": [RequestStatus.SUBMITTED.value]})
     assert filtered_status and filtered_status[0]["status"] == RequestStatus.SUBMITTED.value
+
+
+def test_record_approval_defaults_section_from_action(service: ResourceRequestService):
+    request_id = service.create_request(_base_header(), _single_item())
+    service.record_approval(request_id, ApprovalAction.SUBMIT.value, actor_id="ops")
+    record = service.get_request(request_id)
+    assert record["approvals"][-1]["section"] == ApprovalSection.REQUESTING.value
+
+    service.record_approval(request_id, ApprovalAction.REVIEW.value, actor_id="logs")
+    record = service.get_request(request_id)
+    assert record["approvals"][-1]["section"] == ApprovalSection.LOGISTICS.value
+
+
+def test_record_approval_accepts_explicit_section_override(service: ResourceRequestService):
+    request_id = service.create_request(_base_header(), _single_item())
+    service.record_approval(
+        request_id,
+        ApprovalAction.SUBMIT.value,
+        actor_id="ops",
+        section=ApprovalSection.LOGISTICS.value,
+    )
+    record = service.get_request(request_id)
+    assert record["approvals"][-1]["section"] == ApprovalSection.LOGISTICS.value
+
+
+def test_finance_approval_does_not_change_request_status(service: ResourceRequestService):
+    request_id = service.create_request(_base_header(), _single_item())
+    service.record_approval(request_id, ApprovalAction.SUBMIT.value, actor_id="ops")
+    before = service.get_request(request_id)
+
+    service.record_approval(request_id, ApprovalAction.FINANCE_APPROVE.value, actor_id="finance")
+    after = service.get_request(request_id)
+
+    assert after["status"] == before["status"]
+    assert after["approvals"][-1]["action"] == ApprovalAction.FINANCE_APPROVE.value
+    assert after["approvals"][-1]["section"] == ApprovalSection.FINANCE.value
+
+
+def test_finance_deny_requires_note(service: ResourceRequestService):
+    request_id = service.create_request(_base_header(), _single_item())
+    service.record_approval(request_id, ApprovalAction.SUBMIT.value, actor_id="ops")
+    with pytest.raises(ValidationError):
+        service.record_approval(request_id, ApprovalAction.FINANCE_DENY.value, actor_id="finance")
+
+
+def test_available_approval_actions_by_status():
+    assert set(available_approval_actions(RequestStatus.DRAFT)) == {
+        ApprovalAction.SUBMIT,
+        ApprovalAction.CANCEL,
+    }
+    submitted_actions = set(available_approval_actions(RequestStatus.SUBMITTED))
+    assert submitted_actions == {
+        ApprovalAction.REVIEW,
+        ApprovalAction.APPROVE,
+        ApprovalAction.DENY,
+        ApprovalAction.CANCEL,
+    }
+    # Reopen only becomes available once denied/cancelled; Review never
+    # does, since there's nothing left to re-review from those statuses.
+    denied_actions = set(available_approval_actions(RequestStatus.DENIED))
+    assert denied_actions == {ApprovalAction.REOPEN}
+    # Finance actions are never status-gated — they're independent of the
+    # request's lifecycle, so they never show up here.
+    assert ApprovalAction.FINANCE_APPROVE not in submitted_actions
+    assert ApprovalAction.FINANCE_DENY not in submitted_actions

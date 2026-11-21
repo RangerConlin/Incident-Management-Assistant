@@ -4,7 +4,7 @@ import DataTable, { type ColumnDef } from "../../../components/table/DataTable";
 import FilterBar from "../../../components/table/FilterBar";
 import KpiStrip from "../../../components/KpiStrip";
 import StatusPill from "../../../components/table/StatusPill";
-import { ITEM_TREND_VALUES, ITEM_TYPES, LEAD_PRIORITIES } from "../../../api/endpoints";
+import { ITEM_TREND_VALUES, ITEM_TYPES, LEAD_PRIORITIES, uploadAttachment } from "../../../api/endpoints";
 import type { IntelItem } from "../../../api/types";
 import { useSession } from "../../../auth/SessionContext";
 import { formatDateTime } from "../../../utils/formatDateTime";
@@ -129,7 +129,24 @@ export default function ItemsBoardPage() {
         <NewItemDialog
           busy={createItem.isPending}
           onCancel={() => setShowNew(false)}
-          onCreate={(body) => createItem.mutate({ ...body, created_by: user?.display_name }, { onSuccess: () => setShowNew(false) })}
+          onCreate={(body, files) =>
+            createItem.mutate(
+              { ...body, created_by: user?.display_name },
+              {
+                onSuccess: async (created) => {
+                  // Matches desktop's pending_attachments flow: files are
+                  // picked before the item exists, then uploaded once it
+                  // has an id.
+                  await Promise.all(
+                    files.map((file) =>
+                      uploadAttachment(incidentId!, file, { owner_type: "intel_item", owner_id: created.id, uploaded_by: user?.display_name }),
+                    ),
+                  );
+                  setShowNew(false);
+                },
+              },
+            )
+          }
         />
       )}
     </div>

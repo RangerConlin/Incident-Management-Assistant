@@ -20,8 +20,10 @@ import '../screens/settings_screen.dart';
 import '../screens/team_management_screen.dart';
 import '../services/app_presence_service.dart';
 import '../services/chat_presence_service.dart';
+import '../services/local_profile_store.dart';
 import '../services/notification_store.dart';
 import '../services/push_notification_service.dart';
+import '../services/server_connection_store.dart';
 import '../services/session_store.dart';
 import '../services/tracking_service.dart';
 import 'arc_horizon_mark.dart';
@@ -40,6 +42,7 @@ class AppDrawer extends StatelessWidget {
   Future<void> _leaveIncident(
     BuildContext context, {
     required bool unregisterPushToken,
+    required bool clearIdentity,
   }) async {
     // Keep the NavigatorState before closing the drawer. The ListTile's
     // context can be unmounted by pop(), so using/checking that context after
@@ -59,6 +62,16 @@ class AppDrawer extends StatelessWidget {
     unawaited(_stopTracking());
     try {
       await SessionStore.clear();
+      if (clearIdentity) {
+        // A real log out, not just switching incidents: forget who was
+        // using this device and which server they were on. Logging back in
+        // re-fetches this operator's catalog record from the server (see
+        // ProfileScreen's Person ID lookup) instead of leaving them to
+        // retype everything, so clearing this here is no longer the
+        // one-way trip it used to be.
+        await LocalProfileStore.clear();
+        await ServerConnectionStore.setActive('');
+      }
     } catch (error) {
       // Do not strand the operator on the dashboard because local storage
       // failed. A later successful clear will remove the stale session.
@@ -79,8 +92,11 @@ class AppDrawer extends StatelessWidget {
     }
   }
 
-  Future<void> _logout(BuildContext context) =>
-      _leaveIncident(context, unregisterPushToken: true);
+  Future<void> _logout(BuildContext context) => _leaveIncident(
+    context,
+    unregisterPushToken: true,
+    clearIdentity: true,
+  );
 
   /// Returns to the main menu without unregistering the push
   /// token — `PushNotificationService.syncRegistration` upserts by token,
@@ -88,8 +104,11 @@ class AppDrawer extends StatelessWidget {
   /// (see its doc comment) rather than needing a fresh registration. The
   /// profile and connection stay, so loading another incident needs no
   /// sign-in.
-  Future<void> _switchIncident(BuildContext context) =>
-      _leaveIncident(context, unregisterPushToken: false);
+  Future<void> _switchIncident(BuildContext context) => _leaveIncident(
+    context,
+    unregisterPushToken: false,
+    clearIdentity: false,
+  );
 
   void _openScreen(BuildContext context, WidgetBuilder builder) {
     Navigator.of(context).pop();

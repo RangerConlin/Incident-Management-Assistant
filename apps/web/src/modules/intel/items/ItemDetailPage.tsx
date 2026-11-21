@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import StatusPill from "../../../components/table/StatusPill";
+import AttachmentsPanel from "../../../components/attachments/AttachmentsPanel";
 import ExportButton from "../../forms/ExportButton";
 import { useSession } from "../../../auth/SessionContext";
 import { formatDateTime } from "../../../utils/formatDateTime";
@@ -162,12 +163,7 @@ export default function ItemDetailPage() {
         </div>
       )}
 
-      {tab === "attachments" && (
-        <p className="entry-empty">
-          No attachment storage exists yet for intel items — desktop's attachment picker writes to a local filesystem path with no
-          server endpoint behind it, so this tab has nothing to show until that's built.
-        </p>
-      )}
+      {tab === "attachments" && <AttachmentsPanel incidentId={incidentId} ownerType="intel_item" ownerId={item.id} />}
 
       {tab === "history" && (
         <div>

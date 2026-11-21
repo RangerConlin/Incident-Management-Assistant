@@ -25,6 +25,8 @@ import '../widgets/team_overview_list.dart';
 import 'coming_soon_screen.dart';
 import 'field_dashboard_screen.dart';
 import 'reference_library_screen.dart';
+import 'profile_qr_review_screen.dart';
+import 'qr_scanner_screen.dart';
 import 'safety_screen.dart';
 import 'team_management_screen.dart';
 
@@ -207,7 +209,9 @@ class _IncidentStaffDashboardScreenState
             ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
       final teamTypes = <String, TeamTypeDefinition>{};
       for (final raw in (results[7] as List).whereType<Map>()) {
-        final definition = TeamTypeDefinition.fromJson(Map<String, dynamic>.from(raw));
+        final definition = TeamTypeDefinition.fromJson(
+          Map<String, dynamic>.from(raw),
+        );
         if (definition.code.isNotEmpty) teamTypes[definition.code] = definition;
       }
 
@@ -304,6 +308,11 @@ class _IncidentStaffDashboardScreenState
 
   List<FieldActionItem> _quickActions() => [
     FieldActionItem(
+      icon: Icons.person_add_alt_1_outlined,
+      label: 'Scan check-in QR',
+      onTap: _openCheckinScanner,
+    ),
+    FieldActionItem(
       icon: Icons.chat_bubble_outline,
       label: 'Messages',
       onTap: () => AppBottomNav.navigateTo(context, AppTab.messages, _navArgs),
@@ -339,6 +348,36 @@ class _IncidentStaffDashboardScreenState
       onTap: () => AppBottomNav.navigateTo(context, AppTab.map, _navArgs),
     ),
   ];
+
+  void _openCheckinScanner() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => QrScannerScreen(
+          args: _navArgs,
+          onScanned: (payload) async {
+            final result = await Navigator.of(context)
+                .push<Map<String, dynamic>>(
+                  MaterialPageRoute(
+                    builder: (_) => ProfileQrReviewScreen(
+                      incidentId: widget.incidentId,
+                      payload: payload,
+                      approvedByPersonRecord: _personRecord,
+                      apiClient: _apiClient,
+                    ),
+                  ),
+                );
+            if (result != null && mounted) {
+              await _load();
+              if (!mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Personnel check-in completed.')),
+              );
+            }
+          },
+        ),
+      ),
+    );
+  }
 
   String get _headerSubtitle {
     if (_offline) return 'Offline';

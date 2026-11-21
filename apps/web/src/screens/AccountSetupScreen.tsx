@@ -2,8 +2,9 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ApiError } from "../api/client";
 import { lookupPerson, registerPerson, setPassword as apiSetPassword } from "../api/endpoints";
+import type { PersonnelSummary } from "../api/types";
 
-type Step = "lookup" | "register" | "password";
+type Step = "lookup" | "register" | "pick" | "password";
 
 export default function AccountSetupScreen() {
   const navigate = useNavigate();
@@ -13,6 +14,8 @@ export default function AccountSetupScreen() {
   const [lastName, setLastName] = useState("");
   const [password, setPasswordValue] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [candidates, setCandidates] = useState<PersonnelSummary[]>([]);
+  const [personRecord, setPersonRecord] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -23,9 +26,13 @@ export default function AccountSetupScreen() {
     try {
       const res = await lookupPerson(personId.trim());
       if (res.status === "found") {
+        setPersonRecord(res.person?.person_record ?? null);
         setStep("password");
       } else if (res.status === "not_found") {
         setStep("register");
+      } else if (res.candidates && res.candidates.length) {
+        setCandidates(res.candidates);
+        setStep("pick");
       } else {
         setError("Several personnel records share this ID. Ask an administrator to fix the roster.");
       }
@@ -34,6 +41,11 @@ export default function AccountSetupScreen() {
     } finally {
       setBusy(false);
     }
+  };
+
+  const choosePerson = (candidate: PersonnelSummary) => {
+    setPersonRecord(candidate.person_record ?? null);
+    setStep("password");
   };
 
   const runRegister = async (e: React.FormEvent) => {
@@ -63,7 +75,7 @@ export default function AccountSetupScreen() {
     }
     setBusy(true);
     try {
-      await apiSetPassword(personId.trim(), password);
+      await apiSetPassword(personId.trim(), password, personRecord);
       navigate("/login");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not set password.");
@@ -106,6 +118,25 @@ export default function AccountSetupScreen() {
             {busy ? "Creating…" : "Continue"}
           </button>
         </form>
+      )}
+
+      {step === "pick" && (
+        <div>
+          <p>
+            More than one personnel record uses ID "{personId}". Pick the one that is you (an
+            administrator can merge or delete the rest later).
+          </p>
+          <ul className="field">
+            {candidates.map((c) => (
+              <li key={c.person_record ?? c.person_id}>
+                <button type="button" onClick={() => choosePerson(c)} disabled={busy}>
+                  #{c.person_record} — {c.name || "(unnamed)"}
+                </button>
+              </li>
+            ))}
+          </ul>
+          {error && <p className="error">{error}</p>}
+        </div>
       )}
 
       {step === "password" && (
