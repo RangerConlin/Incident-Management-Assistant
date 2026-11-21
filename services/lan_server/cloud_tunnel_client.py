@@ -87,7 +87,7 @@ _HOP_BY_HOP_HEADERS = {
 # precedence when set, so this has no effect once the real env vars are
 # configured. Remove before any shared/production deployment — see
 # docs/archive/design-documents/Instructions/cloud_router_architecture.md.
-_DEV_DEFAULT_ROUTER_URL = "wss://sarapp.arcadiacommandsolutions.com/tunnel/register"
+_DEV_DEFAULT_ROUTER_URL = "wss://sarapp.arc-horizon.net/tunnel/register"
 _DEV_DEFAULT_ROUTER_TOKEN = "1980ce0346cfb930309148c524856fac0645703f95ed6c91dd312b91687ade44"
 
 
