@@ -113,24 +113,65 @@ def create_quick_assignment_from_schedule_item(record_id: int, incident_id: str 
     return PlannedToolkitRepository(incident_id).create_quick_assignment_from_schedule_item(record_id)
 
 
-def start_schedule_item(record_id: int, incident_id: str | None = None, *, actual_start_at: str | None = None):
-    return PlannedToolkitRepository(incident_id).start_schedule_item(record_id, actual_start_at=actual_start_at)
+def start_schedule_item(
+    record_id: int, incident_id: str | None = None, *, actual_start_at: str | None = None, expected_revision: int | None = None
+):
+    return PlannedToolkitRepository(incident_id).start_schedule_item(
+        record_id, actual_start_at=actual_start_at, expected_revision=expected_revision
+    )
 
 
-def resume_schedule_item(record_id: int, incident_id: str | None = None, *, actual_start_at: str | None = None):
-    return PlannedToolkitRepository(incident_id).resume_schedule_item(record_id, actual_start_at=actual_start_at)
+def resume_schedule_item(
+    record_id: int, incident_id: str | None = None, *, actual_start_at: str | None = None, expected_revision: int | None = None
+):
+    return PlannedToolkitRepository(incident_id).resume_schedule_item(
+        record_id, actual_start_at=actual_start_at, expected_revision=expected_revision
+    )
 
 
-def complete_schedule_item(record_id: int, incident_id: str | None = None, *, actual_end_at: str | None = None):
-    return PlannedToolkitRepository(incident_id).complete_schedule_item(record_id, actual_end_at=actual_end_at)
+def complete_schedule_item(
+    record_id: int, incident_id: str | None = None, *, actual_end_at: str | None = None, expected_revision: int | None = None
+):
+    return PlannedToolkitRepository(incident_id).complete_schedule_item(
+        record_id, actual_end_at=actual_end_at, expected_revision=expected_revision
+    )
 
 
-def delay_schedule_item(record_id: int, incident_id: str | None = None, *, delay_reason: str):
-    return PlannedToolkitRepository(incident_id).delay_schedule_item(record_id, delay_reason=delay_reason)
+def delay_schedule_item(
+    record_id: int,
+    incident_id: str | None = None,
+    *,
+    delay_reason: str,
+    revised_start_at: str | None = None,
+    expected_revision: int | None = None,
+):
+    return PlannedToolkitRepository(incident_id).delay_schedule_item(
+        record_id, delay_reason=delay_reason, revised_start_at=revised_start_at, expected_revision=expected_revision
+    )
 
 
-def cancel_schedule_item(record_id: int, incident_id: str | None = None, *, cancellation_reason: str):
-    return PlannedToolkitRepository(incident_id).cancel_schedule_item(record_id, cancellation_reason=cancellation_reason)
+def cancel_schedule_item(
+    record_id: int, incident_id: str | None = None, *, cancellation_reason: str, expected_revision: int | None = None
+):
+    return PlannedToolkitRepository(incident_id).cancel_schedule_item(
+        record_id, cancellation_reason=cancellation_reason, expected_revision=expected_revision
+    )
+
+
+def correct_schedule_item(
+    record_id: int,
+    incident_id: str | None = None,
+    *,
+    reason: str,
+    status: str | None = None,
+    actual_start_at: str | None = None,
+    actual_end_at: str | None = None,
+    expected_revision: int | None = None,
+):
+    return PlannedToolkitRepository(incident_id).correct_schedule_item(
+        record_id, reason=reason, status=status, actual_start_at=actual_start_at,
+        actual_end_at=actual_end_at, expected_revision=expected_revision,
+    )
 
 
 def list_schedule_triggers(incident_id: str | None = None, schedule_item_id: str | None = None):

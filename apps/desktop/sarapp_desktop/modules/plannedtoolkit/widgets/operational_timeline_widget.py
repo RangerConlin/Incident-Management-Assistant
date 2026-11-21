@@ -88,8 +88,13 @@ class ActivityDetailDialog(QDialog):
         self.setWindowTitle(item.name or "Activity")
         self.setMinimumWidth(480)
         self._build_ui()
+        self.controller.statusMessage.connect(self._set_status)
         self._refresh_related_records()
         self._refresh_reminders()
+
+    def _set_status(self, message: str, is_error: bool) -> None:
+        self._status_label.setText(message)
+        self._status_label.setStyleSheet(f"color: {'#b00020' if is_error else '#375a2b'};")
 
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
@@ -128,21 +133,28 @@ class ActivityDetailDialog(QDialog):
         self._complete_btn = QPushButton("Complete")
         self._delay_btn = QPushButton("Delay")
         self._cancel_btn = QPushButton("Cancel")
+        self._correct_btn = QPushButton("Correct...")
         self._edit_btn.clicked.connect(self._edit)
         self._start_btn.clicked.connect(lambda: self._act(self.controller.start))
         self._resume_btn.clicked.connect(lambda: self._act(self.controller.resume))
         self._complete_btn.clicked.connect(lambda: self._act(self.controller.complete))
         self._delay_btn.clicked.connect(self._delay)
         self._cancel_btn.clicked.connect(self._cancel)
+        self._correct_btn.clicked.connect(self._correct)
         self._edit_btn.setEnabled(item.status not in ("Completed", "Cancelled"))
         self._start_btn.setEnabled(item.status == "Scheduled")
         self._resume_btn.setEnabled(item.status == "Delayed")
-        self._complete_btn.setEnabled(item.status in ("In Progress", "Delayed"))
+        # Complete now requires In Progress -- resume a Delayed activity
+        # first (Phase 1E: Delayed can no longer skip straight to Completed).
+        self._complete_btn.setEnabled(item.status == "In Progress")
         self._delay_btn.setEnabled(item.status in ("Scheduled", "In Progress"))
         self._cancel_btn.setEnabled(item.status in ("Scheduled", "In Progress", "Delayed"))
-        for button in (self._edit_btn, self._start_btn, self._resume_btn, self._complete_btn, self._delay_btn, self._cancel_btn):
+        for button in (self._edit_btn, self._start_btn, self._resume_btn, self._complete_btn, self._delay_btn, self._cancel_btn, self._correct_btn):
             actions.addWidget(button)
         layout.addLayout(actions)
+
+        self._status_label = QLabel("")
+        layout.addWidget(self._status_label)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Close)
         buttons.rejected.connect(self.reject)
@@ -237,9 +249,10 @@ class ActivityDetailDialog(QDialog):
             QMessageBox.warning(self, "Meeting", f"Could not open the linked meeting: {exc}")
 
     def _unlink_meeting(self) -> None:
-        if self.item.id is not None:
-            self.controller.update(self.item.id, {"meeting_id": ""})
-        self.accept()
+        if self.item.id is not None and self.controller.update(
+            self.item.id, {"meeting_id": ""}, expected_revision=self.item.revision
+        ):
+            self.accept()
 
     def _open_quick_assignments(self) -> None:
         try:
@@ -253,22 +266,23 @@ class ActivityDetailDialog(QDialog):
             QMessageBox.warning(self, "Quick Assignments", f"Could not open Quick Assignments: {exc}")
 
     def _create_quick_assignment(self) -> None:
-        if self.item.id is not None:
-            self.controller.create_quick_assignment(self.item.id)
-        self.accept()
+        if self.item.id is not None and self.controller.create_quick_assignment(self.item.id):
+            self.accept()
 
     def _unlink_quick_assignment(self) -> None:
         """Clears the schedule item's own reference only -- the Quick
         Assignment record itself (and its independent lifecycle) is
         untouched, per the brief."""
-        if self.item.id is not None:
-            self.controller.update(self.item.id, {"quick_assignment_id": ""})
-        self.accept()
+        if self.item.id is not None and self.controller.update(
+            self.item.id, {"quick_assignment_id": ""}, expected_revision=self.item.revision
+        ):
+            self.accept()
 
     def _unlink_gis_feature(self) -> None:
-        if self.item.id is not None:
-            self.controller.update(self.item.id, {"gis_feature_id": ""})
-        self.accept()
+        if self.item.id is not None and self.controller.update(
+            self.item.id, {"gis_feature_id": ""}, expected_revision=self.item.revision
+        ):
+            self.accept()
 
     # -- Reminders (ScheduleTrigger) ---------------------------------------
 
@@ -361,27 +375,40 @@ class ActivityDetailDialog(QDialog):
         self._refresh_reminders()
 
     def _act(self, fn) -> None:
-        if self.item.id is not None:
-            fn(self.item.id)
-        self.accept()
+        if self.item.id is not None and fn(self.item.id, expected_revision=self.item.revision):
+            self.accept()
 
     def _edit(self) -> None:
         dialog = ScheduleItemDialog(self.item, incident_id=self.controller.incident_id, parent=self)
-        if dialog.exec() == QDialog.DialogCode.Accepted and self.item.id is not None:
-            self.controller.update(self.item.id, dialog.values())
-        self.accept()
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        if self.item.id is not None and self.controller.update(
+            self.item.id, dialog.values(), expected_revision=self.item.revision
+        ):
+            self.accept()
 
     def _delay(self) -> None:
         reason = prompt_delay_reason(self)
-        if reason is not None and self.item.id is not None:
-            self.controller.delay(self.item.id, delay_reason=reason)
-        self.accept()
+        if reason is None or self.item.id is None:
+            return
+        if self.controller.delay(self.item.id, delay_reason=reason, expected_revision=self.item.revision):
+            self.accept()
 
     def _cancel(self) -> None:
         reason = prompt_cancellation_reason(self)
-        if reason is not None and self.item.id is not None:
-            self.controller.cancel(self.item.id, cancellation_reason=reason)
-        self.accept()
+        if reason is None or self.item.id is None:
+            return
+        if self.controller.cancel(self.item.id, cancellation_reason=reason, expected_revision=self.item.revision):
+            self.accept()
+
+    def _correct(self) -> None:
+        from .schedule_dialogs import CorrectionDialog
+
+        dialog = CorrectionDialog(self.item, parent=self)
+        if dialog.exec() != QDialog.DialogCode.Accepted or self.item.id is None:
+            return
+        if self.controller.correct(self.item.id, expected_revision=self.item.revision, **dialog.values()):
+            self.accept()
 
 
 class OperationalTimelineWidget(QWidget):
@@ -589,6 +616,12 @@ class OperationalTimelineWidget(QWidget):
         if is_today and not inserted_now:
             rows.append((_NOW_MARKER_TEXT, None))
 
+        # clearSpans() first: the NOW-marker row's column span from a
+        # previous render otherwise lingers when a filter change shrinks
+        # the row count, corrupting which cells later setItem calls land
+        # on (a real, reproducible QTableWidget interaction, not specific
+        # to this filter).
+        self.table.clearSpans()
         self.table.setRowCount(len(rows))
         for row_idx, (kind, item) in enumerate(rows):
             if kind == _NOW_MARKER_TEXT:
@@ -596,6 +629,14 @@ class OperationalTimelineWidget(QWidget):
                 marker.setData(Qt.ItemDataRole.UserRole, "now_marker")
                 marker.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.table.setItem(row_idx, 0, marker)
+                # The span visually hides columns 1+, but row indices are
+                # reused across renders (e.g. a filter change shrinking the
+                # row count), so whatever QTableWidgetItem previously
+                # occupied this row at those columns otherwise lingers in
+                # the model -- invisible, but still returned by a direct
+                # table.item(row, col) read.
+                for col_idx in range(1, len(_COLUMNS)):
+                    self.table.setItem(row_idx, col_idx, QTableWidgetItem(""))
                 self.table.setSpan(row_idx, 0, 1, len(_COLUMNS))
                 continue
 

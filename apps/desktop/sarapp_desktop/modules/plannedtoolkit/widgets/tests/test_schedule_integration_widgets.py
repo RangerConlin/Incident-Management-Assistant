@@ -116,7 +116,7 @@ def test_activity_detail_unlink_meeting_clears_only_the_schedule_items_own_field
 
     dialog = otw.ActivityDetailDialog(item, ctrl)
     dialog._unlink_meeting()
-    assert calls == [(1, {"meeting_id": ""})]
+    assert calls == [(1, {"meeting_id": "", "expected_revision": 0})]
 
 
 def test_reminders_table_shows_delivery_state(monkeypatch) -> None:

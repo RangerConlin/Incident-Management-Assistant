@@ -211,3 +211,82 @@ def prompt_cancellation_reason(parent: QWidget) -> str | None:
     if not ok or not reason.strip():
         return None
     return reason.strip()
+
+
+_NO_CHANGE = "(no change)"
+_CORRECTABLE_STATUSES = ("Scheduled", "In Progress", "Delayed", "Completed", "Cancelled")
+
+
+class CorrectionDialog(QDialog):
+    """An explicit, reason-logged override for reopening a terminal status
+    or fixing an actual timestamp -- the one path allowed to bypass the
+    routine transition table, per the Phase 1E /correct endpoint. Never
+    used for routine status changes, which stay on the event-day actions.
+    """
+
+    def __init__(self, item: ScheduledItem, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.setWindowTitle("Correct Activity")
+        self.setMinimumWidth(380)
+        self._item = item
+        layout = QVBoxLayout(self)
+        form = QFormLayout()
+
+        self.status_combo = QComboBox()
+        self.status_combo.addItem(_NO_CHANGE)
+        self.status_combo.addItems(_CORRECTABLE_STATUSES)
+        self.status_combo.setCurrentText(_NO_CHANGE)
+
+        self.actual_start_edit = QDateTimeEdit()
+        self.actual_start_edit.setCalendarPopup(True)
+        self.actual_start_edit.setDisplayFormat("MM/dd/yyyy  HH:mm")
+        self.actual_start_edit.setDateTime(to_qdatetime(item.actual_start_at or item.starts_at))
+        self.actual_end_edit = QDateTimeEdit()
+        self.actual_end_edit.setCalendarPopup(True)
+        self.actual_end_edit.setDisplayFormat("MM/dd/yyyy  HH:mm")
+        self.actual_end_edit.setDateTime(to_qdatetime(item.actual_end_at or item.ends_at))
+
+        self.correct_actual_start_check = QComboBox()
+        self.correct_actual_start_check.addItems([_NO_CHANGE, "Set actual start to:"])
+        self.correct_actual_end_check = QComboBox()
+        self.correct_actual_end_check.addItems([_NO_CHANGE, "Set actual end to:"])
+
+        self.reason_edit = QTextEdit()
+        self.reason_edit.setFixedHeight(60)
+        self.reason_edit.setPlaceholderText("Required: why this activity's record is being corrected")
+
+        form.addRow("Corrected status", self.status_combo)
+        form.addRow("Actual start", self.correct_actual_start_check)
+        form.addRow("", self.actual_start_edit)
+        form.addRow("Actual end", self.correct_actual_end_check)
+        form.addRow("", self.actual_end_edit)
+        form.addRow("Reason", self.reason_edit)
+        layout.addLayout(form)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(self._on_accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def _on_accept(self) -> None:
+        if not self.reason_edit.toPlainText().strip():
+            QMessageBox.warning(self, "Reason required", "Enter a reason for this correction.")
+            return
+        if (
+            self.status_combo.currentText() == _NO_CHANGE
+            and self.correct_actual_start_check.currentIndex() == 0
+            and self.correct_actual_end_check.currentIndex() == 0
+        ):
+            QMessageBox.warning(self, "Nothing to correct", "Choose a status and/or an actual time to correct.")
+            return
+        self.accept()
+
+    def values(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {"reason": self.reason_edit.toPlainText().strip()}
+        if self.status_combo.currentText() != _NO_CHANGE:
+            payload["status"] = self.status_combo.currentText()
+        if self.correct_actual_start_check.currentIndex() == 1:
+            payload["actual_start_at"] = storage_dt(self.actual_start_edit)
+        if self.correct_actual_end_check.currentIndex() == 1:
+            payload["actual_end_at"] = storage_dt(self.actual_end_edit)
+        return payload

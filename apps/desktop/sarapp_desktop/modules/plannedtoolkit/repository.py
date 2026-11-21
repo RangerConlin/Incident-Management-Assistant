@@ -158,20 +158,56 @@ class PlannedToolkitRepository:
         )
         return schedule_from_dict(result or {})
 
-    def start_schedule_item(self, record_id: int, *, actual_start_at: str | None = None) -> ScheduledItem:
-        return self._schedule_action(record_id, "start", actual_start_at=actual_start_at)
+    def start_schedule_item(
+        self, record_id: int, *, actual_start_at: str | None = None, expected_revision: int | None = None
+    ) -> ScheduledItem:
+        return self._schedule_action(record_id, "start", actual_start_at=actual_start_at, expected_revision=expected_revision)
 
-    def resume_schedule_item(self, record_id: int, *, actual_start_at: str | None = None) -> ScheduledItem:
-        return self._schedule_action(record_id, "resume", actual_start_at=actual_start_at)
+    def resume_schedule_item(
+        self, record_id: int, *, actual_start_at: str | None = None, expected_revision: int | None = None
+    ) -> ScheduledItem:
+        return self._schedule_action(record_id, "resume", actual_start_at=actual_start_at, expected_revision=expected_revision)
 
-    def complete_schedule_item(self, record_id: int, *, actual_end_at: str | None = None) -> ScheduledItem:
-        return self._schedule_action(record_id, "complete", actual_end_at=actual_end_at)
+    def complete_schedule_item(
+        self, record_id: int, *, actual_end_at: str | None = None, expected_revision: int | None = None
+    ) -> ScheduledItem:
+        return self._schedule_action(record_id, "complete", actual_end_at=actual_end_at, expected_revision=expected_revision)
 
-    def delay_schedule_item(self, record_id: int, *, delay_reason: str) -> ScheduledItem:
-        return self._schedule_action(record_id, "delay", delay_reason=delay_reason)
+    def delay_schedule_item(
+        self,
+        record_id: int,
+        *,
+        delay_reason: str,
+        revised_start_at: str | None = None,
+        expected_revision: int | None = None,
+    ) -> ScheduledItem:
+        return self._schedule_action(
+            record_id, "delay", delay_reason=delay_reason, revised_start_at=revised_start_at,
+            expected_revision=expected_revision,
+        )
 
-    def cancel_schedule_item(self, record_id: int, *, cancellation_reason: str) -> ScheduledItem:
-        return self._schedule_action(record_id, "cancel", cancellation_reason=cancellation_reason)
+    def cancel_schedule_item(
+        self, record_id: int, *, cancellation_reason: str, expected_revision: int | None = None
+    ) -> ScheduledItem:
+        return self._schedule_action(
+            record_id, "cancel", cancellation_reason=cancellation_reason, expected_revision=expected_revision
+        )
+
+    def correct_schedule_item(
+        self,
+        record_id: int,
+        *,
+        reason: str,
+        status: str | None = None,
+        actual_start_at: str | None = None,
+        actual_end_at: str | None = None,
+        expected_revision: int | None = None,
+    ) -> ScheduledItem:
+        return self._schedule_action(
+            record_id, "correct", reason=reason, status=status,
+            actual_start_at=actual_start_at, actual_end_at=actual_end_at,
+            expected_revision=expected_revision,
+        )
 
     def create_quick_assignment_from_schedule_item(self, record_id: int) -> dict[str, Any]:
         """Returns {"schedule_item": ScheduledItem, "quick_assignment": PlannedRecord}."""

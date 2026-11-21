@@ -106,9 +106,9 @@ class ScheduleListWidget(QWidget):
         refresh_btn = QPushButton("Refresh")
         new_btn.clicked.connect(self._new_item)
         edit_btn.clicked.connect(self._edit_selected)
-        start_btn.clicked.connect(lambda: self._selected_item() and self.controller.start(self._selected_item().id))
-        resume_btn.clicked.connect(lambda: self._selected_item() and self.controller.resume(self._selected_item().id))
-        complete_btn.clicked.connect(lambda: self._selected_item() and self.controller.complete(self._selected_item().id))
+        start_btn.clicked.connect(lambda: self._run_action(self.controller.start))
+        resume_btn.clicked.connect(lambda: self._run_action(self.controller.resume))
+        complete_btn.clicked.connect(lambda: self._run_action(self.controller.complete))
         delay_btn.clicked.connect(self._delay_selected)
         cancel_btn.clicked.connect(self._cancel_selected)
         delete_btn.clicked.connect(self._delete_selected)
@@ -152,7 +152,9 @@ class ScheduleListWidget(QWidget):
             enabled["delete"] = True
             enabled["start"] = item.status == "Scheduled"
             enabled["resume"] = item.status == "Delayed"
-            enabled["complete"] = item.status in ("In Progress", "Delayed")
+            # Complete now requires In Progress -- resume a Delayed
+            # activity first (Phase 1E tightened Delayed -> Completed).
+            enabled["complete"] = item.status == "In Progress"
             enabled["delay"] = item.status in ("Scheduled", "In Progress")
             enabled["cancel"] = item.status in ("Scheduled", "In Progress", "Delayed")
         for key, button in self._action_buttons.items():
@@ -203,6 +205,11 @@ class ScheduleListWidget(QWidget):
                 self.table.setItem(row_idx, col_idx, cell)
         self._update_action_buttons()
 
+    def _run_action(self, fn) -> None:
+        item = self._selected_item()
+        if item is not None and item.id is not None:
+            fn(item.id, expected_revision=item.revision)
+
     def _new_item(self) -> None:
         if not self.controller.incident_id:
             self._set_status("Select an incident before creating activities.", True)
@@ -219,7 +226,7 @@ class ScheduleListWidget(QWidget):
         dialog = ScheduleItemDialog(item, incident_id=self.controller.incident_id, parent=self)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
-        self.controller.update(item.id, dialog.values())
+        self.controller.update(item.id, dialog.values(), expected_revision=item.revision)
 
     def _delete_selected(self) -> None:
         item = self._selected_item()
@@ -238,7 +245,7 @@ class ScheduleListWidget(QWidget):
         reason = prompt_delay_reason(self)
         if reason is None:
             return
-        self.controller.delay(item.id, delay_reason=reason)
+        self.controller.delay(item.id, delay_reason=reason, expected_revision=item.revision)
 
     def _cancel_selected(self) -> None:
         item = self._selected_item()
@@ -247,7 +254,7 @@ class ScheduleListWidget(QWidget):
         reason = prompt_cancellation_reason(self)
         if reason is None:
             return
-        self.controller.cancel(item.id, cancellation_reason=reason)
+        self.controller.cancel(item.id, cancellation_reason=reason, expected_revision=item.revision)
 
 
 class ScheduleWidget(QWidget):

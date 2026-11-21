@@ -17,10 +17,20 @@ recurrence/date-time utility exists in the codebase yet (see the audit
 above); building a bespoke one just for this engine would repeat a mistake
 the audit already flagged. Only one-shot triggers are evaluated.
 
-Idempotency: a trigger is marked with `fired_at` the moment it's evaluated as
-due, and is never re-queried once that field is set. Only one `services/lan_server`
-process runs per incident in this architecture, so a stronger distributed
-lock isn't needed for this slice.
+Idempotency (Phase 1E hardening): claiming a trigger occurrence and firing it
+are two separate steps, and only the claim needs to be atomic. `_claim_trigger`
+does a single `find_one_and_update` that sets `fired_at` only if it is not
+already set, so when two evaluator loops race for the same trigger (this
+*does* happen in practice: both `lan_server` and `cloud_server` run their own
+`NotificationTriggerLoop` for cloud-connected incidents, contrary to this
+module's older docstring, which assumed a single evaluator per incident) at
+most one of them gets the claim and the other moves on without emitting.
+Emission happens only after a successful claim, so a crash between claim and
+emission costs a missed notification, never a duplicate one -- the brief's
+explicit requirement. A failed emission after a successful claim is recorded
+on the trigger (`fire_error`) rather than retried, for the same reason: retrying
+would risk a second notification for an occurrence that may have partially
+delivered.
 """
 
 from __future__ import annotations
@@ -65,24 +75,43 @@ def _optional_int(value: Any) -> Optional[int]:
         return None
 
 
+def _claim_trigger(col, trigger_doc_id: Any) -> Optional[Dict[str, Any]]:
+    """Atomically mark one trigger as fired, returning the claimed document
+    only if this call is the one that set `fired_at` -- `None` if another
+    evaluator already claimed it first."""
+    return col.find_one_and_update(
+        {"_id": trigger_doc_id, "fired_at": {"$exists": False}},
+        {"$set": {"fired_at": _utcnow()}, "$unset": {"fire_error": ""}},
+    )
+
+
 def _fire_trigger(col, trigger: Dict[str, Any], incident_id: str) -> None:
+    """Emit the notification for an already-claimed trigger.
+
+    `fired_at` is already set by `_claim_trigger` before this runs, so a
+    failure here is recorded on the trigger (`fire_error`) rather than
+    retried -- see module docstring.
+    """
     title = trigger.get("title") or trigger.get("label") or "Scheduled reminder"
     message = trigger.get("message_template") or trigger.get("summary") or title
 
-    notification_service.emit_notification(
-        incident_id,
-        title=title,
-        message=message,
-        severity=trigger.get("severity") or "routine",
-        source_type="planned_schedule_trigger",
-        source_id=str(trigger.get("trigger_id", "")),
-        source_label=trigger.get("label"),
-        audience_role=trigger.get("audience_role") or None,
-        audience_user_id=_optional_int(trigger.get("audience_user_id")),
-        audience_team_id=_optional_int(trigger.get("assigned_team_id")),
-        requires_acknowledgement=bool(trigger.get("requires_acknowledgement", False)),
-    )
-    col.update_one({"_id": trigger["_id"]}, {"$set": {"fired_at": _utcnow()}})
+    try:
+        notification_service.emit_notification(
+            incident_id,
+            title=title,
+            message=message,
+            severity=trigger.get("severity") or "routine",
+            source_type="planned_schedule_trigger",
+            source_id=str(trigger.get("trigger_id", "")),
+            source_label=trigger.get("label"),
+            audience_role=trigger.get("audience_role") or None,
+            audience_user_id=_optional_int(trigger.get("audience_user_id")),
+            audience_team_id=_optional_int(trigger.get("assigned_team_id")),
+            requires_acknowledgement=bool(trigger.get("requires_acknowledgement", False)),
+        )
+    except Exception as exc:
+        col.update_one({"_id": trigger["_id"]}, {"$set": {"fire_error": str(exc)[:500]}})
+        raise
 
 
 def evaluate_due_triggers(incident_id: str) -> int:
@@ -95,18 +124,24 @@ def evaluate_due_triggers(incident_id: str) -> int:
 
     now = datetime.now(timezone.utc)
     fired = 0
-    for trigger in col.find(
+    candidates = list(col.find(
         {
             "enabled": {"$ne": False},
             "recurring": {"$ne": True},
             "fired_at": {"$exists": False},
         }
-    ):
+    ))
+    for trigger in candidates:
         due_at = _parse_trigger_at(trigger.get("trigger_at"))
         if due_at is None or due_at > now:
             continue
+        claimed = _claim_trigger(col, trigger["_id"])
+        if claimed is None:
+            # Another evaluator (a concurrent poll tick, or lan_server and
+            # cloud_server racing on the same incident) claimed it first.
+            continue
         try:
-            _fire_trigger(col, trigger, incident_id)
+            _fire_trigger(col, claimed, incident_id)
             fired += 1
         except Exception:
             logger.exception(

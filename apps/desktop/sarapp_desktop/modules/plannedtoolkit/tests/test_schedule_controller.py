@@ -70,16 +70,16 @@ def test_mutations_delegate_to_shared_services_not_local_logic(monkeypatch) -> N
     monkeypatch.setattr(services, "create_schedule_item", lambda incident_id=None, **kw: calls.append(("create", kw)))
     monkeypatch.setattr(services, "update_schedule_item", lambda rid, patch, incident_id=None: calls.append(("update", rid, patch)))
     monkeypatch.setattr(services, "delete_schedule_item", lambda rid, incident_id=None: calls.append(("delete", rid)))
-    monkeypatch.setattr(services, "start_schedule_item", lambda rid, incident_id=None: calls.append(("start", rid)))
-    monkeypatch.setattr(services, "resume_schedule_item", lambda rid, incident_id=None: calls.append(("resume", rid)))
-    monkeypatch.setattr(services, "complete_schedule_item", lambda rid, incident_id=None: calls.append(("complete", rid)))
+    monkeypatch.setattr(services, "start_schedule_item", lambda rid, incident_id=None, **kw: calls.append(("start", rid)))
+    monkeypatch.setattr(services, "resume_schedule_item", lambda rid, incident_id=None, **kw: calls.append(("resume", rid)))
+    monkeypatch.setattr(services, "complete_schedule_item", lambda rid, incident_id=None, **kw: calls.append(("complete", rid)))
     monkeypatch.setattr(
         services, "delay_schedule_item",
-        lambda rid, incident_id=None, *, delay_reason: calls.append(("delay", rid, delay_reason)),
+        lambda rid, incident_id=None, *, delay_reason, **kw: calls.append(("delay", rid, delay_reason)),
     )
     monkeypatch.setattr(
         services, "cancel_schedule_item",
-        lambda rid, incident_id=None, *, cancellation_reason: calls.append(("cancel", rid, cancellation_reason)),
+        lambda rid, incident_id=None, *, cancellation_reason, **kw: calls.append(("cancel", rid, cancellation_reason)),
     )
 
     ctrl = ScheduleController("INC1")
@@ -105,7 +105,7 @@ def test_mutations_delegate_to_shared_services_not_local_logic(monkeypatch) -> N
 def test_action_failure_reports_status_and_does_not_raise(monkeypatch) -> None:
     monkeypatch.setattr(services, "list_schedule_items", lambda incident_id=None: [])
 
-    def boom(rid, incident_id=None):
+    def boom(rid, incident_id=None, **kw):
         raise APIError("conflict", status_code=409)
 
     monkeypatch.setattr(services, "start_schedule_item", boom)
@@ -114,8 +114,13 @@ def test_action_failure_reports_status_and_does_not_raise(monkeypatch) -> None:
     ctrl.statusMessage.connect(lambda m, e: messages.append((m, e)))
     ok = ctrl.start(1)
     assert ok is False
-    assert messages[-1][1] is True
-    assert "409" in messages[-1][0]
+    # A 409 also triggers an immediate refresh() (to resync to the
+    # server's real state), which emits its own success status
+    # afterward -- the error message isn't necessarily the *last* one,
+    # just one of them.
+    error_messages = [m for m, is_error in messages if is_error]
+    assert error_messages
+    assert "409" in error_messages[0]
 
 
 def test_live_update_refreshes_only_for_schedule_collection(monkeypatch) -> None:

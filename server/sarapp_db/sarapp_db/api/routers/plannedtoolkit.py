@@ -289,6 +289,7 @@ def _map_doc(doc: Dict[str, Any], config: dict[str, Any]) -> Dict[str, Any]:
         "meeting_id": doc.get("meeting_id", ""),
         "gis_feature_id": doc.get("gis_feature_id", ""),
         "quick_assignment_id": doc.get("quick_assignment_id", ""),
+        "revision": int(doc.get("revision", 0)),
         "kind": doc.get("kind", ""),
         "owner": doc.get("owner", ""),
         "tags": doc.get("tags", []),
@@ -384,7 +385,28 @@ class ScheduleStatusActionRequest(BaseModel):
     actual_end_at: Optional[str] = None
     delay_reason: Optional[str] = None
     cancellation_reason: Optional[str] = None
+    revised_start_at: Optional[str] = None
     changed_by: Optional[str] = None
+    expected_revision: Optional[int] = None
+
+
+class ScheduleCorrectionRequest(BaseModel):
+    """Body for the /correct endpoint -- an explicit, reason-logged override
+    that bypasses the routine transition table, for the two cases that need
+    one: reopening a terminal (Completed/Cancelled) status, and fixing an
+    actual timestamp that was recorded wrong. `reason` is mandatory; there is
+    no role/permission system in this router to check "authorized" against,
+    so the explicit action plus a mandatory, audited reason is what "authorized
+    correction" means here, consistent with delay/cancel's existing reason
+    requirements.
+    """
+
+    reason: str
+    status: Optional[str] = None
+    actual_start_at: Optional[str] = None
+    actual_end_at: Optional[str] = None
+    corrected_by: Optional[str] = None
+    expected_revision: Optional[int] = None
 
 
 # The five statuses the Phase 1A/1B brief specifies. Kept as an explicit
@@ -399,10 +421,49 @@ SCHEDULE_STATUSES = ("Scheduled", "In Progress", "Completed", "Delayed", "Cancel
 _SCHEDULE_STATUS_TRANSITIONS: dict[str, set[str]] = {
     "Scheduled": {"In Progress", "Delayed", "Cancelled"},
     "In Progress": {"Completed", "Delayed", "Cancelled"},
-    "Delayed": {"In Progress", "Completed", "Cancelled"},
+    "Delayed": {"Scheduled", "In Progress", "Cancelled"},
     "Completed": set(),
     "Cancelled": set(),
 }
+
+# A terminal status (Completed/Cancelled) has no routine transition out --
+# reaching a different status from one requires the explicit, reason-logged
+# /correct endpoint below, not a plain PATCH or event-day action. This set
+# mirrors the brief's matrix: Delayed can no longer reach Completed directly
+# (resume first), matching "Resume Activity: return a delayed activity to
+# Scheduled or In Progress as appropriate" instead of letting Delayed skip
+# straight to Completed.
+_TERMINAL_SCHEDULE_STATUSES = {"Completed", "Cancelled"}
+
+
+def _check_schedule_concurrency(existing: Dict[str, Any], expected_revision: Any, config: Dict[str, Any]) -> None:
+    """Optimistic concurrency via a small integer `revision` counter.
+
+    `updated_at` (every document's existing timestamp field) was tried
+    first and rejected: `BaseRepository` stamps it at one-second
+    resolution, so two writes to the same record within the same second —
+    entirely realistic for two operators clicking around, let alone two
+    automated calls in a row — produce an identical value and the "stale
+    update" case silently passes. `revision` is incremented by exactly 1 on
+    every write (see the call sites below) and is reliable regardless of
+    timing. Optional for backward compatibility: a caller that never sends
+    `expected_revision` gets no check, preserving prior last-write-wins
+    behavior.
+    """
+    if expected_revision in (None, ""):
+        return
+    try:
+        expected_revision = int(expected_revision)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=422, detail="expected_revision must be an integer")
+    if int(existing.get("revision", 0)) != expected_revision:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "This activity was changed by another operator. Reload to see the latest version.",
+                "current": _map_doc(existing, config),
+            },
+        )
 
 
 def _validate_schedule_status_transition(current: str, target: str) -> None:
@@ -490,6 +551,7 @@ def _map_schedule_trigger(doc: Dict[str, Any]) -> Dict[str, Any]:
         "relative_to": doc.get("relative_to", "start"),
         "enabled": doc.get("enabled", True),
         "fired_at": doc.get("fired_at", ""),
+        "fire_error": doc.get("fire_error", ""),
         "severity": doc.get("severity", ""),
         "audience_role": doc.get("audience_role", ""),
         "audience_user_id": doc.get("audience_user_id", ""),
@@ -625,6 +687,7 @@ def create_schedule(incident_id: str, body: ScheduleItemCreate):
         "delay_reason": body.delay_reason or "",
         "cancellation_reason": body.cancellation_reason or "",
         "tags": body.tags or [],
+        "revision": 0,
         "created_at": now,
         "updated_at": now,
         "deleted": False,
@@ -650,6 +713,8 @@ def update_schedule(incident_id: str, record_id: int, patch: Dict[str, Any] = Bo
     if not existing:
         raise HTTPException(status_code=404, detail="Schedule item not found")
 
+    _check_schedule_concurrency(existing, patch.get("expected_revision"), config)
+
     updates = {key: value for key, value in patch.items() if key in _SCHEDULE_PATCH_FIELDS}
     changed_by = str(patch.get("changed_by") or "")
 
@@ -669,6 +734,7 @@ def update_schedule(incident_id: str, record_id: int, patch: Dict[str, Any] = Bo
         for key, value in updates.items()
         if existing.get(key) != value
     ]
+    updates["revision"] = int(existing.get("revision", 0)) + 1
     repo.update_one(existing["_id"], updates)
     doc = repo.find_by_id(existing["_id"])
     if "starts_at" in updates or "ends_at" in updates or "status" in updates:
@@ -706,6 +772,7 @@ def _schedule_status_action(
     existing = _find_by_compound_id(repo, incident_id, config, record_id)
     if not existing:
         raise HTTPException(status_code=404, detail="Schedule item not found")
+    _check_schedule_concurrency(existing, body.expected_revision, config)
 
     current_status = existing.get("status", "")
     if current_status not in allowed_from:
@@ -733,6 +800,12 @@ def _schedule_status_action(
         if not delay_reason.strip():
             raise HTTPException(status_code=422, detail="delay_reason is required to mark a schedule item delayed")
         updates["delay_reason"] = delay_reason
+        if body.revised_start_at:
+            # A revised expected start is just a normal reschedule of
+            # starts_at -- reuses the existing field and its existing
+            # trigger-resync behavior rather than a new "revised time" model.
+            _validate_schedule_time_range(body.revised_start_at, existing.get("ends_at"), label="Planned")
+            updates["starts_at"] = body.revised_start_at
     if require_cancellation_reason:
         cancellation_reason = body.cancellation_reason or existing.get("cancellation_reason") or ""
         if not cancellation_reason.strip():
@@ -744,9 +817,10 @@ def _schedule_status_action(
         for key, value in updates.items()
         if existing.get(key) != value
     ]
+    updates["revision"] = int(existing.get("revision", 0)) + 1
     repo.update_one(existing["_id"], updates)
     doc = repo.find_by_id(existing["_id"])
-    if target_status == "Cancelled":
+    if target_status == "Cancelled" or "starts_at" in updates:
         _sync_triggers_after_schedule_change(incident_id, existing[config["id_field"]], doc)
     _audit(
         incident_id,
@@ -769,10 +843,19 @@ def start_schedule_item(incident_id: str, record_id: int, body: ScheduleStatusAc
 
 @router.post("/incidents/{incident_id}/planned/promotions/schedule/{record_id}/resume")
 def resume_schedule_item(incident_id: str, record_id: int, body: ScheduleStatusActionRequest = ScheduleStatusActionRequest()):
+    """Resume returns a delayed activity to In Progress if it had already
+    actually started before the delay, or back to Scheduled if it never
+    did -- "as appropriate" per the brief, not an unconditional In Progress."""
+    config = _tool_config("promotions/schedule")
+    repo = _repo_for_config(incident_id, config)
+    existing = _find_by_compound_id(repo, incident_id, config, record_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Schedule item not found")
+    target_status = "In Progress" if existing.get("actual_start_at") else "Scheduled"
     return _schedule_status_action(
         incident_id, record_id,
-        allowed_from={"Delayed"}, target_status="In Progress", body=body,
-        stamp_actual_start=True,
+        allowed_from={"Delayed"}, target_status=target_status, body=body,
+        stamp_actual_start=(target_status == "In Progress"),
     )
 
 
@@ -780,7 +863,7 @@ def resume_schedule_item(incident_id: str, record_id: int, body: ScheduleStatusA
 def complete_schedule_item(incident_id: str, record_id: int, body: ScheduleStatusActionRequest = ScheduleStatusActionRequest()):
     return _schedule_status_action(
         incident_id, record_id,
-        allowed_from={"In Progress", "Delayed"}, target_status="Completed", body=body,
+        allowed_from={"In Progress"}, target_status="Completed", body=body,
         stamp_actual_end=True,
     )
 
@@ -801,6 +884,59 @@ def cancel_schedule_item(incident_id: str, record_id: int, body: ScheduleStatusA
         allowed_from={"Scheduled", "In Progress", "Delayed"}, target_status="Cancelled", body=body,
         require_cancellation_reason=True,
     )
+
+
+@router.post("/incidents/{incident_id}/planned/promotions/schedule/{record_id}/correct")
+def correct_schedule_item(incident_id: str, record_id: int, body: ScheduleCorrectionRequest):
+    """Explicit, reason-logged override for the two things the routine
+    transition table and event-day actions deliberately forbid: reopening a
+    terminal (Completed/Cancelled) status, and fixing an actual timestamp
+    that was recorded wrong. Any other field (planned times, responsibility,
+    links) is still corrected through the normal PATCH -- this endpoint
+    exists only for what that path can't do.
+    """
+    if not body.reason.strip():
+        raise HTTPException(status_code=422, detail="reason is required to correct a schedule item")
+
+    config = _tool_config("promotions/schedule")
+    repo = _repo_for_config(incident_id, config)
+    existing = _find_by_compound_id(repo, incident_id, config, record_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Schedule item not found")
+    _check_schedule_concurrency(existing, body.expected_revision, config)
+
+    updates: Dict[str, Any] = {}
+    if body.status is not None:
+        if body.status not in SCHEDULE_STATUSES:
+            raise HTTPException(status_code=422, detail=f"Unknown schedule status: {body.status!r}")
+        updates["status"] = body.status
+    if body.actual_start_at is not None:
+        updates["actual_start_at"] = body.actual_start_at
+    if body.actual_end_at is not None:
+        updates["actual_end_at"] = body.actual_end_at
+    if not updates:
+        raise HTTPException(status_code=422, detail="Provide at least one of status, actual_start_at, actual_end_at to correct")
+
+    actual_start_at = updates.get("actual_start_at", existing.get("actual_start_at"))
+    actual_end_at = updates.get("actual_end_at", existing.get("actual_end_at"))
+    _validate_schedule_time_range(actual_start_at, actual_end_at, label="Actual")
+
+    field_changes = [
+        {"field": key, "old": existing.get(key), "new": value}
+        for key, value in updates.items()
+        if existing.get(key) != value
+    ]
+    field_changes.append({"field": "reason", "old": None, "new": body.reason})
+    updates["revision"] = int(existing.get("revision", 0)) + 1
+    repo.update_one(existing["_id"], updates)
+    doc = repo.find_by_id(existing["_id"])
+    if "status" in updates:
+        _sync_triggers_after_schedule_change(incident_id, existing[config["id_field"]], doc)
+    _audit(
+        incident_id, entity_id=existing[config["id_field"]], action="schedule_item.corrected",
+        changed_by=body.corrected_by or "", field_changes=field_changes,
+    )
+    return _map_doc(doc, config)
 
 
 @router.post("/incidents/{incident_id}/planned/promotions/schedule/{record_id}/create-quick-assignment", status_code=201)

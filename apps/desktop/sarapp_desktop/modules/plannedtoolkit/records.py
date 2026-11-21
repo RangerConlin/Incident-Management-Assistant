@@ -131,6 +131,7 @@ class ScheduledItem:
     cancellation_reason: str = ""
     tags: list[str] = field(default_factory=list)
     notes: str = ""
+    revision: int = 0
     created_at: str = ""
     updated_at: str = ""
 
@@ -151,6 +152,7 @@ class ScheduleTrigger:
     relative_to: str = "start"
     enabled: bool = True
     fired_at: str = ""
+    fire_error: str = ""
     severity: str = ""
     audience_role: str = ""
     audience_user_id: str = ""
@@ -245,6 +247,7 @@ def schedule_from_dict(data: dict[str, Any]) -> ScheduledItem:
         cancellation_reason=str(data.get("cancellation_reason") or ""),
         tags=list(data.get("tags") or []),
         notes=str(data.get("summary") or data.get("notes") or ""),
+        revision=int(data.get("revision") or 0),
         created_at=str(data.get("created_at") or ""),
         updated_at=str(data.get("updated_at") or ""),
     )
@@ -263,6 +266,7 @@ def trigger_from_dict(data: dict[str, Any]) -> ScheduleTrigger:
         relative_to=str(data.get("relative_to") or "start"),
         enabled=bool(data.get("enabled", True)),
         fired_at=str(data.get("fired_at") or ""),
+        fire_error=str(data.get("fire_error") or ""),
         severity=str(data.get("severity") or ""),
         audience_role=str(data.get("audience_role") or ""),
         audience_user_id=str(data.get("audience_user_id") or ""),

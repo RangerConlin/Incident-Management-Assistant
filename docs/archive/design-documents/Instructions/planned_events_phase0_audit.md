@@ -6,6 +6,75 @@ the Registration system, which doesn't exist yet and is correctly out of scope h
 document is the audit report, reuse matrix, domain-boundary decisions, shared service
 contracts, and hardening backlog required before Phase 1 implementation begins.
 
+**Phase 1E (Execution Controls and Schedule Reliability) — completed 2026-11-21, and with it
+Phase 1 as a whole.** Hardens Phase 1A–1D for real operational use: a tighter lifecycle, an
+explicit correction path, optimistic concurrency, and a genuine (not assumed) fix to a
+trigger-delivery race. Four real pre-existing/newly-introduced bugs were found and fixed in
+the course of this hardening pass — see below; each was caught by a test written for the
+requirement it violated, not found by inspection first.
+- **Lifecycle tightened to the brief's exact matrix**: `Delayed -> Completed` is no longer a
+  direct transition (resume first); `Resume` now targets `In Progress` if the activity had
+  actually started before the delay, or back to `Scheduled` if it never did ("as appropriate",
+  not an unconditional `In Progress` as Phase 1A/1B shipped it). `Delay` accepts an optional
+  `revised_start_at`, which just reschedules `starts_at` through the existing field and its
+  existing trigger-resync — no new "revised time" model.
+- **New `/correct` endpoint** is the one sanctioned way to reopen a terminal (Completed/
+  Cancelled) status or fix a wrong actual timestamp, bypassing the routine transition table on
+  purpose. No role/permission system exists anywhere in this router to check "authorized"
+  against, so "authorized correction" here means: a separate, deliberate action that requires
+  a mandatory `reason`, audited as `schedule_item.corrected` — the same shape delay/cancel's
+  existing reason requirements already established, not a new access-control system.
+- **Optimistic concurrency via a `revision` integer**, not `updated_at`. `updated_at` was the
+  first thing tried, since every document already has one — and was rejected once proven
+  empirically unreliable: `BaseRepository` stamps it at one-second resolution, so two writes
+  to the same record inside the same second (realistic for two operators, let alone two
+  automated calls back to back) produce an identical value and a "stale update" silently
+  passes. `revision` starts at 0 and is incremented by exactly 1 on every write to a schedule
+  item (`update_schedule`, every event-day action, `/correct`); an optional `expected_revision`
+  on any of those requests is compared against it, and a mismatch returns 409 with the
+  server's current record so the client can reload — entirely opt-in, so a caller that never
+  sends it keeps the prior last-write-wins behavior.
+- **Trigger-delivery race fixed for real**: `trigger_engine.py`'s old docstring claimed "only
+  one `lan_server` process runs per incident... a stronger distributed lock isn't needed" —
+  false for any cloud-connected incident, where `lan_server` *and* `cloud_server` each run
+  their own `NotificationTriggerLoop` (confirmed in the Phase 0.5 update note above). The old
+  code queried due triggers, then separately wrote `fired_at` after emitting — two evaluators
+  racing on the same trigger could each pass the query before either wrote the flag, and both
+  would emit. Fixed with `_claim_trigger`: a single atomic `find_one_and_update` that sets
+  `fired_at` only if unset, so at most one evaluator ever proceeds to emit; the other sees
+  `None` and moves on. Emission happens only after a successful claim, so a crash between claim
+  and emission costs a missed notification, never a duplicate — the brief's explicit
+  requirement. A failed emission after a successful claim is recorded on the trigger
+  (`fire_error`, new field) rather than retried, for the same reason.
+- **Four bugs found and fixed while hardening**, each via a test that exercised the exact
+  requirement it violated:
+  1. The `updated_at`-resolution problem above (concurrency design, not shipped code — caught
+     before the first commit of this phase by the test for "stale update rejected").
+  2. The genuine trigger-delivery race above (`trigger_engine.py`, pre-existing since Phase 0.5).
+  3. `ScheduleController.refresh()` wiped `_items` to `[]` on *any* fetch failure, including a
+     transient disconnect — directly violating this phase's own "temporary connection failures
+     do not destroy the displayed schedule" requirement. Now preserves the last known-good list
+     and only reports the error.
+  4. Eight call sites across `ActivityDetailDialog`/`ScheduleListWidget` called `self.accept()`
+     (closing the dialog) *unconditionally* after a mutation, even when the controller method
+     returned `False` for failure — silently discarding the user's attempted action with no
+     way to retry. Every action now only closes its dialog on success.
+  5. `OperationalTimelineWidget`'s NOW-marker row only ever wrote column 0 before `continue`-ing
+     the render loop; a filter change that reused that row index for a different item in a
+     prior render left that item's text sitting in columns 1+ of the marker row — invisible
+     (the column span hides it) but still returned by a direct `table.item(row, col)` read.
+     Fixed by blanking the marker row's other columns on every render.
+- Tests: `test_plannedtoolkit_phase1e.py` (14, backend lifecycle/correction/concurrency),
+  `test_trigger_engine_reliability.py` (5, backend — simulated racing evaluators, restart-
+  between-claim-and-delivery, failure distinguishability), `test_schedule_controller_phase1e.py`
+  (4, desktop — refresh resilience, conflict resync), `test_timeline_phase1e.py` (4, desktop —
+  the marker-row regression, the Correct dialog), all passing alongside a full re-run of every
+  earlier Planned Events Toolkit test (116 total across backend + desktop).
+- Out of scope per the brief (not implemented): recurring generation, advanced dependencies,
+  automated readiness gates, automatic assignment generation, Registration, Vendor/Permit
+  management, calendar integration, a second notification or synchronization system, a
+  separate scheduling database.
+
 **Phase 1D (Event Schedule Integration) — completed 2026-11-21.** Connects schedule activities
 to Meeting Planner, Personnel, Teams, GIS, and Quick Assignments — "the Event Schedule
 coordinates existing records, it does not replace the systems that own them." No new backend
