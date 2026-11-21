@@ -32,6 +32,7 @@ def _clear(incident_id: str) -> None:
     db = get_incident_db(incident_id)
     for collection in (
         IncidentCollections.PLANNED_QUICK_ASSIGNMENTS,
+        IncidentCollections.PLANNED_EVENT_SCHEDULES,
         IncidentCollections.OPERATIONS_TASKS,
     ):
         db[collection].delete_many({})
@@ -205,3 +206,52 @@ def test_promoted_assignment_is_read_only():
 
         res = client.patch(f"{BASE}/planned/quick-assignments/{record['id']}", json={"title": "Edited after promotion"})
         assert res.status_code == 409
+
+
+def test_assignment_can_optionally_link_to_an_existing_schedule_item():
+    """Phase 2B: an assignment may reference zero or one schedule item, and a
+    schedule item may have multiple assignments pointing back at it, via a
+    stable schedule_item_id rather than duplicated schedule data."""
+    app = create_app()
+    with TestClient(app) as client:
+        res = client.post(
+            f"{BASE}/planned/promotions/schedule",
+            json={"name": "Opening Briefing", "starts_at": "2026-12-01T09:00:00"},
+        )
+        assert res.status_code == 201, res.text
+        schedule_item = res.json()
+
+        res = client.post(
+            f"{BASE}/planned/quick-assignments",
+            json={"title": "Set up chairs", "schedule_item_id": schedule_item["record_id"]},
+        )
+        assert res.status_code == 201, res.text
+        assignment_one = res.json()
+        assert assignment_one["schedule_item_id"] == schedule_item["record_id"]
+
+        res = client.post(f"{BASE}/planned/quick-assignments", json={"title": "Untethered assignment"})
+        assert res.status_code == 201, res.text
+        assert res.json()["schedule_item_id"] == ""
+
+        res = client.post(
+            f"{BASE}/planned/quick-assignments",
+            json={"title": "Set up PA system", "schedule_item_id": schedule_item["record_id"]},
+        )
+        assert res.status_code == 201, res.text
+        assignment_two = res.json()
+
+        res = client.get(f"{BASE}/planned/quick-assignments", params={"schedule_item_id": schedule_item["record_id"]})
+        assert res.status_code == 200
+        linked_ids = {r["id"] for r in res.json()}
+        assert linked_ids == {assignment_one["id"], assignment_two["id"]}
+
+        res = client.patch(
+            f"{BASE}/planned/quick-assignments/{assignment_one['id']}",
+            json={"schedule_item_id": ""},
+        )
+        assert res.status_code == 200, res.text
+        assert res.json()["schedule_item_id"] == ""
+
+        res = client.get(f"{BASE}/planned/quick-assignments", params={"schedule_item_id": schedule_item["record_id"]})
+        assert res.status_code == 200
+        assert {r["id"] for r in res.json()} == {assignment_two["id"]}

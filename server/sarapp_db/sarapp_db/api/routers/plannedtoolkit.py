@@ -277,6 +277,7 @@ def _map_doc(doc: Dict[str, Any], config: dict[str, Any]) -> Dict[str, Any]:
         "meeting_id": doc.get("meeting_id", ""),
         "gis_feature_id": doc.get("gis_feature_id", ""),
         "quick_assignment_id": doc.get("quick_assignment_id", ""),
+        "schedule_item_id": doc.get("schedule_item_id", ""),
         "revision": int(doc.get("revision", 0)),
         "kind": doc.get("kind", ""),
         "owner": doc.get("owner", ""),
@@ -333,6 +334,7 @@ class PlannedRecordCreate(BaseModel):
     source_id: Optional[str] = None
     source_label: Optional[str] = None
     source_tool: Optional[str] = None
+    schedule_item_id: Optional[str] = None
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
@@ -565,12 +567,20 @@ def _map_schedule_trigger(doc: Dict[str, Any]) -> Dict[str, Any]:
 
 
 @router.get("/incidents/{incident_id}/planned/{tool}")
-def list_records(incident_id: str, tool: str, status: Optional[str] = None, search: Optional[str] = None):
+def list_records(
+    incident_id: str,
+    tool: str,
+    status: Optional[str] = None,
+    search: Optional[str] = None,
+    schedule_item_id: Optional[str] = None,
+):
     config = _tool_config(tool)
     repo = _repo_for_config(incident_id, config)
     query: Dict[str, Any] = {"incident_id": incident_id, "deleted": {"$ne": True}}
     if status:
         query["status"] = status
+    if schedule_item_id:
+        query["schedule_item_id"] = schedule_item_id
     if search:
         query["$or"] = [
             {"title": {"$regex": search, "$options": "i"}},
@@ -617,6 +627,7 @@ def create_record(incident_id: str, tool: str, body: PlannedRecordCreate):
         "source_id": body.source_id or "",
         "source_label": body.source_label or "",
         "source_tool": body.source_tool or "",
+        "schedule_item_id": body.schedule_item_id or "",
         "linked_tasking_id": "",
         "promoted_at": "",
         "promoted_by": "",
@@ -1027,6 +1038,7 @@ def update_record(incident_id: str, tool: str, record_id: int, patch: Dict[str, 
         "source_id",
         "source_label",
         "source_tool",
+        "schedule_item_id",
         "metadata",
     }
     existing = _find_by_compound_id(repo, incident_id, config, record_id)

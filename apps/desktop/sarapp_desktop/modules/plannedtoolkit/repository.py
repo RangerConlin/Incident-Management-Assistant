@@ -44,12 +44,15 @@ class PlannedToolkitRepository:
         *,
         status: str | None = None,
         search: str | None = None,
+        schedule_item_id: str | None = None,
     ) -> list[PlannedRecord]:
         params: dict[str, str] = {}
         if status:
             params["status"] = status
         if search:
             params["search"] = search
+        if schedule_item_id:
+            params["schedule_item_id"] = schedule_item_id
         rows = _client().get(_base(self._incident(), tool), params=params or None) or []
         return [record_from_dict(row) for row in rows]
 

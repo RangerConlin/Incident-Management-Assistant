@@ -34,11 +34,12 @@ from PySide6.QtWidgets import (
 )
 
 from .. import services
+from .assignment_detail_dialog import AssignmentDetailDialog
 from .reminder_dialog import ReminderDialog
 from .schedule_dialogs import ScheduleItemDialog, prompt_cancellation_reason, prompt_delay_reason
 from .schedule_time_utils import friendly_dt, friendly_time, is_overdue, parse_dt, planned_vs_actual_text
 from ..record_resolvers import resolve_gis_feature, resolve_meeting
-from ..records import ScheduledItem
+from ..records import PlannedRecord, ScheduledItem
 from ..schedule_controller import ScheduleController
 from utils.styles import event_schedule_status_colors, subscribe_theme
 
@@ -91,6 +92,7 @@ class ActivityDetailDialog(QDialog):
         self.controller.statusMessage.connect(self._set_status)
         self._refresh_related_records()
         self._refresh_reminders()
+        self._refresh_linked_assignments()
 
     def _set_status(self, message: str, is_error: bool) -> None:
         self._status_label.setText(message)
@@ -124,6 +126,7 @@ class ActivityDetailDialog(QDialog):
         layout.addLayout(form)
 
         layout.addWidget(self._build_related_records_group())
+        layout.addWidget(self._build_linked_assignments_group())
         layout.addWidget(self._build_reminders_group())
 
         actions = QHBoxLayout()
@@ -283,6 +286,96 @@ class ActivityDetailDialog(QDialog):
             self.item.id, {"gis_feature_id": ""}, expected_revision=self.item.revision
         ):
             self.accept()
+
+    # -- Linked Assignments (PlannedRecord.schedule_item_id) --------------
+    #
+    # Distinct from the single `quick_assignment_id` link above (an
+    # activity's one auto-creatable companion assignment): any number of
+    # existing Assignments can optionally point back at this activity via
+    # their own `schedule_item_id`, independent of their own lifecycle.
+
+    def _build_linked_assignments_group(self) -> QGroupBox:
+        group = QGroupBox("Linked Assignments")
+        layout = QVBoxLayout(group)
+
+        self._linked_assignments_table = QTableWidget(0, 4)
+        self._linked_assignments_table.setHorizontalHeaderLabels(["Assignment", "Status", "Assignee", "Due"])
+        self._linked_assignments_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self._linked_assignments_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self._linked_assignments_table.setMaximumHeight(120)
+        self._linked_assignments_table.itemDoubleClicked.connect(lambda _item: self._open_linked_assignment())
+        layout.addWidget(self._linked_assignments_table)
+
+        actions = QHBoxLayout()
+        open_btn = QPushButton("Open")
+        add_btn = QPushButton("Add Assignment")
+        open_btn.clicked.connect(self._open_linked_assignment)
+        add_btn.clicked.connect(self._add_linked_assignment)
+        actions.addWidget(open_btn)
+        actions.addWidget(add_btn)
+        actions.addStretch(1)
+        layout.addLayout(actions)
+
+        return group
+
+    def _refresh_linked_assignments(self) -> None:
+        try:
+            records = services.list_records(
+                "quick-assignments",
+                self.controller.incident_id,
+                schedule_item_id=self.item.record_id,
+            )
+        except Exception:
+            records = []
+        self._linked_assignments: list[PlannedRecord] = list(records)
+        self._linked_assignments_table.setRowCount(len(self._linked_assignments))
+        for row, record in enumerate(self._linked_assignments):
+            due = friendly_dt(record.due_at) or "—"
+            values = [record.title, record.status or "—", record.assigned_to or "—", due]
+            for col, value in enumerate(values):
+                self._linked_assignments_table.setItem(row, col, QTableWidgetItem(str(value)))
+
+    def _selected_linked_assignment(self) -> PlannedRecord | None:
+        row = self._linked_assignments_table.currentRow()
+        if row < 0 or row >= len(self._linked_assignments):
+            return None
+        return self._linked_assignments[row]
+
+    def _open_linked_assignment(self) -> None:
+        record = self._selected_linked_assignment()
+        if record is None:
+            return
+        dialog = AssignmentDetailDialog(self, incident_id=self.controller.incident_id, record=record)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        payload = dialog.result_payload()
+        if not payload or record.id is None:
+            return
+        try:
+            services.update_record("quick-assignments", int(record.id), payload, self.controller.incident_id)
+        except Exception as exc:
+            QMessageBox.warning(self, "Assignment", f"Could not update assignment: {exc}")
+            return
+        self._refresh_linked_assignments()
+
+    def _add_linked_assignment(self) -> None:
+        dialog = AssignmentDetailDialog(
+            self,
+            incident_id=self.controller.incident_id,
+            record=None,
+            default_schedule_item_id=self.item.record_id,
+        )
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        payload = dialog.result_payload()
+        if not payload:
+            return
+        try:
+            services.create_record("quick-assignments", self.controller.incident_id, **payload)
+        except Exception as exc:
+            QMessageBox.warning(self, "Assignment", f"Could not create assignment: {exc}")
+            return
+        self._refresh_linked_assignments()
 
     # -- Reminders (ScheduleTrigger) ---------------------------------------
 
