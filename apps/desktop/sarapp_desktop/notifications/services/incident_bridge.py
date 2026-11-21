@@ -3,11 +3,25 @@
 Most WebSocket events from the incident hub are collection-change events
 consumed by ``IncidentCache`` (see ``utils/incident_ws_client.py``). A
 ``"notification"``-type event instead represents a priority alert meant for
-whichever connected client belongs to a specific part of the ICS org chart
-(e.g. an urgent intel item alerting everyone under Operations/Planning/
-Intelligence, not just the three section chiefs) rather than every client.
-``IncidentWebSocketClient`` routes those events here instead of into
-``IncidentCache.apply_event``.
+a specific audience rather than every client. ``IncidentWebSocketClient``
+routes those events here instead of into ``IncidentCache.apply_event``.
+
+Two audience shapes share this one event type:
+- ``target_sections``: shown only to a client whose active user currently
+  holds an ICP staff position under one of the named sections (e.g. an
+  urgent intel item alerting everyone under Operations/Planning/
+  Intelligence, not just the three section chiefs) — set by callers like
+  ``intel.py``'s urgent-intel broadcast.
+- ``target_person_records``: shown only to a client whose active user's
+  ``person_record`` is in the list — set by
+  ``sarapp_db.services.notification_service.emit_notification``, whose
+  audience is already resolved to exact person_records server-side (by
+  role, team, or explicit user) for mobile push and ack tracking, so the
+  desktop toast reuses that same resolved list instead of re-deriving an
+  audience from section titles.
+
+An event with neither field is a broadcast-to-all alert and is shown on
+every connected client.
 """
 
 from __future__ import annotations
@@ -32,9 +46,14 @@ def handle_notification_event(incident_id: str, payload: Dict[str, Any]) -> None
     the ICP.
     """
     try:
-        target_sections = payload.get("target_sections")
-        if target_sections and not _current_user_under_section(incident_id, target_sections):
-            return
+        target_person_records = payload.get("target_person_records")
+        if target_person_records:
+            if not _current_user_in_records(target_person_records):
+                return
+        else:
+            target_sections = payload.get("target_sections")
+            if target_sections and not _current_user_under_section(incident_id, target_sections):
+                return
 
         from notifications.models import Notification
         from notifications.services import get_notifier
@@ -50,6 +69,19 @@ def handle_notification_event(incident_id: str, payload: Dict[str, Any]) -> None
         ))
     except Exception:
         logger.exception("Failed to handle incident notification event")
+
+
+def _current_user_in_records(target_person_records: Iterable[Any]) -> bool:
+    from utils.state import AppState
+
+    uid = AppState.get_active_user_id()
+    if not (uid and str(uid).isdigit()):
+        return False
+    try:
+        targets = {int(record) for record in target_person_records}
+    except (TypeError, ValueError):
+        return False
+    return int(uid) in targets
 
 
 # Classifications that represent deployed field structure rather than

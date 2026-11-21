@@ -4,6 +4,19 @@ Status: Phase 0 complete (documentation only). No toolkit feature code was writt
 phase. This document is the audit report, reuse matrix, domain-boundary decisions, shared
 service contracts, and hardening backlog required before Phase 1 implementation begins.
 
+**Update 2026-11-21 (2)**: the desktop toast delivery bridge flagged missing in §1.2 finding 3
+and §1.4 is now wired up. `sarapp_db.services.notification_service.emit_notification` broadcasts
+a `type: "notification"` WebSocket event — the same event shape `intel.py`'s urgent-intel alert
+already defines and `notifications/services/incident_bridge.py` already consumes on the desktop
+side — alongside its existing mobile-push delivery, rather than inventing a second desktop
+delivery path. Resolved recipients (`person_record`s, already computed server-side for push/ack)
+are passed as a new `target_person_records` field; `incident_bridge.handle_notification_event`
+now checks that field first (exact match against the active user, no section lookup) and falls
+back to the existing `target_sections` resolution only when it's absent, so `intel.py`'s
+existing broadcast is unaffected. A notification with no resolved recipients still broadcasts to
+every connected client, matching the existing no-`target_sections` behavior. `emit_notification`
+is unchanged in every other respect; a broadcast failure still never blocks persistence.
+
 **Update 2026-11-21**: Phase 1 item (1), `plannedtoolkit.py`'s raw-write pattern, is resolved
 differently than originally scoped. The router already called `BaseRepository` methods
 (`insert_one`/`update_one`/`soft_delete`/`find_many`/`find_by_id`) for every write — the
@@ -381,7 +394,7 @@ These are the service interfaces Phase 1 needs from shared subsystems. Contracts
 | ~~`plannedtoolkit.py` still uses raw pymongo writes and O(n) compound-ID scanning (`_next_compound_id`) instead of `BaseRepository`~~ — resolved 2026-11-21: writes already used `BaseRepository`; `_next_compound_id` now uses an indexed `seq` field instead of scanning | `server/sarapp_db/sarapp_db/api/routers/plannedtoolkit.py`, `server/sarapp_db/sarapp_db/mongo/indexes.py` | **Resolved** |
 | No trigger evaluation/execution engine exists | (missing) | **Blocking Phase 1** for any "reminder actually fires" feature |
 | No shared, persisted, multi-user notification store | `IncidentCollections.NOTIFICATIONS` (dead), `plannedtoolkit.py` | **Blocking Phase 1** for cross-workstation notification delivery |
-| Desktop `Notifier` has no bridge from server-persisted/broadcast data | `notifications/services/notifier.py` | **Required during Phase 1** if toolkit notifications must produce toasts |
+| ~~Desktop `Notifier` has no bridge from server-persisted/broadcast data~~ — resolved 2026-11-21: `emit_notification` broadcasts the existing `type: "notification"` WS event with resolved recipients, consumed by `incident_bridge.py` | `server/sarapp_db/sarapp_db/services/notification_service.py`, `apps/desktop/sarapp_desktop/notifications/services/incident_bridge.py` | **Resolved** |
 | Inconsistent origin-link convention (`source_type/source_id` vs `origin_module/origin_id`) | `plannedtoolkit.py`, `operations.py` (`create_task`), `objectives.py` | **Required during Phase 1** — pick one before Registration/Quick Assignment linking expands |
 | Check-in roster hardcodes `team_id: None` | `server/sarapp_db/sarapp_db/api/routers/checkin.py` (`fetch_roster`) | **Required during Phase 1** — blocks reliable Registration→Team joins |
 | `ScheduleWidget` has no date pickers, recurrence UI, or trigger/notification UI | `modules/plannedtoolkit/widgets/schedule_widget.py` | **Important, non-blocking** for Phase 0→1 backend work; blocking for any user-facing schedule UI |
