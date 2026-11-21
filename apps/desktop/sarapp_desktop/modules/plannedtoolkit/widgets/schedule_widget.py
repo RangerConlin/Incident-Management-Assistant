@@ -207,7 +207,7 @@ class ScheduleListWidget(QWidget):
         if not self.controller.incident_id:
             self._set_status("Select an incident before creating activities.", True)
             return
-        dialog = ScheduleItemDialog(parent=self)
+        dialog = ScheduleItemDialog(incident_id=self.controller.incident_id, parent=self)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         self.controller.create(**dialog.values())
@@ -216,7 +216,7 @@ class ScheduleListWidget(QWidget):
         item = self._selected_item()
         if item is None or item.id is None:
             return
-        dialog = ScheduleItemDialog(item, parent=self)
+        dialog = ScheduleItemDialog(item, incident_id=self.controller.incident_id, parent=self)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         self.controller.update(item.id, dialog.values())

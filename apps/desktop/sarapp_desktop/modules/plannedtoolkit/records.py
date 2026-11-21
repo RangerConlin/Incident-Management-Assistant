@@ -124,6 +124,8 @@ class ScheduledItem:
     assigned_team_id: str = ""
     assigned_person_id: str = ""
     meeting_id: str = ""
+    gis_feature_id: str = ""
+    quick_assignment_id: str = ""
     status: str = ""
     delay_reason: str = ""
     cancellation_reason: str = ""
@@ -148,6 +150,8 @@ class ScheduleTrigger:
     trigger_at: str = ""
     relative_to: str = "start"
     enabled: bool = True
+    fired_at: str = ""
+    severity: str = ""
     audience_role: str = ""
     audience_user_id: str = ""
     notification_channel: str = ""
@@ -234,6 +238,8 @@ def schedule_from_dict(data: dict[str, Any]) -> ScheduledItem:
         assigned_team_id=str(data.get("assigned_team_id") or ""),
         assigned_person_id=str(data.get("assigned_person_id") or ""),
         meeting_id=str(data.get("meeting_id") or ""),
+        gis_feature_id=str(data.get("gis_feature_id") or ""),
+        quick_assignment_id=str(data.get("quick_assignment_id") or ""),
         status=str(data.get("status") or ""),
         delay_reason=str(data.get("delay_reason") or ""),
         cancellation_reason=str(data.get("cancellation_reason") or ""),
@@ -256,6 +262,8 @@ def trigger_from_dict(data: dict[str, Any]) -> ScheduleTrigger:
         trigger_at=str(data.get("trigger_at") or ""),
         relative_to=str(data.get("relative_to") or "start"),
         enabled=bool(data.get("enabled", True)),
+        fired_at=str(data.get("fired_at") or ""),
+        severity=str(data.get("severity") or ""),
         audience_role=str(data.get("audience_role") or ""),
         audience_user_id=str(data.get("audience_user_id") or ""),
         notification_channel=str(data.get("notification_channel") or ""),

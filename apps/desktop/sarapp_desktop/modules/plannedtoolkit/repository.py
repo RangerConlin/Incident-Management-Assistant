@@ -112,6 +112,8 @@ class PlannedToolkitRepository:
         assigned_team_id: str = "",
         assigned_person_id: str = "",
         meeting_id: str = "",
+        gis_feature_id: str = "",
+        quick_assignment_id: str = "",
         status: str = "",
         tags: list[str] | None = None,
     ) -> ScheduledItem:
@@ -131,6 +133,8 @@ class PlannedToolkitRepository:
                 "assigned_team_id": assigned_team_id,
                 "assigned_person_id": assigned_person_id,
                 "meeting_id": meeting_id,
+                "gis_feature_id": gis_feature_id,
+                "quick_assignment_id": quick_assignment_id,
                 "status": status,
                 "tags": tags or [],
             },
@@ -168,6 +172,16 @@ class PlannedToolkitRepository:
 
     def cancel_schedule_item(self, record_id: int, *, cancellation_reason: str) -> ScheduledItem:
         return self._schedule_action(record_id, "cancel", cancellation_reason=cancellation_reason)
+
+    def create_quick_assignment_from_schedule_item(self, record_id: int) -> dict[str, Any]:
+        """Returns {"schedule_item": ScheduledItem, "quick_assignment": PlannedRecord}."""
+        result = _client().post(
+            f"/api/incidents/{self._incident()}/planned/promotions/schedule/{record_id}/create-quick-assignment",
+        ) or {}
+        return {
+            "schedule_item": schedule_from_dict(result.get("schedule_item") or {}),
+            "quick_assignment": record_from_dict(result.get("quick_assignment") or {}),
+        }
 
     def list_schedule_triggers(self, schedule_item_id: str | None = None) -> list[ScheduleTrigger]:
         params = {"schedule_item_id": schedule_item_id} if schedule_item_id else None

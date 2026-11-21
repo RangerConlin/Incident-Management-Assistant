@@ -109,3 +109,6 @@ class ScheduleController(QObject):
         return self._run(
             services.cancel_schedule_item, record_id, self.incident_id, cancellation_reason=cancellation_reason
         )
+
+    def create_quick_assignment(self, record_id: int) -> bool:
+        return self._run(services.create_quick_assignment_from_schedule_item, record_id, self.incident_id)

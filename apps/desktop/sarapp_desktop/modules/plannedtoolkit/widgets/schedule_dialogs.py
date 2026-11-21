@@ -23,28 +23,37 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ..record_resolvers import list_gis_features, list_meetings
 from ..records import ScheduledItem
 from .schedule_time_utils import storage_dt, to_qdatetime
+from .team_picker import TeamPicker
+from modules.logistics.facilities.widgets.personnel_picker import PersonnelPicker
 
 ACTIVITY_TYPE_PRESETS = (
     "Milestone", "Briefing", "Opening", "Closure", "Shift Change",
     "Inspection", "Performance", "Announcement", "Demobilization", "Other",
 )
+_NONE_LABEL = "— None —"
 
 
 class ScheduleItemDialog(QDialog):
-    """Create or edit an activity's planned details.
+    """Create or edit an activity's planned details, including its links to
+    an existing Meeting, GIS location, Personnel record, and/or Team.
 
     Deliberately does not touch status/actual times/delay-cancel reasons —
     those are event-day actions with their own validated transitions, kept
     separate so this dialog can't put a record into an inconsistent state.
+    It also never touches `quick_assignment_id` — that link is set only via
+    the Activity Detail panel's link/create actions, not by editing planned
+    details.
     """
 
-    def __init__(self, item: ScheduledItem | None = None, parent: QWidget | None = None):
+    def __init__(self, item: ScheduledItem | None = None, incident_id: str | None = None, parent: QWidget | None = None):
         super().__init__(parent)
         self.setWindowTitle("Edit Activity" if item else "New Activity")
-        self.setMinimumWidth(420)
+        self.setMinimumWidth(460)
         self._item = item
+        self.incident_id = incident_id
         self._build_ui()
         if item is not None:
             self._load(item)
@@ -71,14 +80,19 @@ class ScheduleItemDialog(QDialog):
         self.time_zone_edit.setPlaceholderText("e.g. America/New_York")
 
         self.location_edit = QLineEdit()
+        self.location_edit.setPlaceholderText("Plain-text location (used unless a GIS location is linked below)")
+
         self.assigned_to_edit = QLineEdit()
         self.assigned_to_edit.setPlaceholderText("Responsible person or team (display name)")
-        self.assigned_team_id_edit = QLineEdit()
-        self.assigned_team_id_edit.setPlaceholderText("Team ID (optional)")
-        self.assigned_person_id_edit = QLineEdit()
-        self.assigned_person_id_edit.setPlaceholderText("Person record ID (optional)")
-        self.meeting_id_edit = QLineEdit()
-        self.meeting_id_edit.setPlaceholderText("Linked Meeting Planner ID (optional)")
+        self.person_picker = PersonnelPicker()
+        self.person_picker.personnelSelected.connect(self._on_person_selected)
+        self.team_picker = TeamPicker(self.incident_id)
+        self.team_picker.teamSelected.connect(self._on_team_selected)
+
+        self.meeting_combo = QComboBox()
+        self._populate_meeting_combo()
+        self.gis_combo = QComboBox()
+        self._populate_gis_combo()
 
         self.notes_edit = QTextEdit()
         self.notes_edit.setFixedHeight(70)
@@ -89,10 +103,11 @@ class ScheduleItemDialog(QDialog):
         form.addRow("Planned End", self.ends_edit)
         form.addRow("Time Zone", self.time_zone_edit)
         form.addRow("Location", self.location_edit)
-        form.addRow("Responsible", self.assigned_to_edit)
-        form.addRow("Team ID", self.assigned_team_id_edit)
-        form.addRow("Person ID", self.assigned_person_id_edit)
-        form.addRow("Linked Meeting ID", self.meeting_id_edit)
+        form.addRow("Linked GIS Location", self.gis_combo)
+        form.addRow("Responsible (display)", self.assigned_to_edit)
+        form.addRow("— or Personnel", self.person_picker)
+        form.addRow("— or Team", self.team_picker)
+        form.addRow("Linked Meeting", self.meeting_combo)
         form.addRow("Notes", self.notes_edit)
         layout.addLayout(form)
 
@@ -100,6 +115,41 @@ class ScheduleItemDialog(QDialog):
         buttons.accepted.connect(self._on_accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
+
+    def _populate_meeting_combo(self) -> None:
+        self.meeting_combo.clear()
+        self.meeting_combo.addItem(_NONE_LABEL, "")
+        for meeting in list_meetings(self.incident_id or ""):
+            label = f"{meeting.get('title', '')} ({meeting.get('meeting_date', '')})"
+            self.meeting_combo.addItem(label, str(meeting.get("id") or ""))
+
+    def _populate_gis_combo(self) -> None:
+        self.gis_combo.clear()
+        self.gis_combo.addItem(_NONE_LABEL, "")
+        for feature in list_gis_features(self.incident_id or ""):
+            label = f"{feature.get('label', '')} ({feature.get('feature_type', '')})"
+            self.gis_combo.addItem(label, str(feature.get("id") or ""))
+
+    def _select_combo_by_data(self, combo: QComboBox, value: str) -> None:
+        if not value:
+            combo.setCurrentIndex(0)
+            return
+        index = combo.findData(value)
+        if index < 0:
+            # Linked record no longer resolves (deleted/unavailable) --
+            # keep the stored id selectable rather than silently dropping
+            # the link the user didn't ask to remove.
+            combo.addItem(f"(unavailable) {value}", value)
+            index = combo.count() - 1
+        combo.setCurrentIndex(index)
+
+    def _on_person_selected(self, person_id: object, name: str) -> None:
+        if person_id:
+            self.assigned_to_edit.setText(name)
+
+    def _on_team_selected(self, team_id: object, name: str) -> None:
+        if team_id:
+            self.assigned_to_edit.setText(name)
 
     def _load(self, item: ScheduledItem) -> None:
         self.name_edit.setText(item.name)
@@ -109,12 +159,18 @@ class ScheduleItemDialog(QDialog):
             self.starts_edit.setDateTime(to_qdatetime(item.starts_at))
         if item.ends_at:
             self.ends_edit.setDateTime(to_qdatetime(item.ends_at))
+        elif item.starts_at:
+            # No stored end time -- derive the displayed default from the
+            # item's actual loaded start rather than leaving the stale
+            # "now + 30 min" default _build_ui() set before _load() ran.
+            self.ends_edit.setDateTime(self.starts_edit.dateTime().addSecs(1800))
         self.time_zone_edit.setText(item.time_zone)
         self.location_edit.setText(item.location)
         self.assigned_to_edit.setText(item.assigned_to)
-        self.assigned_team_id_edit.setText(item.assigned_team_id)
-        self.assigned_person_id_edit.setText(item.assigned_person_id)
-        self.meeting_id_edit.setText(item.meeting_id)
+        self.person_picker.set_value(item.assigned_person_id, item.assigned_to if item.assigned_person_id else "")
+        self.team_picker.set_value(item.assigned_team_id, item.assigned_to if item.assigned_team_id else "")
+        self._select_combo_by_data(self.meeting_combo, item.meeting_id)
+        self._select_combo_by_data(self.gis_combo, item.gis_feature_id)
         self.notes_edit.setPlainText(item.notes)
 
     def _on_accept(self) -> None:
@@ -135,9 +191,10 @@ class ScheduleItemDialog(QDialog):
             "time_zone": self.time_zone_edit.text().strip(),
             "location": self.location_edit.text().strip(),
             "assigned_to": self.assigned_to_edit.text().strip(),
-            "assigned_team_id": self.assigned_team_id_edit.text().strip(),
-            "assigned_person_id": self.assigned_person_id_edit.text().strip(),
-            "meeting_id": self.meeting_id_edit.text().strip(),
+            "assigned_team_id": self.team_picker.team_id,
+            "assigned_person_id": self.person_picker.personnel_id,
+            "meeting_id": self.meeting_combo.currentData() or "",
+            "gis_feature_id": self.gis_combo.currentData() or "",
             "notes": self.notes_edit.toPlainText().strip(),
         }
 

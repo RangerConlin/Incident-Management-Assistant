@@ -1420,4 +1420,17 @@ def make_meetings_panel(incident_id: str | None = None, parent: QWidget | None =
     return MeetingsPanel(incident_id=incident_id, parent=parent)
 
 
+def open_meeting_detail(meeting_id: int, incident_id: str | None = None, parent: QWidget | None = None) -> None:
+    """Open one meeting's detail window directly, without the full
+    MeetingsPanel list — used by other modules (e.g. the Planned Events
+    Toolkit's Event Schedule) that link to an existing meeting and need to
+    open it in place. Raises if the meeting can't be found; callers should
+    catch that and show their own "meeting not found" message rather than
+    assuming this never fails."""
+    repository = MeetingsRepository(incident_id=incident_id)
+    service = MeetingsService(repository)
+    dialog = _MeetingDetailWindow(int(meeting_id), repository, service, parent=parent)
+    dialog.exec()
+
+
 __all__ = ["MeetingsPanel", "make_meetings_panel"]

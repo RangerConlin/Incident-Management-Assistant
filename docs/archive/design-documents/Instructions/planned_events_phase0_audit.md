@@ -6,6 +6,67 @@ the Registration system, which doesn't exist yet and is correctly out of scope h
 document is the audit report, reuse matrix, domain-boundary decisions, shared service
 contracts, and hardening backlog required before Phase 1 implementation begins.
 
+**Phase 1D (Event Schedule Integration) — completed 2026-11-21.** Connects schedule activities
+to Meeting Planner, Personnel, Teams, GIS, and Quick Assignments — "the Event Schedule
+coordinates existing records, it does not replace the systems that own them." No new backend
+capability was built where one already existed; two real pre-existing bugs were found and
+fixed in passing because the integration work depended on the broken code paths being correct:
+`PersonnelPicker._on_completion_selected` read `result.get("id")`, but `/api/master/personnel`
+normalizes every record's id onto `person_record` (see `personnel.py`'s `_normalize`) — there
+is no `id` key, so every existing caller (including `facilities_manager_panel.py`, which
+persists `manager_personnel_id` from this) has always gotten an empty id. And
+`schedule_time_utils.to_qdatetime` called `QDateTime(year, month, day, hour, minute)` — a
+5-argument form this PySide6 version doesn't have — so opening the activity editor for any item
+with a start time already set would have crashed; fixed to build via `QDate`/`QTime` instead.
+A second Phase 1A/1B bug surfaced by the same testing pass: the editor's End field, when a
+loaded item had a start but no stored end, kept showing "now + 30 min" from before `_load()`
+ran instead of being derived from the item's actual start.
+- Backend (`plannedtoolkit.py`, purely additive, no renamed/removed fields): `gis_feature_id`
+  and `quick_assignment_id` join `meeting_id` as single-value link fields on `ScheduledItem`
+  (one field per link kind structurally prevents duplicate associations — no extra validation
+  needed). A new `severity` field on `ScheduleTrigger` is threaded through to
+  `notification_service.emit_notification` via `trigger_engine._fire_trigger` (closes a real
+  gap: the existing severity support had never been wired up for schedule triggers). Relative
+  reminders ("15 min before start") resolve to an absolute `trigger_at` at write time inside
+  `create_schedule_trigger`/`update_schedule_trigger` — the trigger engine itself is untouched
+  and still only ever reads absolute timestamps, so no second scheduler was built. Rescheduling
+  an activity recomputes every not-yet-fired relative trigger's `trigger_at`; cancelling or
+  deleting an activity disables (never deletes, never touches an already-`fired_at` trigger)
+  its pending triggers. A new `POST .../schedule/{id}/create-quick-assignment` endpoint creates
+  a Quick Assignment prefilled from the activity and sets both sides' link fields atomically;
+  a second call is rejected (409) rather than creating a duplicate. Every mutation here already
+  flowed through the existing generic `_audit` call Phase 1A/1B added, so meeting/GIS link
+  changes and responsibility changes were already producing audit records for free; trigger
+  create/update/cancel gained their own `_audit` calls in this phase.
+- Desktop: `PersonnelPicker` (from `modules.logistics.facilities.widgets`) is reused as-is
+  (after the id-field fix above) for the Personnel link; a new `TeamPicker`
+  (`widgets/team_picker.py`) mirrors its shape for Teams, since no reusable Team picker existed
+  anywhere in the app (checked first). `record_resolvers.py` is the one place that reads
+  Meeting/GIS/Personnel/Team data for display — every call is wrapped to return `None` on a
+  404/unreachable record rather than raising, so a deleted linked record degrades to "(not
+  found)" with a working Unlink button instead of crashing the dialog. Meeting navigation
+  reuses the Meeting Planner's own detail window via a new tiny public function,
+  `modules.planning.meetings.panel.open_meeting_detail` (previously only reachable from inside
+  that module's own list panel). Reminders get a dedicated `ReminderDialog`
+  (absolute / "before start" / "at start" modes, severity, audience) that edits the *same*
+  `ScheduleTrigger` record in place rather than ever creating a second one.
+- **Documented gap, not built around**: there is no existing desktop entry point that opens the
+  GIS module centered on a specific feature (checked before writing anything) — linking,
+  display, and unlink all work for a GIS location, but there is no "Open" action for it, unlike
+  Meeting. Building one would mean either a new map-opening mechanism (explicitly out of scope)
+  or modifying the GIS module itself (not part of this phase's brief). Likewise, "Open" for a
+  linked Quick Assignment opens the whole Quick Assignments panel (reusing
+  `windows.get_tasking_panel` as a plain top-level window) rather than deep-linking to the one
+  record, since no such deep-link exists either; this also means it can display awkwardly
+  under a modal `ActivityDetailDialog` — a real, documented UX limitation, not a crash risk.
+- Tests: `test_plannedtoolkit_schedule_integration.py` (9, backend — link round-trip, relative-
+  reminder resolution, reschedule/cancel cascades distinguishing fired-vs-pending triggers,
+  Quick-Assignment-from-activity with duplicate-link rejection, incident isolation, backward
+  compatibility) and `test_schedule_integration_widgets.py` (12, desktop — picker loading,
+  both bugs above pinned as regressions, resolved/missing-record display, unlink scoping,
+  reminder delivery-state display, edit-blocked-once-fired, `ReminderDialog` mode mapping).
+  All run for real under `QApplication`, same EGL-stub approach as Phase 1C.
+
 **Phase 1C (Operational Timeline) — completed 2026-11-21.** A dedicated timeline view inside
 the existing Event Schedule panel, reusing Phase 1A/1B's backend and service layer with zero
 server-side changes. Rather than let the new Timeline view and the existing Activity List view

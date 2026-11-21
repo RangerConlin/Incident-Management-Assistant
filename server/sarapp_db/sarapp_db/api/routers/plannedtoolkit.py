@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Body, HTTPException
@@ -147,6 +147,76 @@ def _audit(
         logger.exception("Failed to write audit record for %s/%s", entity_id, action)
 
 
+def _pending_triggers_for_schedule_item(incident_id: str, schedule_item_id: str) -> list[Dict[str, Any]]:
+    trig_config = _schedule_trigger_config()
+    trig_repo = _repo_for_config(incident_id, trig_config)
+    return trig_repo.find_many({
+        "incident_id": incident_id,
+        "schedule_item_id": schedule_item_id,
+        "fired_at": {"$exists": False},
+    })
+
+
+def _disable_pending_triggers(incident_id: str, schedule_item_id: str) -> None:
+    """Cancel triggers never used, per the brief: 'do not retract notifications
+    already delivered' — only triggers with no `fired_at` are touched."""
+    trig_config = _schedule_trigger_config()
+    trig_repo = _repo_for_config(incident_id, trig_config)
+    for trig in _pending_triggers_for_schedule_item(incident_id, schedule_item_id):
+        if trig.get("enabled", True):
+            trig_repo.update_one(trig["_id"], {"enabled": False})
+
+
+def _sync_triggers_after_schedule_change(incident_id: str, schedule_item_id: str, schedule_item_doc: Dict[str, Any]) -> None:
+    """After a reschedule or cancellation, keep this item's not-yet-fired
+    triggers consistent: cancelled -> disable them; rescheduled -> recompute
+    any relative (offset_minutes-based) trigger's absolute `trigger_at`.
+    Never touches an already-fired trigger.
+    """
+    if schedule_item_doc.get("status") == "Cancelled":
+        _disable_pending_triggers(incident_id, schedule_item_id)
+        return
+    trig_config = _schedule_trigger_config()
+    trig_repo = _repo_for_config(incident_id, trig_config)
+    for trig in _pending_triggers_for_schedule_item(incident_id, schedule_item_id):
+        offset = trig.get("offset_minutes")
+        if offset is None:
+            continue
+        anchor_field = "ends_at" if trig.get("relative_to") == "end" else "starts_at"
+        anchor_dt = _parse_schedule_timestamp(schedule_item_doc.get(anchor_field))
+        if anchor_dt is None:
+            continue
+        new_trigger_at = (anchor_dt + timedelta(minutes=int(offset))).isoformat()
+        if new_trigger_at != trig.get("trigger_at"):
+            trig_repo.update_one(trig["_id"], {"trigger_at": new_trigger_at})
+
+
+def _resolve_trigger_at(
+    incident_id: str,
+    schedule_item_id: str,
+    offset_minutes: Optional[int],
+    relative_to: str,
+    explicit_trigger_at: str,
+) -> str:
+    """Compute a relative reminder's absolute `trigger_at` at write time, so
+    the trigger engine keeps reading only absolute timestamps (no engine
+    changes needed) — see plannedtoolkit_phase0_audit.md Phase 1D notes."""
+    if explicit_trigger_at:
+        return explicit_trigger_at
+    if not schedule_item_id or offset_minutes is None:
+        return ""
+    schedule_config = _tool_config("promotions/schedule")
+    schedule_repo = _repo_for_config(incident_id, schedule_config)
+    item = schedule_repo.find_one({schedule_config["id_field"]: schedule_item_id, "incident_id": incident_id})
+    if not item:
+        return ""
+    anchor_field = "ends_at" if relative_to == "end" else "starts_at"
+    anchor_dt = _parse_schedule_timestamp(item.get(anchor_field))
+    if anchor_dt is None:
+        return ""
+    return (anchor_dt + timedelta(minutes=int(offset_minutes))).isoformat()
+
+
 def _repo(incident_id: str, collection_name: str) -> BaseRepository:
     return _REPOSITORIES[collection_name](get_incident_db(incident_id))
 
@@ -217,6 +287,8 @@ def _map_doc(doc: Dict[str, Any], config: dict[str, Any]) -> Dict[str, Any]:
         "delay_reason": doc.get("delay_reason", ""),
         "cancellation_reason": doc.get("cancellation_reason", ""),
         "meeting_id": doc.get("meeting_id", ""),
+        "gis_feature_id": doc.get("gis_feature_id", ""),
+        "quick_assignment_id": doc.get("quick_assignment_id", ""),
         "kind": doc.get("kind", ""),
         "owner": doc.get("owner", ""),
         "tags": doc.get("tags", []),
@@ -291,6 +363,8 @@ class ScheduleItemCreate(BaseModel):
     assigned_team_id: Optional[str] = None
     assigned_person_id: Optional[str] = None
     meeting_id: Optional[str] = None
+    gis_feature_id: Optional[str] = None
+    quick_assignment_id: Optional[str] = None
     status: Optional[str] = None
     delay_reason: Optional[str] = None
     cancellation_reason: Optional[str] = None
@@ -369,6 +443,7 @@ class ScheduleTriggerCreate(BaseModel):
     trigger_at: Optional[str] = None
     relative_to: str = "start"
     enabled: bool = True
+    severity: Optional[str] = None
     audience_role: Optional[str] = None
     audience_user_id: Optional[str] = None
     notification_channel: Optional[str] = None
@@ -414,6 +489,8 @@ def _map_schedule_trigger(doc: Dict[str, Any]) -> Dict[str, Any]:
         "trigger_at": doc.get("trigger_at", ""),
         "relative_to": doc.get("relative_to", "start"),
         "enabled": doc.get("enabled", True),
+        "fired_at": doc.get("fired_at", ""),
+        "severity": doc.get("severity", ""),
         "audience_role": doc.get("audience_role", ""),
         "audience_user_id": doc.get("audience_user_id", ""),
         "notification_channel": doc.get("notification_channel", ""),
@@ -542,6 +619,8 @@ def create_schedule(incident_id: str, body: ScheduleItemCreate):
         "assigned_team_id": body.assigned_team_id or "",
         "assigned_person_id": body.assigned_person_id or "",
         "meeting_id": body.meeting_id or "",
+        "gis_feature_id": body.gis_feature_id or "",
+        "quick_assignment_id": body.quick_assignment_id or "",
         "status": status,
         "delay_reason": body.delay_reason or "",
         "cancellation_reason": body.cancellation_reason or "",
@@ -558,8 +637,8 @@ def create_schedule(incident_id: str, body: ScheduleItemCreate):
 _SCHEDULE_PATCH_FIELDS = {
     "name", "kind", "starts_at", "ends_at", "actual_start_at", "actual_end_at",
     "time_zone", "notes", "location", "zone", "owner", "assigned_to",
-    "assigned_team_id", "assigned_person_id", "meeting_id", "status",
-    "delay_reason", "cancellation_reason", "tags",
+    "assigned_team_id", "assigned_person_id", "meeting_id", "gis_feature_id",
+    "quick_assignment_id", "status", "delay_reason", "cancellation_reason", "tags",
 }
 
 
@@ -592,6 +671,8 @@ def update_schedule(incident_id: str, record_id: int, patch: Dict[str, Any] = Bo
     ]
     repo.update_one(existing["_id"], updates)
     doc = repo.find_by_id(existing["_id"])
+    if "starts_at" in updates or "ends_at" in updates or "status" in updates:
+        _sync_triggers_after_schedule_change(incident_id, existing[config["id_field"]], doc)
     if field_changes:
         _audit(incident_id, entity_id=existing[config["id_field"]], action="schedule_item.updated", changed_by=changed_by, field_changes=field_changes)
     return _map_doc(doc, config)
@@ -604,6 +685,7 @@ def delete_schedule(incident_id: str, record_id: int):
     existing = _find_by_compound_id(repo, incident_id, config, record_id)
     if not existing or not repo.soft_delete(existing["_id"]):
         raise HTTPException(status_code=404, detail="Schedule item not found")
+    _disable_pending_triggers(incident_id, existing[config["id_field"]])
     _audit(incident_id, entity_id=existing[config["id_field"]], action="schedule_item.deleted")
 
 
@@ -664,6 +746,8 @@ def _schedule_status_action(
     ]
     repo.update_one(existing["_id"], updates)
     doc = repo.find_by_id(existing["_id"])
+    if target_status == "Cancelled":
+        _sync_triggers_after_schedule_change(incident_id, existing[config["id_field"]], doc)
     _audit(
         incident_id,
         entity_id=existing[config["id_field"]],
@@ -717,6 +801,76 @@ def cancel_schedule_item(incident_id: str, record_id: int, body: ScheduleStatusA
         allowed_from={"Scheduled", "In Progress", "Delayed"}, target_status="Cancelled", body=body,
         require_cancellation_reason=True,
     )
+
+
+@router.post("/incidents/{incident_id}/planned/promotions/schedule/{record_id}/create-quick-assignment", status_code=201)
+def create_quick_assignment_from_schedule_item(incident_id: str, record_id: int):
+    """Phase 1D: create a Quick Assignment from a schedule activity and
+    establish the source relationship automatically, per the brief. The
+    Quick Assignment's lifecycle (status, promotion) stays fully
+    independent afterward — this only wires the initial link."""
+    config = _tool_config("promotions/schedule")
+    repo = _repo_for_config(incident_id, config)
+    existing = _find_by_compound_id(repo, incident_id, config, record_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Schedule item not found")
+    if existing.get("quick_assignment_id"):
+        raise HTTPException(status_code=409, detail="Schedule item already has a linked Quick Assignment")
+
+    qa_config = _tool_config("quick-assignments")
+    qa_repo = _repo_for_config(incident_id, qa_config)
+    qa_record_id = _next_compound_id(qa_repo, incident_id, qa_config)
+    now = _utcnow()
+    qa_doc: Dict[str, Any] = {
+        qa_config["id_field"]: qa_record_id,
+        "seq": _public_id(qa_record_id),
+        "incident_id": incident_id,
+        "tool": "quick-assignments",
+        "title": existing.get("name", ""),
+        "summary": existing.get("notes", ""),
+        "status": qa_config["defaults"].get("status", "Planned"),
+        "priority": qa_config["defaults"].get("priority", "Medium"),
+        "assigned_to": existing.get("assigned_to", ""),
+        "assigned_team_id": existing.get("assigned_team_id", ""),
+        "assigned_person_id": existing.get("assigned_person_id", ""),
+        "location": existing.get("location", ""),
+        "zone": existing.get("zone", ""),
+        "scheduled_at": existing.get("starts_at", ""),
+        "due_at": existing.get("ends_at", ""),
+        "recurring": False,
+        "recurrence_rule": "",
+        "recurrence_start_at": "",
+        "recurrence_end_at": "",
+        "missed_occurrence_behavior": "",
+        "template_id": "",
+        "generated_from_template_id": "",
+        "lifecycle_state": "Active",
+        "active_at": "",
+        "triggered_at": "",
+        "source_type": "planned_schedule_item",
+        "source_id": existing[config["id_field"]],
+        "source_label": existing.get("name", ""),
+        "source_tool": "promotions/schedule",
+        "linked_tasking_id": "",
+        "promoted_at": "",
+        "promoted_by": "",
+        "promoted_read_only": False,
+        "metadata": {},
+        "created_at": now,
+        "updated_at": now,
+        "deleted": False,
+    }
+    saved_qa = qa_repo.insert_one(qa_doc)
+    repo.update_one(existing["_id"], {"quick_assignment_id": qa_record_id})
+    updated_schedule = repo.find_by_id(existing["_id"])
+    _audit(
+        incident_id, entity_id=existing[config["id_field"]], action="schedule_item.quick_assignment_created",
+        field_changes=[{"field": "quick_assignment_id", "old": "", "new": qa_record_id}],
+    )
+    return {
+        "schedule_item": _map_doc(updated_schedule, config),
+        "quick_assignment": _map_doc(saved_qa, qa_config),
+    }
 
 
 @router.patch("/incidents/{incident_id}/planned/{tool}/{record_id}")
@@ -788,6 +942,9 @@ def create_schedule_trigger(incident_id: str, body: ScheduleTriggerCreate):
     repo = _repo_for_config(incident_id, config)
     record_id = _next_compound_id(repo, incident_id, config)
     now = _utcnow()
+    trigger_at = _resolve_trigger_at(
+        incident_id, body.schedule_item_id or "", body.offset_minutes, body.relative_to or "start", body.trigger_at or ""
+    )
     doc: Dict[str, Any] = {
         config["id_field"]: record_id,
         "seq": _public_id(record_id),
@@ -796,9 +953,10 @@ def create_schedule_trigger(incident_id: str, body: ScheduleTriggerCreate):
         "trigger_type": body.trigger_type or "notification",
         "label": body.label,
         "offset_minutes": body.offset_minutes,
-        "trigger_at": body.trigger_at or "",
+        "trigger_at": trigger_at,
         "relative_to": body.relative_to or "start",
         "enabled": body.enabled,
+        "severity": body.severity or "",
         "audience_role": body.audience_role or "",
         "audience_user_id": body.audience_user_id or "",
         "notification_channel": body.notification_channel or "",
@@ -822,6 +980,11 @@ def create_schedule_trigger(incident_id: str, body: ScheduleTriggerCreate):
         "deleted": False,
     }
     saved = repo.insert_one(doc)
+    if doc["schedule_item_id"]:
+        _audit(
+            incident_id, entity_id=doc["schedule_item_id"], action="schedule_item.reminder_created",
+            field_changes=[{"field": "trigger_id", "old": "", "new": record_id}],
+        )
     return _map_schedule_trigger(saved)
 
 
@@ -837,6 +1000,7 @@ def update_schedule_trigger(incident_id: str, record_id: int, patch: Dict[str, A
         "trigger_at",
         "relative_to",
         "enabled",
+        "severity",
         "audience_role",
         "audience_user_id",
         "notification_channel",
@@ -860,8 +1024,21 @@ def update_schedule_trigger(incident_id: str, record_id: int, patch: Dict[str, A
     existing = _find_by_compound_id(repo, incident_id, config, record_id)
     if not existing:
         raise HTTPException(status_code=404, detail="Schedule trigger not found")
+    if {"offset_minutes", "relative_to", "trigger_at"} & updates.keys() and not existing.get("fired_at"):
+        updates["trigger_at"] = _resolve_trigger_at(
+            incident_id,
+            updates.get("schedule_item_id", existing.get("schedule_item_id", "")),
+            updates.get("offset_minutes", existing.get("offset_minutes")),
+            updates.get("relative_to", existing.get("relative_to", "start")),
+            updates.get("trigger_at", "") if "trigger_at" in updates else "",
+        )
     repo.update_one(existing["_id"], updates)
     doc = repo.find_by_id(existing["_id"])
+    if doc.get("schedule_item_id"):
+        _audit(
+            incident_id, entity_id=doc["schedule_item_id"], action="schedule_item.reminder_updated",
+            field_changes=[{"field": k, "old": existing.get(k), "new": v} for k, v in updates.items() if existing.get(k) != v],
+        )
     return _map_schedule_trigger(doc)
 
 
@@ -872,6 +1049,8 @@ def delete_schedule_trigger(incident_id: str, record_id: int):
     existing = _find_by_compound_id(repo, incident_id, config, record_id)
     if not existing or not repo.soft_delete(existing["_id"]):
         raise HTTPException(status_code=404, detail="Schedule trigger not found")
+    if existing.get("schedule_item_id"):
+        _audit(incident_id, entity_id=existing["schedule_item_id"], action="schedule_item.reminder_cancelled")
 
 
 @router.post("/incidents/{incident_id}/planned/quick-assignments/{record_id}/promote")

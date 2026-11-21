@@ -20,8 +20,11 @@ from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QFormLayout,
+    QGroupBox,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
+    QMessageBox,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
@@ -30,8 +33,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from .. import services
+from .reminder_dialog import ReminderDialog
 from .schedule_dialogs import ScheduleItemDialog, prompt_cancellation_reason, prompt_delay_reason
 from .schedule_time_utils import friendly_dt, friendly_time, is_overdue, parse_dt, planned_vs_actual_text
+from ..record_resolvers import resolve_gis_feature, resolve_meeting
 from ..records import ScheduledItem
 from ..schedule_controller import ScheduleController
 from utils.styles import event_schedule_status_colors, subscribe_theme
@@ -80,8 +86,10 @@ class ActivityDetailDialog(QDialog):
         self.item = item
         self.controller = controller
         self.setWindowTitle(item.name or "Activity")
-        self.setMinimumWidth(420)
+        self.setMinimumWidth(480)
         self._build_ui()
+        self._refresh_related_records()
+        self._refresh_reminders()
 
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
@@ -109,6 +117,9 @@ class ActivityDetailDialog(QDialog):
         notes_label.setFixedHeight(60)
         form.addRow("Notes", notes_label)
         layout.addLayout(form)
+
+        layout.addWidget(self._build_related_records_group())
+        layout.addWidget(self._build_reminders_group())
 
         actions = QHBoxLayout()
         self._edit_btn = QPushButton("Edit")
@@ -138,13 +149,224 @@ class ActivityDetailDialog(QDialog):
         buttons.accepted.connect(self.accept)
         layout.addWidget(buttons)
 
+    # -- Related Records (Meeting / Quick Assignment / GIS) ---------------
+
+    def _build_related_records_group(self) -> QGroupBox:
+        group = QGroupBox("Related Records")
+        form = QFormLayout(group)
+
+        meeting_row = QHBoxLayout()
+        self._meeting_label = QLabel("—")
+        self._meeting_open_btn = QPushButton("Open")
+        self._meeting_unlink_btn = QPushButton("Unlink")
+        self._meeting_open_btn.clicked.connect(self._open_meeting)
+        self._meeting_unlink_btn.clicked.connect(self._unlink_meeting)
+        meeting_row.addWidget(self._meeting_label, 1)
+        meeting_row.addWidget(self._meeting_open_btn)
+        meeting_row.addWidget(self._meeting_unlink_btn)
+        form.addRow("Meeting", meeting_row)
+
+        qa_row = QHBoxLayout()
+        self._qa_label = QLabel("—")
+        self._qa_open_btn = QPushButton("Open Quick Assignments")
+        self._qa_create_btn = QPushButton("Create Quick Assignment")
+        self._qa_unlink_btn = QPushButton("Unlink")
+        self._qa_open_btn.clicked.connect(self._open_quick_assignments)
+        self._qa_create_btn.clicked.connect(self._create_quick_assignment)
+        self._qa_unlink_btn.clicked.connect(self._unlink_quick_assignment)
+        qa_row.addWidget(self._qa_label, 1)
+        qa_row.addWidget(self._qa_open_btn)
+        qa_row.addWidget(self._qa_create_btn)
+        qa_row.addWidget(self._qa_unlink_btn)
+        form.addRow("Quick Assignment", qa_row)
+
+        gis_row = QHBoxLayout()
+        self._gis_label = QLabel("—")
+        self._gis_unlink_btn = QPushButton("Unlink")
+        self._gis_unlink_btn.clicked.connect(self._unlink_gis_feature)
+        gis_row.addWidget(self._gis_label, 1)
+        gis_row.addWidget(self._gis_unlink_btn)
+        form.addRow("GIS Location", gis_row)
+        # No "Open"/focus action for GIS yet -- no existing desktop entry
+        # point opens the map centered on a specific feature (checked
+        # before building this; see the Phase 1D audit notes). Linking,
+        # display, and unlink work; deep navigation is a documented gap.
+
+        return group
+
+    def _refresh_related_records(self) -> None:
+        item = self.item
+        incident_id = self.controller.incident_id or ""
+
+        if item.meeting_id:
+            meeting = resolve_meeting(incident_id, item.meeting_id)
+            self._meeting_label.setText(
+                f"{meeting.get('title', '')} ({meeting.get('meeting_date', '')})" if meeting else "(meeting not found)"
+            )
+            self._meeting_open_btn.setEnabled(meeting is not None)
+        else:
+            self._meeting_label.setText("—")
+            self._meeting_open_btn.setEnabled(False)
+        self._meeting_unlink_btn.setEnabled(bool(item.meeting_id))
+
+        if item.quick_assignment_id:
+            self._qa_label.setText(item.quick_assignment_id)
+            self._qa_create_btn.setEnabled(False)
+            self._qa_unlink_btn.setEnabled(True)
+        else:
+            self._qa_label.setText("—")
+            self._qa_create_btn.setEnabled(True)
+            self._qa_unlink_btn.setEnabled(False)
+
+        if item.gis_feature_id:
+            feature = resolve_gis_feature(incident_id, item.gis_feature_id)
+            self._gis_label.setText(
+                f"{feature.get('label', '')} ({feature.get('feature_type', '')})" if feature else "(location not found)"
+            )
+        else:
+            self._gis_label.setText("—")
+        self._gis_unlink_btn.setEnabled(bool(item.gis_feature_id))
+
+    def _open_meeting(self) -> None:
+        if not self.item.meeting_id:
+            return
+        try:
+            from modules.planning.meetings.panel import open_meeting_detail
+            open_meeting_detail(int(self.item.meeting_id), self.controller.incident_id, parent=self)
+        except Exception as exc:
+            QMessageBox.warning(self, "Meeting", f"Could not open the linked meeting: {exc}")
+
+    def _unlink_meeting(self) -> None:
+        if self.item.id is not None:
+            self.controller.update(self.item.id, {"meeting_id": ""})
+        self.accept()
+
+    def _open_quick_assignments(self) -> None:
+        try:
+            from .. import windows as plannedtoolkit_windows
+            panel = plannedtoolkit_windows.get_tasking_panel(self.controller.incident_id)
+            panel.setParent(None)
+            panel.setWindowTitle("Quick Assignments")
+            panel.show()
+            self._qa_panel_ref = panel  # keep a reference so it isn't garbage-collected
+        except Exception as exc:
+            QMessageBox.warning(self, "Quick Assignments", f"Could not open Quick Assignments: {exc}")
+
+    def _create_quick_assignment(self) -> None:
+        if self.item.id is not None:
+            self.controller.create_quick_assignment(self.item.id)
+        self.accept()
+
+    def _unlink_quick_assignment(self) -> None:
+        """Clears the schedule item's own reference only -- the Quick
+        Assignment record itself (and its independent lifecycle) is
+        untouched, per the brief."""
+        if self.item.id is not None:
+            self.controller.update(self.item.id, {"quick_assignment_id": ""})
+        self.accept()
+
+    def _unlink_gis_feature(self) -> None:
+        if self.item.id is not None:
+            self.controller.update(self.item.id, {"gis_feature_id": ""})
+        self.accept()
+
+    # -- Reminders (ScheduleTrigger) ---------------------------------------
+
+    def _build_reminders_group(self) -> QGroupBox:
+        group = QGroupBox("Reminders")
+        layout = QVBoxLayout(group)
+
+        self._reminders_table = QTableWidget(0, 4)
+        self._reminders_table.setHorizontalHeaderLabels(["When", "Title", "Severity", "Delivered"])
+        self._reminders_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self._reminders_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self._reminders_table.setMaximumHeight(120)
+        layout.addWidget(self._reminders_table)
+
+        actions = QHBoxLayout()
+        add_btn = QPushButton("Add Reminder")
+        edit_btn = QPushButton("Edit")
+        delete_btn = QPushButton("Delete")
+        add_btn.clicked.connect(self._add_reminder)
+        edit_btn.clicked.connect(self._edit_reminder)
+        delete_btn.clicked.connect(self._delete_reminder)
+        for button in (add_btn, edit_btn, delete_btn):
+            actions.addWidget(button)
+        actions.addStretch(1)
+        layout.addLayout(actions)
+
+        return group
+
+    def _refresh_reminders(self) -> None:
+        try:
+            triggers = services.list_schedule_triggers(self.controller.incident_id, self.item.record_id)
+        except Exception:
+            triggers = []
+        self._reminders = list(triggers)
+        self._reminders_table.setRowCount(len(self._reminders))
+        for row, trigger in enumerate(self._reminders):
+            when = friendly_dt(trigger.trigger_at) or "—"
+            delivered = "Delivered" if trigger.fired_at else ("Enabled" if trigger.enabled else "Cancelled")
+            for col, value in enumerate([when, trigger.title or trigger.label, trigger.severity or "routine", delivered]):
+                self._reminders_table.setItem(row, col, QTableWidgetItem(str(value)))
+
+    def _selected_reminder(self):
+        row = self._reminders_table.currentRow()
+        if row < 0 or row >= len(self._reminders):
+            return None
+        return self._reminders[row]
+
+    def _add_reminder(self) -> None:
+        dialog = ReminderDialog(self.item, parent=self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        try:
+            services.create_schedule_trigger(self.controller.incident_id, **dialog.values())
+        except Exception as exc:
+            QMessageBox.warning(self, "Reminder", f"Could not create reminder: {exc}")
+            return
+        self._refresh_reminders()
+
+    def _edit_reminder(self) -> None:
+        trigger = self._selected_reminder()
+        if trigger is None:
+            return
+        if trigger.fired_at:
+            QMessageBox.information(self, "Reminder", "This reminder already fired and can no longer be edited.")
+            return
+        dialog = ReminderDialog(self.item, trigger=trigger, parent=self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        try:
+            # Edit updates the existing trigger in place -- never creates a
+            # second one, per the brief's "do not silently duplicate a
+            # reminder when editing an activity."
+            services.update_schedule_trigger(trigger.id, dialog.values(), self.controller.incident_id)
+        except Exception as exc:
+            QMessageBox.warning(self, "Reminder", f"Could not update reminder: {exc}")
+            return
+        self._refresh_reminders()
+
+    def _delete_reminder(self) -> None:
+        trigger = self._selected_reminder()
+        if trigger is None:
+            return
+        if QMessageBox.question(self, "Delete Reminder", "Cancel this reminder?") != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            services.delete_schedule_trigger(trigger.id, self.controller.incident_id)
+        except Exception as exc:
+            QMessageBox.warning(self, "Reminder", f"Could not cancel reminder: {exc}")
+            return
+        self._refresh_reminders()
+
     def _act(self, fn) -> None:
         if self.item.id is not None:
             fn(self.item.id)
         self.accept()
 
     def _edit(self) -> None:
-        dialog = ScheduleItemDialog(self.item, parent=self)
+        dialog = ScheduleItemDialog(self.item, incident_id=self.controller.incident_id, parent=self)
         if dialog.exec() == QDialog.DialogCode.Accepted and self.item.id is not None:
             self.controller.update(self.item.id, dialog.values())
         self.accept()

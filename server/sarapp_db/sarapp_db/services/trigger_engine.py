@@ -73,6 +73,7 @@ def _fire_trigger(col, trigger: Dict[str, Any], incident_id: str) -> None:
         incident_id,
         title=title,
         message=message,
+        severity=trigger.get("severity") or "routine",
         source_type="planned_schedule_trigger",
         source_id=str(trigger.get("trigger_id", "")),
         source_label=trigger.get("label"),

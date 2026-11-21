@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from PySide6.QtCore import QDateTime, Qt
+from PySide6.QtCore import QDate, QDateTime, QTime, Qt
 from PySide6.QtWidgets import QDateTimeEdit
 
 
@@ -43,7 +43,7 @@ def to_qdatetime(value: str) -> QDateTime:
     dt = parse_dt(value)
     if dt is None:
         return QDateTime.currentDateTime()
-    return QDateTime(dt.year, dt.month, dt.day, dt.hour, dt.minute)
+    return QDateTime(QDate(dt.year, dt.month, dt.day), QTime(dt.hour, dt.minute, dt.second))
 
 
 def storage_dt(editor: QDateTimeEdit) -> str:

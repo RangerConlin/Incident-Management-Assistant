@@ -77,6 +77,8 @@ def create_schedule_item(
     assigned_team_id: str = "",
     assigned_person_id: str = "",
     meeting_id: str = "",
+    gis_feature_id: str = "",
+    quick_assignment_id: str = "",
     status: str = "",
 ):
     return PlannedToolkitRepository(incident_id).create_schedule_item(
@@ -93,6 +95,8 @@ def create_schedule_item(
         assigned_team_id=assigned_team_id,
         assigned_person_id=assigned_person_id,
         meeting_id=meeting_id,
+        gis_feature_id=gis_feature_id,
+        quick_assignment_id=quick_assignment_id,
         status=status,
     )
 
@@ -103,6 +107,10 @@ def update_schedule_item(record_id: int, patch: dict[str, Any], incident_id: str
 
 def delete_schedule_item(record_id: int, incident_id: str | None = None) -> None:
     PlannedToolkitRepository(incident_id).delete_schedule_item(record_id)
+
+
+def create_quick_assignment_from_schedule_item(record_id: int, incident_id: str | None = None) -> dict[str, Any]:
+    return PlannedToolkitRepository(incident_id).create_quick_assignment_from_schedule_item(record_id)
 
 
 def start_schedule_item(record_id: int, incident_id: str | None = None, *, actual_start_at: str | None = None):
