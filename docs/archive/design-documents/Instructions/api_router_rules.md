@@ -79,3 +79,25 @@ field values with page widgets, in addition to visual checks.
 ICS 203 also bundles the authoritative JSON mappings; sync/check both JSON and PDF
 assets after changes. Its narrow original fields may fit text down to 6 points;
 longer values still receive an explicit continuation marker and lossless annex.
+
+## Checklists (program-wide, Phase 4A)
+
+- `api/routers/checklist_templates.py` (master catalog, `/api/checklist-templates`)
+  and `api/routers/checklists.py` (instances) are shared infrastructure, not
+  owned by the Planned Events Toolkit or any other feature module — see
+  `mongodb_schema_decisions.md`'s "Checklists" entry for the full data model.
+- `checklists.py` implements every operation once as a `_*_impl(incident_id:
+  Optional[str], ...)` function, then exposes it under two thin route
+  families that share that implementation: `/api/incidents/{incident_id}/checklists...`
+  (incident-scoped) and `/api/checklists...` (standalone, no incident,
+  stored in `sarapp_master` instead of a per-incident database). This is the
+  precedent to copy for any future collection that needs to support both an
+  incident-scoped and a standalone instance of the same resource without
+  duplicating validation/business logic.
+- `BaseRepository.apply_update` takes an optional `array_filters` kwarg,
+  passed straight through to PyMongo, for a targeted update on one element
+  of a nested array (e.g. one item inside one section of a checklist)
+  without a read-modify-write race against a concurrent update to a
+  different element of the same array. Prefer this over reading the whole
+  document, mutating it in Python, and writing the whole field back,
+  whenever a write only needs to touch one element of a nested array.

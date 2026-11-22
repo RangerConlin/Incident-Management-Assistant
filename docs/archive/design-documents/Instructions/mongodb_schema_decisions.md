@@ -167,6 +167,74 @@ Notification acknowledgement/read state is stored per person in the canonical
 - Document shape: `{incident_id, int_id, source_type: "objective"|"task", source_id, source_title, auto_summary, lofr_summary, ready_to_report, last_synced_at, updated_by, updated_at}`. `int_id` is sequential per-incident like the rest of the Liaison collections (see `_next_int_id` in `liaison.py`).
 - Objectives (`objectives.py`) and Tasks (`operations.py`'s task-create endpoint) both gained optional `origin_module`/`origin_id` fields so a customer request logged in Liaison can be converted directly into a real Objective or Task with a back-link to where it came from. This is the same directional-FK pattern Liaison Feedback already used (`objective_id`/`task_id`/`resource_request_id` on `FeedbackItem`), just reversed: the *new* Objective/Task points back at its Liaison origin instead of Liaison pointing at an existing Objective/Task.
 - `liaison_agency_requests` gained `converted_to_type`/`converted_to_id` (set via `PATCH .../agency-requests/{id}/converted`) so the Customer Requests board can show a request has already been actioned and block converting it twice.
+# Checklists (program-wide, Phase 4A)
+
+- Files: `server/sarapp_db/sarapp_db/services/checklist_service.py` (pure domain
+  logic — item/section validation, response validation, progress/failure
+  calculation, lifecycle transitions), `api/routers/checklist_templates.py`
+  (master catalog), `api/routers/checklists.py` (instances). Collections:
+  `MasterCollections.CHECKLIST_TEMPLATES`, `IncidentCollections.CHECKLISTS`
+  (incident-scoped instances), `MasterCollections.CHECKLISTS` (standalone
+  instances with no incident, same shape, same pattern as `PUSH_TOKENS`).
+- Not owned by the Planned Events Toolkit or any other feature module —
+  any module that wants a checklist calls this API; see `agents.md`'s
+  notification-service precedent for the same "shared infrastructure, not
+  a single module's" shape.
+- A checklist template is an ordered list of sections (each optional —
+  "no sections" is one section with a blank `name`), each with an ordered
+  list of items. Every item has one of five `item_type`s (`checkbox`,
+  `pass_fail_na`, `text`, `numeric`, `selection`) and a per-item
+  `na_allowed`/`required` flag. Item ids are unique across the *whole*
+  template (not just within a section) because an instance response is
+  recorded by item id alone.
+- A checklist instance snapshots a template's sections/items in full at
+  creation time (`checklist_service.snapshot_sections`, a deep copy) —
+  editing or deactivating the source template afterward never changes an
+  existing instance. There is no live reference back to the template
+  beyond the recorded `template_id`, used only for filtering.
+- Every item carries `response` (the current value) and an append-only
+  `history` list of every response ever recorded for it. Nothing is ever
+  edited in place: a changed response is a new history entry, so an
+  earlier response's original author/timestamp is never lost, and
+  `response` always mirrors `history[-1]`.
+- N/A is represented the same way for every item type: `na=True,
+  value=None`. A failed Pass/Fail/N/A result is `value="fail", na=False`,
+  kept distinguishable from both "unanswered" (no response at all) and
+  "N/A". An item is "answered" the moment it has any response, N/A
+  included — there is no separate per-item "mark complete" action, and a
+  failed/answered item is never assumed satisfactory.
+- Recording a response is a targeted, atomic Mongo `$push`/`$set` against
+  just that one item via `array_filters` (`BaseRepository.apply_update`
+  gained an `array_filters` passthrough for this), not a whole-document
+  read-modify-write of the `sections` field — so concurrent responses to
+  two different items on the same checklist can never clobber each other.
+  The automatic `not_started -> in_progress` transition on first response
+  is its own atomic, conditional update (`extra_filter={"status":
+  "not_started"}`), so it can't race a concurrent explicit status change.
+- Lifecycle: `not_started -> in_progress` (automatic, on first response, or
+  manual) `-> completed` (manual) `<-> in_progress` (reopening) `->
+  archived` (terminal for Phase 4A from any non-archived state). Full
+  finalization behavior (e.g. ICS-214 logging on completion) is Phase 4B;
+  unarchiving is explicitly deferred to 4B.
+- Progress (`checklist_service.compute_progress`) is backend-calculated
+  and documented once, in that function's docstring: `total_items`,
+  `answered_items` (N/A included), `unanswered_required_items`,
+  `na_items`, `failed_items` (current Pass/Fail/N/A `fail` responses
+  only), `completion_percentage` = `answered_items / total_items * 100`.
+  An answered item is never assumed satisfactory, and the checklist is
+  never auto-completed just because every item got a response.
+- Attribution is always server-side: every response/status/create write
+  resolves the caller through `auth_sessions.resolve_request_person`
+  (signed web bearer token or active desktop/mobile session) — the same
+  mechanism `approvals.py` uses for signing a step — never a
+  client-submitted user id. Read endpoints are open, matching every other
+  incident-scoped router; there is no broader role/permission layer in
+  this codebase yet to apply to them.
+- A checklist's optional link to another SARApp record (`linked_record:
+  {record_type, record_id}`) is a stable reference, not a database foreign
+  key — this collection never joins against it, so it has no dependency
+  on any other module (Planned Events included).
+
 # Team personnel membership
 
 Team personnel membership is canonical on each incident `teams` document as

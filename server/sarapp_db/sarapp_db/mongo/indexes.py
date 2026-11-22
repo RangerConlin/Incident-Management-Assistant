@@ -69,6 +69,7 @@ def create_incident_indexes(incident_db: Database) -> None:
     _create_package_activations_indexes(incident_db)
     _create_ics214_indexes(incident_db)
     _create_plannedtoolkit_indexes(incident_db)
+    _create_checklists_indexes(incident_db)
     logger.debug("Incident database indexes verified: %s", incident_db.name)
 
 
@@ -438,6 +439,24 @@ def _create_resource_status_indexes(incident_db: Database) -> None:
     _ensure_index(col, [("int_id", ASCENDING)], unique=True, sparse=True)
 
 
+def _create_checklists_indexes(incident_db: Database) -> None:
+    checklists = incident_db[IncidentCollections.CHECKLISTS]
+    _ensure_index(checklists, [("incident_id", ASCENDING)])
+    _ensure_index(checklists, [("int_id", ASCENDING)], unique=True, sparse=True)
+    _ensure_index(checklists, [("incident_id", ASCENDING), ("status", ASCENDING)])
+    _ensure_index(checklists, [("incident_id", ASCENDING), ("template_id", ASCENDING)])
+    _ensure_index(checklists, [("incident_id", ASCENDING), ("owner_person_record", ASCENDING)])
+    _ensure_index(
+        checklists,
+        [
+            ("incident_id", ASCENDING),
+            ("linked_record.record_type", ASCENDING),
+            ("linked_record.record_id", ASCENDING),
+        ],
+    )
+    _ensure_index(checklists, [("deleted", ASCENDING)])
+
+
 def _create_approval_indexes(incident_db: Database) -> None:
     instances = incident_db[IncidentCollections.APPROVAL_INSTANCES]
     _ensure_index(instances, [("incident_id", ASCENDING)])
@@ -509,7 +528,24 @@ def create_master_indexes(master_db: Database) -> None:
     _create_push_token_indexes(master_db)
     _create_resource_associations_indexes(master_db)
     _create_resource_packages_indexes(master_db)
+    _create_standalone_checklists_indexes(master_db)
     logger.debug("Master database indexes verified: %s", master_db.name)
+
+
+def _create_standalone_checklists_indexes(master_db: Database) -> None:
+    """Same shape as `_create_checklists_indexes`, for standalone (no
+    incident) checklist instances stored in `sarapp_master` instead of a
+    per-incident database — see `MasterCollections.CHECKLISTS`."""
+
+    checklists = master_db[MasterCollections.CHECKLISTS]
+    _ensure_index(checklists, [("int_id", ASCENDING)], unique=True, sparse=True)
+    _ensure_index(checklists, [("status", ASCENDING)])
+    _ensure_index(checklists, [("template_id", ASCENDING)])
+    _ensure_index(checklists, [("owner_person_record", ASCENDING)])
+    _ensure_index(
+        checklists, [("linked_record.record_type", ASCENDING), ("linked_record.record_id", ASCENDING)]
+    )
+    _ensure_index(checklists, [("deleted", ASCENDING)])
 
 
 def _create_resource_associations_indexes(master_db: Database) -> None:
