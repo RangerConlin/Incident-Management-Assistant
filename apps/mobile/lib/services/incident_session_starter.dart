@@ -37,12 +37,21 @@ class IncidentSessionStarter {
     required String incidentName,
     String? teamId,
     String? teamName,
+    int? resolvedPersonRecord,
   }) async {
-    await ProfileSync(_api).sync(profile);
+    // When the caller has already resolved which of several same-ID
+    // personnel records is theirs (see `AmbiguousPersonException` and
+    // `showDuplicateRecordPicker`), skip syncing the device profile onto
+    // that still-ambiguous Person ID — mirror the desktop client, which
+    // signs straight in as the chosen record instead.
+    if (resolvedPersonRecord == null) {
+      await ProfileSync(_api).sync(profile);
+    }
 
     final session = await _api.startSession(
       personId: profile.personId,
       incidentId: incidentId,
+      personRecord: resolvedPersonRecord,
     );
 
     // The server's session response echoes an internal person_record under

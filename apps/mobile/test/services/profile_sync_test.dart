@@ -16,7 +16,10 @@ const _profile = LocalProfile(
 );
 
 void main() {
-  Future<(List<http.Request>, Object?)> sync(String lookupStatus) async {
+  Future<(List<http.Request>, Object?)> sync(
+    String lookupStatus, {
+    List<Map<String, dynamic>>? candidates,
+  }) async {
     final requests = <http.Request>[];
     final api = SarAppApiClient(
       baseUrl: 'https://test.local',
@@ -24,7 +27,11 @@ void main() {
         requests.add(request);
         if (request.url.path == '/api/auth/lookup') {
           return http.Response(
-            jsonEncode({'status': lookupStatus, 'person': null}),
+            jsonEncode({
+              'status': lookupStatus,
+              'person': null,
+              if (candidates != null) 'candidates': candidates,
+            }),
             200,
           );
         }
@@ -71,5 +78,21 @@ void main() {
 
     expect(error, isA<SarAppApiException>());
     expect(requests.map((r) => r.method), everyElement('GET'));
+  });
+
+  test('an ambiguous ID surfaces the candidates to pick from', () async {
+    final (_, error) = await sync(
+      'ambiguous',
+      candidates: [
+        {'person_record': 42, 'name': 'Jane Doe', 'organization': 'CAP'},
+        {'person_record': 43, 'name': 'Jane Doe', 'home_unit': 'Unit 2'},
+      ],
+    );
+
+    expect(error, isA<AmbiguousPersonException>());
+    final ambiguous = error as AmbiguousPersonException;
+    expect(ambiguous.personId, '405021');
+    expect(ambiguous.candidates.map((c) => c.personRecord), [42, 43]);
+    expect(ambiguous.candidates.first.details, 'CAP');
   });
 }

@@ -13,9 +13,61 @@ import 'local_profile_store.dart';
 
 enum PersonLookupStatus { found, notFound, ambiguous }
 
+/// One of several personnel records sharing a login ID, offered to the
+/// operator so they can pick which one is theirs instead of being blocked
+/// until an administrator deduplicates the roster (mirrors the desktop
+/// client's `DuplicateRecordPickerDialog`).
+class PersonCandidate {
+  const PersonCandidate({
+    required this.personRecord,
+    required this.name,
+    this.organization = '',
+    this.homeUnit = '',
+    this.rank = '',
+    this.callsign = '',
+    this.phone = '',
+  });
+
+  factory PersonCandidate.fromJson(Map<String, dynamic> json) {
+    String text(String key) => '${json[key] ?? ''}'.trim();
+    return PersonCandidate(
+      personRecord: int.parse('${json['person_record']}'),
+      name: text('name').isEmpty ? '(unnamed)' : text('name'),
+      organization: text('organization'),
+      homeUnit: text('home_unit'),
+      rank: text('rank'),
+      callsign: text('callsign'),
+      phone: text('phone'),
+    );
+  }
+
+  final int personRecord;
+  final String name;
+  final String organization;
+  final String homeUnit;
+  final String rank;
+  final String callsign;
+  final String phone;
+
+  /// Extra identifying details to disambiguate near-identical names, shown
+  /// alongside [name] the same way the desktop picker does.
+  String get details => [
+    organization,
+    homeUnit,
+    rank,
+    callsign,
+    phone,
+  ].where((value) => value.isNotEmpty).join(' / ');
+}
+
 /// Result of matching a login ID to the personnel roster.
 class PersonLookup {
-  const PersonLookup({required this.status, this.name, this.profile});
+  const PersonLookup({
+    required this.status,
+    this.name,
+    this.profile,
+    this.candidates = const [],
+  });
 
   factory PersonLookup.fromJson(Map<String, dynamic> json) {
     final status = switch (json['status']) {
@@ -25,12 +77,19 @@ class PersonLookup {
     };
     final person = json['person'];
     final name = person is Map ? '${person['name'] ?? ''}'.trim() : '';
+    final candidates = json['candidates'];
     return PersonLookup(
       status: status,
       name: name.isEmpty ? null : name,
       profile: person is Map
           ? LocalProfile.fromJson(Map<String, dynamic>.from(person))
           : null,
+      candidates: candidates is List
+          ? candidates
+              .whereType<Map>()
+              .map((c) => PersonCandidate.fromJson(Map<String, dynamic>.from(c)))
+              .toList()
+          : const [],
     );
   }
 
@@ -43,6 +102,10 @@ class PersonLookup {
   /// new device can pre-populate the profile form instead of the operator
   /// retyping everything; null unless [status] is found.
   final LocalProfile? profile;
+
+  /// Every record sharing the looked-up ID; empty unless [status] is
+  /// [PersonLookupStatus.ambiguous].
+  final List<PersonCandidate> candidates;
 }
 
 class SarAppApiException implements Exception {
@@ -258,6 +321,7 @@ class SarAppApiClient {
     required String personId,
     required String incidentId,
     String? role,
+    int? personRecord,
   }) async {
     final response = await _httpClient.post(
       _uri('/api/auth/sessions'),
@@ -267,6 +331,7 @@ class SarAppApiClient {
         'incident_id': incidentId,
         'role': role ?? 'Field User',
         'status': 'online',
+        if (personRecord != null) 'person_record': personRecord,
       }),
     );
     return _decodeJsonObject(response);

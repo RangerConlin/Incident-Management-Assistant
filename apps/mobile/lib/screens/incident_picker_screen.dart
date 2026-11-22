@@ -5,6 +5,7 @@ import '../services/incident_session_starter.dart';
 import '../services/local_profile_store.dart';
 import '../services/profile_sync.dart';
 import '../services/sarapp_api_client.dart';
+import '../widgets/duplicate_record_picker.dart';
 import 'field_dashboard_screen.dart';
 import 'incident_staff_dashboard_screen.dart';
 
@@ -41,6 +42,12 @@ class _IncidentPickerScreenState extends State<IncidentPickerScreen> {
   bool _loadingPreview = false;
   MobileIncidentContext? _previewContext;
   String? _previewErrorMessage;
+
+  /// Set once the operator has picked which of several same-Person-ID
+  /// records is theirs (see [AmbiguousPersonException]), so later preview
+  /// and join attempts sign straight in as that record instead of hitting
+  /// the same ambiguity again.
+  int? _resolvedPersonRecord;
 
   @override
   void initState() {
@@ -110,10 +117,14 @@ class _IncidentPickerScreenState extends State<IncidentPickerScreen> {
       _previewContext = null;
     });
     try {
-      await ProfileSync(_apiClient).sync(widget.profile);
+      final resolved = _resolvedPersonRecord;
+      if (resolved == null) {
+        await ProfileSync(_apiClient).sync(widget.profile);
+      }
       final session = await _apiClient.startSession(
         personId: widget.profile.personId,
         incidentId: _incidentId(incident),
+        personRecord: resolved,
       );
       final personRecord = session['person_record'];
       if (personRecord == null) {
@@ -154,11 +165,34 @@ class _IncidentPickerScreenState extends State<IncidentPickerScreen> {
       _errorMessage = null;
     });
     try {
-      final started = await IncidentSessionStarter(_apiClient).start(
-        profile: widget.profile,
-        incidentId: _incidentId(incident),
-        incidentName: _incidentName(incident),
-      );
+      var personRecord = _resolvedPersonRecord;
+      StartedIncident started;
+      try {
+        started = await IncidentSessionStarter(_apiClient).start(
+          profile: widget.profile,
+          incidentId: _incidentId(incident),
+          incidentName: _incidentName(incident),
+          resolvedPersonRecord: personRecord,
+        );
+      } on AmbiguousPersonException catch (e) {
+        if (!mounted) return;
+        personRecord = await showDuplicateRecordPicker(
+          context,
+          e.personId,
+          e.candidates,
+        );
+        if (personRecord == null) {
+          setState(() => _joining = false);
+          return;
+        }
+        started = await IncidentSessionStarter(_apiClient).start(
+          profile: widget.profile,
+          incidentId: _incidentId(incident),
+          incidentName: _incidentName(incident),
+          resolvedPersonRecord: personRecord,
+        );
+      }
+      _resolvedPersonRecord = personRecord;
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(

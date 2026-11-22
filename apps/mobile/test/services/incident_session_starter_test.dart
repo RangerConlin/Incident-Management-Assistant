@@ -130,4 +130,59 @@ void main() {
     );
     expect(await SessionStore.load(), isNull);
   });
+
+  test(
+    'a resolved person record skips the profile sync and signs in directly',
+    () async {
+      final requests = <http.Request>[];
+      final api = SarAppApiClient(
+        baseUrl: 'https://test.local',
+        httpClient: MockClient((request) async {
+          requests.add(request);
+          switch (request.url.path) {
+            case '/api/auth/sessions':
+              return http.Response(
+                jsonEncode({'session_id': 's1', 'person_record': 42}),
+                201,
+              );
+            case '/api/incidents/i1/mobile/entry':
+              return http.Response(
+                jsonEncode({
+                  'person': {'person_record': 42, 'name': 'Jane Doe'},
+                  'resource_status': {'status': 'Checked In'},
+                  'team': {'team_id': 1, 'team_name': 'Team 1'},
+                  'staff_assignments': [],
+                }),
+                200,
+              );
+            case '/api/incidents/i1/profile':
+              return http.Response(jsonEncode({'type': 'SAR'}), 200);
+            default:
+              return http.Response('{}', 200);
+          }
+        }),
+      );
+
+      final started = await IncidentSessionStarter(api).start(
+        profile: _profile,
+        incidentId: 'i1',
+        incidentName: 'Training',
+        teamId: '1',
+        teamName: 'Team 1',
+        resolvedPersonRecord: 42,
+      );
+
+      expect(started.session['person_id'], '405021');
+      expect(
+        requests.any((r) => r.url.path == '/api/auth/lookup'),
+        isFalse,
+        reason: 'the picked record is already known; no need to re-lookup it',
+      );
+      final sessionRequest = requests.singleWhere(
+        (r) => r.url.path == '/api/auth/sessions',
+      );
+      final body = jsonDecode(sessionRequest.body) as Map;
+      expect(body['person_record'], 42);
+    },
+  );
 }
