@@ -183,6 +183,7 @@ class BaseRepository:
         *,
         extra_filter: Optional[Dict[str, Any]] = None,
         touch_updated_at: bool = True,
+        array_filters: Optional[List[Dict[str, Any]]] = None,
     ) -> bool:
         """Apply an arbitrary Mongo update document ($push/$pull/$addToSet/
         $set/...) to the document with the given _id, and broadcast the
@@ -192,13 +193,19 @@ class BaseRepository:
         needs an operator `update_one` doesn't expose (array fields, etc.) —
         it's the one place that keeps "write" and "announce" the same
         action regardless of which Mongo operators the write needs.
+
+        `array_filters` is passed straight through to PyMongo, for a
+        targeted update on one element of a nested array (e.g. one item
+        inside one section of a checklist) without a read-modify-write
+        race against a concurrent update to a *different* element of the
+        same array.
         """
         if touch_updated_at:
             update = dict(update)
             update["$set"] = {**update.get("$set", {}), "updated_at": _utcnow_iso()}
         query = {"_id": doc_id, **(extra_filter or {})}
         try:
-            result = self._col.update_one(query, update)
+            result = self._col.update_one(query, update, array_filters=array_filters)
         except Exception as exc:
             raise RepositoryError(f"apply_update failed on '{self.collection_name}' id='{doc_id}': {exc}") from exc
         if result.matched_count > 0:

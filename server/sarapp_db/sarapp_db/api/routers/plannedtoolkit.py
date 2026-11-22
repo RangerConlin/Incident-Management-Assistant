@@ -1298,6 +1298,25 @@ def promote_quick_assignment(incident_id: str, record_id: int, body: PromotionRe
 
     source_id = str(doc[config["id_field"]])
     task = _find_or_create_promoted_task(incident_id, doc, source_id)
+    try:
+        # Any checklist already linked to this Quick Assignment gains a
+        # second link to the new formal task — never a second checklist
+        # instance, and the original Assignment link is kept. This only
+        # ever runs on the single call that actually creates the task
+        # (both the "already promoted" short-circuit above and the
+        # losing side of the atomic claim return before reaching here),
+        # so a promotion retry cannot double-add the link either.
+        from sarapp_db.api.routers.checklists import propagate_link_to_promoted_task
+
+        propagate_link_to_promoted_task(
+            incident_id, "planned_quick_assignment", source_id, "operations_task", str(task["int_id"])
+        )
+    except Exception:
+        logger.exception(
+            "Failed to propagate checklist links from Quick Assignment %s to task %s",
+            source_id,
+            task["int_id"],
+        )
 
     now = _utcnow()
     updates = {

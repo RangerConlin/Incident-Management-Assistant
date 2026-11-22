@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 from .. import services
 from ..records import PlannedRecord
 from .assignee_picker_dialog import AssigneePickerDialog
+from .checklist_links_section import ChecklistLinksSection
 from .schedule_time_utils import friendly_dt
 
 STATUSES = ["Draft", "Planned", "In Progress", "Completed", "Cancelled"]
@@ -118,6 +119,9 @@ class AssignmentDetailDialog(QDialog):
         form.addRow("Notes", self.notes_edit)
 
         layout.addLayout(form)
+
+        if incident_id and record and record.record_id:
+            layout.addWidget(ChecklistLinksSection(incident_id, "planned_quick_assignment", record.record_id, self))
 
         if read_only:
             notice = QLabel("Promoted to formal Operations Tasking — read-only here.")

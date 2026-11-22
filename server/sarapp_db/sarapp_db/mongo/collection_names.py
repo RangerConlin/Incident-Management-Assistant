@@ -101,6 +101,20 @@ class MasterCollections:
     STRATEGY_TEMPLATES = "strategy_templates"
     CANNED_COMM_ENTRIES = "canned_comm_entries"
 
+    # Checklist templates — reusable, program-wide catalog of ordered
+    # sections/items that any module can instantiate (see IncidentCollections
+    # .CHECKLISTS for the per-incident instances, and CHECKLISTS directly
+    # below for standalone instances with no incident). Not owned by any one
+    # feature module; see checklist_templates.py / checklist_service.py.
+    CHECKLIST_TEMPLATES = "checklist_templates"
+
+    # Standalone checklist instances with no incident association — same
+    # document shape and collection name as IncidentCollections.CHECKLISTS,
+    # just stored here (sarapp_master) instead of a per-incident database,
+    # the same "not tied to one incident" pattern PUSH_TOKENS already uses.
+    # See api/routers/checklists.py.
+    CHECKLISTS = "checklists"
+
     # Users and access
     USERS = "users"
     USER_SESSIONS = "user_sessions"
@@ -259,6 +273,13 @@ class IncidentCollections:
     # Approvals — one instance per approvable entity, plus an append-only audit trail
     APPROVAL_INSTANCES = "approval_instances"
     APPROVAL_RECORDS = "approval_records"
+
+    # Checklists — reusable, program-wide checklist instances (optionally
+    # created from a MasterCollections.CHECKLIST_TEMPLATES catalog template,
+    # or blank). Not owned by any one feature module; the Planned Events
+    # Toolkit is the first consumer but must not be a dependency of this
+    # collection. See checklists.py / checklist_service.py.
+    CHECKLISTS = "checklists"
 
     # Notifications — incident-scoped alert history
     NOTIFICATIONS = "notifications"

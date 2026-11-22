@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
 
 from ..record_resolvers import list_gis_features, list_meetings
 from ..records import ScheduledItem
+from .checklist_links_section import ChecklistLinksSection
 from .schedule_time_utils import storage_dt, to_qdatetime
 from .team_picker import TeamPicker
 from modules.logistics.facilities.widgets.personnel_picker import PersonnelPicker
@@ -110,6 +111,9 @@ class ScheduleItemDialog(QDialog):
         form.addRow("Linked Meeting", self.meeting_combo)
         form.addRow("Notes", self.notes_edit)
         layout.addLayout(form)
+
+        if self.incident_id and self._item and self._item.record_id:
+            layout.addWidget(ChecklistLinksSection(self.incident_id, "planned_schedule_item", self._item.record_id, self))
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         buttons.accepted.connect(self._on_accept)

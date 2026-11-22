@@ -112,6 +112,7 @@ MODULE_ACTIONS: dict[str, str] = {
     "planned.vendors": "Vendors & Permits",
     "planned.tasking": "Quick Assignments",
     "planned.health_sanitation": "Health & Sanitation",
+    "planned.checklists": "Checklists",
     "toolkit.initial.overview": "Initial Information",
     "toolkit.initial.hasty": "Early Tasking",
     "library": "Browse Library",
