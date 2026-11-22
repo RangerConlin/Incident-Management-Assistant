@@ -183,14 +183,23 @@ def _login_person(person: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+# A soft-deleted personnel record (see `BaseRepository.soft_delete`) no
+# longer exists as far as login is concerned -- `mobile_context.py`'s
+# `_require_master_person` already rejects one by person_record, so offering
+# it here as a login match or an ambiguous-ID candidate would just steer the
+# operator onto a dead end.
+_NOT_DELETED = {"deleted": {"$ne": True}}
+
+
 def _person_id_matches(person_id: str) -> list[dict[str, Any]]:
-    """All personnel records whose visible person_id equals ``person_id``."""
+    """All non-deleted personnel records whose visible person_id equals
+    ``person_id``."""
 
     refresh_collection_before_read(MasterCollections.PERSONNEL)
-    matches = list(_personnel_col().find({"person_id": person_id}))
+    matches = list(_personnel_col().find({"person_id": person_id, **_NOT_DELETED}))
     if person_id.isdigit():
         seen = {m.get("person_record") for m in matches}
-        for match in _personnel_col().find({"person_id": int(person_id)}):
+        for match in _personnel_col().find({"person_id": int(person_id), **_NOT_DELETED}):
             if match.get("person_record") not in seen:
                 matches.append(match)
     return matches
@@ -204,7 +213,7 @@ def _find_person(identifier: Any) -> dict[str, Any] | None:
         return None
     refresh_collection_before_read(MasterCollections.PERSONNEL)
     if value.isdigit():
-        doc = _personnel_col().find_one({"person_record": int(value)})
+        doc = _personnel_col().find_one({"person_record": int(value), **_NOT_DELETED})
         if doc:
             return doc
     return _find_unique_person_by_person_id(value)
@@ -217,10 +226,14 @@ def _find_unique_person_by_person_id(person_id: Any) -> dict[str, Any] | None:
     if not value:
         return None
     refresh_collection_before_read(MasterCollections.PERSONNEL)
-    matches = list(_personnel_col().find({"person_id": value}).sort("person_record", 1))
+    matches = list(
+        _personnel_col().find({"person_id": value, **_NOT_DELETED}).sort("person_record", 1)
+    )
     if value.isdigit():
         numeric_matches = list(
-            _personnel_col().find({"person_id": int(value)}).sort("person_record", 1)
+            _personnel_col()
+            .find({"person_id": int(value), **_NOT_DELETED})
+            .sort("person_record", 1)
         )
         seen: set[object] = {
             match.get("_id", match.get("person_record"))

@@ -106,3 +106,36 @@ def test_lookup_ambiguous_lists_every_matching_record_so_caller_can_pick():
     finally:
         _personnel_col().delete_many({"person_record": PERSON_RECORD + 1})
         _clear()
+
+
+def test_lookup_ignores_a_soft_deleted_duplicate():
+    """A soft-deleted record (`deleted: true`) must not be offered as a pick
+    for an ambiguous ID -- `mobile_context._require_master_person` already
+    treats it as gone, so letting the operator choose it just moves the
+    dead end from sign-in to the incident-entry step. With only one live
+    record left, the ID should resolve as `found`, not `ambiguous`."""
+
+    _clear()
+    _personnel_col().insert_one(
+        {"person_record": PERSON_RECORD, "person_id": PERSON_ID, "first_name": "Live", "last_name": "Dup"}
+    )
+    _personnel_col().insert_one(
+        {
+            "person_record": PERSON_RECORD + 1,
+            "person_id": PERSON_ID,
+            "first_name": "Deleted",
+            "last_name": "Dup",
+            "deleted": True,
+        }
+    )
+    app = create_app()
+    try:
+        with TestClient(app) as client:
+            res = client.get("/api/auth/lookup", params={"person_id": PERSON_ID})
+        assert res.status_code == 200
+        body = res.json()
+        assert body["status"] == "found"
+        assert body["person"]["person_record"] == PERSON_RECORD
+    finally:
+        _personnel_col().delete_many({"person_record": PERSON_RECORD + 1})
+        _clear()
