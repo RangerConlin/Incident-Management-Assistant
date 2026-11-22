@@ -2,7 +2,39 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { ArrowLeft } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
+  Circle,
+  CircleDashed,
+  CircleDot,
+  Compass,
+  Crosshair,
+  Fingerprint,
+  Grid3x3,
+  Hand,
+  Hexagon,
+  Layers,
+  LocateFixed,
+  Maximize,
+  Minus,
+  MapPin,
+  Move,
+  MousePointer2,
+  RefreshCw,
+  Route,
+  Ruler,
+  Search,
+  Shapes,
+  Square,
+  Target,
+  Trash2,
+  X,
+  ZoomIn,
+  ZoomOut,
+} from "lucide-react";
 import { useSession } from "../../auth/SessionContext";
 import type { SpatialFeature } from "../../api/types";
 import { parseWkt } from "./wkt";
@@ -313,12 +345,12 @@ export default function IncidentMapPage() {
           <div className="im-ribbon-page active">
             <div className="im-rgroup">
               <div className="im-rgroup-buttons">
-                <button className={"im-rbtn" + (navTool === "pan" ? " active" : "")} type="button" title="Dragging the map always pans" onClick={() => setNavTool("pan")}>Pan</button>
-                <button className={"im-rbtn" + (navTool === "select" ? " active" : "")} type="button" title="Clicking a feature always selects it" onClick={() => setNavTool("select")}>Select</button>
-                <button className="im-rbtn" type="button" title="Zoom in" onClick={() => mapRef.current?.zoomIn()}>Zoom In</button>
-                <button className="im-rbtn" type="button" title="Zoom out" onClick={() => mapRef.current?.zoomOut()}>Zoom Out</button>
-                <button className="im-rbtn" type="button" title="Previous extent" onClick={goToPrevExtent}>Prev</button>
-                <button className="im-rbtn" type="button" title="Next extent" onClick={goToNextExtent}>Next</button>
+                <button className={"im-rbtn" + (navTool === "pan" ? " active" : "")} type="button" title="Dragging the map always pans" onClick={() => setNavTool("pan")}><Hand size={16} /><span>Pan</span></button>
+                <button className={"im-rbtn" + (navTool === "select" ? " active" : "")} type="button" title="Clicking a feature always selects it" onClick={() => setNavTool("select")}><MousePointer2 size={16} /><span>Select</span></button>
+                <button className="im-rbtn" type="button" title="Zoom in" onClick={() => mapRef.current?.zoomIn()}><ZoomIn size={16} /><span>Zoom In</span></button>
+                <button className="im-rbtn" type="button" title="Zoom out" onClick={() => mapRef.current?.zoomOut()}><ZoomOut size={16} /><span>Zoom Out</span></button>
+                <button className="im-rbtn" type="button" title="Previous extent" onClick={goToPrevExtent}><ChevronLeft size={16} /><span>Prev</span></button>
+                <button className="im-rbtn" type="button" title="Next extent" onClick={goToNextExtent}><ChevronRight size={16} /><span>Next</span></button>
               </div>
               <span className="im-rgroup-label">Navigation</span>
             </div>
@@ -331,39 +363,39 @@ export default function IncidentMapPage() {
                   onChange={(e) => setSearchText(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && onRunSearch()}
                 />
-                <button className="im-rbtn" type="button" onClick={onRunSearch}>Search</button>
-                <button className="im-rbtn" type="button" title="Coordinate Entry" onClick={() => { setBottomCollapsed(false); setBottomTab("coordinates"); }}>Coords</button>
-                <button className="im-rbtn" type="button" title="My Location" onClick={onGoToMyLocation}>Location</button>
+                <button className="im-rbtn" type="button" onClick={onRunSearch}><Search size={16} /><span>Search</span></button>
+                <button className="im-rbtn" type="button" title="Coordinate Entry" onClick={() => { setBottomCollapsed(false); setBottomTab("coordinates"); }}><Crosshair size={16} /><span>Coords</span></button>
+                <button className="im-rbtn" type="button" title="My Location" onClick={onGoToMyLocation}><LocateFixed size={16} /><span>Location</span></button>
               </div>
               <span className="im-rgroup-label">Find / Go To</span>
             </div>
             <div className="im-rgroup">
               <div className="im-rgroup-buttons">
-                <button className="im-rbtn" type="button" title="Incident Extent" onClick={onZoomToIncident}>Incident</button>
-                <button className="im-rbtn" type="button" disabled title="Team locations aren't exposed to the web client yet">Teams</button>
-                <button className="im-rbtn" type="button" disabled title="Task locations aren't exposed to the web client yet">Tasks</button>
+                <button className="im-rbtn" type="button" title="Incident Extent" onClick={onZoomToIncident}><Maximize size={16} /><span>Incident</span></button>
+                <button className="im-rbtn" type="button" disabled title="Team locations aren't exposed to the web client yet"><Maximize size={16} /><span>Teams</span></button>
+                <button className="im-rbtn" type="button" disabled title="Task locations aren't exposed to the web client yet"><Maximize size={16} /><span>Tasks</span></button>
               </div>
               <span className="im-rgroup-label">Operational View</span>
             </div>
             <div className="im-rgroup">
               <div className="im-rgroup-buttons">
-                <button className="im-rbtn" type="button" disabled title="Coming soon">Marker</button>
-                <button className="im-rbtn" type="button" disabled title="Coming soon">Hazard</button>
-                <button className="im-rbtn" type="button" disabled title="Coming soon">Clue</button>
-                <button className="im-rbtn" type="button" disabled title="Coming soon">Task Area</button>
+                <button className="im-rbtn" type="button" disabled title="Coming soon"><MapPin size={16} /><span>Marker</span></button>
+                <button className="im-rbtn" type="button" disabled title="Coming soon"><AlertTriangle size={16} /><span>Hazard</span></button>
+                <button className="im-rbtn" type="button" disabled title="Coming soon"><Fingerprint size={16} /><span>Clue</span></button>
+                <button className="im-rbtn" type="button" disabled title="Coming soon"><Hexagon size={16} /><span>Task Area</span></button>
               </div>
               <span className="im-rgroup-label">Quick Add <span className="im-soon">Soon</span></span>
             </div>
             <div className="im-rgroup">
               <div className="im-rgroup-buttons">
-                <button className="im-rbtn" type="button" title="Clear Selection" onClick={() => setSelectedFeatureId(null)}>Clear</button>
-                <button className="im-rbtn" type="button" title="Zoom to Selection" disabled={!selectedFeature} onClick={onZoomToSelection}>Zoom</button>
+                <button className="im-rbtn" type="button" title="Clear Selection" onClick={() => setSelectedFeatureId(null)}><X size={16} /><span>Clear</span></button>
+                <button className="im-rbtn" type="button" title="Zoom to Selection" disabled={!selectedFeature} onClick={onZoomToSelection}><Target size={16} /><span>Zoom</span></button>
               </div>
               <span className="im-rgroup-label">Selection</span>
             </div>
             <div className="im-rgroup">
               <div className="im-rgroup-buttons">
-                <button className="im-rbtn" type="button" disabled title="Coming soon">Measure</button>
+                <button className="im-rbtn" type="button" disabled title="Coming soon"><Ruler size={16} /><span>Measure</span></button>
                 <select
                   className="im-rgroup-input"
                   style={{ width: 130 }}
@@ -374,7 +406,7 @@ export default function IncidentMapPage() {
                     <option key={key} value={key}>{config.label}</option>
                   ))}
                 </select>
-                <button className="im-rbtn" type="button" disabled title="Layer management isn't available in the web client yet">Layers</button>
+                <button className="im-rbtn" type="button" disabled title="Layer management isn't available in the web client yet"><Layers size={16} /><span>Layers</span></button>
               </div>
               <span className="im-rgroup-label">Map Utilities</span>
             </div>
@@ -385,57 +417,57 @@ export default function IncidentMapPage() {
           <div className="im-ribbon-page active">
             <div className="im-rgroup">
               <div className="im-rgroup-buttons">
-                <button className="im-rbtn" type="button" disabled title="Coming soon">LZ</button>
-                <button className="im-rbtn" type="button" disabled title="Coming soon">Access Pt</button>
-                <button className="im-rbtn" type="button" disabled title="Coming soon">Roadblock</button>
-                <button className="im-rbtn" type="button" disabled title="Coming soon">Medical</button>
-                <button className="im-rbtn" type="button" disabled title="Coming soon">Comms Site</button>
+                <button className="im-rbtn" type="button" disabled title="Coming soon"><MapPin size={16} /><span>LZ</span></button>
+                <button className="im-rbtn" type="button" disabled title="Coming soon"><MapPin size={16} /><span>Access Pt</span></button>
+                <button className="im-rbtn" type="button" disabled title="Coming soon"><MapPin size={16} /><span>Roadblock</span></button>
+                <button className="im-rbtn" type="button" disabled title="Coming soon"><MapPin size={16} /><span>Medical</span></button>
+                <button className="im-rbtn" type="button" disabled title="Coming soon"><MapPin size={16} /><span>Comms Site</span></button>
               </div>
               <span className="im-rgroup-label">Operational Points <span className="im-soon">Soon</span></span>
             </div>
             <div className="im-rgroup">
               <div className="im-rgroup-buttons">
-                <button className="im-rbtn" type="button" disabled title="Coming soon">Containment</button>
-                <button className="im-rbtn" type="button" disabled title="Coming soon">Route</button>
-                <button className="im-rbtn" type="button" disabled title="Coming soon">Task Route</button>
+                <button className="im-rbtn" type="button" disabled title="Coming soon"><Route size={16} /><span>Containment</span></button>
+                <button className="im-rbtn" type="button" disabled title="Coming soon"><Route size={16} /><span>Route</span></button>
+                <button className="im-rbtn" type="button" disabled title="Coming soon"><Route size={16} /><span>Task Route</span></button>
               </div>
               <span className="im-rgroup-label">Operational Lines <span className="im-soon">Soon</span></span>
             </div>
             <div className="im-rgroup">
               <div className="im-rgroup-buttons">
-                <button className="im-rbtn" type="button" disabled title="Coming soon">Task Area</button>
-                <button className="im-rbtn" type="button" disabled title="Coming soon">Assignment</button>
+                <button className="im-rbtn" type="button" disabled title="Coming soon"><Hexagon size={16} /><span>Task Area</span></button>
+                <button className="im-rbtn" type="button" disabled title="Coming soon"><Hexagon size={16} /><span>Assignment</span></button>
               </div>
               <span className="im-rgroup-label">Operational Areas <span className="im-soon">Soon</span></span>
             </div>
             <div className="im-rgroup">
               <div className="im-rgroup-buttons">
-                <button className="im-rbtn" type="button" disabled title="Coming soon">Point</button>
-                <button className="im-rbtn" type="button" disabled title="Coming soon">Line</button>
-                <button className="im-rbtn" type="button" disabled title="Coming soon">Polygon</button>
-                <button className="im-rbtn" type="button" disabled title="Coming soon">Rectangle</button>
+                <button className="im-rbtn" type="button" disabled title="Coming soon"><Circle size={16} /><span>Point</span></button>
+                <button className="im-rbtn" type="button" disabled title="Coming soon"><Minus size={16} /><span>Line</span></button>
+                <button className="im-rbtn" type="button" disabled title="Coming soon"><Shapes size={16} /><span>Polygon</span></button>
+                <button className="im-rbtn" type="button" disabled title="Coming soon"><Square size={16} /><span>Rectangle</span></button>
               </div>
               <span className="im-rgroup-label">Draw <span className="im-soon">Soon</span></span>
             </div>
             <div className="im-rgroup">
               <div className="im-rgroup-buttons">
-                <button className="im-rbtn" type="button" disabled title="Coming soon">Vertices</button>
-                <button className="im-rbtn" type="button" disabled title="Coming soon">Move</button>
-                <button className="im-rbtn" type="button" title="Delete selected feature" disabled={!selectedFeature} onClick={onDeleteSelected}>Delete</button>
-                <button className="im-rbtn" type="button" disabled title="Coming soon">Buffer…</button>
+                <button className="im-rbtn" type="button" disabled title="Coming soon"><CircleDot size={16} /><span>Vertices</span></button>
+                <button className="im-rbtn" type="button" disabled title="Coming soon"><Move size={16} /><span>Move</span></button>
+                <button className="im-rbtn" type="button" title="Delete selected feature" disabled={!selectedFeature} onClick={onDeleteSelected}><Trash2 size={16} /><span>Delete</span></button>
+                <button className="im-rbtn" type="button" disabled title="Coming soon"><CircleDashed size={16} /><span>Buffer…</span></button>
               </div>
               <span className="im-rgroup-label">Edit</span>
             </div>
             <div className="im-rgroup">
               <div className="im-rgroup-buttons">
-                <button className="im-rbtn" type="button" disabled title="Coming soon">Search Grid</button>
-                <button className="im-rbtn" type="button" disabled title="Coming soon">Search Pattern</button>
+                <button className="im-rbtn" type="button" disabled title="Coming soon"><Grid3x3 size={16} /><span>Search Grid</span></button>
+                <button className="im-rbtn" type="button" disabled title="Coming soon"><Compass size={16} /><span>Search Pattern</span></button>
               </div>
               <span className="im-rgroup-label">Search Generators <span className="im-soon">Soon</span></span>
             </div>
             <div className="im-rgroup">
               <div className="im-rgroup-buttons">
-                <button className="im-rbtn" type="button" disabled title="Coming soon">Convert To…</button>
+                <button className="im-rbtn" type="button" disabled title="Coming soon"><RefreshCw size={16} /><span>Convert To…</span></button>
               </div>
               <span className="im-rgroup-label">Convert <span className="im-soon">Soon</span></span>
             </div>
@@ -460,10 +492,10 @@ export default function IncidentMapPage() {
         <div className="im-contextual-strip">
           <span>Selected: {selectedFeature.label} ({selectedFeature.feature_type})</span>
           <span className="spacer" />
-          <button className="im-rbtn" type="button" onClick={() => { setBottomCollapsed(false); setBottomTab("feature-table"); }}>Open Details</button>
-          <button className="im-rbtn" type="button" disabled title="Coming soon">Edit Vertices</button>
-          <button className="im-rbtn" type="button" disabled title="Coming soon">Add Buffer</button>
-          <button className="im-rbtn" type="button" onClick={onDeleteSelected}>Delete</button>
+          <button className="im-rbtn im-rbtn-inline" type="button" onClick={() => { setBottomCollapsed(false); setBottomTab("feature-table"); }}>Open Details</button>
+          <button className="im-rbtn im-rbtn-inline" type="button" disabled title="Coming soon">Edit Vertices</button>
+          <button className="im-rbtn im-rbtn-inline" type="button" disabled title="Coming soon">Add Buffer</button>
+          <button className="im-rbtn im-rbtn-inline" type="button" onClick={onDeleteSelected}>Delete</button>
         </div>
       )}
 
@@ -539,7 +571,7 @@ export default function IncidentMapPage() {
                 <div className="im-coord-form">
                   <div className="field"><label>Latitude</label><input value={coordLat} onChange={(e) => setCoordLat(e.target.value)} placeholder="41.223000" /></div>
                   <div className="field"><label>Longitude</label><input value={coordLon} onChange={(e) => setCoordLon(e.target.value)} placeholder="-111.812000" /></div>
-                  <button className="im-rbtn" type="button" onClick={onGoToCoordinates}>Go To</button>
+                  <button className="im-rbtn im-rbtn-inline" type="button" onClick={onGoToCoordinates}>Go To</button>
                 </div>
                 <p className="im-coord-readout">
                   {goToReadout ? `DMS: ${goToReadout}` : "DMS readout appears here after Go To."}
