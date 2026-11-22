@@ -325,3 +325,44 @@ and person-to-team lookups remain fast without copying the assignment onto
 `sarapp_db.migrations.migrate_team_member_person_records` before clients rely
 on mobile participation context.
 
+
+## Checklists — Planned Events associations (Phase 4D)
+
+- `linked_record` (singular, set only at creation) is replaced by
+  `linked_records: [{record_type, record_id}, ...]` — a plain array, so one
+  checklist can be associated with several records at once (e.g. a
+  Schedule Activity and the Assignment it came from), and an association
+  can be added or removed after creation via `POST .../checklists/{id}/links`
+  / `.../links/remove` without touching the checklist's sections/responses.
+- `checklists.py`'s `_LINKABLE_RECORD_RESOLVERS` is the one place this
+  module knows about specific other modules' record shapes — a small,
+  closed dict of `record_type -> (collection, id_field)`, not a generic
+  cross-module relationship framework. Phase 4D registers three:
+  `planned_schedule_item` (`IncidentCollections.PLANNED_EVENT_SCHEDULES`,
+  `schedule_id`), `planned_quick_assignment`
+  (`IncidentCollections.PLANNED_QUICK_ASSIGNMENTS`, `quick_assignment_id`),
+  `operations_task` (`IncidentCollections.OPERATIONS_TASKS`, `task_id`).
+  Every target collection's documents already carry their own
+  `incident_id` field (the same convention `plannedtoolkit.py`'s own
+  `_find_by_compound_id` relies on), so `_validate_linkable_record` checks
+  existence and incident-ownership together in one query — a link is never
+  accepted on the client's word alone, and a cross-incident or
+  nonexistent target is rejected with 422.
+- A standalone checklist (no `incident_id`) cannot be linked to any of
+  these record types — `linked_records` must be empty at creation, and
+  `POST .../links` 400s — since there is no "move a standalone checklist
+  into an incident" workflow yet. This is a deliberate rejection, not a
+  bug: linking an incident-specific record to a checklist with no incident
+  context would be unvalidatable.
+- Promotion propagation: `plannedtoolkit.py`'s
+  `promote_quick_assignment` calls `checklists.propagate_link_to_promoted_task`
+  right after creating the formal Operations task (wrapped in try/except —
+  a propagation failure never blocks the promotion itself). It adds
+  `{record_type: "operations_task", record_id: <new task_id>}` to every
+  checklist already linked to `{planned_quick_assignment, <assignment id>}`,
+  without removing that original link, and is idempotent (skips a
+  checklist that already carries the new link) — a promotion retry (the
+  existing `linked_tasking_id` short-circuit, or the atomic
+  `promoted_read_only` claim) can only ever reach this code path once per
+  successful promotion, so it never runs twice for the same promotion
+  either. No new checklist instance is ever created by promotion.

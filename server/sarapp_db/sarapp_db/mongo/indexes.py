@@ -450,8 +450,8 @@ def _create_checklists_indexes(incident_db: Database) -> None:
         checklists,
         [
             ("incident_id", ASCENDING),
-            ("linked_record.record_type", ASCENDING),
-            ("linked_record.record_id", ASCENDING),
+            ("linked_records.record_type", ASCENDING),
+            ("linked_records.record_id", ASCENDING),
         ],
     )
     _ensure_index(checklists, [("deleted", ASCENDING)])
@@ -543,7 +543,7 @@ def _create_standalone_checklists_indexes(master_db: Database) -> None:
     _ensure_index(checklists, [("template_id", ASCENDING)])
     _ensure_index(checklists, [("owner_person_record", ASCENDING)])
     _ensure_index(
-        checklists, [("linked_record.record_type", ASCENDING), ("linked_record.record_id", ASCENDING)]
+        checklists, [("linked_records.record_type", ASCENDING), ("linked_records.record_id", ASCENDING)]
     )
     _ensure_index(checklists, [("deleted", ASCENDING)])
 

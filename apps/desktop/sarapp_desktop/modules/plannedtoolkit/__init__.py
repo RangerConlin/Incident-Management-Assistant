@@ -1,3 +1,4 @@
+from . import checklist_links  # noqa: F401 - import-time side effect: registers record_links handlers
 from .windows import (
     get_event_schedule_panel,
     get_promotions_panel,

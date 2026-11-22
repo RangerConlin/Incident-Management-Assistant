@@ -25,7 +25,7 @@ def _checklist(**overrides) -> dict:
         "instructions": "",
         "template_id": None,
         "owner_person_record": None,
-        "linked_record": None,
+        "linked_records": [],
         "status": "in_progress",
         "created_at": "2026-01-01T00:00:00+00:00",
         "updated_at": "2026-01-01T00:00:00+00:00",

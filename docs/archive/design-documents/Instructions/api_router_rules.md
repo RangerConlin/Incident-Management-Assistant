@@ -122,3 +122,20 @@ longer values still receive an explicit continuation marker and lossless annex.
 - See `mongodb_schema_decisions.md`'s "Checklists — lifecycle & ICS-214
   integration" entry for the full stream-resolution order, idempotency
   scheme, and pending-entry recovery mechanism (`POST .../ics214/retry`).
+
+## Checklists — Planned Events associations (Phase 4D)
+
+- `POST .../checklists/{id}/links` / `.../links/remove` add/remove one
+  `{record_type, record_id}` association without touching anything else
+  on the checklist. Both mirrored for the incident-scoped and standalone
+  URL families, matching the rest of `checklists.py`'s dual-family
+  convention (standalone's add always 400s — see
+  `mongodb_schema_decisions.md`'s Phase 4D entry).
+- `checklists.propagate_link_to_promoted_task` is a plain importable
+  function other routers can call after creating a record that should
+  inherit a checklist's existing links — `plannedtoolkit.py`'s Assignment
+  promotion endpoint is the first caller, imported lazily inside the
+  function body (the same intra-process cross-router import convention
+  `ics214.py`'s `_insert_entry` and `gar_templates.score_selections`
+  already use), wrapped in try/except so a propagation failure never
+  blocks the primary action it's attached to.

@@ -166,7 +166,7 @@ def _serialize(doc: Dict[str, Any]) -> Dict[str, Any]:
         "instructions": str(doc.get("instructions") or ""),
         "template_id": doc.get("template_id"),
         "owner_person_record": doc.get("owner_person_record"),
-        "linked_record": doc.get("linked_record"),
+        "linked_records": doc.get("linked_records") or [],
         "status": str(doc.get("status") or svc.NOT_STARTED),
         "sections": doc.get("sections") or [],
         "created_at": str(doc.get("created_at") or ""),
@@ -371,10 +371,53 @@ class LinkedRecordPayload(BaseModel):
     """A stable reference to another SARApp record, not a database foreign
     key — this collection never joins against the referenced record, so it
     has no dependency on what that record's module is (Planned Events or
-    anything else)."""
+    anything else). ``record_type`` must be one of `_LINKABLE_RECORD_RESOLVERS`
+    (Phase 4D) — the one place this module knows about specific other
+    modules' record shapes, kept intentionally small and closed rather than
+    a generic cross-module relationship framework."""
 
     record_type: str
     record_id: str
+
+
+class LinkRecordRequest(LinkedRecordPayload):
+    session_id: Optional[str] = None
+    actor_id: Optional[int] = None
+
+
+# A checklist's `linked_records` entries reference one of these record
+# types. Each maps to the (collection, id_field) that type's owning router
+# already uses, so existence/incident-scope validation re-queries that same
+# collection rather than trusting a client-submitted id — see
+# `_validate_linkable_record`. Adding a new linkable type means adding one
+# entry here, not a new framework.
+_LINKABLE_RECORD_RESOLVERS: Dict[str, Tuple[str, str]] = {
+    "planned_schedule_item": (IncidentCollections.PLANNED_EVENT_SCHEDULES, "schedule_id"),
+    "planned_quick_assignment": (IncidentCollections.PLANNED_QUICK_ASSIGNMENTS, "quick_assignment_id"),
+    "operations_task": (IncidentCollections.OPERATIONS_TASKS, "task_id"),
+}
+
+
+def _validate_linkable_record(incident_id: str, record_type: str, record_id: str) -> Optional[str]:
+    """Returns an error message, or None if ``record_type``/``record_id``
+    is a real record in this incident.
+
+    Every target collection's documents carry their own `incident_id`
+    field (the same convention `plannedtoolkit.py`'s own
+    `_find_by_compound_id` relies on), so checking both the id field and
+    `incident_id` in one query validates existence and incident-ownership
+    together — never trusting a client-submitted id or label on faith.
+    """
+
+    resolver = _LINKABLE_RECORD_RESOLVERS.get(record_type)
+    if resolver is None:
+        return f"Unknown record_type: {record_type!r}"
+    collection_name, id_field = resolver
+    db = get_incident_db(incident_id)
+    doc = db[collection_name].find_one({id_field: record_id, "incident_id": incident_id})
+    if doc is None:
+        return f"No {record_type} {record_id!r} was found in this incident"
+    return None
 
 
 class StreamSelectionPayload(BaseModel):
@@ -395,7 +438,7 @@ class CreateBlankChecklistRequest(BaseModel):
     instructions: str = ""
     sections: list[ChecklistTemplateSection] = Field(min_length=1)
     owner_person_record: Optional[int] = None
-    linked_record: Optional[LinkedRecordPayload] = None
+    linked_records: list[LinkedRecordPayload] = Field(default_factory=list)
     stream: Optional[StreamSelectionPayload] = None
     session_id: Optional[str] = None
     actor_id: Optional[int] = None
@@ -406,7 +449,7 @@ class CreateFromTemplateRequest(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     owner_person_record: Optional[int] = None
-    linked_record: Optional[LinkedRecordPayload] = None
+    linked_records: list[LinkedRecordPayload] = Field(default_factory=list)
     stream: Optional[StreamSelectionPayload] = None
     session_id: Optional[str] = None
     actor_id: Optional[int] = None
@@ -500,10 +543,37 @@ def _new_doc_lifecycle_fields(
     }
 
 
+def _resolve_linked_records_for_create(
+    incident_id: Optional[str], payloads: list[LinkedRecordPayload]
+) -> list[Dict[str, Any]]:
+    """Validate and normalize `linked_records` supplied at creation time.
+
+    A standalone checklist (``incident_id`` is None) has no incident whose
+    records it could validate against, so it may only be created with an
+    empty list — per the product spec, a standalone checklist must not be
+    linked to an incident-specific record without first establishing a
+    valid incident association through an explicitly supported workflow,
+    which does not exist yet.
+    """
+
+    if not payloads:
+        return []
+    if not incident_id:
+        raise HTTPException(400, "A standalone checklist cannot be linked to incident-specific records")
+    resolved: list[Dict[str, Any]] = []
+    for payload in payloads:
+        error = _validate_linkable_record(incident_id, payload.record_type, payload.record_id)
+        if error:
+            raise HTTPException(422, error)
+        resolved.append(payload.model_dump())
+    return resolved
+
+
 def _create_blank_impl(
     incident_id: Optional[str], body: CreateBlankChecklistRequest, authorization: Optional[str]
 ) -> Dict[str, Any]:
     actor_id = _resolve_actor(authorization, body.session_id, body.actor_id)
+    linked_records = _resolve_linked_records_for_create(incident_id, body.linked_records)
     sections = [section.model_dump() for section in body.sections]
     try:
         svc.validate_template_shape(sections)
@@ -526,7 +596,7 @@ def _create_blank_impl(
             "instructions": body.instructions.strip(),
             "template_id": None,
             "owner_person_record": body.owner_person_record,
-            "linked_record": body.linked_record.model_dump() if body.linked_record else None,
+            "linked_records": linked_records,
             "sections": sections,
             **_new_doc_lifecycle_fields(incident_id, actor_id, body.stream, now),
         }
@@ -554,6 +624,7 @@ def _create_from_template_impl(
     incident_id: Optional[str], body: CreateFromTemplateRequest, authorization: Optional[str]
 ) -> Dict[str, Any]:
     actor_id = _resolve_actor(authorization, body.session_id, body.actor_id)
+    linked_records = _resolve_linked_records_for_create(incident_id, body.linked_records)
     template_repo = ChecklistTemplatesRepository(get_master_db())
     field = _template_record_field(template_repo)
     template = template_repo.find_one({field: body.template_id})
@@ -574,7 +645,7 @@ def _create_from_template_impl(
             "instructions": str(template.get("instructions") or ""),
             "template_id": body.template_id,
             "owner_person_record": body.owner_person_record,
-            "linked_record": body.linked_record.model_dump() if body.linked_record else None,
+            "linked_records": linked_records,
             "sections": sections,
             **_new_doc_lifecycle_fields(incident_id, actor_id, body.stream, now),
         }
@@ -618,10 +689,17 @@ def _list_impl(
         query["owner_person_record"] = owner_person_record
     if template_id is not None:
         query["template_id"] = template_id
-    if linked_record_type:
-        query["linked_record.record_type"] = linked_record_type
-    if linked_record_id:
-        query["linked_record.record_id"] = linked_record_id
+    if linked_record_type or linked_record_id:
+        elem_match: Dict[str, Any] = {}
+        if linked_record_type:
+            elem_match["record_type"] = linked_record_type
+        if linked_record_id:
+            elem_match["record_id"] = linked_record_id
+        # $elemMatch (not two top-level dotted conditions) so a checklist
+        # linked to {type A, id 1} and {type B, id 2} doesn't falsely match
+        # a filter for {type A, id 2} by satisfying each half from a
+        # different array entry.
+        query["linked_records"] = {"$elemMatch": elem_match}
     rows = repo.find_many(query, sort=[("created_at", -1)])
     return [_serialize(row) for row in rows]
 
@@ -673,6 +751,128 @@ def get_standalone_checklist(checklist_id: str) -> Dict[str, Any]:
     repo = _repo(None)
     doc = _get_checklist_or_404(repo, None, checklist_id)
     return _serialize(doc)
+
+
+# ---------------------------------------------------------------------------
+# Associated records (Phase 4D)
+#
+# A checklist's `linked_records` is a flat list of {record_type, record_id}
+# — the reverse direction of the exact same reference every
+# `linked_record_type`/`linked_record_id` list filter already reads
+# (see `_list_impl`). Linking/unlinking happens here rather than through
+# the generic create/update payload so a caller (Planned Events' Schedule
+# or Assignment "Checklists" section today) can associate or remove a
+# link against an existing checklist without resubmitting its sections.
+# ---------------------------------------------------------------------------
+
+def _add_link_impl(
+    incident_id: Optional[str], checklist_id: str, body: LinkRecordRequest, authorization: Optional[str]
+) -> Dict[str, Any]:
+    _resolve_actor(authorization, body.session_id, body.actor_id)
+    repo = _repo(incident_id)
+    doc = _get_checklist_or_404(repo, incident_id, checklist_id)
+
+    if not incident_id:
+        raise HTTPException(400, "A standalone checklist cannot be linked to incident-specific records")
+    error = _validate_linkable_record(incident_id, body.record_type, body.record_id)
+    if error:
+        raise HTTPException(422, error)
+
+    existing_links = doc.get("linked_records") or []
+    if any(
+        link.get("record_type") == body.record_type and link.get("record_id") == body.record_id
+        for link in existing_links
+    ):
+        raise HTTPException(409, "This checklist is already linked to that record")
+
+    link = {"record_type": body.record_type, "record_id": body.record_id}
+    repo.apply_update(checklist_id, {"$push": {"linked_records": link}})
+    updated = repo.find_by_id(checklist_id)
+    return _serialize(updated or doc)
+
+
+@router.post("/incidents/{incident_id}/checklists/{checklist_id}/links", status_code=201)
+def add_checklist_link(
+    incident_id: str,
+    checklist_id: str,
+    body: LinkRecordRequest,
+    authorization: Optional[str] = Header(None),
+) -> Dict[str, Any]:
+    return _add_link_impl(incident_id, checklist_id, body, authorization)
+
+
+@router.post("/checklists/{checklist_id}/links", status_code=201)
+def add_standalone_checklist_link(
+    checklist_id: str, body: LinkRecordRequest, authorization: Optional[str] = Header(None)
+) -> Dict[str, Any]:
+    return _add_link_impl(None, checklist_id, body, authorization)
+
+
+def _remove_link_impl(
+    incident_id: Optional[str], checklist_id: str, body: LinkRecordRequest, authorization: Optional[str]
+) -> Dict[str, Any]:
+    _resolve_actor(authorization, body.session_id, body.actor_id)
+    repo = _repo(incident_id)
+    doc = _get_checklist_or_404(repo, incident_id, checklist_id)
+    link = {"record_type": body.record_type, "record_id": body.record_id}
+    repo.apply_update(checklist_id, {"$pull": {"linked_records": link}})
+    updated = repo.find_by_id(checklist_id)
+    return _serialize(updated or doc)
+
+
+@router.post("/incidents/{incident_id}/checklists/{checklist_id}/links/remove")
+def remove_checklist_link(
+    incident_id: str,
+    checklist_id: str,
+    body: LinkRecordRequest,
+    authorization: Optional[str] = Header(None),
+) -> Dict[str, Any]:
+    return _remove_link_impl(incident_id, checklist_id, body, authorization)
+
+
+@router.post("/checklists/{checklist_id}/links/remove")
+def remove_standalone_checklist_link(
+    checklist_id: str, body: LinkRecordRequest, authorization: Optional[str] = Header(None)
+) -> Dict[str, Any]:
+    return _remove_link_impl(None, checklist_id, body, authorization)
+
+
+def propagate_link_to_promoted_task(
+    incident_id: str, old_record_type: str, old_record_id: str, new_record_type: str, new_record_id: str
+) -> int:
+    """Add ``{new_record_type, new_record_id}`` to every checklist already
+    linked to ``{old_record_type, old_record_id}``, without removing the
+    original link.
+
+    For another router (`plannedtoolkit.py`'s Assignment-promotion
+    endpoint) to call directly after creating the formal Operations task,
+    so a checklist linked to a promoted planned-event Assignment gains a
+    second link to the resulting task — never a second checklist instance,
+    never losing the original Assignment association. Idempotent: a
+    checklist that already carries the new link is left alone, so a
+    promotion retry can call this again safely. Returns how many
+    checklists were updated, for the caller's own logging.
+    """
+
+    repo = _repo(incident_id)
+    candidates = repo.find_many(
+        {
+            "incident_id": incident_id,
+            "linked_records": {"$elemMatch": {"record_type": old_record_type, "record_id": old_record_id}},
+        }
+    )
+    updated_count = 0
+    new_link = {"record_type": new_record_type, "record_id": new_record_id}
+    for candidate in candidates:
+        already_linked = any(
+            link.get("record_type") == new_record_type and link.get("record_id") == new_record_id
+            for link in candidate.get("linked_records") or []
+        )
+        if already_linked:
+            continue
+        repo.apply_update(str(candidate["_id"]), {"$push": {"linked_records": new_link}})
+        updated_count += 1
+    return updated_count
 
 
 # ---------------------------------------------------------------------------

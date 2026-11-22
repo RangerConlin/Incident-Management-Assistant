@@ -40,6 +40,7 @@ from utils.styles import subscribe_theme
 from utils.timefmt import format_display_datetime
 
 from .. import api
+from .. import record_links
 from ..async_call import BackgroundCall
 from ..progress_utils import summarize
 from ..styles_support import checklist_status_brush
@@ -129,6 +130,15 @@ class ChecklistExecutionWidget(QWidget):
         self.failures_label.setWordWrap(True)
         outer.addWidget(self.failures_label)
 
+        links_header = QHBoxLayout()
+        links_header.addWidget(QLabel("Associated Records:"))
+        links_header.addStretch(1)
+        outer.addLayout(links_header)
+        self.links_container = QWidget()
+        self.links_layout = QVBoxLayout(self.links_container)
+        self.links_layout.setContentsMargins(0, 0, 0, 0)
+        outer.addWidget(self.links_container)
+
         actions_row = QHBoxLayout()
         self.refresh_button = QPushButton("Refresh")
         self.refresh_button.clicked.connect(self.refresh)
@@ -164,6 +174,7 @@ class ChecklistExecutionWidget(QWidget):
         self.progress_bar.setValue(0)
         self.progress_label.setText("")
         self.failures_label.setText("")
+        self._clear_links()
         self.status_label.setText(message)
         for button in (self.complete_button, self.reopen_button, self.archive_button, self.refresh_button):
             button.setEnabled(False)
@@ -214,6 +225,8 @@ class ChecklistExecutionWidget(QWidget):
         else:
             self.failures_label.setText("No unresolved failures.")
 
+        self._render_links(checklist)
+
         read_only = status in ("completed", "archived")
         self.refresh_button.setEnabled(True)
         self.complete_button.setEnabled(status in ("not_started", "in_progress") and bool(api.current_actor_id()))
@@ -246,6 +259,71 @@ class ChecklistExecutionWidget(QWidget):
         self.header_status_label.setStyleSheet(
             f"background-color: {bg}; color: {fg}; padding: 2px 8px; border-radius: 4px; font-weight: 600;"
         )
+
+    def _clear_links(self) -> None:
+        while self.links_layout.count():
+            child = self.links_layout.takeAt(0)
+            widget = child.widget()
+            if widget is not None:
+                widget.deleteLater()
+
+    def _render_links(self, checklist: dict[str, Any]) -> None:
+        """Compact "manage supported associations" surface: one row per
+        `linked_records` entry (resolved label + Open + Unlink). Adding a
+        *new* link is initiated from the owning record's own "Checklists"
+        section (e.g. `plannedtoolkit`'s Assignment/Schedule dialogs), not
+        from here — this stays a simple display + removal affordance
+        rather than a second place to pick records to link."""
+
+        self._clear_links()
+        links = checklist.get("linked_records") or []
+        if not links:
+            self.links_layout.addWidget(QLabel("None"))
+            return
+        incident_id = checklist.get("incident_id")
+        for link in links:
+            record_type = link.get("record_type", "")
+            record_id = link.get("record_id", "")
+            row = QHBoxLayout()
+            label = record_links.describe(incident_id, record_type, record_id) if incident_id else f"{record_type}: {record_id}"
+            row.addWidget(QLabel(label))
+            row.addStretch(1)
+            if incident_id and record_links.can_open(record_type):
+                open_button = QPushButton("Open")
+                open_button.clicked.connect(
+                    lambda _checked=False, rt=record_type, rid=record_id: record_links.open_record(
+                        incident_id, rt, rid, self
+                    )
+                )
+                row.addWidget(open_button)
+            unlink_button = QPushButton("Unlink")
+            unlink_button.clicked.connect(
+                lambda _checked=False, rt=record_type, rid=record_id: self._on_unlink_clicked(rt, rid)
+            )
+            row.addWidget(unlink_button)
+            container = QWidget()
+            container.setLayout(row)
+            self.links_layout.addWidget(container)
+
+    def _on_unlink_clicked(self, record_type: str, record_id: str) -> None:
+        if not (self.incident_id and self.checklist_id):
+            return
+        confirm = QMessageBox.question(
+            self,
+            "Remove Association",
+            "Remove this association? The checklist itself, its responses, and its other "
+            "associations are preserved.",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if confirm != QMessageBox.Yes:
+            return
+        try:
+            api.remove_link(self.incident_id, self.checklist_id, record_type=record_type, record_id=record_id)
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.warning(self, "Remove Association", self._describe_error(exc))
+            return
+        self.refresh()
 
     def _build_section_widget(self, section: dict[str, Any], read_only: bool) -> QWidget:
         items = section.get("items") or []

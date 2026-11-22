@@ -109,11 +109,15 @@ def list_checklists(
     status: Optional[str] = None,
     owner_person_record: Optional[int] = None,
     template_id: Optional[int] = None,
+    linked_record_type: Optional[str] = None,
+    linked_record_id: Optional[str] = None,
 ) -> list[dict]:
     params: dict[str, Any] = {
         "status": status,
         "owner_person_record": owner_person_record,
         "template_id": template_id,
+        "linked_record_type": linked_record_type,
+        "linked_record_id": linked_record_id,
     }
     params = {key: value for key, value in params.items() if value is not None}
     return api_client.get(f"/api/incidents/{incident_id}/checklists", params=params) or []
@@ -131,6 +135,7 @@ def create_blank_checklist(
     description: str = "",
     instructions: str = "",
     owner_person_record: Optional[int] = None,
+    linked_records: Optional[list[dict]] = None,
 ) -> dict:
     payload = {
         "name": name,
@@ -138,6 +143,7 @@ def create_blank_checklist(
         "instructions": instructions,
         "sections": sections,
         "owner_person_record": owner_person_record,
+        "linked_records": linked_records or [],
         **_actor_fields(),
     }
     return api_client.post(f"/api/incidents/{incident_id}/checklists", json=payload)
@@ -149,14 +155,36 @@ def create_checklist_from_template(
     template_id: int,
     name: Optional[str] = None,
     owner_person_record: Optional[int] = None,
+    linked_records: Optional[list[dict]] = None,
 ) -> dict:
     payload = {
         "template_id": template_id,
         "name": name,
         "owner_person_record": owner_person_record,
+        "linked_records": linked_records or [],
         **_actor_fields(),
     }
     return api_client.post(f"/api/incidents/{incident_id}/checklists/from-template", json=payload)
+
+
+def add_link(incident_id: str, checklist_id: str, *, record_type: str, record_id: str) -> dict:
+    """Associate an existing checklist with another incident record
+    (e.g. a Planned Events schedule item or Assignment). The server
+    validates ``record_type``/``record_id`` against that record's own
+    collection and incident before accepting the link."""
+
+    payload = {"record_type": record_type, "record_id": record_id, **_actor_fields()}
+    return api_client.post(f"/api/incidents/{incident_id}/checklists/{checklist_id}/links", json=payload)
+
+
+def remove_link(incident_id: str, checklist_id: str, *, record_type: str, record_id: str) -> dict:
+    """Remove one association without affecting the checklist, its
+    responses, or any other association."""
+
+    payload = {"record_type": record_type, "record_id": record_id, **_actor_fields()}
+    return api_client.post(
+        f"/api/incidents/{incident_id}/checklists/{checklist_id}/links/remove", json=payload
+    )
 
 
 def record_item_response(

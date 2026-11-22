@@ -8,6 +8,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication
 
 import modules.checklists.api as api
+import modules.checklists.record_links as record_links
 from modules.checklists.widgets.checklist_execution_widget import ChecklistExecutionWidget
 
 
@@ -57,7 +58,7 @@ def _checklist(items, **overrides) -> dict:
         "instructions": "",
         "template_id": None,
         "owner_person_record": None,
-        "linked_record": None,
+        "linked_records": [],
         "status": "in_progress",
         "created_at": "2026-01-01T00:00:00+00:00",
         "updated_at": "2026-01-01T00:00:00+00:00",
@@ -204,3 +205,58 @@ def test_history_endpoint_reachable_via_resolve(monkeypatch) -> None:
     dialog = ResponseHistoryDialog("INC1", "c1", "chk", "Checked")
     assert dialog.list_widget.count() == 2
     assert "P202" in dialog.list_widget.item(0).text()  # newest first
+
+
+def test_associated_records_rendered_with_resolved_label_and_open_button(monkeypatch) -> None:
+    monkeypatch.setattr(
+        record_links,
+        "_REGISTRY",
+        {
+            "planned_schedule_item": record_links.RecordLinkHandler(
+                type_label="Schedule Activity",
+                resolve_label=lambda i, r: "Opening Ceremony",
+                open_record=lambda i, r, p: None,
+            )
+        },
+    )
+    checklist = _checklist(
+        [_item("chk", "checkbox")],
+        linked_records=[{"record_type": "planned_schedule_item", "record_id": "7"}],
+    )
+    widget = _widget(monkeypatch, checklist)
+
+    assert widget.links_layout.count() == 1
+    row_widget = widget.links_layout.itemAt(0).widget()
+    labels = [row_widget.layout().itemAt(i).widget() for i in range(row_widget.layout().count())]
+    texts = [w.text() for w in labels if hasattr(w, "text") and w.text()]
+    assert any("Opening Ceremony" in t for t in texts)
+    assert any(t == "Open" for t in texts)
+    assert any(t == "Unlink" for t in texts)
+
+
+def test_no_associated_records_shows_none(monkeypatch) -> None:
+    checklist = _checklist([_item("chk", "checkbox")], linked_records=[])
+    widget = _widget(monkeypatch, checklist)
+    assert widget.links_layout.count() == 1
+    assert widget.links_layout.itemAt(0).widget().text() == "None"
+
+
+def test_unlink_confirmation_calls_remove_link(monkeypatch) -> None:
+    from PySide6.QtWidgets import QMessageBox
+
+    monkeypatch.setattr(QMessageBox, "question", staticmethod(lambda *a, **k: QMessageBox.Yes))
+    checklist = _checklist(
+        [_item("chk", "checkbox")],
+        linked_records=[{"record_type": "planned_schedule_item", "record_id": "7"}],
+    )
+    widget = _widget(monkeypatch, checklist)
+
+    calls = []
+    monkeypatch.setattr(
+        api, "remove_link", lambda incident_id, checklist_id, *, record_type, record_id: calls.append(
+            (incident_id, checklist_id, record_type, record_id)
+        )
+    )
+    widget._on_unlink_clicked("planned_schedule_item", "7")
+    _pump(lambda: bool(calls))
+    assert calls == [("INC1", "c1", "planned_schedule_item", "7")]

@@ -29,6 +29,7 @@ def _headers(person_record: int) -> dict[str, str]:
 def _clear() -> None:
     get_incident_db(INCIDENT_A)[IncidentCollections.CHECKLISTS].delete_many({})
     get_incident_db(INCIDENT_B)[IncidentCollections.CHECKLISTS].delete_many({})
+    get_incident_db(INCIDENT_A)[IncidentCollections.PLANNED_EVENT_SCHEDULES].delete_many({})
     get_master_db()[MasterCollections.CHECKLIST_TEMPLATES].delete_many({})
     get_master_db()[MasterCollections.CHECKLISTS].delete_many({})
 
@@ -410,15 +411,30 @@ def test_standalone_checklist_without_incident() -> None:
 
 def test_linked_record_filter() -> None:
     _clear()
+    # A real backing record is required since Phase 4D: `linked_records`
+    # validates that its target actually exists in this incident (see
+    # test_checklists_links.py for the full association test suite); this
+    # test only needs to exercise `linked_record_type`/`linked_record_id`
+    # filtering, so a minimal direct insert is enough.
+    get_incident_db(INCIDENT_A)[IncidentCollections.PLANNED_EVENT_SCHEDULES].insert_one(
+        {"schedule_id": f"{INCIDENT_A}-PLAN-SCHEDULE-1", "incident_id": INCIDENT_A, "name": "Opening"}
+    )
     with TestClient(create_app()) as client:
-        linked = _create_blank(
-            client, linked_record={"record_type": "planned_event", "record_id": "evt-1"}
+        linked = _create_blank(client)
+        link_response = client.post(
+            f"/api/incidents/{INCIDENT_A}/checklists/{linked['id']}/links",
+            json={"record_type": "planned_schedule_item", "record_id": f"{INCIDENT_A}-PLAN-SCHEDULE-1"},
+            headers=_headers(101),
         )
+        assert link_response.status_code == 201, link_response.text
         unlinked = _create_blank(client)
 
         filtered = client.get(
             f"/api/incidents/{INCIDENT_A}/checklists",
-            params={"linked_record_type": "planned_event", "linked_record_id": "evt-1"},
+            params={
+                "linked_record_type": "planned_schedule_item",
+                "linked_record_id": f"{INCIDENT_A}-PLAN-SCHEDULE-1",
+            },
         ).json()
         assert [row["id"] for row in filtered] == [linked["id"]]
         assert unlinked["id"] not in [row["id"] for row in filtered]
