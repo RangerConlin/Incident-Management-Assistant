@@ -7,11 +7,13 @@ from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Body, HTTPException
 from pydantic import BaseModel, Field
+from pymongo.errors import DuplicateKeyError
 
 from sarapp_db.mongo.audit import write_audit
 from sarapp_db.mongo.collection_names import IncidentCollections
 from sarapp_db.mongo.database_manager import get_incident_db
-from sarapp_db.mongo.int_id import next_int_id, next_record_id
+from sarapp_db.mongo.errors import RepositoryError
+from sarapp_db.mongo.int_id import next_record_id
 from sarapp_db.mongo.repository import BaseRepository
 
 logger = logging.getLogger(__name__)
@@ -1189,6 +1191,99 @@ def delete_schedule_trigger(incident_id: str, record_id: int):
         _audit(incident_id, entity_id=existing["schedule_item_id"], action="schedule_item.reminder_cancelled")
 
 
+def _promotion_origin_ref(incident_id: str, source_id: str) -> str:
+    return f"{incident_id}:planned_quick_assignment:{source_id}"
+
+
+def _find_or_create_promoted_task(
+    incident_id: str, qa_doc: Dict[str, Any], source_id: str
+) -> Dict[str, Any]:
+    """Return the one formal Operations Task for this Quick Assignment,
+    creating it only if it doesn't already exist.
+
+    Looked up by `origin_ref` first (not by the Quick Assignment's own
+    `linked_tasking_id`, which the caller may not have been able to save —
+    see the partial-failure case below) so a retry after any failure,
+    including a crash between task creation and saving the link back onto
+    the Quick Assignment, recovers the existing task instead of creating a
+    second one. `origin_ref` also backs a database-level unique index
+    (`indexes.py`), so even two requests racing through this function at
+    the same time can't both insert a task: the loser's `create_task` call
+    raises `DuplicateKeyError` (wrapped by `BaseRepository` as
+    `RepositoryError`), and it falls back to fetching the winner's task.
+    """
+    # Local import: avoids a circular import at module load time between
+    # plannedtoolkit.py and operations.py (neither otherwise imports the
+    # other), and reuses the existing Operations Task creation/team-
+    # assignment services rather than duplicating their logic here.
+    from sarapp_db.api.routers.operations import add_task_team, create_task
+    from sarapp_db.mongo.indexes import ensure_task_origin_ref_index
+
+    incident_db = get_incident_db(incident_id)
+    # Idempotent and cheap (a no-op once the index exists) -- called here
+    # rather than assumed, because nothing in the incident-creation path
+    # runs full index bootstrap today (see ensure_task_origin_ref_index's
+    # docstring), and this promotion path's exactly-once guarantee depends
+    # on the index actually existing.
+    ensure_task_origin_ref_index(incident_db)
+
+    tasks_repo = _repo(incident_id, IncidentCollections.OPERATIONS_TASKS)
+    origin_ref = _promotion_origin_ref(incident_id, source_id)
+    task = tasks_repo.find_one({"origin_ref": origin_ref})
+    if task is None:
+        task_body = {
+            "title": qa_doc.get("title", ""),
+            "assignment": qa_doc.get("summary", ""),
+            "priority": qa_doc.get("priority") or "Medium",
+            "status": qa_doc.get("status") or "Planned",
+            "location": qa_doc.get("location") or qa_doc.get("zone", ""),
+            "due_time": qa_doc.get("due_at") or qa_doc.get("scheduled_at", ""),
+            "origin_module": "planned_quick_assignment",
+            "origin_id": source_id,
+        }
+        try:
+            task = create_task(incident_id, task_body)
+        except RepositoryError as exc:
+            if isinstance(exc.__cause__, DuplicateKeyError):
+                task = tasks_repo.find_one({"origin_ref": origin_ref})
+                if task is None:
+                    raise
+            else:
+                raise
+
+    # Forward the team assignment via the existing team-assignment service
+    # (reused as-is, not duplicated). Checked by `task_teams` being empty
+    # rather than gated to "only on first creation", so recovering a task
+    # from a crash that landed between task creation and this step (or one
+    # recovered via the race-lost branch above) still gets its team
+    # attached on retry, exactly once. There is no equivalent path for a
+    # lone `assigned_person_id` (Operations Tasking only tracks personnel
+    # through a team's roster, not as a standalone task field) or for a
+    # free-text assignee with no resource id -- both are intentionally left
+    # in place, unconverted, on the Quick Assignment itself rather than
+    # invented as new Task fields; see the Phase 2D field-mapping notes.
+    team_id = qa_doc.get("assigned_team_id")
+    if team_id and not task.get("task_teams"):
+        try:
+            team_int_id = int(team_id)
+        except (TypeError, ValueError):
+            team_int_id = None
+        if team_int_id is not None:
+            try:
+                add_task_team(incident_id, task["int_id"], {"team_id": team_int_id})
+                # `create_task()` returns a stripped dict with no `_id`
+                # (see operations._strip) -- re-fetch by the stable `int_id`
+                # instead, which both the just-created and recovered-
+                # existing branches above always have.
+                task = tasks_repo.find_one({"int_id": task["int_id"]})
+            except HTTPException:
+                logger.warning(
+                    "Could not forward assigned_team_id=%s from Quick Assignment %s to task %s",
+                    team_id, source_id, task.get("int_id"),
+                )
+    return task
+
+
 @router.post("/incidents/{incident_id}/planned/quick-assignments/{record_id}/promote")
 def promote_quick_assignment(incident_id: str, record_id: int, body: PromotionRequest):
     config = _tool_config("quick-assignments")
@@ -1197,50 +1292,48 @@ def promote_quick_assignment(incident_id: str, record_id: int, body: PromotionRe
     if not doc:
         raise HTTPException(status_code=404, detail="Quick Assignment not found")
     if doc.get("linked_tasking_id"):
+        # Already fully promoted -- repeated/retried requests return the
+        # same task rather than attempting to create another.
         return _map_doc(doc, config)
 
-    # Atomically claim the promotion before creating the formal task, so two
-    # concurrent promote requests for the same Quick Assignment cannot both
-    # pass the not-yet-promoted check above and each create a duplicate task.
-    claimed = repo.update_one(
-        doc["_id"],
-        {"promoted_read_only": True},
-        extra_filter={"promoted_read_only": {"$ne": True}},
-    )
-    if not claimed:
-        current = repo.find_by_id(doc["_id"])
-        return _map_doc(current or doc, config)
+    source_id = str(doc[config["id_field"]])
+    task = _find_or_create_promoted_task(incident_id, doc, source_id)
+    try:
+        # Any checklist already linked to this Quick Assignment gains a
+        # second link to the new formal task — never a second checklist
+        # instance, and the original Assignment link is kept. This only
+        # ever runs on the single call that actually creates the task
+        # (both the "already promoted" short-circuit above and the
+        # losing side of the atomic claim return before reaching here),
+        # so a promotion retry cannot double-add the link either.
+        from sarapp_db.api.routers.checklists import propagate_link_to_promoted_task
 
-    tasks_repo = _repo(incident_id, IncidentCollections.OPERATIONS_TASKS)
-    task_int_id = next_int_id(tasks_repo._col)
-    task_id = f"{incident_id}-TASK-{task_int_id}"
+        propagate_link_to_promoted_task(
+            incident_id, "planned_quick_assignment", source_id, "operations_task", str(task["int_id"])
+        )
+    except Exception:
+        logger.exception(
+            "Failed to propagate checklist links from Quick Assignment %s to task %s",
+            source_id,
+            task["int_id"],
+        )
+
     now = _utcnow()
-    task_doc: Dict[str, Any] = {
-        "int_id": task_int_id,
-        "task_id": task_id,
-        "incident_id": incident_id,
-        "title": doc.get("title", ""),
-        "assignment": doc.get("summary", ""),
-        "status": doc.get("status") or "Planned",
-        "priority": doc.get("priority") or "Medium",
-        "location": doc.get("location") or doc.get("zone", ""),
-        "due_time": doc.get("due_at") or doc.get("scheduled_at", ""),
-        "source_type": "planned_quick_assignment",
-        "source_id": doc.get(config["id_field"], ""),
-        "source_label": doc.get("title", ""),
-        "created_at": now,
-        "updated_at": now,
-        "deleted": False,
-    }
-    tasks_repo.insert_one(task_doc)
     updates = {
-        "linked_tasking_id": str(task_int_id),
-        "promoted_at": now,
-        "promoted_by": body.promoted_by,
+        "linked_tasking_id": str(task["int_id"]),
+        # Keep the first-recorded promotion stamp: a retry (or a recovery
+        # after a partial failure) must not overwrite who/when the Quick
+        # Assignment was *first* promoted.
+        "promoted_at": doc.get("promoted_at") or now,
+        "promoted_by": doc.get("promoted_by") or body.promoted_by,
         "promoted_read_only": True,
         "lifecycle_state": "Promoted",
-        "updated_at": now,
     }
     repo.update_one(doc["_id"], updates)
     saved = repo.find_by_id(doc["_id"])
+    _audit(
+        incident_id, entity_id=source_id, action="quick_assignment.promoted",
+        field_changes=[{"field": "linked_tasking_id", "old": "", "new": task["int_id"]}],
+        changed_by=body.promoted_by,
+    )
     return _map_doc(saved, config)

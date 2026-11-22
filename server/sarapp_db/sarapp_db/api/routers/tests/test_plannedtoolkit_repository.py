@@ -84,12 +84,19 @@ def test_planned_toolkit_writes_use_base_repository():
         IncidentCollections.PLANNED_CAMPAIGNS,
         IncidentCollections.PLANNED_EVENT_SCHEDULES,
         IncidentCollections.PLANNED_QUICK_ASSIGNMENTS,
-        IncidentCollections.OPERATIONS_TASKS,
     ):
         docs = list(db[collection].find({"incident_id": INCIDENT_ID}))
         assert docs, collection
         for doc in docs:
             _assert_repository_doc(doc)
+
+    # Tasks live in a per-incident database already (see operations.py's
+    # _tasks_repo), so create_task() never stamps an incident_id field onto
+    # the document itself -- no filter needed.
+    task_docs = list(db[IncidentCollections.OPERATIONS_TASKS].find({}))
+    assert task_docs
+    for doc in task_docs:
+        _assert_repository_doc(doc)
 
     _clear(db)
 
@@ -156,9 +163,11 @@ def test_quick_assignment_promotion_is_idempotent():
             "a second promote call must not overwrite the original promoted_by"
         )
 
+    # Tasks live in a per-incident database already, so no incident_id
+    # filter is needed (or available) on the document itself.
     tasks = list(
         db[IncidentCollections.OPERATIONS_TASKS].find(
-            {"incident_id": INCIDENT_ID, "source_type": "planned_quick_assignment"}
+            {"origin_module": "planned_quick_assignment"}
         )
     )
     assert len(tasks) == 1, "promoting the same Quick Assignment twice must not create a second task"

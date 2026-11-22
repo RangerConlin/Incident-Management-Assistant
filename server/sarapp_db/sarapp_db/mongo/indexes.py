@@ -69,6 +69,7 @@ def create_incident_indexes(incident_db: Database) -> None:
     _create_package_activations_indexes(incident_db)
     _create_ics214_indexes(incident_db)
     _create_plannedtoolkit_indexes(incident_db)
+    _create_checklists_indexes(incident_db)
     logger.debug("Incident database indexes verified: %s", incident_db.name)
 
 
@@ -146,6 +147,24 @@ def _create_incident_personnel_indexes(incident_db: Database) -> None:
     )
 
 
+def ensure_task_origin_ref_index(incident_db: Database) -> None:
+    """Ensure the sparse unique index on tasks.origin_ref exists.
+
+    `create_incident_indexes` normally covers this (see
+    `_create_tasks_indexes` below), but nothing in the incident-creation
+    path (`ic_overview.create_incident_records`) currently calls it -- index
+    creation today only runs from the seed loader, the incident importer,
+    and the verify script. Rather than widen this phase's scope to fix that
+    gap for every collection, the Planned Events Toolkit's Quick-Assignment-
+    promotion path (plannedtoolkit._find_or_create_promoted_task) calls this
+    narrow, idempotent helper itself right before it needs the guarantee, so
+    the "exactly-once formal task" requirement holds even for an incident
+    database that never ran full index bootstrap.
+    """
+    tasks = incident_db[IncidentCollections.OPERATIONS_TASKS]
+    _ensure_index(tasks, [("origin_ref", ASCENDING)], unique=True, sparse=True)
+
+
 def _create_tasks_indexes(incident_db: Database) -> None:
     tasks = incident_db[IncidentCollections.TASKS]
     _ensure_index(tasks, [("incident_id", ASCENDING)])
@@ -168,6 +187,14 @@ def _create_tasks_indexes(incident_db: Database) -> None:
     _ensure_index(tasks, [("deleted", ASCENDING)])
     # Narrative entries embedded as array — indexed for critical flag lookups
     _ensure_index(tasks, [("narrative.critical", ASCENDING)])
+    # `origin_ref` (f"{origin_module}:{origin_id}") is only ever set when a
+    # caller supplies both origin fields (e.g. Planned Events Toolkit's
+    # Quick-Assignment-promotion path) — never written as null on an
+    # ordinary task — so this sparse unique index gives that promotion path
+    # database-level exactly-once enforcement: two concurrent requests
+    # promoting the same source record can't both succeed at creating a
+    # task, since the loser's insert raises DuplicateKeyError.
+    ensure_task_origin_ref_index(incident_db)
 
 
 def _create_strategies_indexes(incident_db: Database) -> None:
@@ -438,6 +465,24 @@ def _create_resource_status_indexes(incident_db: Database) -> None:
     _ensure_index(col, [("int_id", ASCENDING)], unique=True, sparse=True)
 
 
+def _create_checklists_indexes(incident_db: Database) -> None:
+    checklists = incident_db[IncidentCollections.CHECKLISTS]
+    _ensure_index(checklists, [("incident_id", ASCENDING)])
+    _ensure_index(checklists, [("int_id", ASCENDING)], unique=True, sparse=True)
+    _ensure_index(checklists, [("incident_id", ASCENDING), ("status", ASCENDING)])
+    _ensure_index(checklists, [("incident_id", ASCENDING), ("template_id", ASCENDING)])
+    _ensure_index(checklists, [("incident_id", ASCENDING), ("owner_person_record", ASCENDING)])
+    _ensure_index(
+        checklists,
+        [
+            ("incident_id", ASCENDING),
+            ("linked_records.record_type", ASCENDING),
+            ("linked_records.record_id", ASCENDING),
+        ],
+    )
+    _ensure_index(checklists, [("deleted", ASCENDING)])
+
+
 def _create_approval_indexes(incident_db: Database) -> None:
     instances = incident_db[IncidentCollections.APPROVAL_INSTANCES]
     _ensure_index(instances, [("incident_id", ASCENDING)])
@@ -509,7 +554,24 @@ def create_master_indexes(master_db: Database) -> None:
     _create_push_token_indexes(master_db)
     _create_resource_associations_indexes(master_db)
     _create_resource_packages_indexes(master_db)
+    _create_standalone_checklists_indexes(master_db)
     logger.debug("Master database indexes verified: %s", master_db.name)
+
+
+def _create_standalone_checklists_indexes(master_db: Database) -> None:
+    """Same shape as `_create_checklists_indexes`, for standalone (no
+    incident) checklist instances stored in `sarapp_master` instead of a
+    per-incident database — see `MasterCollections.CHECKLISTS`."""
+
+    checklists = master_db[MasterCollections.CHECKLISTS]
+    _ensure_index(checklists, [("int_id", ASCENDING)], unique=True, sparse=True)
+    _ensure_index(checklists, [("status", ASCENDING)])
+    _ensure_index(checklists, [("template_id", ASCENDING)])
+    _ensure_index(checklists, [("owner_person_record", ASCENDING)])
+    _ensure_index(
+        checklists, [("linked_records.record_type", ASCENDING), ("linked_records.record_id", ASCENDING)]
+    )
+    _ensure_index(checklists, [("deleted", ASCENDING)])
 
 
 def _create_resource_associations_indexes(master_db: Database) -> None:

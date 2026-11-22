@@ -47,12 +47,18 @@
 .im-rgroup:last-child { border-right: none; }
 .im-rgroup-buttons { display: flex; gap: 4px; align-items: center; }
 .im-rbtn {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
   background: #1d2024; border: 1px solid #2a2d33; color: #e8e8e8; border-radius: 6px;
-  padding: 5px 9px; font: inherit; font-size: 0.74rem; font-weight: 600; cursor: pointer; white-space: nowrap; width: auto;
+  padding: 6px 8px; font: inherit; font-size: 0.66rem; font-weight: 600; cursor: pointer; white-space: nowrap; width: auto;
+  min-width: 54px; min-height: 46px;
 }
+.im-rbtn svg { flex-shrink: 0; }
 .im-rbtn:hover:not(:disabled) { border-color: var(--brand-accent); color: var(--brand-accent); }
 .im-rbtn.active { background: var(--brand-accent); color: #fff; border-color: var(--brand-accent); }
 .im-rbtn:disabled { opacity: 0.45; cursor: default; }
+/* Outside the ribbon (contextual strip, inline form actions) buttons stay a
+ * plain single-line pill — the icon-over-label stack is a ribbon affordance. */
+.im-rbtn-inline { flex-direction: row; min-width: 0; min-height: 0; padding: 5px 9px; font-size: 0.74rem; }
 .im-rgroup-label { font-size: 0.65rem; color: #9aa0a8; text-transform: uppercase; letter-spacing: 0.03em; }
 .im-rgroup-input {
   width: 150px; background: #121417; border: 1px solid #2a2d33; border-radius: 6px; color: #e8e8e8;

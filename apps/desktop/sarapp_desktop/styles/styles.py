@@ -184,6 +184,9 @@ _MEETING_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE
 _EVENT_SCHEDULE_STATUS_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "EVENT_SCHEDULE_STATUS")
 _EVENT_SCHEDULE_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "EVENT_SCHEDULE_STATUS")
 
+_CHECKLIST_STATUS_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "CHECKLIST_STATUS")
+_CHECKLIST_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "CHECKLIST_STATUS")
+
 _SITREP_STATUS_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "SITREP_STATUS")
 _SITREP_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "SITREP_STATUS")
 
@@ -388,6 +391,10 @@ def meeting_status_colors() -> Dict[str, Dict[str, QBrush]]:
 
 def event_schedule_status_colors() -> Dict[str, Dict[str, QBrush]]:
     return _EVENT_SCHEDULE_STATUS_LIGHT if THEME_NAME == "light" else _EVENT_SCHEDULE_STATUS_DARK
+
+
+def checklist_status_colors() -> Dict[str, Dict[str, QBrush]]:
+    return _CHECKLIST_STATUS_LIGHT if THEME_NAME == "light" else _CHECKLIST_STATUS_DARK
 
 
 def sitrep_status_colors() -> Dict[str, Dict[str, QBrush]]:
@@ -666,6 +673,7 @@ __all__ = [
     "operational_period_status_colors",
     "meeting_status_colors",
     "event_schedule_status_colors",
+    "checklist_status_colors",
     "sitrep_status_colors",
     "narrative_status_colors",
     "resource_status_colors",

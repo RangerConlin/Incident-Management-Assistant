@@ -127,6 +127,11 @@ def create_app(server_info_fn=None, request_log_fn=None, mode: str = "full") -> 
     from sarapp_db.api.routers import gar_templates
     app.include_router(gar_templates.router, prefix="/api/gar-templates", tags=["gar-templates"])
 
+    from sarapp_db.api.routers import checklist_templates
+    app.include_router(
+        checklist_templates.router, prefix="/api/checklist-templates", tags=["checklist-templates"]
+    )
+
     from sarapp_db.api.routers import resource_types
     app.include_router(resource_types.router, prefix="/api/resource-types", tags=["resource-types"])
 
@@ -321,6 +326,9 @@ def create_app(server_info_fn=None, request_log_fn=None, mode: str = "full") -> 
 
         from sarapp_db.api.routers import approvals
         app.include_router(approvals.router, prefix="/api/incidents", tags=["approvals"])
+
+        from sarapp_db.api.routers import checklists
+        app.include_router(checklists.router, prefix="/api", tags=["checklists"])
 
         from sarapp_db.api.routers import attachments
         app.include_router(attachments.router, prefix="/api", tags=["attachments"])

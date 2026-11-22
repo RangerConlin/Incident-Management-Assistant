@@ -79,3 +79,63 @@ field values with page widgets, in addition to visual checks.
 ICS 203 also bundles the authoritative JSON mappings; sync/check both JSON and PDF
 assets after changes. Its narrow original fields may fit text down to 6 points;
 longer values still receive an explicit continuation marker and lossless annex.
+
+## Checklists (program-wide, Phase 4A)
+
+- `api/routers/checklist_templates.py` (master catalog, `/api/checklist-templates`)
+  and `api/routers/checklists.py` (instances) are shared infrastructure, not
+  owned by the Planned Events Toolkit or any other feature module — see
+  `mongodb_schema_decisions.md`'s "Checklists" entry for the full data model.
+- `checklists.py` implements every operation once as a `_*_impl(incident_id:
+  Optional[str], ...)` function, then exposes it under two thin route
+  families that share that implementation: `/api/incidents/{incident_id}/checklists...`
+  (incident-scoped) and `/api/checklists...` (standalone, no incident,
+  stored in `sarapp_master` instead of a per-incident database). This is the
+  precedent to copy for any future collection that needs to support both an
+  incident-scoped and a standalone instance of the same resource without
+  duplicating validation/business logic.
+- `BaseRepository.apply_update` takes an optional `array_filters` kwarg,
+  passed straight through to PyMongo, for a targeted update on one element
+  of a nested array (e.g. one item inside one section of a checklist)
+  without a read-modify-write race against a concurrent update to a
+  different element of the same array. Prefer this over reading the whole
+  document, mutating it in Python, and writing the whole field back,
+  whenever a write only needs to touch one element of a nested array.
+
+## Checklists — lifecycle & ICS-214 integration (Phase 4B)
+
+- The Phase 4A generic `PATCH .../checklists/{id}/status` is gone. Status
+  only changes through `POST .../complete`, `.../reopen`, `.../archive` —
+  each revalidates and atomically claims its own transition
+  (`checklists._claim_transition`); there is no endpoint that can set an
+  arbitrary status directly.
+- `checklists.py` is the one caller that writes ICS-214 entries from
+  outside `ics214.py` itself (besides `ics214.py`'s own internal "mobile"
+  routes) — it imports `ics214._insert_entry`/`EntryCreate`/`SourceRecord`
+  directly rather than going through HTTP, matching the existing
+  intra-process-import convention for cross-module reuse in this codebase
+  (same as `operations.py` importing `gar_templates.score_selections`).
+  Any future module that needs to log a significant lifecycle event should
+  follow the same pattern: import `_insert_entry`/`EntryCreate` directly
+  and supply a deterministic `idempotency_hash`, never build a parallel
+  logging endpoint.
+- See `mongodb_schema_decisions.md`'s "Checklists — lifecycle & ICS-214
+  integration" entry for the full stream-resolution order, idempotency
+  scheme, and pending-entry recovery mechanism (`POST .../ics214/retry`).
+
+## Checklists — Planned Events associations (Phase 4D)
+
+- `POST .../checklists/{id}/links` / `.../links/remove` add/remove one
+  `{record_type, record_id}` association without touching anything else
+  on the checklist. Both mirrored for the incident-scoped and standalone
+  URL families, matching the rest of `checklists.py`'s dual-family
+  convention (standalone's add always 400s — see
+  `mongodb_schema_decisions.md`'s Phase 4D entry).
+- `checklists.propagate_link_to_promoted_task` is a plain importable
+  function other routers can call after creating a record that should
+  inherit a checklist's existing links — `plannedtoolkit.py`'s Assignment
+  promotion endpoint is the first caller, imported lazily inside the
+  function body (the same intra-process cross-router import convention
+  `ics214.py`'s `_insert_entry` and `gar_templates.score_selections`
+  already use), wrapped in try/except so a propagation failure never
+  blocks the primary action it's attached to.

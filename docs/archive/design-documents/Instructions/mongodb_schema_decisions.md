@@ -167,6 +167,154 @@ Notification acknowledgement/read state is stored per person in the canonical
 - Document shape: `{incident_id, int_id, source_type: "objective"|"task", source_id, source_title, auto_summary, lofr_summary, ready_to_report, last_synced_at, updated_by, updated_at}`. `int_id` is sequential per-incident like the rest of the Liaison collections (see `_next_int_id` in `liaison.py`).
 - Objectives (`objectives.py`) and Tasks (`operations.py`'s task-create endpoint) both gained optional `origin_module`/`origin_id` fields so a customer request logged in Liaison can be converted directly into a real Objective or Task with a back-link to where it came from. This is the same directional-FK pattern Liaison Feedback already used (`objective_id`/`task_id`/`resource_request_id` on `FeedbackItem`), just reversed: the *new* Objective/Task points back at its Liaison origin instead of Liaison pointing at an existing Objective/Task.
 - `liaison_agency_requests` gained `converted_to_type`/`converted_to_id` (set via `PATCH .../agency-requests/{id}/converted`) so the Customer Requests board can show a request has already been actioned and block converting it twice.
+# Checklists (program-wide, Phase 4A)
+
+- Files: `server/sarapp_db/sarapp_db/services/checklist_service.py` (pure domain
+  logic — item/section validation, response validation, progress/failure
+  calculation, lifecycle transitions), `api/routers/checklist_templates.py`
+  (master catalog), `api/routers/checklists.py` (instances). Collections:
+  `MasterCollections.CHECKLIST_TEMPLATES`, `IncidentCollections.CHECKLISTS`
+  (incident-scoped instances), `MasterCollections.CHECKLISTS` (standalone
+  instances with no incident, same shape, same pattern as `PUSH_TOKENS`).
+- Not owned by the Planned Events Toolkit or any other feature module —
+  any module that wants a checklist calls this API; see `agents.md`'s
+  notification-service precedent for the same "shared infrastructure, not
+  a single module's" shape.
+- A checklist template is an ordered list of sections (each optional —
+  "no sections" is one section with a blank `name`), each with an ordered
+  list of items. Every item has one of five `item_type`s (`checkbox`,
+  `pass_fail_na`, `text`, `numeric`, `selection`) and a per-item
+  `na_allowed`/`required` flag. Item ids are unique across the *whole*
+  template (not just within a section) because an instance response is
+  recorded by item id alone.
+- A checklist instance snapshots a template's sections/items in full at
+  creation time (`checklist_service.snapshot_sections`, a deep copy) —
+  editing or deactivating the source template afterward never changes an
+  existing instance. There is no live reference back to the template
+  beyond the recorded `template_id`, used only for filtering.
+- Every item carries `response` (the current value) and an append-only
+  `history` list of every response ever recorded for it. Nothing is ever
+  edited in place: a changed response is a new history entry, so an
+  earlier response's original author/timestamp is never lost, and
+  `response` always mirrors `history[-1]`.
+- N/A is represented the same way for every item type: `na=True,
+  value=None`. A failed Pass/Fail/N/A result is `value="fail", na=False`,
+  kept distinguishable from both "unanswered" (no response at all) and
+  "N/A". An item is "answered" the moment it has any response, N/A
+  included — there is no separate per-item "mark complete" action, and a
+  failed/answered item is never assumed satisfactory.
+- Recording a response is a targeted, atomic Mongo `$push`/`$set` against
+  just that one item via `array_filters` (`BaseRepository.apply_update`
+  gained an `array_filters` passthrough for this), not a whole-document
+  read-modify-write of the `sections` field — so concurrent responses to
+  two different items on the same checklist can never clobber each other.
+  The automatic `not_started -> in_progress` transition on first response
+  is its own atomic, conditional update (`extra_filter={"status":
+  "not_started"}`), so it can't race a concurrent explicit status change.
+- Lifecycle: `not_started -> in_progress` (automatic, on first response, or
+  manual) `-> completed` (manual) `<-> in_progress` (reopening) `->
+  archived` (terminal for Phase 4A from any non-archived state). Full
+  finalization behavior (e.g. ICS-214 logging on completion) is Phase 4B;
+  unarchiving is explicitly deferred to 4B.
+- Progress (`checklist_service.compute_progress`) is backend-calculated
+  and documented once, in that function's docstring: `total_items`,
+  `answered_items` (N/A included), `unanswered_required_items`,
+  `na_items`, `failed_items` (current Pass/Fail/N/A `fail` responses
+  only), `completion_percentage` = `answered_items / total_items * 100`.
+  An answered item is never assumed satisfactory, and the checklist is
+  never auto-completed just because every item got a response.
+- Attribution is always server-side: every response/status/create write
+  resolves the caller through `auth_sessions.resolve_request_person`
+  (signed web bearer token or active desktop/mobile session) — the same
+  mechanism `approvals.py` uses for signing a step — never a
+  client-submitted user id. Read endpoints are open, matching every other
+  incident-scoped router; there is no broader role/permission layer in
+  this codebase yet to apply to them.
+- A checklist's optional link to another SARApp record (`linked_record:
+  {record_type, record_id}`) is a stable reference, not a database foreign
+  key — this collection never joins against it, so it has no dependency
+  on any other module (Planned Events included).
+
+## Checklists — lifecycle & ICS-214 integration (Phase 4B)
+
+- Phase 4A's generic status PATCH is removed. The only ways to change a
+  checklist's status are the three explicit, guarded actions in
+  `checklists.py`: `complete`, `reopen`, `archive` (plus the automatic
+  `not_started -> in_progress` transition on first response, unchanged
+  from 4A). A bare arbitrary status write can no longer bypass completion
+  validation.
+- `complete` revalidates server-side regardless of what an earlier
+  `validate-completion` call reported (that call's response is advisory
+  only and is never trusted to still be accurate — another user may have
+  changed a response in between). It blocks on missing required
+  responses or (defensively) invalid ones, and separately requires
+  `acknowledge_failures: true` on the request before finalizing a
+  checklist with unresolved Pass/Fail/N/A failures — a failure is
+  preserved on the completed checklist, never silently treated as a pass.
+- Reopening only ever starts from `completed` (not from `archived` —
+  unarchiving is not implemented) and requires a non-blank `reason`.
+  Completing/reopening/archiving never clear `completed_at`/`completed_by`
+  — the previous completion record is preserved, not wiped, so reopening
+  keeps the full history of what it's reopening.
+- Concurrency without multi-document transactions: this deployment's
+  MongoDB is not guaranteed to be a replica set, so no code anywhere uses
+  `session.start_transaction()`. Every lifecycle action instead claims its
+  transition with one atomic, conditional `apply_update` keyed on both the
+  expected current `status` AND a per-checklist optimistic-concurrency
+  counter (`lifecycle_event_seq`) — see `checklists._claim_transition`.
+  Two concurrent completion attempts can never both succeed; the loser's
+  conditional update matches zero documents and the request gets a 409.
+- Every significant lifecycle action (`created`/`completed`/`reopened`/
+  `recompleted`/`archived`) appends one entry to the checklist's own
+  `lifecycle_history` array (durable, append-only, still readable after
+  archiving) via `checklist_service.build_lifecycle_entry`, and — for an
+  incident-scoped checklist only — also calls `mongo.audit.write_audit`
+  into that incident's shared `AUDIT_LOGS` collection
+  (`entity_type="checklist"`), reusing existing audit infrastructure
+  (`plannedtoolkit.py`'s precedent) instead of a parallel system. A
+  standalone checklist has no incident `AUDIT_LOGS` to write into, so its
+  `lifecycle_history` array is the sole durable record of its lifecycle.
+- ICS-214 integration: completing, recompleting, and reopening an
+  incident-scoped checklist each write one entry via `ics214._insert_entry`
+  (never archiving, and never an individual item response — those stay in
+  the checklist's own response history). There is no "stream" object in
+  this codebase (see `ics214.py`'s own docstring) — a "stream" here is
+  just the `log_keys`/`org_unit_ids`/`incident_wide` tag set `EntryCreate`
+  already accepts. Resolution order: (1) a stream already persisted on the
+  checklist (set at creation or an earlier completion/reopen), (2) an
+  unambiguous resolver from the checklist's `linked_record` — intentionally
+  unimplemented today (no cross-module resolver registry exists yet; see
+  `checklists._resolve_stream`'s docstring), (3) a stream explicitly given
+  on this request. If none resolves, the call 422s with
+  `ics214_stream_required: true` rather than guessing among plausible
+  streams. A resolved/selected stream is persisted on the checklist so the
+  next lifecycle action defaults to it, while an explicit `stream` on a
+  later request still overrides it. Standalone checklists never resolve
+  or require a stream and never write to ICS-214.
+- Idempotency: each ICS-214 write for a lifecycle action uses a
+  deterministic `idempotency_hash` = `sha256(f"checklist-{action}:{checklist_id}:{lifecycle_event_seq}")`,
+  the same `sha256("<namespace>:<stable-id>")` shape `ics214.py`'s own
+  mobile task-narrative caller already uses — so a retried request (or the
+  `/ics214/retry` recovery endpoint) can never produce a duplicate entry;
+  `ics214._insert_entry`'s existing find-then-insert-by-hash logic is the
+  dedup mechanism, not anything new.
+- If the ICS-214 write fails after the lifecycle transition has already
+  committed (a legitimate state regardless of logging success), the
+  triggering `lifecycle_history` entry and the checklist's own
+  `ics214_pending` flag record that it still needs retrying, with the
+  exact text/stream/idempotency hash it would have used stored on that
+  entry. `POST .../checklists/{id}/ics214/retry` re-attempts every pending
+  entry with that same stored hash — a durable, DB-backed recovery
+  mechanism, not an in-memory retry queue or a background daemon.
+- Authorization: there is still no repo-wide role/permission layer (see
+  Phase 4A's note above). "Authorized user" for completing, reopening,
+  archiving, viewing lifecycle history, and selecting/changing the ICS-214
+  stream all mean the same thing: a real, signed-in session resolved via
+  `auth_sessions.resolve_request_person`, the ceiling this codebase has
+  today. Unlike Phase 4A's open reads, `lifecycle-history` requires this
+  check too, since the spec calls out "viewing checklist history" as a
+  permission-gated action.
+
 # Team personnel membership
 
 Team personnel membership is canonical on each incident `teams` document as
@@ -177,3 +325,44 @@ and person-to-team lookups remain fast without copying the assignment onto
 `sarapp_db.migrations.migrate_team_member_person_records` before clients rely
 on mobile participation context.
 
+
+## Checklists — Planned Events associations (Phase 4D)
+
+- `linked_record` (singular, set only at creation) is replaced by
+  `linked_records: [{record_type, record_id}, ...]` — a plain array, so one
+  checklist can be associated with several records at once (e.g. a
+  Schedule Activity and the Assignment it came from), and an association
+  can be added or removed after creation via `POST .../checklists/{id}/links`
+  / `.../links/remove` without touching the checklist's sections/responses.
+- `checklists.py`'s `_LINKABLE_RECORD_RESOLVERS` is the one place this
+  module knows about specific other modules' record shapes — a small,
+  closed dict of `record_type -> (collection, id_field)`, not a generic
+  cross-module relationship framework. Phase 4D registers three:
+  `planned_schedule_item` (`IncidentCollections.PLANNED_EVENT_SCHEDULES`,
+  `schedule_id`), `planned_quick_assignment`
+  (`IncidentCollections.PLANNED_QUICK_ASSIGNMENTS`, `quick_assignment_id`),
+  `operations_task` (`IncidentCollections.OPERATIONS_TASKS`, `task_id`).
+  Every target collection's documents already carry their own
+  `incident_id` field (the same convention `plannedtoolkit.py`'s own
+  `_find_by_compound_id` relies on), so `_validate_linkable_record` checks
+  existence and incident-ownership together in one query — a link is never
+  accepted on the client's word alone, and a cross-incident or
+  nonexistent target is rejected with 422.
+- A standalone checklist (no `incident_id`) cannot be linked to any of
+  these record types — `linked_records` must be empty at creation, and
+  `POST .../links` 400s — since there is no "move a standalone checklist
+  into an incident" workflow yet. This is a deliberate rejection, not a
+  bug: linking an incident-specific record to a checklist with no incident
+  context would be unvalidatable.
+- Promotion propagation: `plannedtoolkit.py`'s
+  `promote_quick_assignment` calls `checklists.propagate_link_to_promoted_task`
+  right after creating the formal Operations task (wrapped in try/except —
+  a propagation failure never blocks the promotion itself). It adds
+  `{record_type: "operations_task", record_id: <new task_id>}` to every
+  checklist already linked to `{planned_quick_assignment, <assignment id>}`,
+  without removing that original link, and is idempotent (skips a
+  checklist that already carries the new link) — a promotion retry (the
+  existing `linked_tasking_id` short-circuit, or the atomic
+  `promoted_read_only` claim) can only ever reach this code path once per
+  successful promotion, so it never runs twice for the same promotion
+  either. No new checklist instance is ever created by promotion.
