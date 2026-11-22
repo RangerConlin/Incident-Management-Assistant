@@ -1,5 +1,60 @@
 # Planned Events Toolkit — Phase 0 Audit
 
+**Phase 2D (Operations Tasking Integration and Promotion Reliability) — completed 2026-11-22.**
+Hardens the existing `promote_quick_assignment` endpoint rather than redesigning it. Three real
+gaps closed, each previously flagged in this document:
+- **Origin-link convention fixed** (§1.2 finding 2, §5 hardening backlog): the formal task's
+  back-reference to its source Quick Assignment now uses `origin_module`/`origin_id` —
+  `operations.create_task`'s existing convention (already used by `objectives.py` and the
+  desktop Tasking repository) — instead of the one-off `source_type`/`source_id`/`source_label`
+  trio the old promotion code invented, which nothing else in Operations Tasking ever read.
+  `operations.create_task` now only writes these two fields (plus a derived `origin_ref`) when a
+  caller actually supplies both; previously it always wrote `origin_module`/`origin_id` as
+  explicit `null` on every ordinary task, which would have defeated a sparse unique index.
+- **Promotion is now exactly-once at the database level, not just via a look-before-create
+  check** (the brief's own words: "a simple check... is not sufficient for concurrency safety").
+  A new sparse unique index on `tasks.origin_ref` (`f"{origin_module}:{origin_id}"`,
+  `mongo/indexes.py`'s `ensure_task_origin_ref_index`) means two requests racing to promote the
+  same Quick Assignment can't both successfully insert a task — the loser's insert raises
+  `DuplicateKeyError`, caught and resolved by re-fetching the winner's task
+  (`plannedtoolkit._find_or_create_promoted_task`). The same lookup-by-`origin_ref` path also
+  recovers a formal task that was created but never linked back onto the Quick Assignment
+  (a crash between the two writes), so a retry after any partial failure converges on one task
+  instead of creating a second one. **Found in passing**: nothing in the incident-creation path
+  (`ic_overview.create_incident_records`) actually runs index bootstrap — `create_incident_indexes`
+  is only ever called from the seed loader, the incident importer, and the verify script — so
+  this promotion path calls the narrow `ensure_task_origin_ref_index` helper itself rather than
+  assuming the index exists; the broader gap (every other collection's indexes, e.g. the teams
+  `int_id` uniqueness) is unaffected and is flagged here, not fixed, since fixing it repo-wide is
+  outside this phase's scope.
+- **Team assignment now forwards to the formal task** (§2 reuse matrix row "Quick Assignment →
+  Tasking promotion", §5 hardening backlog): `assigned_team_id` is attached via the existing
+  `add_task_team` service, not duplicated logic. A lone `assigned_person_id` or a free-text
+  assignee has no equivalent destination field — Operations Tasking only tracks personnel
+  through a team's roster, never as a standalone task field — so both are intentionally left in
+  place, unconverted and undiscarded, on the (now read-only) source Quick Assignment rather than
+  invented as new Task fields.
+- Desktop (`modules/plannedtoolkit/windows.py`): the promote action is relabeled "Promote to
+  Operations Task" with an explicit confirmation dialog and the button disabled for the duration
+  of the request; a promoted row now shows a "✓ Promoted" indicator alongside "Open Operations
+  Task (<id>)". The Assignment detail dialog's read-only lock-down and read-only notice already
+  existed from Phase 2A and needed no changes.
+- Tests: `test_plannedtoolkit_promotion_phase2d.py` (team/personnel-field-mapping, the
+  origin-link convention, partial-failure recovery, incident isolation, recurring/schedule-
+  triggered occurrence independence, the database-level uniqueness guarantee itself, and that
+  ordinary task creation is unaffected by the new index) plus updated assertions in
+  `test_plannedtoolkit_assignments.py`/`test_plannedtoolkit_repository.py` (tasks live in a
+  per-incident database and never carried an `incident_id` field on the document itself — a
+  pre-existing fact the old hand-built promotion code's test queries happened to paper over by
+  stamping that field manually; the new tests query within the correct per-incident database
+  instead). Full existing Planned Events Toolkit + Operations Tasking suites re-verified
+  alongside these (293 passed; 5 unrelated pre-existing environment failures — GridFS requiring
+  a real `pymongo.Database` that `mongomock` can't provide, and one FastAPI-version route-
+  introspection mismatch — neither touches tasks, plannedtoolkit, or indexes).
+- Out of scope per the brief (not implemented): any change to Operations Tasking's own data
+  model or UI beyond reusing `create_task`/`add_task_team` as they already exist; a second
+  formal task model; a new promotion/mapping collection; mobile app changes.
+
 **Phase 2A (Assignment Cleanup and Management) and Phase 2B (Event Schedule and Assignment
 Integration) — both complete.** Phase 2A removed the obsolete planned-event `tasks`
 tool/collection, made `quick-assignments` the single user-facing "Assignments" system with a
@@ -483,7 +538,7 @@ Items 1 and 2 from the original list were resolved during stakeholder review on 
 | Meeting agenda/attendees/notes/action items | `modules/planning/meetings` | `meetings.py` router, `MeetingsService` | Ready to reuse | None significant | Event Schedule links to Meeting records by id; do not model agenda data in Event Schedule |
 | Recurrence rules / reminders | Nobody (no shared utility) | — | Missing | Two bespoke recurrence reps already exist | Build one shared recurrence utility before Phase 1 schedule work, or explicitly scope down to plannedtoolkit's existing string rep and document it as the interim standard |
 | Quick Assignment creation | `modules/plannedtoolkit` (`quick-assignments` tool) | `plannedtoolkit.py` generic `/planned/{tool}` routes | Ready to reuse | Minor: still raw writes | Migrate to `BaseRepository` |
-| Quick Assignment → Tasking promotion | `plannedtoolkit.py` `promote_quick_assignment` | `/planned/quick-assignments/{id}/promote` | Ready to reuse, needs hardening | Doesn't carry team/personnel forward; inconsistent origin-field convention | Standardize on one origin-link convention (§3.7); carry forward assignment fields |
+| Quick Assignment → Tasking promotion | `plannedtoolkit.py` `promote_quick_assignment` | `/planned/quick-assignments/{id}/promote` | Resolved (Phase 2D) | None remaining in scope; a lone personnel-only assignee still has no Task-side equivalent (documented limitation, not a gap) | Done — `origin_module`/`origin_id` convention, team forwarding via `add_task_team`, database-level exactly-once via a sparse unique index on `origin_ref` |
 | Operations Tasking (post-promotion source of truth) | `modules/operations/taskings` | `operations.py` | Ready to reuse | None | No changes needed |
 | Team lookup/assignment | `modules/operations/teams` | `operations.py` teams routes | Ready to reuse | None significant | No changes needed |
 | Personnel lookup/dedup | Master catalog | `personnel.py`, `_duplicate_fingerprint` | Ready to reuse | Exact-match dedup only (no fuzzy match) | Acceptable for Phase 1; note as future enhancement |
@@ -643,7 +698,7 @@ These are the service interfaces Phase 1 needs from shared subsystems. Contracts
 | No trigger evaluation/execution engine exists | (missing) | **Blocking Phase 1** for any "reminder actually fires" feature |
 | No shared, persisted, multi-user notification store | `IncidentCollections.NOTIFICATIONS` (dead), `plannedtoolkit.py` | **Blocking Phase 1** for cross-workstation notification delivery |
 | ~~Desktop `Notifier` has no bridge from server-persisted/broadcast data~~ — resolved 2026-11-21: `emit_notification` broadcasts the existing `type: "notification"` WS event with resolved recipients, consumed by `incident_bridge.py` | `server/sarapp_db/sarapp_db/services/notification_service.py`, `apps/desktop/sarapp_desktop/notifications/services/incident_bridge.py` | **Resolved** |
-| Inconsistent origin-link convention (`source_type/source_id` vs `origin_module/origin_id`) | `plannedtoolkit.py`, `operations.py` (`create_task`), `objectives.py` | **Required during Phase 1** — pick one before Registration/Quick Assignment linking expands |
+| ~~Inconsistent origin-link convention (`source_type/source_id` vs `origin_module/origin_id`)~~ — resolved 2026-11-22 (Phase 2D): `promote_quick_assignment`'s formal task now writes `origin_module`/`origin_id` like `objectives.py` and the desktop Tasking repository already did | `plannedtoolkit.py`, `operations.py` (`create_task`), `objectives.py` | **Resolved** |
 | Check-in roster hardcodes `team_id: None` | `server/sarapp_db/sarapp_db/api/routers/checkin.py` (`fetch_roster`) | **Required during Phase 1** — blocks reliable Registration→Team joins |
 | `ScheduleWidget` has no date pickers, recurrence UI, or trigger/notification UI | `modules/plannedtoolkit/widgets/schedule_widget.py` | **Important, non-blocking** for Phase 0→1 backend work; blocking for any user-facing schedule UI |
 | No shared recurrence/date-time/reminder utility | (missing) | **Important, non-blocking** — can defer if Phase 1 scope stays server-side/backend |

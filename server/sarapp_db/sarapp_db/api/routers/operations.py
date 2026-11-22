@@ -335,9 +335,19 @@ def create_task(incident_id: str, body: dict[str, Any]) -> dict:
         "aircraft": [],
         "comms": [],
         "task_assignment": {},
-        "origin_module": body.get("origin_module"),
-        "origin_id": body.get("origin_id"),
     }
+    origin_module = body.get("origin_module")
+    origin_id = body.get("origin_id")
+    if origin_module and origin_id:
+        # Only stamped when a caller actually supplies both halves of the
+        # origin reference (e.g. promoting a Planned Events Quick
+        # Assignment) -- `origin_ref` backs the sparse unique index that
+        # makes promotion exactly-once (see indexes.py), which requires the
+        # field to be entirely absent on ordinary tasks rather than present
+        # with a null value.
+        doc["origin_module"] = origin_module
+        doc["origin_id"] = origin_id
+        doc["origin_ref"] = f"{origin_module}:{origin_id}"
     doc = repo.insert_one(doc)
     return _strip(doc)
 

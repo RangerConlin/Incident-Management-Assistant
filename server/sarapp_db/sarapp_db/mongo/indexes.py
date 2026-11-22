@@ -146,6 +146,24 @@ def _create_incident_personnel_indexes(incident_db: Database) -> None:
     )
 
 
+def ensure_task_origin_ref_index(incident_db: Database) -> None:
+    """Ensure the sparse unique index on tasks.origin_ref exists.
+
+    `create_incident_indexes` normally covers this (see
+    `_create_tasks_indexes` below), but nothing in the incident-creation
+    path (`ic_overview.create_incident_records`) currently calls it -- index
+    creation today only runs from the seed loader, the incident importer,
+    and the verify script. Rather than widen this phase's scope to fix that
+    gap for every collection, the Planned Events Toolkit's Quick-Assignment-
+    promotion path (plannedtoolkit._find_or_create_promoted_task) calls this
+    narrow, idempotent helper itself right before it needs the guarantee, so
+    the "exactly-once formal task" requirement holds even for an incident
+    database that never ran full index bootstrap.
+    """
+    tasks = incident_db[IncidentCollections.OPERATIONS_TASKS]
+    _ensure_index(tasks, [("origin_ref", ASCENDING)], unique=True, sparse=True)
+
+
 def _create_tasks_indexes(incident_db: Database) -> None:
     tasks = incident_db[IncidentCollections.TASKS]
     _ensure_index(tasks, [("incident_id", ASCENDING)])
@@ -168,6 +186,14 @@ def _create_tasks_indexes(incident_db: Database) -> None:
     _ensure_index(tasks, [("deleted", ASCENDING)])
     # Narrative entries embedded as array — indexed for critical flag lookups
     _ensure_index(tasks, [("narrative.critical", ASCENDING)])
+    # `origin_ref` (f"{origin_module}:{origin_id}") is only ever set when a
+    # caller supplies both origin fields (e.g. Planned Events Toolkit's
+    # Quick-Assignment-promotion path) — never written as null on an
+    # ordinary task — so this sparse unique index gives that promotion path
+    # database-level exactly-once enforcement: two concurrent requests
+    # promoting the same source record can't both succeed at creating a
+    # task, since the loser's insert raises DuplicateKeyError.
+    ensure_task_origin_ref_index(incident_db)
 
 
 def _create_strategies_indexes(incident_db: Database) -> None:
