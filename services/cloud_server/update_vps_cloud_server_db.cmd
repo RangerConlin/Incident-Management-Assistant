@@ -1,9 +1,11 @@
 @echo off
 setlocal
 
-set "VPS=root@srv1707346"
-set "REMOTE_ROOT=/opt/sarapp-cloud-server-db"
-set "PROJECT_NAME=sarapp-cloud-server-db-test"
+REM srv1707346 is the box's own local hostname, not a resolvable DNS record
+REM from outside it — use the public IP as the actual SSH target.
+set "VPS=root@2.25.136.185"
+set "REMOTE_ROOT=/opt/sarapp"
+set "PROJECT_NAME=cloud-server"
 
 echo Updating SARApp cloud server DB on %VPS%
 echo.

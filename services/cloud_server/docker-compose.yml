@@ -23,7 +23,12 @@ services:
       - backups:/var/lib/sarapp/backups
       - config:/var/lib/sarapp/config
       # Required only when CLOUD_UPDATE_COMMAND runs git/docker updates from the dashboard.
+      # docker CLI + compose plugin are bind-mounted from the host rather than
+      # apt-installed (see Dockerfile) — avoids pulling docker.io's whole
+      # containerd/runc dependency tree into the image.
       - /var/run/docker.sock:/var/run/docker.sock
+      - /usr/bin/docker:/usr/bin/docker:ro
+      - /usr/libexec/docker/cli-plugins/docker-compose:/usr/libexec/docker/cli-plugins/docker-compose:ro
       - ../..:/deploy/sarapp-cloud-server-db
     depends_on:
       - mongo

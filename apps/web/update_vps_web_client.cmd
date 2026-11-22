@@ -4,8 +4,8 @@ setlocal
 REM srv1707346 is the box's own local hostname, not a resolvable DNS record
 REM from outside it — use the public IP as the actual SSH target.
 set "VPS=root@2.25.136.185"
-set "REMOTE_ROOT=/opt/sarapp-web-client"
-set "PROJECT_NAME=sarapp-web-client"
+set "REMOTE_ROOT=/opt/sarapp"
+set "PROJECT_NAME=sarapp-webclient"
 
 echo Updating SARApp web client on %VPS%
 echo.
