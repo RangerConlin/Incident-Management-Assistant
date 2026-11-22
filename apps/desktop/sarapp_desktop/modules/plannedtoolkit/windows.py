@@ -453,12 +453,15 @@ class QuickAssignmentsPanel(QWidget):
             row.addWidget(delete_btn)
 
         if record.linked_tasking_id:
-            open_btn = QPushButton(f"Open Task {record.linked_tasking_id}")
+            promoted_label = QLabel("✓ Promoted")
+            promoted_label.setToolTip(f"Linked to Operations Task {record.linked_tasking_id}")
+            row.addWidget(promoted_label)
+            open_btn = QPushButton(f"Open Operations Task ({record.linked_tasking_id})")
             open_btn.clicked.connect(lambda _=False, task_id=record.linked_tasking_id: self._open_tasking(task_id))
             row.addWidget(open_btn)
         else:
-            promote_btn = QPushButton("Promote")
-            promote_btn.clicked.connect(lambda _=False, rec_id=record.id: self._promote(rec_id))
+            promote_btn = QPushButton("Promote to Operations Task")
+            promote_btn.clicked.connect(lambda _=False, rec_id=record.id: self._promote(rec_id, promote_btn))
             row.addWidget(promote_btn)
 
         return container
@@ -516,15 +519,30 @@ class QuickAssignmentsPanel(QWidget):
         self._set_status("Assignment deleted")
         self.refresh()
 
-    def _promote(self, record_id: int | None) -> None:
+    def _promote(self, record_id: int | None, button: QPushButton | None = None) -> None:
         if not self._iid() or not record_id:
             return
+        confirm = QMessageBox.question(
+            self,
+            "Promote to Operations Task",
+            "Promote this assignment to a formal Operations Task?\n\n"
+            "The assignment will become read-only here and the Operations Task "
+            "will be the authoritative record going forward. This cannot be undone.",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if confirm != QMessageBox.Yes:
+            return
+        if button is not None:
+            button.setEnabled(False)
         try:
             promoted = services.promote_quick_assignment(int(record_id), self._iid())
         except Exception as exc:
             self._set_status(self._describe_error(exc), error=True)
+            if button is not None:
+                button.setEnabled(True)
             return
-        self._set_status(f"Promoted to tasking {promoted.linked_tasking_id}")
+        self._set_status(f"Promoted to Operations Task {promoted.linked_tasking_id}")
         self.refresh()
 
     def _open_tasking(self, task_id: str) -> None:

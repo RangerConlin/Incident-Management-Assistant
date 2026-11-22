@@ -181,8 +181,11 @@ def test_promotion_creates_linked_task_and_blocks_duplicate_promotion():
         assert promoted["linked_tasking_id"]
         assert promoted["promoted_read_only"] is True
 
+        # Tasks live in a per-incident database already (see _tasks_repo),
+        # so operations.create_task() never stamps an incident_id field onto
+        # the document itself -- count within this incident's own database.
         db = get_incident_db(INCIDENT_ID)
-        tasks_before = db[IncidentCollections.OPERATIONS_TASKS].count_documents({"incident_id": INCIDENT_ID})
+        tasks_before = db[IncidentCollections.OPERATIONS_TASKS].count_documents({})
         assert tasks_before == 1
 
         # Repeated promotion requests must not create a second formal task.
@@ -190,7 +193,7 @@ def test_promotion_creates_linked_task_and_blocks_duplicate_promotion():
         assert res.status_code == 200, res.text
         assert res.json()["linked_tasking_id"] == promoted["linked_tasking_id"]
 
-        tasks_after = db[IncidentCollections.OPERATIONS_TASKS].count_documents({"incident_id": INCIDENT_ID})
+        tasks_after = db[IncidentCollections.OPERATIONS_TASKS].count_documents({})
         assert tasks_after == 1
 
 
