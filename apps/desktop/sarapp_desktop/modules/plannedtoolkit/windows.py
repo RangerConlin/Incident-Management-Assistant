@@ -27,6 +27,8 @@ from PySide6.QtWidgets import (
 from utils.api_client import APIError
 from utils.table_view_styles import apply_statusboard_table_behavior
 
+from modules.checklists.widgets.checklists_tab import ChecklistsTab
+
 from . import services
 from .records import PlannedRecord, PlannedToolDefinition, ScheduledItem, TOOLS
 from .widgets.assignment_detail_dialog import AssignmentDetailDialog
@@ -42,6 +44,7 @@ __all__ = [
     "get_permits_panel",
     "get_tasking_panel",
     "get_health_sanitation_panel",
+    "get_checklists_panel",
     "get_planned_toolkit_panel",
 ]
 
@@ -603,6 +606,7 @@ class PlannedToolkitHome(QWidget):
         tabs.addTab(_ToolPanel(PERMIT_SPEC, incident_id), "Permits")
         tabs.addTab(QuickAssignmentsPanel(incident_id), "Assignments")
         tabs.addTab(_ToolPanel(HEALTH_SPEC, incident_id), "Health & Sanitation")
+        tabs.addTab(ChecklistsTab(incident_id), "Checklists")
         layout.addWidget(tabs)
 
 
@@ -628,6 +632,10 @@ def get_tasking_panel(incident_id: object | None = None) -> QWidget:
 
 def get_health_sanitation_panel(incident_id: object | None = None) -> QWidget:
     return _ToolPanel(HEALTH_SPEC, incident_id)
+
+
+def get_checklists_panel(incident_id: object | None = None) -> QWidget:
+    return ChecklistsTab(incident_id)
 
 
 def get_planned_toolkit_panel(incident_id: object | None = None) -> QWidget:

@@ -229,6 +229,15 @@ EVENT_SCHEDULE_STATUS: Dict[str, Dict[str, str]] = {
     "Cancelled":        {"bg": "#8c2f2f", "fg": "#f5f5f5"},
 }
 
+# Shared, program-wide Checklist system — see light.py's CHECKLIST_STATUS
+# comment for the server status values these keys mirror.
+CHECKLIST_STATUS: Dict[str, Dict[str, str]] = {
+    "Not Started":      {"bg": "#5c6b73", "fg": "#f5f5f5"},
+    "In Progress":      {"bg": "#1f6088", "fg": "#f5f5f5"},
+    "Completed":        {"bg": "#2f6d34", "fg": "#f5f5f5"},
+    "Archived":         {"bg": "#55504a", "fg": "#f5f5f5"},
+}
+
 # Exact hex values from modules/command/sitrep/panel.py's _STATUS_COLORS
 # dict (hardcoded there, no light variant, same violation pattern as
 # objectives' colors were) -- promoted here as the canonical source.
@@ -646,6 +655,7 @@ __all__ = [
     "OPERATIONAL_PERIOD_STATUS",
     "MEETING_STATUS",
     "EVENT_SCHEDULE_STATUS",
+    "CHECKLIST_STATUS",
     "SITREP_STATUS",
     "NARRATIVE_STATUS",
     "CONNECTION_STATUS",

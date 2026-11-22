@@ -225,6 +225,17 @@ EVENT_SCHEDULE_STATUS: Dict[str, Dict[str, str]] = {
     "Cancelled":        {"bg": "#E53935", "fg": "#ffffff"},
 }
 
+# Shared, program-wide Checklist system (server status values
+# not_started/in_progress/completed/archived — see
+# sarapp_db.services.checklist_service.CHECKLIST_STATUSES) — keep these
+# four keys in sync with that module if its status set ever changes.
+CHECKLIST_STATUS: Dict[str, Dict[str, str]] = {
+    "Not Started":      {"bg": "#90A4AE", "fg": "#1a1a1a"},
+    "In Progress":      {"bg": "#1976D2", "fg": "#ffffff"},
+    "Completed":        {"bg": "#2E7D32", "fg": "#ffffff"},
+    "Archived":         {"bg": "#78716C", "fg": "#ffffff"},
+}
+
 SITREP_STATUS: Dict[str, Dict[str, str]] = {
     "draft":              {"bg": "#B0BEC5", "fg": "#1a1a1a"},
     "ready_for_review":   {"bg": "#FFC107", "fg": "#1a1a1a"},
@@ -636,6 +647,7 @@ __all__ = [
     "OPERATIONAL_PERIOD_STATUS",
     "MEETING_STATUS",
     "EVENT_SCHEDULE_STATUS",
+    "CHECKLIST_STATUS",
     "SITREP_STATUS",
     "NARRATIVE_STATUS",
     "CONNECTION_STATUS",

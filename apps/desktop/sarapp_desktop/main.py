@@ -959,6 +959,7 @@ class MainWindow(QMainWindow):
         self._add_action(plan_menu, "Vendors && Permits", None, "planned.vendors")
         self._add_action(plan_menu, "Assignments", None, "planned.tasking")
         self._add_action(plan_menu, "Health && Sanitation", None, "planned.health_sanitation")
+        self._add_action(plan_menu, "Checklists", None, "planned.checklists")
 
         init_menu = m_tool.addMenu("Initial Response")
         self._add_action(init_menu, "Initial Information", None, "toolkit.initial.overview")
@@ -1108,6 +1109,7 @@ class MainWindow(QMainWindow):
             "planned.vendors": True,
             "planned.tasking": True,
             "planned.health_sanitation": True,
+            "planned.checklists": True,
             "toolkit.initial.hasty": category in {"sar", "disaster"},
         }
         if category is None:
@@ -1264,6 +1266,7 @@ class MainWindow(QMainWindow):
             "planned.vendors": self.open_planned_vendors,
             "planned.tasking": self.open_planned_tasking,
             "planned.health_sanitation": self.open_planned_health_sanitation,
+            "planned.checklists": self.open_planned_checklists,
             "toolkit.initial.overview": self.open_toolkit_initial_overview,
             "toolkit.initial.hasty": self.open_toolkit_initial_hasty,
 
@@ -2915,6 +2918,12 @@ class MainWindow(QMainWindow):
         incident_id = AppState.get_active_incident()
         panel = plannedtoolkit.get_health_sanitation_panel(incident_id)
         self._open_panel(panel, title="Health && Sanitation")
+
+    def open_planned_checklists(self) -> None:
+        from modules import plannedtoolkit
+        incident_id = AppState.get_active_incident()
+        panel = plannedtoolkit.get_checklists_panel(incident_id)
+        self._open_panel(panel, title="Checklists", preferred_size=(1200, 800))
 
     def open_toolkit_initial_hasty(self) -> None:
         from modules.initialresponse import initial
