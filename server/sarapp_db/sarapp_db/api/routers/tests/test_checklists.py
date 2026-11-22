@@ -332,34 +332,45 @@ def test_progress_calculation() -> None:
 
 
 def test_status_lifecycle_transitions() -> None:
+    """Basic end-to-end sanity for the Phase 4B explicit lifecycle actions
+    (complete/reopen/archive) replacing Phase 4A's generic status PATCH.
+    See test_checklists_lifecycle.py for the full Phase 4B coverage."""
+
     _clear()
     with TestClient(create_app()) as client:
         doc = _create_blank(client)
         checklist_id = doc["id"]
-        status_url = f"/api/incidents/{INCIDENT_A}/checklists/{checklist_id}/status"
+        base = f"/api/incidents/{INCIDENT_A}/checklists/{checklist_id}"
 
         assert doc["status"] == "not_started"
+        for item_id, payload in (("chk", {"value": True}), ("pfn", {"value": "pass"}), ("txt", {"value": "ok"})):
+            client.post(f"{base}/items/{item_id}/responses", json=payload, headers=_headers(101))
 
-        completed = client.patch(status_url, json={"status": "completed"}, headers=_headers(101))
-        assert completed.status_code == 200
-        assert completed.json()["status"] == "completed"
-        assert completed.json()["completed_at"] is not None
+        completed = client.post(
+            f"{base}/complete", json={"stream": {"incident_wide": True}}, headers=_headers(101)
+        )
+        assert completed.status_code == 200, completed.text
+        assert completed.json()["checklist"]["status"] == "completed"
+        assert completed.json()["checklist"]["completed_at"] is not None
 
-        reopened = client.patch(status_url, json={"status": "in_progress"}, headers=_headers(101))
-        assert reopened.status_code == 200
-        assert reopened.json()["completed_at"] is None
+        reopened = client.post(f"{base}/reopen", json={"reason": "found a mistake"}, headers=_headers(101))
+        assert reopened.status_code == 200, reopened.text
+        assert reopened.json()["checklist"]["status"] == "in_progress"
+        # Preserves the previous completion record rather than clearing it.
+        assert reopened.json()["checklist"]["completed_at"] is not None
 
-        archived = client.patch(status_url, json={"status": "archived"}, headers=_headers(101))
+        recompleted = client.post(f"{base}/complete", json={}, headers=_headers(101))
+        assert recompleted.status_code == 200, recompleted.text
+
+        archived = client.post(f"{base}/archive", json={}, headers=_headers(101))
         assert archived.status_code == 200
         assert archived.json()["archived_at"] is not None
 
-        blocked = client.patch(status_url, json={"status": "in_progress"}, headers=_headers(101))
-        assert blocked.status_code == 409
+        blocked_reopen = client.post(f"{base}/reopen", json={"reason": "too late"}, headers=_headers(101))
+        assert blocked_reopen.status_code == 409
 
         response_after_archive = client.post(
-            f"/api/incidents/{INCIDENT_A}/checklists/{checklist_id}/items/chk/responses",
-            json={"value": True},
-            headers=_headers(101),
+            f"{base}/items/chk/responses", json={"value": False}, headers=_headers(101)
         )
         assert response_after_archive.status_code == 409
     _clear()

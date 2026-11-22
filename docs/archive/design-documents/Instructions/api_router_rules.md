@@ -101,3 +101,24 @@ longer values still receive an explicit continuation marker and lossless annex.
   different element of the same array. Prefer this over reading the whole
   document, mutating it in Python, and writing the whole field back,
   whenever a write only needs to touch one element of a nested array.
+
+## Checklists — lifecycle & ICS-214 integration (Phase 4B)
+
+- The Phase 4A generic `PATCH .../checklists/{id}/status` is gone. Status
+  only changes through `POST .../complete`, `.../reopen`, `.../archive` —
+  each revalidates and atomically claims its own transition
+  (`checklists._claim_transition`); there is no endpoint that can set an
+  arbitrary status directly.
+- `checklists.py` is the one caller that writes ICS-214 entries from
+  outside `ics214.py` itself (besides `ics214.py`'s own internal "mobile"
+  routes) — it imports `ics214._insert_entry`/`EntryCreate`/`SourceRecord`
+  directly rather than going through HTTP, matching the existing
+  intra-process-import convention for cross-module reuse in this codebase
+  (same as `operations.py` importing `gar_templates.score_selections`).
+  Any future module that needs to log a significant lifecycle event should
+  follow the same pattern: import `_insert_entry`/`EntryCreate` directly
+  and supply a deterministic `idempotency_hash`, never build a parallel
+  logging endpoint.
+- See `mongodb_schema_decisions.md`'s "Checklists — lifecycle & ICS-214
+  integration" entry for the full stream-resolution order, idempotency
+  scheme, and pending-entry recovery mechanism (`POST .../ics214/retry`).

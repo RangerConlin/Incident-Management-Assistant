@@ -47,11 +47,34 @@ A section is ``{"id": str, "name": str, "items": [<item>, ...]}``. A
 section's ``name`` may be blank — sections are optional per the product
 spec, and an unnamed section is how a template represents "no sections",
 without needing a second, parallel items-outside-sections structure.
+
+Phase 4B adds explicit lifecycle actions (complete/reopen/archive, see
+`validate_completion`/`build_completion_summary`/`build_lifecycle_entry`
+below) on top of Phase 4A's bare state machine. A checklist instance
+document gains, beyond the Phase 4A fields::
+
+    {
+        "completed_by": int | None,
+        "archived_by": int | None,
+        "lifecycle_event_seq": int,        # optimistic-concurrency counter
+        "ics214_stream": {                  # persisted stream selection
+            "log_keys": [str, ...],
+            "org_unit_ids": [int, ...],
+            "incident_wide": bool,
+        } | None,
+        "ics214_entry_id": str | None,      # most recent lifecycle ICS-214 entry
+        "ics214_pending": bool,             # true if that write still needs retrying
+        "lifecycle_history": [<lifecycle entry>, ...],  # append-only, oldest first
+    }
+
+`api/routers/checklists.py` owns persisting these; this module only builds
+the pure values (validation results, summaries, entries) it writes.
 """
 
 from __future__ import annotations
 
 import copy
+import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -70,16 +93,29 @@ ARCHIVED = "archived"
 
 CHECKLIST_STATUSES = {NOT_STARTED, IN_PROGRESS, COMPLETED, ARCHIVED}
 
-# Full finalization semantics (e.g. ICS-214 logging on completion) are
-# Phase 4B. Phase 4A only needs the state machine's boundaries: completion,
-# reopening, and archiving. ARCHIVED is terminal for 4A — unarchiving is
-# explicitly deferred.
+# The state machine's boundaries. ARCHIVED is terminal — unarchiving is not
+# implemented. Reaching COMPLETED or re-entering IN_PROGRESS from COMPLETED
+# ("reopen") always goes through the explicit `complete`/`reopen` actions in
+# `api/routers/checklists.py`, never a bare status PATCH — those actions call
+# `apply_status_transition` as one more guard on top of their own stricter
+# checks (e.g. "reopen" only ever starts from COMPLETED, even though this
+# table would also permit... nothing else into IN_PROGRESS from here, since
+# the automatic NOT_STARTED -> IN_PROGRESS transition on first response does
+# not go through this table at all — see `status_after_first_response`).
 STATUS_TRANSITIONS: Dict[str, set] = {
     NOT_STARTED: {IN_PROGRESS, ARCHIVED},
     IN_PROGRESS: {COMPLETED, ARCHIVED},
     COMPLETED: {IN_PROGRESS, ARCHIVED},
     ARCHIVED: set(),
 }
+
+# Significant lifecycle actions recorded in a checklist's lifecycle_history
+# and (for incident-scoped checklists) the shared audit log.
+ACTION_CREATED = "created"
+ACTION_COMPLETED = "completed"
+ACTION_REOPENED = "reopened"
+ACTION_RECOMPLETED = "recompleted"
+ACTION_ARCHIVED = "archived"
 
 
 class ChecklistValidationError(ValueError):
@@ -404,3 +440,138 @@ def status_after_first_response(current_status: str) -> str:
     """NOT_STARTED -> IN_PROGRESS happens automatically on the first response."""
 
     return IN_PROGRESS if current_status == NOT_STARTED else current_status
+
+
+# ---------------------------------------------------------------------------
+# Completion validation (Phase 4B)
+# ---------------------------------------------------------------------------
+
+def validate_completion(sections: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Everything a `complete` call must check before finalizing.
+
+    - ``missing_required``: required items with no response yet. Optional
+      unanswered items never block completion.
+    - ``invalid_responses``: a defensive re-check only — every stored
+      response was already validated by `validate_and_normalize_response`
+      at the moment it was recorded (item definitions never change after a
+      template is snapshotted), so this should normally be empty. It exists
+      so a `complete` call never finalizes a checklist carrying a response
+      that would fail validation if resubmitted today.
+    - ``unresolved_failures``: current Pass/Fail/N/A 'fail' responses. These
+      do NOT block completion by themselves — a failed inspection is an
+      answered item, not an invalid one — but `requires_acknowledgment`
+      tells the caller it must get explicit sign-off before finalizing.
+    - ``can_complete``: true only once ``missing_required`` and
+      ``invalid_responses`` are both empty. Unresolved failures never
+      affect this flag; they gate on acknowledgment instead, handled by the
+      caller (see `requires_acknowledgment`).
+    """
+
+    missing_required: List[str] = []
+    invalid_responses: List[str] = []
+    unresolved_failures: List[str] = []
+
+    for _section, item in iter_items(sections):
+        response = item.get("response")
+        if response is None:
+            if item.get("required"):
+                missing_required.append(item["id"])
+            continue
+        if not response.get("na"):
+            try:
+                validate_and_normalize_response(item, response.get("value"), False)
+            except ChecklistValidationError:
+                invalid_responses.append(item["id"])
+        if is_failed(item):
+            unresolved_failures.append(item["id"])
+
+    return {
+        "missing_required": missing_required,
+        "invalid_responses": invalid_responses,
+        "unresolved_failures": unresolved_failures,
+        "requires_acknowledgment": bool(unresolved_failures),
+        "can_complete": not missing_required and not invalid_responses,
+    }
+
+
+def build_completion_summary(sections: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Summary used both in the completion API response and the ICS-214 text.
+
+    "Applicable" items are every item minus those currently marked N/A
+    (literally "not applicable") — this is what the ICS-214 example
+    ("12/12 applicable items answered") counts, as distinct from
+    `compute_progress`'s `total_items`/`answered_items`, which count N/A
+    items as answered rather than excluding them.
+    """
+
+    progress = compute_progress(sections)
+    na_items = progress["na_items"]
+    total_items = progress["total_items"]
+    applicable_items = total_items - na_items
+    answered_applicable_items = progress["answered_items"] - na_items
+    return {
+        "total_items": total_items,
+        "na_items": na_items,
+        "applicable_items": applicable_items,
+        "answered_applicable_items": answered_applicable_items,
+        "unresolved_failures": progress["failed_items"],
+    }
+
+
+def format_person_display(first_name: str, last_name: str, fallback: str = "") -> str:
+    """"F. Last" display for lifecycle history / ICS-214 text, e.g. "J. Smith".
+
+    Falls back to ``fallback`` (typically the raw actor id as a string) when
+    no usable name is available, so a lookup miss never produces a blank
+    attribution.
+    """
+
+    first = (first_name or "").strip()
+    last = (last_name or "").strip()
+    if last:
+        initial = f"{first[0]}." if first else ""
+        return f"{initial} {last}".strip()
+    return fallback
+
+
+def build_lifecycle_entry(
+    *,
+    action: str,
+    from_status: Optional[str],
+    to_status: str,
+    actor_id: int,
+    actor_display: str,
+    timestamp: Optional[str] = None,
+    reason: Optional[str] = None,
+    acknowledged_failures: Optional[bool] = None,
+    summary: Optional[Dict[str, Any]] = None,
+    ics214_text: Optional[str] = None,
+    ics214_stream: Optional[Dict[str, Any]] = None,
+    ics214_idempotency_hash: Optional[str] = None,
+    ics214_entry_id: Optional[str] = None,
+    ics214_pending: bool = False,
+) -> Dict[str, Any]:
+    """One durable, append-only entry in a checklist's `lifecycle_history`.
+
+    ``event_id`` is a fresh identifier for this specific lifecycle event
+    (never reused), so a later ICS-214 retry can target this exact entry
+    with Mongo array filters without relying on timestamp uniqueness.
+    """
+
+    return {
+        "event_id": str(uuid.uuid4()),
+        "action": action,
+        "from_status": from_status,
+        "to_status": to_status,
+        "actor_id": actor_id,
+        "actor_display": actor_display,
+        "timestamp": timestamp or _utcnow_iso(),
+        "reason": reason,
+        "acknowledged_failures": acknowledged_failures,
+        "summary": summary,
+        "ics214_text": ics214_text,
+        "ics214_stream": ics214_stream,
+        "ics214_idempotency_hash": ics214_idempotency_hash,
+        "ics214_entry_id": ics214_entry_id,
+        "ics214_pending": ics214_pending,
+    }

@@ -172,3 +172,110 @@ def test_status_transition_boundaries(current, target, allowed) -> None:
 def test_status_after_first_response() -> None:
     assert svc.status_after_first_response(svc.NOT_STARTED) == svc.IN_PROGRESS
     assert svc.status_after_first_response(svc.COMPLETED) == svc.COMPLETED
+
+
+# ---------------------------------------------------------------------------
+# Phase 4B: completion validation, summary, lifecycle entries
+# ---------------------------------------------------------------------------
+
+def test_validate_completion_flags_missing_required_only() -> None:
+    sections = [
+        {
+            "id": "s1",
+            "name": "A",
+            "items": [
+                _item(id="required-unanswered", required=True),
+                _item(id="optional-unanswered", required=False),
+            ],
+        }
+    ]
+    result = svc.validate_completion(sections)
+    assert result["missing_required"] == ["required-unanswered"]
+    assert result["can_complete"] is False
+    assert result["requires_acknowledgment"] is False
+
+
+def test_validate_completion_allows_na_for_required_item() -> None:
+    sections = [
+        {
+            "id": "s1",
+            "name": "A",
+            "items": [_item(id="i1", required=True, na_allowed=True, response={"value": None, "na": True})],
+        }
+    ]
+    result = svc.validate_completion(sections)
+    assert result["missing_required"] == []
+    assert result["can_complete"] is True
+
+
+def test_validate_completion_requires_acknowledgment_for_unresolved_failure() -> None:
+    sections = [
+        {
+            "id": "s1",
+            "name": "A",
+            "items": [
+                _item(
+                    id="i1",
+                    item_type=svc.PASS_FAIL_NA,
+                    required=True,
+                    response={"value": "fail", "na": False},
+                )
+            ],
+        }
+    ]
+    result = svc.validate_completion(sections)
+    assert result["unresolved_failures"] == ["i1"]
+    assert result["requires_acknowledgment"] is True
+    # A failure is answered, not invalid or missing — it never blocks can_complete by itself.
+    assert result["can_complete"] is True
+
+
+def test_build_completion_summary_excludes_na_from_applicable() -> None:
+    sections = [
+        {
+            "id": "s1",
+            "name": "A",
+            "items": [
+                _item(id="i1", response={"value": True, "na": False}),
+                _item(id="i2", response={"value": None, "na": True}),
+                _item(
+                    id="i3",
+                    item_type=svc.PASS_FAIL_NA,
+                    response={"value": "fail", "na": False},
+                ),
+            ],
+        }
+    ]
+    summary = svc.build_completion_summary(sections)
+    assert summary["total_items"] == 3
+    assert summary["na_items"] == 1
+    assert summary["applicable_items"] == 2
+    assert summary["answered_applicable_items"] == 2
+    assert summary["unresolved_failures"] == ["i3"]
+
+
+@pytest.mark.parametrize(
+    "first,last,fallback,expected",
+    [
+        ("Jane", "Smith", "", "J. Smith"),
+        ("", "Smith", "", "Smith"),
+        ("", "", "101", "101"),
+    ],
+)
+def test_format_person_display(first, last, fallback, expected) -> None:
+    assert svc.format_person_display(first, last, fallback=fallback) == expected
+
+
+def test_build_lifecycle_entry_has_unique_event_id_and_mirrors_inputs() -> None:
+    entry_one = svc.build_lifecycle_entry(
+        action=svc.ACTION_COMPLETED, from_status=svc.IN_PROGRESS, to_status=svc.COMPLETED,
+        actor_id=101, actor_display="J. Smith",
+    )
+    entry_two = svc.build_lifecycle_entry(
+        action=svc.ACTION_COMPLETED, from_status=svc.IN_PROGRESS, to_status=svc.COMPLETED,
+        actor_id=101, actor_display="J. Smith",
+    )
+    assert entry_one["event_id"] != entry_two["event_id"]
+    assert entry_one["action"] == svc.ACTION_COMPLETED
+    assert entry_one["actor_id"] == 101
+    assert entry_one["ics214_pending"] is False

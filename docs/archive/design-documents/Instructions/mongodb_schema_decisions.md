@@ -235,6 +235,86 @@ Notification acknowledgement/read state is stored per person in the canonical
   key — this collection never joins against it, so it has no dependency
   on any other module (Planned Events included).
 
+## Checklists — lifecycle & ICS-214 integration (Phase 4B)
+
+- Phase 4A's generic status PATCH is removed. The only ways to change a
+  checklist's status are the three explicit, guarded actions in
+  `checklists.py`: `complete`, `reopen`, `archive` (plus the automatic
+  `not_started -> in_progress` transition on first response, unchanged
+  from 4A). A bare arbitrary status write can no longer bypass completion
+  validation.
+- `complete` revalidates server-side regardless of what an earlier
+  `validate-completion` call reported (that call's response is advisory
+  only and is never trusted to still be accurate — another user may have
+  changed a response in between). It blocks on missing required
+  responses or (defensively) invalid ones, and separately requires
+  `acknowledge_failures: true` on the request before finalizing a
+  checklist with unresolved Pass/Fail/N/A failures — a failure is
+  preserved on the completed checklist, never silently treated as a pass.
+- Reopening only ever starts from `completed` (not from `archived` —
+  unarchiving is not implemented) and requires a non-blank `reason`.
+  Completing/reopening/archiving never clear `completed_at`/`completed_by`
+  — the previous completion record is preserved, not wiped, so reopening
+  keeps the full history of what it's reopening.
+- Concurrency without multi-document transactions: this deployment's
+  MongoDB is not guaranteed to be a replica set, so no code anywhere uses
+  `session.start_transaction()`. Every lifecycle action instead claims its
+  transition with one atomic, conditional `apply_update` keyed on both the
+  expected current `status` AND a per-checklist optimistic-concurrency
+  counter (`lifecycle_event_seq`) — see `checklists._claim_transition`.
+  Two concurrent completion attempts can never both succeed; the loser's
+  conditional update matches zero documents and the request gets a 409.
+- Every significant lifecycle action (`created`/`completed`/`reopened`/
+  `recompleted`/`archived`) appends one entry to the checklist's own
+  `lifecycle_history` array (durable, append-only, still readable after
+  archiving) via `checklist_service.build_lifecycle_entry`, and — for an
+  incident-scoped checklist only — also calls `mongo.audit.write_audit`
+  into that incident's shared `AUDIT_LOGS` collection
+  (`entity_type="checklist"`), reusing existing audit infrastructure
+  (`plannedtoolkit.py`'s precedent) instead of a parallel system. A
+  standalone checklist has no incident `AUDIT_LOGS` to write into, so its
+  `lifecycle_history` array is the sole durable record of its lifecycle.
+- ICS-214 integration: completing, recompleting, and reopening an
+  incident-scoped checklist each write one entry via `ics214._insert_entry`
+  (never archiving, and never an individual item response — those stay in
+  the checklist's own response history). There is no "stream" object in
+  this codebase (see `ics214.py`'s own docstring) — a "stream" here is
+  just the `log_keys`/`org_unit_ids`/`incident_wide` tag set `EntryCreate`
+  already accepts. Resolution order: (1) a stream already persisted on the
+  checklist (set at creation or an earlier completion/reopen), (2) an
+  unambiguous resolver from the checklist's `linked_record` — intentionally
+  unimplemented today (no cross-module resolver registry exists yet; see
+  `checklists._resolve_stream`'s docstring), (3) a stream explicitly given
+  on this request. If none resolves, the call 422s with
+  `ics214_stream_required: true` rather than guessing among plausible
+  streams. A resolved/selected stream is persisted on the checklist so the
+  next lifecycle action defaults to it, while an explicit `stream` on a
+  later request still overrides it. Standalone checklists never resolve
+  or require a stream and never write to ICS-214.
+- Idempotency: each ICS-214 write for a lifecycle action uses a
+  deterministic `idempotency_hash` = `sha256(f"checklist-{action}:{checklist_id}:{lifecycle_event_seq}")`,
+  the same `sha256("<namespace>:<stable-id>")` shape `ics214.py`'s own
+  mobile task-narrative caller already uses — so a retried request (or the
+  `/ics214/retry` recovery endpoint) can never produce a duplicate entry;
+  `ics214._insert_entry`'s existing find-then-insert-by-hash logic is the
+  dedup mechanism, not anything new.
+- If the ICS-214 write fails after the lifecycle transition has already
+  committed (a legitimate state regardless of logging success), the
+  triggering `lifecycle_history` entry and the checklist's own
+  `ics214_pending` flag record that it still needs retrying, with the
+  exact text/stream/idempotency hash it would have used stored on that
+  entry. `POST .../checklists/{id}/ics214/retry` re-attempts every pending
+  entry with that same stored hash — a durable, DB-backed recovery
+  mechanism, not an in-memory retry queue or a background daemon.
+- Authorization: there is still no repo-wide role/permission layer (see
+  Phase 4A's note above). "Authorized user" for completing, reopening,
+  archiving, viewing lifecycle history, and selecting/changing the ICS-214
+  stream all mean the same thing: a real, signed-in session resolved via
+  `auth_sessions.resolve_request_person`, the ceiling this codebase has
+  today. Unlike Phase 4A's open reads, `lifecycle-history` requires this
+  check too, since the spec calls out "viewing checklist history" as a
+  permission-gated action.
+
 # Team personnel membership
 
 Team personnel membership is canonical on each incident `teams` document as
