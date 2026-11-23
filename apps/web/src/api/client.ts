@@ -13,9 +13,12 @@ export function setToken(token: string | null): void {
 
 export class ApiError extends Error {
   status: number;
-  constructor(status: number, message: string) {
+  /** Structured `detail` when the server sent an object (e.g. a 409 carrying the current record). */
+  detail?: unknown;
+  constructor(status: number, message: string, detail?: unknown) {
     super(message);
     this.status = status;
+    this.detail = detail;
   }
 }
 
@@ -33,13 +36,19 @@ async function request<T>(method: string, path: string, body?: unknown, response
 
   if (!res.ok) {
     let detail = res.statusText;
+    let structured: unknown;
     try {
       const data = await res.json();
-      detail = data.detail || detail;
+      if (data.detail && typeof data.detail === "object" && !Array.isArray(data.detail)) {
+        structured = data.detail;
+        detail = typeof data.detail.message === "string" ? data.detail.message : detail;
+      } else {
+        detail = data.detail || detail;
+      }
     } catch {
       // response had no JSON body; fall back to statusText
     }
-    throw new ApiError(res.status, detail);
+    throw new ApiError(res.status, detail, structured);
   }
   if (res.status === 204) return undefined as T;
   if (responseType === "download") {

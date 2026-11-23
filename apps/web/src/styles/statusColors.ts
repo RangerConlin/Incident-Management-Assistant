@@ -69,6 +69,8 @@ type StatusDomain =
   | "liaison-request"
   | "liaison-priority"
   | "liaison-report"
+  | "planned-schedule"
+  | "planned-assignment"
   | "logistics-request"
   | "logistics-priority"
   | "facility"
@@ -157,6 +159,10 @@ export type LiaisonRequestStatusKey = "Open" | "In Progress" | "Resolved" | "Dec
 export type LiaisonPriorityKey = "Low" | "Medium" | "High" | "Critical";
 export function liaisonAgencyStatusVar(key: LiaisonAgencyStatusKey | string) { return statusVar("liaison-agency", key); }
 export function liaisonRequestStatusVar(key: LiaisonRequestStatusKey | string) { return statusVar("liaison-request", key); }
+export type PlannedScheduleStatusKey = "Scheduled" | "In Progress" | "Completed" | "Delayed" | "Cancelled";
+export type PlannedAssignmentStateKey = "Pending" | "Active" | "Promoted";
+export function plannedScheduleStatusVar(key: PlannedScheduleStatusKey | string) { return statusVar("planned-schedule", key); }
+export function plannedAssignmentStateVar(key: PlannedAssignmentStateKey | string) { return statusVar("planned-assignment", key); }
 export function liaisonPriorityVar(key: LiaisonPriorityKey | string) { return statusVar("liaison-priority", key); }
 export function liaisonReportStateVar(key: "ready" | "not_ready" | string) { return statusVar("liaison-report", key); }
 
