@@ -1,17 +1,7 @@
-from .finance_home_panel import FinanceHomePanel
 from .finance_admin_panel import FinanceAdminPanel
-from .time_unit_panel import TimeUnitPanel
-from .procurement_panel import ProcurementPanel
-from .cost_unit_panel import CostUnitPanel
-from .claims_panel import ClaimsPanel
-from .approvals_panel import ApprovalsPanel
+from .rate_tables_panel import RateTablesPanel
 
 __all__ = [
-    "FinanceHomePanel",
     "FinanceAdminPanel",
-    "TimeUnitPanel",
-    "ProcurementPanel",
-    "CostUnitPanel",
-    "ClaimsPanel",
-    "ApprovalsPanel",
+    "RateTablesPanel",
 ]

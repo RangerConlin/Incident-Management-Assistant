@@ -935,9 +935,11 @@ class MainWindow(QMainWindow):
         self._add_action(m_fin, "Finance/Admin Dashboard", None, "finance.dashboard")
         self._add_action(m_fin, "Finance Unit Log ICS-214", None, "finance.unit_log")
         m_fin.addSeparator()
-        self._add_action(m_fin, "Time Tracking", None, "finance.time")
-        self._add_action(m_fin, "Expenses && Procurement", None, "finance.procurement")
-        self._add_action(m_fin, "Cost Summary", None, "finance.summary")
+        self._add_action(m_fin, "Estimates", None, "finance.estimates")
+        self._add_action(m_fin, "Actual Costs", None, "finance.actual_costs")
+        self._add_action(m_fin, "Cost Summary / Reports", None, "finance.summary")
+        m_fin.addSeparator()
+        self._add_action(m_fin, "Rate Tables", None, "finance.rate_tables")
 
         # ----- Toolkits -----
         m_tool = mb.addMenu("Toolkits")
@@ -1248,9 +1250,10 @@ class MainWindow(QMainWindow):
             # ----- Finance/Admin -----
             "finance.dashboard": self.open_finance_admin_dashboard,
             "finance.unit_log": self.open_finance_unit_log,
-            "finance.time": self.open_finance_time,
-            "finance.procurement": self.open_finance_procurement,
+            "finance.estimates": self.open_finance_estimates,
+            "finance.actual_costs": self.open_finance_actual_costs,
             "finance.summary": self.open_finance_summary,
+            "finance.rate_tables": self.open_finance_rate_tables,
 
             # ----- Toolkits -----
             "toolkit.sar.missing_person": self.open_toolkit_sar_missing_person,
@@ -2660,158 +2663,11 @@ class MainWindow(QMainWindow):
 
 # --- 4.12 Finance/Admin --------------------------------------------------
     def open_finance_admin_dashboard(self) -> None:
-        """Open the Finance/Admin — Dashboard (modeless) and enable auto-refresh."""
-        try:
-            from modules.finance.panels.findashboard import (
-                make_finance_admin_dashboard,
-                FinanceAdminDashboardWidget,
-            )
-        except Exception as e:
-            try:
-                QMessageBox.warning(self, "Finance/Admin Dashboard", f"Widget unavailable.\n{e}")
-            except Exception:
-                print(f"[warn] FinanceAdminDashboardWidget unavailable: {e}")
-            return
+        from modules import finance
+        incident_id = AppState.get_active_incident()
+        panel = finance.get_finance_panel(incident_id)
+        self._open_panel(panel, title="Finance/Admin Dashboard")
 
-        widget: FinanceAdminDashboardWidget = make_finance_admin_dashboard()
-        widget.setWindowTitle("Finance/Admin — Dashboard")
-        widget.setWindowFlags(Qt.Window)
-        widget.resize(1000, 800)
-        # Wire signals and a basic refresh function (time/role/overlay + placeholders)
-        self._wire_finance_admin_dashboard(widget)
-        try:
-            widget.setAutoRefresh(15000)
-        except Exception:
-            pass
-        widget.show()
-
-    def _wire_finance_admin_dashboard(self, w) -> None:
-        """Attach handlers and simple refresh that updates context and placeholders."""
-        from utils.state import AppState
-        from utils import incident_context
-        from datetime import datetime
-
-        # Signal wiring
-        try:
-            w.openQueueRequested.connect(self.open_finance_procurement)
-        except Exception:
-            pass
-        try:
-            w.acknowledgeAlertsRequested.connect(lambda: QMessageBox.information(self, "Alerts", "Acknowledged recent alerts."))
-        except Exception:
-            pass
-        try:
-            w.openActionRequested.connect(lambda _id: self.open_finance_procurement())
-            w.approveRequested.connect(lambda _id: QMessageBox.information(self, "Approve", f"Approved: {_id}"))
-            w.holdRequested.connect(lambda _id: QMessageBox.information(self, "Hold", f"Placed on hold: {_id}"))
-        except Exception:
-            pass
-        try:
-            w.openTimekeepingRequested.connect(self.open_finance_time)
-        except Exception:
-            pass
-        try:
-            # No dedicated Equipment Use panel yet; route to procurement for now
-            w.openEquipmentUseRequested.connect(self.open_finance_procurement)
-        except Exception:
-            pass
-        try:
-            w.openReimbursementsRequested.connect(self.open_finance_summary)
-        except Exception:
-            pass
-        try:
-            w.newPurchaseOrderRequested.connect(self.open_finance_procurement)
-            w.newTimeEntryRequested.connect(self.open_finance_time)
-            w.newEquipmentRecordRequested.connect(self.open_finance_procurement)
-        except Exception:
-            pass
-        try:
-            w.openBudgetRequested.connect(self.open_finance_summary)
-            w.exportCostSummaryRequested.connect(lambda: QMessageBox.information(self, "Export", "Exported cost summary (placeholder)."))
-            w.openFullFinanceAdminRequested.connect(self.open_finance_admin_dashboard)
-        except Exception:
-            pass
-
-        def _refresh() -> None:
-            if not _qobject_is_alive(w):
-                return
-            # Overlay visibility based on active incident
-            try:
-                active_id = incident_context.get_active_incident_id()
-                w.setIncidentOverlayVisible(False if active_id else True)
-            except Exception:
-                if _qobject_is_alive(w):
-                    w.setIncidentOverlayVisible(True)
-                return
-
-            # Header context
-            try:
-                op_dict = AppState.get_active_op_period_dict()
-                op = op_dict.get("number") if op_dict else None
-                op = op if op is not None else "—"
-            except Exception:
-                op = "—"
-            try:
-                role = AppState.get_active_user_role() or "—"
-            except Exception:
-                role = "—"
-            now_text = datetime.now().strftime("%Y-%m-%d %H:%M")
-            try:
-                w.set_context(str(op), now_text, str(role))
-            except Exception:
-                pass
-
-            # Placeholder data until real wiring exists
-            try:
-                w.update_kpis({
-                    "pos_open": 0,
-                    "invoices_pending": 0,
-                    "reimburse_pending": 0,
-                    "budget_remaining": "—",
-                    "cost_op_today": "—",
-                    "overtime_hours": "—",
-                })
-            except Exception:
-                pass
-            try:
-                w.update_alerts([])
-            except Exception:
-                pass
-            try:
-                w.update_actions([])
-            except Exception:
-                pass
-            try:
-                w.update_finance_snapshot({
-                    "ops_cost_today": "—",
-                    "ops_cost_to_date": "—",
-                    "budget_total": "—",
-                    "budget_used": "—",
-                    "budget_remaining": "—",
-                    "sections_over_cap": [],
-                })
-            except Exception:
-                pass
-            try:
-                w.update_time_equip({
-                    "time_entries_today": 0,
-                    "crews_pending": 0,
-                    "equipment_hours_today": "0h",
-                    "equipment_pending": 0,
-                })
-            except Exception:
-                pass
-            try:
-                w.update_reimburse_queue([])
-            except Exception:
-                pass
-
-        try:
-            w.refreshRequested.connect(lambda: _refresh())
-        except Exception:
-            pass
-        # Prime immediately on open
-        _refresh()
     def open_finance_unit_log(self) -> None:
         from modules import ics214
         incident_id = AppState.get_active_incident()
@@ -2822,23 +2678,29 @@ class MainWindow(QMainWindow):
         })
         self._open_dock_widget(panel, title="ICS-214 Activity Log — Finance/Admin", preferred_size=(950, 600))
 
-    def open_finance_time(self) -> None:
+    def open_finance_estimates(self) -> None:
         from modules import finance
         incident_id = AppState.get_active_incident()
-        panel = finance.get_time_panel(incident_id)
-        self._open_panel(panel, title="Time Tracking")
+        panel = finance.get_estimates_panel(incident_id)
+        self._open_panel(panel, title="Finance — Estimates")
 
-    def open_finance_procurement(self) -> None:
+    def open_finance_actual_costs(self) -> None:
         from modules import finance
         incident_id = AppState.get_active_incident()
-        panel = finance.get_procurement_panel(incident_id)
-        self._open_panel(panel, title="Expenses && Procurement")
+        panel = finance.get_actual_costs_panel(incident_id)
+        self._open_panel(panel, title="Finance — Actual Costs")
 
     def open_finance_summary(self) -> None:
         from modules import finance
         incident_id = AppState.get_active_incident()
         panel = finance.get_summary_panel(incident_id)
-        self._open_panel(panel, title="Cost Summary")
+        self._open_panel(panel, title="Cost Summary / Reports")
+
+    def open_finance_rate_tables(self) -> None:
+        from modules import finance
+        incident_id = AppState.get_active_incident()
+        panel = finance.get_rate_tables_panel(incident_id)
+        self._open_panel(panel, title="Rate Tables")
 
 # --- 4.13 Toolkits -------------------------------------------------------
     def open_toolkit_sar_missing_person(self) -> None:

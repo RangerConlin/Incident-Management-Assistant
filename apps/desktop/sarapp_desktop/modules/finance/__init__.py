@@ -1,13 +1,15 @@
 from .windows import (
-    get_time_panel,
-    get_procurement_panel,
-    get_summary_panel,
+    get_actual_costs_panel,
+    get_estimates_panel,
     get_finance_panel,
+    get_rate_tables_panel,
+    get_summary_panel,
 )
 
 __all__ = [
-    "get_time_panel",
-    "get_procurement_panel",
-    "get_summary_panel",
+    "get_actual_costs_panel",
+    "get_estimates_panel",
     "get_finance_panel",
+    "get_rate_tables_panel",
+    "get_summary_panel",
 ]

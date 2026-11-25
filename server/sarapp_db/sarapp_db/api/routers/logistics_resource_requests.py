@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException
 from sarapp_db.mongo.database_manager import get_incident_db
 from sarapp_db.mongo.collection_names import IncidentCollections
 from sarapp_db.mongo.repository import BaseRepository
+from sarapp_db.api.routers.finance import create_estimate_for_request_item
 
 router = APIRouter()
 
@@ -219,6 +220,47 @@ def change_status(incident_id: str, request_id: str, body: dict[str, Any]) -> di
 # Approvals
 # ---------------------------------------------------------------------------
 
+def _create_estimates_for_cost_impact_items(
+    incident_id: str,
+    repo: "LogisticsResourceRequestsRepository",
+    doc: dict,
+) -> None:
+    """On FINANCE_APPROVE, create the Finance Estimate backing any item that
+    has a cost impact (estimated_total_cost set) but no Estimate yet, and
+    link the new estimate_id back onto that item. Never touches an item
+    that already has an estimate_id — Finance may have already created or
+    adjusted that estimate directly, and this must not overwrite it."""
+    items = doc.get("items") or []
+    request_int_id = doc.get("id")
+    for item in items:
+        if item.get("estimate_id") is not None:
+            continue
+        total_cost = item.get("estimated_total_cost")
+        if total_cost is None:
+            continue
+        try:
+            amount = float(total_cost)
+        except (TypeError, ValueError):
+            continue
+        estimate = create_estimate_for_request_item(
+            incident_id,
+            resource_request_id=request_int_id,
+            resource_request_item_id=item.get("id"),
+            description=f"{item.get('description', 'Resource request item')} ({doc.get('title', request_int_id)})",
+            category=str(item.get("kind", "other")).lower(),
+            quantity=float(item.get("quantity", 1) or 1),
+            unit=item.get("unit"),
+            amount=amount,
+            status="committed",
+        )
+        repo.apply_update(
+            doc["_id"],
+            {"$set": {"items.$[item].estimate_id": estimate["id"]}},
+            array_filters=[{"item.id": item.get("id")}],
+            touch_updated_at=False,
+        )
+
+
 @router.post("/incidents/{incident_id}/logistics/resource-requests/{request_id}/approvals", status_code=201)
 def record_approval(incident_id: str, request_id: str, body: dict[str, Any]) -> dict:
     repo = _repo(incident_id)
@@ -253,6 +295,8 @@ def record_approval(incident_id: str, request_id: str, body: dict[str, Any]) -> 
             {"$push": {"approvals": approval, "audit": audit_entry}, "$set": {"last_updated_utc": now}},
             touch_updated_at=False,
         )
+        if action == "FINANCE_APPROVE":
+            _create_estimates_for_cost_impact_items(incident_id, repo, doc)
         return {"id": approval_id}
 
     if action not in ACTION_STATUS_MAP:

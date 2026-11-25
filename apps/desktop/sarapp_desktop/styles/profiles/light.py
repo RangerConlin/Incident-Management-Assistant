@@ -151,6 +151,15 @@ RESOURCE_STATUS: Dict[str, Dict[str, str]] = {
     "Cancelled":      {"bg": "#E53935", "fg": "#ffffff"},
 }
 
+FINANCE_ESTIMATE_STATUS: Dict[str, Dict[str, str]] = {
+    "estimated":       {"bg": "#CE93D8", "fg": "#1a1a1a"},
+    "committed":       {"bg": "#FFC107", "fg": "#1a1a1a"},
+    "satisfied":       {"bg": "#00e113", "fg": "#000000"},
+    "closed":          {"bg": "#888888", "fg": "#363636"},
+    "active":          {"bg": "#098d00", "fg": "#000000"},
+    "inactive":        {"bg": "#c73221", "fg": "#010101"},
+}
+
 TASK_STATUS: Dict[str, Dict[str, str]] = {
     "created":          {"bg": "#90A4AE", "fg": "#1a1a1a"},
     "planned":          {"bg": "#CE93D8", "fg": "#1a1a1a"},

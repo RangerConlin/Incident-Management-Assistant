@@ -3,24 +3,26 @@ from __future__ import annotations
 from typing import Any
 
 from .models.schemas import (
+    ActualCostDocumentCreate,
+    ActualCostDocumentRead,
+    ActualCostLineCreate,
+    ActualCostLineRead,
     ApprovalRecordCreate,
     ApprovalRecordRead,
     AttachmentCreate,
     AttachmentRead,
+    BudgetSet,
+    BudgetSummaryRead,
+    CalculatedEstimateCreate,
+    EstimateRead,
     FinanceDashboardSnapshot,
-    FinanceExpenseCreate,
-    FinanceExpenseRead,
-    FinanceExpenseUpdate,
-    FinanceForecastCreate,
-    FinanceForecastRead,
-    FuelForecastLineCreate,
-    FuelForecastLineRead,
-    FuelPriceProfileCreate,
-    FuelPriceProfileRead,
-    FuelReportRow,
-    FundingSourceCreate,
-    FundingSourceRead,
+    ManualEstimateCreate,
     PendingApprovalRow,
+    RateTableEntryCreate,
+    RateTableEntryRead,
+    RateTableEntryUpdate,
+    RateTableTemplateRead,
+    TaskFinanceSummaryRead,
 )
 
 
@@ -90,181 +92,215 @@ def _patch(path: str, *, json: Any = None) -> Any:
         raise ValueError(str(exc)) from exc
 
 
-def list_fuel_price_profiles(incident_id: str) -> list[FuelPriceProfileRead]:
-    cached = _cached_docs(incident_id, "finance_fuel_price_profiles")
+def _put(path: str, *, json: Any = None) -> Any:
+    from utils.api_client import APIError
+
+    try:
+        return _client().put(path, json=json)
+    except APIError as exc:
+        raise ValueError(str(exc)) from exc
+
+
+def _jsonable(data: Any, *, exclude_none: bool = False) -> dict[str, Any]:
+    """Serialize a pydantic model to a JSON-safe dict (datetimes -> ISO strings)."""
+    return data.model_dump(mode="json", exclude_none=exclude_none)
+
+
+# ===========================================================================
+# Rate Tables
+# ===========================================================================
+
+def list_rate_tables(incident_id: str, category: str | None = None, active_only: bool = False) -> list[RateTableEntryRead]:
+    cached = _cached_docs(incident_id, "finance_rate_tables")
     if cached is not None:
-        ordered = _sorted_by(cached, (("effective_at", True), ("int_id", True)))
-        return [FuelPriceProfileRead(**_normalize(row)) for row in ordered]
-    rows = _client().get(f"{_base(incident_id)}/fuel-price-profiles") or []
-    return [FuelPriceProfileRead(**row) for row in rows]
+        filtered = cached
+        if category:
+            filtered = [d for d in filtered if d.get("category") == category]
+        if active_only:
+            filtered = [d for d in filtered if d.get("is_active")]
+        ordered = _sorted_by(filtered, (("category", False), ("name", False)))
+        return [RateTableEntryRead(**_normalize(row)) for row in ordered]
+    params = {k: v for k, v in {"category": category, "active_only": active_only}.items() if v}
+    rows = _client().get(f"{_base(incident_id)}/rate-tables", params=params or None) or []
+    return [RateTableEntryRead(**row) for row in rows]
 
 
-def create_fuel_price_profile(incident_id: str, data: FuelPriceProfileCreate) -> FuelPriceProfileRead:
-    row = _post(f"{_base(incident_id)}/fuel-price-profiles", json=_jsonable(data))
-    return FuelPriceProfileRead(**row)
+def create_rate_table_entry(incident_id: str, data: RateTableEntryCreate) -> RateTableEntryRead:
+    row = _post(f"{_base(incident_id)}/rate-tables", json=_jsonable(data))
+    return RateTableEntryRead(**row)
 
 
-def get_fuel_price_profile(incident_id: str, profile_id: int) -> FuelPriceProfileRead:
-    cached = _cached_doc_by_int_id(incident_id, "finance_fuel_price_profiles", profile_id)
-    if cached is not None:
-        return FuelPriceProfileRead(**_normalize(cached))
-    row = _client().get(f"{_base(incident_id)}/fuel-price-profiles/{profile_id}")
-    return FuelPriceProfileRead(**row)
-
-
-def get_active_fuel_price_profile(incident_id: str) -> FuelPriceProfileRead | None:
-    cached = _cached_docs(incident_id, "finance_fuel_price_profiles")
-    if cached is not None:
-        active = [d for d in cached if d.get("is_active")]
-        ordered = _sorted_by(active, (("effective_at", True), ("int_id", True)))
-        return FuelPriceProfileRead(**_normalize(ordered[0])) if ordered else None
-    row = _client().get(f"{_base(incident_id)}/fuel-price-profiles/active")
-    return FuelPriceProfileRead(**row) if row else None
-
-
-def get_fuel_unit_price(incident_id: str, fuel_type: str) -> float | None:
-    profile = get_active_fuel_price_profile(incident_id)
-    if profile is None:
-        return None
-    mapping = {
-        "Gasoline": profile.gasoline_price,
-        "Diesel": profile.diesel_price,
-        "Jet-A": profile.jet_a_price,
-        "100LL": profile.aviation_100ll_price,
-    }
-    return mapping.get(fuel_type)
-
-
-def set_active_fuel_price_profile(incident_id: str, profile_id: int) -> None:
-    _post(f"{_base(incident_id)}/fuel-price-profiles/{profile_id}/activate")
-
-
-def list_forecasts(incident_id: str) -> list[FinanceForecastRead]:
-    cached = _cached_docs(incident_id, "finance_forecasts")
-    if cached is not None:
-        ordered = _sorted_by(cached, (("created_at", True), ("int_id", True)))
-        return [FinanceForecastRead(**_normalize(row)) for row in ordered]
-    rows = _client().get(f"{_base(incident_id)}/forecasts") or []
-    return [FinanceForecastRead(**row) for row in rows]
-
-
-def create_forecast(incident_id: str, data: FinanceForecastCreate) -> FinanceForecastRead:
-    row = _post(f"{_base(incident_id)}/forecasts", json=_jsonable(data))
-    return FinanceForecastRead(**row)
-
-
-def get_forecast(incident_id: str, forecast_id: int) -> FinanceForecastRead:
-    cached = _cached_doc_by_int_id(incident_id, "finance_forecasts", forecast_id)
-    if cached is not None:
-        return FinanceForecastRead(**_normalize(cached))
-    row = _client().get(f"{_base(incident_id)}/forecasts/{forecast_id}")
-    return FinanceForecastRead(**row)
-
-
-def add_fuel_forecast_line(incident_id: str, forecast_id: int, data: FuelForecastLineCreate) -> FuelForecastLineRead:
-    row = _post(f"{_base(incident_id)}/forecasts/{forecast_id}/fuel-lines", json=_jsonable(data))
-    return FuelForecastLineRead(**row)
-
-
-def list_fuel_forecast_lines(incident_id: str, forecast_id: int) -> list[FuelForecastLineRead]:
-    cached = _cached_docs(incident_id, "finance_fuel_forecast_lines")
-    if cached is not None:
-        filtered = [d for d in cached if d.get("forecast_id") == forecast_id]
-        ordered = _sorted_by(filtered, (("int_id", False),))
-        return [FuelForecastLineRead(**_normalize(row)) for row in ordered]
-    rows = _client().get(f"{_base(incident_id)}/forecasts/{forecast_id}/fuel-lines") or []
-    return [FuelForecastLineRead(**row) for row in rows]
-
-
-def submit_forecast(incident_id: str, forecast_id: int, approver_role: str | None = None) -> None:
-    _post(
-        f"{_base(incident_id)}/forecasts/{forecast_id}/submit",
-        params={"approver_role": approver_role} if approver_role else None,
-    )
-
-
-def approve_forecast(
-    incident_id: str,
-    forecast_id: int,
-    approved_by: str | None = None,
-    comments: str | None = None,
-) -> None:
-    params = {k: v for k, v in {"approved_by": approved_by, "comments": comments}.items() if v is not None}
-    _post(f"{_base(incident_id)}/forecasts/{forecast_id}/approve", params=params or None)
-
-
-def list_funding_sources(incident_id: str) -> list[FundingSourceRead]:
-    cached = _cached_docs(incident_id, "finance_funding_sources")
-    if cached is not None:
-        ordered = _sorted_by(cached, (("name", False),))
-        return [FundingSourceRead(**_normalize(row)) for row in ordered]
-    rows = _client().get(f"{_base(incident_id)}/funding-sources") or []
-    return [FundingSourceRead(**row) for row in rows]
-
-
-def create_funding_source(incident_id: str, data: FundingSourceCreate) -> FundingSourceRead:
-    row = _post(f"{_base(incident_id)}/funding-sources", json=_jsonable(data))
-    return FundingSourceRead(**row)
-
-
-def list_expenses(incident_id: str) -> list[FinanceExpenseRead]:
-    cached = _cached_docs(incident_id, "finance_expenses")
-    if cached is not None:
-        ordered = _sorted_by(cached, (("expense_datetime", True), ("int_id", True)))
-        return [FinanceExpenseRead(**_normalize(row)) for row in ordered]
-    rows = _client().get(f"{_base(incident_id)}/expenses") or []
-    return [FinanceExpenseRead(**row) for row in rows]
-
-
-def create_expense(incident_id: str, data: FinanceExpenseCreate) -> FinanceExpenseRead:
-    row = _post(f"{_base(incident_id)}/expenses", json=_jsonable(data))
-    return FinanceExpenseRead(**row)
-
-
-def get_expense(incident_id: str, expense_id: int) -> FinanceExpenseRead:
-    cached = _cached_doc_by_int_id(incident_id, "finance_expenses", expense_id)
-    if cached is not None:
-        return FinanceExpenseRead(**_normalize(cached))
-    row = _client().get(f"{_base(incident_id)}/expenses/{expense_id}")
-    return FinanceExpenseRead(**row)
-
-
-def update_expense(incident_id: str, expense_id: int, data: FinanceExpenseUpdate) -> None:
+def update_rate_table_entry(incident_id: str, entry_id: int, data: RateTableEntryUpdate) -> RateTableEntryRead:
     fields = _jsonable(data, exclude_none=True)
-    if not fields:
-        return
-    _patch(f"{_base(incident_id)}/expenses/{expense_id}", json=fields)
+    row = _patch(f"{_base(incident_id)}/rate-tables/{entry_id}", json=fields)
+    return RateTableEntryRead(**row)
 
 
-def submit_expense(incident_id: str, expense_id: int, approver_role: str | None = None) -> None:
-    _post(
-        f"{_base(incident_id)}/expenses/{expense_id}/submit",
-        params={"approver_role": approver_role} if approver_role else None,
-    )
+def list_rate_table_templates(incident_id: str, category: str | None = None) -> list[RateTableTemplateRead]:
+    params = {"category": category} if category else None
+    # Templates are master-catalog, not incident-scoped — no cache lookup.
+    rows = _client().get(f"{_base(incident_id)}/rate-table-templates", params=params) or []
+    return [RateTableTemplateRead(**row) for row in rows]
 
 
-def approve_expense(
+def seed_rate_table_from_template(incident_id: str, template_id: int) -> RateTableEntryRead:
+    row = _post(f"{_base(incident_id)}/rate-tables/seed-from-template/{template_id}")
+    return RateTableEntryRead(**row)
+
+
+# ===========================================================================
+# Budget
+# ===========================================================================
+
+def get_budget(incident_id: str) -> BudgetSummaryRead:
+    row = _client().get(f"{_base(incident_id)}/budget")
+    return BudgetSummaryRead(**row)
+
+
+def set_budget(incident_id: str, data: BudgetSet) -> BudgetSummaryRead:
+    row = _put(f"{_base(incident_id)}/budget", json=_jsonable(data))
+    return BudgetSummaryRead(**row)
+
+
+# ===========================================================================
+# Estimates
+# ===========================================================================
+
+def list_estimates(
     incident_id: str,
-    expense_id: int,
-    approved_by: str | None = None,
-    comments: str | None = None,
-) -> None:
-    params = {k: v for k, v in {"approved_by": approved_by, "comments": comments}.items() if v is not None}
-    _post(f"{_base(incident_id)}/expenses/{expense_id}/approve", params=params or None)
+    task_id: str | None = None,
+    resource_request_id: str | None = None,
+    status: str | None = None,
+    category: str | None = None,
+    include_closed: bool = True,
+) -> list[EstimateRead]:
+    cached = _cached_docs(incident_id, "finance_estimates")
+    if cached is not None:
+        filtered = cached
+        if task_id:
+            filtered = [d for d in filtered if d.get("task_id") == task_id]
+        if resource_request_id is not None:
+            filtered = [d for d in filtered if d.get("resource_request_id") == resource_request_id]
+        if status:
+            filtered = [d for d in filtered if d.get("status") == status]
+        if category:
+            filtered = [d for d in filtered if d.get("category") == category]
+        if not include_closed:
+            filtered = [d for d in filtered if not d.get("closed")]
+        ordered = _sorted_by(filtered, (("created_at", True), ("int_id", True)))
+        return [EstimateRead(**_normalize(row)) for row in ordered]
+
+    params = {
+        k: v for k, v in {
+            "task_id": task_id,
+            "resource_request_id": resource_request_id,
+            "status": status,
+            "category": category,
+            "include_closed": include_closed,
+        }.items() if v is not None
+    }
+    rows = _client().get(f"{_base(incident_id)}/estimates", params=params or None) or []
+    return [EstimateRead(**row) for row in rows]
 
 
-def mark_expense_status(
-    incident_id: str,
-    expense_id: int,
-    status: str,
-    actor: str | None = None,
-    comments: str | None = None,
-) -> None:
-    _post(
-        f"{_base(incident_id)}/expenses/{expense_id}/status",
-        json={"status": status, "actor": actor, "comments": comments},
+def get_estimate(incident_id: str, estimate_id: int) -> EstimateRead:
+    cached = _cached_doc_by_int_id(incident_id, "finance_estimates", estimate_id)
+    if cached is not None:
+        return EstimateRead(**_normalize(cached))
+    row = _client().get(f"{_base(incident_id)}/estimates/{estimate_id}")
+    return EstimateRead(**row)
+
+
+def create_manual_estimate(incident_id: str, data: ManualEstimateCreate) -> EstimateRead:
+    row = _post(f"{_base(incident_id)}/estimates/manual", json=_jsonable(data))
+    return EstimateRead(**row)
+
+
+def create_calculated_estimate(incident_id: str, data: CalculatedEstimateCreate) -> EstimateRead:
+    row = _post(f"{_base(incident_id)}/estimates/calculated", json=_jsonable(data))
+    return EstimateRead(**row)
+
+
+def recalculate_estimate(incident_id: str, estimate_id: int, quantity: float, changed_by: str | None = None) -> EstimateRead:
+    row = _post(
+        f"{_base(incident_id)}/estimates/{estimate_id}/recalculate",
+        json={"quantity": quantity, "changed_by": changed_by},
     )
+    return EstimateRead(**row)
 
+
+def commit_estimate(incident_id: str, estimate_id: int, changed_by: str | None = None) -> EstimateRead:
+    row = _post(f"{_base(incident_id)}/estimates/{estimate_id}/commit", json={"changed_by": changed_by})
+    return EstimateRead(**row)
+
+
+def close_estimate(incident_id: str, estimate_id: int, closed_reason: str, changed_by: str | None = None, detail: str | None = None) -> EstimateRead:
+    row = _post(
+        f"{_base(incident_id)}/estimates/{estimate_id}/close",
+        json={"closed_reason": closed_reason, "changed_by": changed_by, "detail": detail},
+    )
+    return EstimateRead(**row)
+
+
+def refine_estimate_from_debrief(incident_id: str, **kwargs: Any) -> EstimateRead:
+    row = _post(f"{_base(incident_id)}/estimates/debrief-refinement", json=kwargs)
+    return EstimateRead(**row)
+
+
+def flag_debrief_estimate_for_review(incident_id: str, debrief_id: str, changed_by: str | None = None) -> EstimateRead | None:
+    row = _post(
+        f"{_base(incident_id)}/estimates/debrief-refinement/{debrief_id}/flag-for-review",
+        params={"changed_by": changed_by} if changed_by else None,
+    )
+    return EstimateRead(**row) if row else None
+
+
+# ===========================================================================
+# Actual cost documents + lines
+# ===========================================================================
+
+def list_actual_cost_documents(incident_id: str) -> list[ActualCostDocumentRead]:
+    cached = _cached_docs(incident_id, "finance_actual_cost_documents")
+    if cached is not None:
+        ordered = _sorted_by(cached, (("document_date", True), ("int_id", True)))
+        return [ActualCostDocumentRead(**_normalize(row)) for row in ordered]
+    rows = _client().get(f"{_base(incident_id)}/actual-cost-documents") or []
+    return [ActualCostDocumentRead(**row) for row in rows]
+
+
+def create_actual_cost_document(incident_id: str, data: ActualCostDocumentCreate) -> ActualCostDocumentRead:
+    row = _post(f"{_base(incident_id)}/actual-cost-documents", json=_jsonable(data))
+    return ActualCostDocumentRead(**row)
+
+
+def update_actual_cost_document(incident_id: str, document_id: int, **fields: Any) -> ActualCostDocumentRead:
+    row = _patch(f"{_base(incident_id)}/actual-cost-documents/{document_id}", json=fields)
+    return ActualCostDocumentRead(**row)
+
+
+def list_actual_cost_lines(incident_id: str, document_id: int) -> list[ActualCostLineRead]:
+    cached = _cached_docs(incident_id, "finance_actual_cost_lines")
+    if cached is not None:
+        filtered = [d for d in cached if d.get("document_id") == document_id]
+        ordered = _sorted_by(filtered, (("int_id", False),))
+        return [ActualCostLineRead(**_normalize(row)) for row in ordered]
+    rows = _client().get(f"{_base(incident_id)}/actual-cost-documents/{document_id}/lines") or []
+    return [ActualCostLineRead(**row) for row in rows]
+
+
+def add_actual_cost_line(incident_id: str, document_id: int, data: ActualCostLineCreate) -> ActualCostLineRead:
+    row = _post(f"{_base(incident_id)}/actual-cost-documents/{document_id}/lines", json=_jsonable(data))
+    return ActualCostLineRead(**row)
+
+
+def link_more_estimates(incident_id: str, line_id: int, links: list[dict[str, Any]]) -> ActualCostLineRead:
+    row = _post(f"{_base(incident_id)}/actual-cost-lines/{line_id}/link", json={"links": links})
+    return ActualCostLineRead(**row)
+
+
+# ===========================================================================
+# Attachments + approvals
+# ===========================================================================
 
 def create_attachment(incident_id: str, data: AttachmentCreate) -> AttachmentRead:
     row = _post(f"{_base(incident_id)}/attachments", json=_jsonable(data))
@@ -308,116 +344,23 @@ def create_approval(incident_id: str, data: ApprovalRecordCreate) -> ApprovalRec
     return ApprovalRecordRead(**row)
 
 
+# ===========================================================================
+# Reporting
+# ===========================================================================
+
 def get_dashboard_snapshot(incident_id: str) -> FinanceDashboardSnapshot:
-    forecasts = _cached_docs(incident_id, "finance_forecasts")
-    expenses = _cached_docs(incident_id, "finance_expenses")
-    if forecasts is not None and expenses is not None:
-        total_forecast_cost = sum(f.get("total_estimated_cost", 0) for f in forecasts)
-        total_actual_cost = sum(e.get("amount_total", 0) for e in expenses)
-        fuel_forecast_cost = sum(
-            f.get("total_estimated_cost", 0) for f in forecasts if f.get("category") == "Fuel"
-        )
-        fuel_actual_cost = sum(
-            e.get("amount_total", 0) for e in expenses if e.get("category") == "Fuel"
-        )
-        pending_approvals = (
-            sum(1 for f in forecasts if f.get("status") == "Submitted")
-            + sum(1 for e in expenses if e.get("status") == "Submitted")
-        )
-        missing_receipts = sum(1 for e in expenses if not e.get("receipt_attached"))
-        return FinanceDashboardSnapshot(
-            total_forecast_cost=total_forecast_cost,
-            total_actual_cost=total_actual_cost,
-            fuel_forecast_cost=fuel_forecast_cost,
-            fuel_actual_cost=fuel_actual_cost,
-            pending_approvals=pending_approvals,
-            missing_receipts=missing_receipts,
-            forecast_count=len(forecasts),
-            expense_count=len(expenses),
-        )
+    # The projected-cost math joins budget + estimates + actual-cost lines;
+    # rather than duplicate that aggregation client-side, always call the
+    # API for this one (the incident cache only helps the simple list reads).
     row = _client().get(f"{_base(incident_id)}/dashboard")
     return FinanceDashboardSnapshot(**row)
 
 
-def get_fuel_report(incident_id: str) -> list[FuelReportRow]:
-    forecasts_cached = _cached_docs(incident_id, "finance_forecasts")
-    lines_cached = _cached_docs(incident_id, "finance_fuel_forecast_lines")
-    expenses_cached = _cached_docs(incident_id, "finance_expenses")
-    if forecasts_cached is not None and lines_cached is not None and expenses_cached is not None:
-        forecasts = {f["int_id"]: f for f in forecasts_cached}
-        expenses = [
-            e for e in expenses_cached
-            if e.get("category") == "Fuel" and e.get("linked_forecast_id") is not None
-        ]
-
-        expense_totals: dict[int, float] = {}
-        for e in expenses:
-            fid = e.get("linked_forecast_id")
-            expense_totals[fid] = expense_totals.get(fid, 0) + e.get("amount_total", 0)
-
-        grouped: dict[int, list[dict[str, Any]]] = {}
-        for line in lines_cached:
-            fid = line.get("forecast_id")
-            if fid in forecasts:
-                grouped.setdefault(fid, []).append(line)
-
-        rows: list[dict[str, Any]] = []
-        for fid, lines in grouped.items():
-            forecast = forecasts[fid]
-            resource_names = {l.get("resource_name") for l in lines}
-            fuel_types = {l.get("fuel_type") for l in lines}
-            estimated_gallons = sum(l.get("estimated_gallons", 0) for l in lines)
-            estimated_cost = sum(l.get("estimated_cost", 0) for l in lines)
-            actual_cost = expense_totals.get(fid, 0)
-            rows.append({
-                "forecast_name": forecast.get("forecast_name", ""),
-                "resource_name": next(iter(resource_names)) if len(resource_names) == 1 else "Multiple resources",
-                "fuel_type": next(iter(fuel_types)) if len(fuel_types) == 1 else "Mixed",
-                "estimated_gallons": estimated_gallons,
-                "estimated_cost": estimated_cost,
-                "actual_cost": actual_cost,
-                "variance": actual_cost - estimated_cost,
-            })
-        rows.sort(key=lambda r: r["forecast_name"])
-        return [FuelReportRow(**row) for row in rows]
-
-    rows = _client().get(f"{_base(incident_id)}/fuel-report") or []
-    return [FuelReportRow(**row) for row in rows]
+def get_task_finance_summary(incident_id: str, task_id: str) -> TaskFinanceSummaryRead:
+    row = _client().get(f"{_base(incident_id)}/task-summary/{task_id}")
+    return TaskFinanceSummaryRead(**row)
 
 
 def list_pending_approvals(incident_id: str) -> list[PendingApprovalRow]:
-    forecasts = _cached_docs(incident_id, "finance_forecasts")
-    expenses = _cached_docs(incident_id, "finance_expenses")
-    if forecasts is not None and expenses is not None:
-        rows = [
-            {
-                "record_type": "forecast",
-                "record_id": f["int_id"],
-                "description": f.get("forecast_name", ""),
-                "amount": f.get("total_estimated_cost", 0),
-                "submitted_at": f.get("submitted_at"),
-                "status": f.get("status"),
-            }
-            for f in forecasts if f.get("status") == "Submitted"
-        ] + [
-            {
-                "record_type": "expense",
-                "record_id": e["int_id"],
-                "description": e.get("description", ""),
-                "amount": e.get("amount_total", 0),
-                "submitted_at": e.get("submitted_at"),
-                "status": e.get("status"),
-            }
-            for e in expenses if e.get("status") == "Submitted"
-        ]
-        rows.sort(key=lambda r: r["submitted_at"] or "", reverse=True)
-        return [PendingApprovalRow(**row) for row in rows]
-
     rows = _client().get(f"{_base(incident_id)}/pending-approvals") or []
     return [PendingApprovalRow(**row) for row in rows]
-
-
-def _jsonable(data: Any, *, exclude_none: bool = False) -> dict[str, Any]:
-    """Serialize a pydantic model to a JSON-safe dict (datetimes -> ISO strings)."""
-
-    return data.model_dump(mode="json", exclude_none=exclude_none)

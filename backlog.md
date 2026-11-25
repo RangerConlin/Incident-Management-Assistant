@@ -249,13 +249,37 @@ Distribution Log
 
 **************************************************************************************************************
 [Finance]
-Finance/Admin Dashboard
+Finance/Admin now implements the canonical Budget/Estimate/Actual-Cost model
+(server/sarapp_db/sarapp_db/api/routers/finance.py; desktop
+modules/finance/) plus a Rate Tables window, Resource Request cost-impact
+integration (FINANCE_APPROVE creates/links an Estimate per item with a cost
+impact), a Task Detail Finance tab, and debrief->estimate refinement wiring
+from the Air General debrief form. See
+docs/archive/design-documents/Instructions/finance_architecture.md.
+Remaining follow-up:
 
-Time Tracking
+- Debrief refinement only covers fuel/oil cost from the Air General form
+  (`fuel_oil_cost`/`fuel_used_gal`). Flight-hour (Hobbs) -> aircraft-rate
+  estimates and ground-vehicle mileage/personnel-hours refinement from
+  other debrief forms (ground/area/tracking/hasty/air_sar) are not wired —
+  extend `TaskDetailWindow._refine_fuel_estimate_from_air_general_debrief`
+  (rename/generalize it) if those are needed.
 
-Expenses & Procurement
+- Resource Request item cost fields are entered as plain numbers in the
+  desktop Items table (no rate-table picker on the request side) — Finance
+  still has to do the actual rate-based estimate math if a precise
+  calculated estimate is wanted; FINANCE_APPROVE only creates a manual-
+  amount Estimate from whatever estimated_total_cost was entered.
 
-Cost Summary
+- Web client: Budget is API/desktop-only for now (singleton record, doesn't
+  fit the generic incident-dataset list scaffold in
+  apps/web/src/modules/workspaces/config.ts) — needs a small bespoke page if
+  the web client should expose it. The web Resource Request UI also has no
+  cost-impact fields on items yet (desktop-only).
+
+- Run `tools/scripts/migrate_finance_v2.py` against any incident created
+  before this change to convert its legacy forecast/expense/fuel-price-
+  profile data into the canonical shape.
 
 **************************************************************************************************************
 [Personnel Edit Window]

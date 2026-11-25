@@ -21,37 +21,40 @@ def _export_dir_for_incident(incident_id: str) -> Path:
     return export_dir
 
 
-def export_fuel_report(incident_id: str) -> Dict[str, str]:
-    rows = services.get_fuel_report(incident_id)
+def export_estimates_report(incident_id: str) -> Dict[str, str]:
+    rows = services.list_estimates(incident_id)
 
     export_dir = _export_dir_for_incident(incident_id)
-    path = export_dir / "fuel_report.csv"
+    path = export_dir / "estimates_report.csv"
     with open(path, "w", newline="", encoding="utf-8") as handle:
         writer = csv.writer(handle)
-        writer.writerow(["forecast_name", "estimated_gallons", "estimated_cost", "actual_cost", "variance"])
+        writer.writerow([
+            "id", "description", "category", "task_id", "original_amount",
+            "satisfied_amount", "remaining_amount", "status", "closed", "closed_reason",
+        ])
         for row in rows:
-            writer.writerow(
-                [
-                    row.forecast_name,
-                    row.estimated_gallons,
-                    row.estimated_cost,
-                    row.actual_cost,
-                    row.variance,
-                ]
-            )
+            writer.writerow([
+                row.id, row.description, row.category, row.task_id or "", row.original_amount,
+                row.satisfied_amount, row.remaining_amount, row.status, row.closed, row.closed_reason or "",
+            ])
     return {"path": str(path), "created_at": datetime.utcnow().isoformat(timespec="seconds")}
 
 
 def export_incident_cost_summary(incident_id: str) -> Dict[str, str]:
-    snapshot = services.get_dashboard_snapshot(incident_id)
-    variance = snapshot.total_actual_cost - snapshot.total_forecast_cost
+    summary = services.get_budget(incident_id)
 
     export_dir = _export_dir_for_incident(incident_id)
     path = export_dir / "incident_cost_summary.csv"
     with open(path, "w", newline="", encoding="utf-8") as handle:
         writer = csv.writer(handle)
-        writer.writerow(["incident_id", "total_forecast", "total_actual", "variance"])
-        writer.writerow([incident_id, snapshot.total_forecast_cost, snapshot.total_actual_cost, variance])
+        writer.writerow([
+            "incident_id", "total_budget", "open_estimated_cost", "open_committed_cost",
+            "actual_cost", "projected_incident_cost", "remaining_budget", "projected_budget_variance",
+        ])
+        writer.writerow([
+            incident_id, summary.total_budget, summary.open_estimated_cost, summary.open_committed_cost,
+            summary.actual_cost, summary.projected_incident_cost, summary.remaining_budget, summary.projected_budget_variance,
+        ])
     return {"path": str(path), "created_at": datetime.utcnow().isoformat(timespec="seconds")}
 
 

@@ -39,6 +39,8 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QDialogButtonBox,
+    QGroupBox,
+    QInputDialog,
 )
 
 from modules.gis.services.spatial_repository import SpatialRepository
@@ -1700,6 +1702,8 @@ class TaskDetailWindow(QWidget):
         att_v.addWidget(self._att_table, 1)
         tabs.addTab(att_content, "Attachments/Forms")
 
+        tabs.addTab(self._build_finance_tab(), "Finance")
+
         clue_content = QWidget(self)
         clue_layout = QVBoxLayout(clue_content)
         try:
@@ -1947,6 +1951,7 @@ class TaskDetailWindow(QWidget):
             "communications": self.load_comms,
             "debriefing": self.load_debriefs,
             "attachments/forms": self.load_attachments,
+            "finance": self.load_finance,
             "intel": self.load_linked_clues,
             "planning": self._load_planning,
             "log": self._load_current_log_tab,
@@ -4763,6 +4768,316 @@ class TaskDetailWindow(QWidget):
         m = {v: k for k, v in self._debrief_type_labels().items()}
         return m.get(label, label)
 
+    # ------------------------------------------------------------------
+    # Finance tab — Budget/Estimate/Actual-Cost summary for this task. See
+    # docs/archive/design-documents/Instructions/finance_architecture.md.
+    # ------------------------------------------------------------------
+
+    def _build_finance_tab(self) -> QWidget:
+        content = QWidget(self)
+        layout = QVBoxLayout(content)
+        layout.setContentsMargins(6, 6, 6, 6)
+        layout.setSpacing(8)
+
+        summary_row = QHBoxLayout()
+        self._fin_estimated_lbl = QLabel("Estimated: $0.00", content)
+        self._fin_committed_lbl = QLabel("Committed: $0.00", content)
+        self._fin_remaining_lbl = QLabel("Remaining Open: $0.00", content)
+        self._fin_actual_lbl = QLabel("Actual: $0.00", content)
+        for lbl in (self._fin_estimated_lbl, self._fin_committed_lbl, self._fin_remaining_lbl, self._fin_actual_lbl):
+            summary_row.addWidget(lbl)
+        summary_row.addStretch(1)
+        layout.addLayout(summary_row)
+
+        toolbar = QHBoxLayout()
+        self._fin_btn_generate = QPushButton("Generate Estimate", content)
+        self._fin_btn_manual = QPushButton("Add Manual Estimate", content)
+        self._fin_btn_recalc = QPushButton("Recalculate Selected", content)
+        self._fin_btn_open_full = QPushButton("Open Full Finance Record", content)
+        self._fin_btn_refresh = QPushButton("Refresh", content)
+        self._fin_btn_generate.clicked.connect(self._fin_generate_estimate)
+        self._fin_btn_manual.clicked.connect(self._fin_add_manual_estimate)
+        self._fin_btn_recalc.clicked.connect(self._fin_recalculate_selected)
+        self._fin_btn_open_full.clicked.connect(self._fin_open_full_record)
+        self._fin_btn_refresh.clicked.connect(self.load_finance)
+        for b in (self._fin_btn_generate, self._fin_btn_manual, self._fin_btn_recalc, self._fin_btn_open_full, self._fin_btn_refresh):
+            toolbar.addWidget(b)
+        toolbar.addStretch(1)
+        layout.addLayout(toolbar)
+
+        self._fin_empty_label = QLabel("No cost estimates for this task yet.", content)
+        self._fin_empty_label.setVisible(False)
+        layout.addWidget(self._fin_empty_label)
+
+        self._fin_headers = ["Category", "Description", "Resource Type", "Status", "Original", "Satisfied", "Remaining", "Closed"]
+        self._fin_model = QStandardItemModel(0, len(self._fin_headers), content)
+        self._fin_model.setHorizontalHeaderLabels(self._fin_headers)
+        self._fin_table = QTableView(content)
+        self._fin_table.setModel(self._fin_model)
+        apply_statusboard_table_behavior(self._fin_table)
+        self._fin_table.setAlternatingRowColors(True)
+        layout.addWidget(self._fin_table, 1)
+        self._fin_estimates: List[Dict[str, Any]] = []
+
+        self._fin_rr_group = QGroupBox("Related Resource Requests", content)
+        self._fin_rr_group.setVisible(False)
+        rr_layout = QVBoxLayout(self._fin_rr_group)
+        self._fin_rr_list = QListWidget(self._fin_rr_group)
+        rr_layout.addWidget(self._fin_rr_list)
+        layout.addWidget(self._fin_rr_group)
+
+        self._fin_shared_group = QGroupBox("Shared Actual Costs", content)
+        self._fin_shared_group.setVisible(False)
+        shared_layout = QVBoxLayout(self._fin_shared_group)
+        self._fin_shared_label = QLabel("", self._fin_shared_group)
+        self._fin_shared_label.setWordWrap(True)
+        shared_layout.addWidget(self._fin_shared_label)
+        layout.addWidget(self._fin_shared_group)
+
+        return content
+
+    def load_finance(self) -> None:
+        try:
+            from utils import incident_context
+            from modules.finance import services as finance_services
+
+            incident_id = incident_context.get_active_incident_id()
+            if not incident_id:
+                return
+            summary = finance_services.get_task_finance_summary(str(incident_id), str(self._task_id))
+        except Exception:
+            logger.exception("TaskDetailWindow[%s] finance summary load failed", self._task_id)
+            return
+        self._apply_finance_summary(summary)
+
+    def _apply_finance_summary(self, summary: Any) -> None:
+        self._fin_estimated_lbl.setText(f"Estimated: ${summary.estimated_total:,.2f}")
+        self._fin_committed_lbl.setText(f"Committed: ${summary.committed_total:,.2f}")
+        self._fin_remaining_lbl.setText(f"Remaining Open: ${summary.remaining_open_estimate:,.2f}")
+        self._fin_actual_lbl.setText(f"Actual: ${summary.actual_total:,.2f}")
+
+        self._fin_estimates = list(summary.estimates or [])
+        self._fin_model.removeRows(0, self._fin_model.rowCount())
+        resource_request_ids: set[int] = set()
+        for estimate in self._fin_estimates:
+            row = [
+                QStandardItem(str(estimate.get("category", ""))),
+                QStandardItem(str(estimate.get("description", ""))),
+                QStandardItem(str(estimate.get("resource_type") or "-")),
+                QStandardItem(str(estimate.get("status", ""))),
+                QStandardItem(f"{estimate.get('original_amount', 0):,.2f}"),
+                QStandardItem(f"{estimate.get('satisfied_amount', 0):,.2f}"),
+                QStandardItem(f"{estimate.get('remaining_amount', 0):,.2f}"),
+                QStandardItem("Yes" if estimate.get("closed") else "No"),
+            ]
+            for item in row:
+                item.setEditable(False)
+            self._fin_model.appendRow(row)
+            if estimate.get("resource_request_id") is not None:
+                resource_request_ids.add(estimate.get("resource_request_id"))
+
+        self._fin_table.setVisible(bool(self._fin_estimates))
+        self._fin_empty_label.setVisible(not self._fin_estimates)
+
+        self._fin_rr_group.setVisible(bool(resource_request_ids))
+        self._fin_rr_list.clear()
+        for request_id in sorted(resource_request_ids):
+            self._fin_rr_list.addItem(f"Resource Request #{request_id}")
+
+        shared_total = float(getattr(summary, "shared_actual_total", 0.0) or 0.0)
+        self._fin_shared_group.setVisible(shared_total > 0)
+        self._fin_shared_label.setText(
+            f"${shared_total:,.2f} in actual costs are shared with other tasks and counted once at the "
+            "incident level — not fully against every task they touch."
+        )
+
+    def _fin_selected_estimate(self) -> Dict[str, Any] | None:
+        index = self._fin_table.currentIndex()
+        if not index.isValid() or index.row() >= len(self._fin_estimates):
+            return None
+        return self._fin_estimates[index.row()]
+
+    def _fin_add_manual_estimate(self) -> None:
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Add Manual Estimate")
+        form = QFormLayout(dialog)
+        description_edit = QLineEdit(dialog)
+        category_edit = QComboBox(dialog)
+        category_edit.addItems(["personnel", "aircraft", "vehicle", "equipment", "fuel", "lodging", "meals", "rentals", "contracted_services", "other"])
+        amount_edit = QLineEdit("0.00", dialog)
+        form.addRow("Description", description_edit)
+        form.addRow("Category", category_edit)
+        form.addRow("Amount", amount_edit)
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, dialog)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        form.addRow(buttons)
+        if dialog.exec() != QDialog.Accepted:
+            return
+        try:
+            from utils import incident_context
+            from modules.finance import services as finance_services
+            from modules.finance.models.schemas import ManualEstimateCreate
+
+            incident_id = incident_context.get_active_incident_id()
+            finance_services.create_manual_estimate(
+                str(incident_id),
+                ManualEstimateCreate(
+                    description=description_edit.text().strip() or "Task cost estimate",
+                    category=category_edit.currentText(),
+                    task_id=str(self._task_id),
+                    amount=float(amount_edit.text() or "0"),
+                    created_by="Task Detail",
+                ),
+            )
+            self.load_finance()
+        except Exception as exc:
+            QMessageBox.warning(self, "Estimate", str(exc))
+
+    def _fin_generate_estimate(self) -> None:
+        try:
+            from utils import incident_context
+            from modules.finance import services as finance_services
+
+            incident_id = incident_context.get_active_incident_id()
+            if not incident_id:
+                return
+            rate_entries = finance_services.list_rate_tables(str(incident_id), active_only=True)
+        except Exception as exc:
+            QMessageBox.warning(self, "Generate Estimate", str(exc))
+            return
+        if not rate_entries:
+            QMessageBox.information(
+                self, "Generate Estimate",
+                "No active Rate Table entries. Add one in Finance/Admin > Rate Tables first.",
+            )
+            return
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Generate Estimate from Rate Table")
+        form = QFormLayout(dialog)
+        rate_combo = QComboBox(dialog)
+        for entry in rate_entries:
+            rate_combo.addItem(f"{entry.name} ({entry.category}, {entry.amount:,.2f}/{entry.unit})", entry.id)
+        description_edit = QLineEdit(dialog)
+        quantity_edit = QLineEdit("1", dialog)
+        form.addRow("Rate", rate_combo)
+        form.addRow("Description", description_edit)
+        form.addRow("Quantity", quantity_edit)
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, dialog)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        form.addRow(buttons)
+        if dialog.exec() != QDialog.Accepted:
+            return
+        try:
+            from modules.finance.models.schemas import CalculatedEstimateCreate
+
+            finance_services.create_calculated_estimate(
+                str(incident_id),
+                CalculatedEstimateCreate(
+                    description=description_edit.text().strip() or "Generated estimate",
+                    rate_table_entry_id=rate_combo.currentData(),
+                    task_id=str(self._task_id),
+                    quantity=float(quantity_edit.text() or "1"),
+                    created_by="Task Detail",
+                ),
+            )
+            self.load_finance()
+        except Exception as exc:
+            QMessageBox.warning(self, "Generate Estimate", str(exc))
+
+    def _fin_recalculate_selected(self) -> None:
+        estimate = self._fin_selected_estimate()
+        if estimate is None:
+            QMessageBox.information(self, "Recalculate Estimate", "Select an estimate first.")
+            return
+        if not estimate.get("rate_snapshot"):
+            QMessageBox.information(self, "Recalculate Estimate", "This estimate has no snapshotted rate to recalculate from.")
+            return
+        quantity, ok = QInputDialog.getDouble(
+            self, "Recalculate Estimate", "New quantity:",
+            float(estimate.get("quantity") or 1), 0, 1_000_000, 2,
+        )
+        if not ok:
+            return
+        try:
+            from utils import incident_context
+            from modules.finance import services as finance_services
+
+            incident_id = incident_context.get_active_incident_id()
+            finance_services.recalculate_estimate(str(incident_id), int(estimate["id"]), quantity, changed_by="Task Detail")
+            self.load_finance()
+        except Exception as exc:
+            QMessageBox.warning(self, "Recalculate Estimate", str(exc))
+
+    def _fin_open_full_record(self) -> None:
+        try:
+            from utils import incident_context
+            from modules.finance.windows import get_estimates_panel
+
+            incident_id = incident_context.get_active_incident_id()
+            panel = get_estimates_panel(str(incident_id) if incident_id else None)
+            panel.setWindowTitle("Finance/Admin — Estimates")
+            panel.setWindowFlags(Qt.Window)
+            panel.resize(1100, 750)
+            panel.show()
+            self._fin_full_record_window = panel  # keep a reference so it isn't garbage-collected
+        except Exception as exc:
+            QMessageBox.warning(self, "Finance/Admin", str(exc))
+
+    def _refine_fuel_estimate_from_air_general_debrief(self, debrief_id: int, form_data: Dict[str, Any]) -> None:
+        """Idempotent: refines (or creates, on first save) the one Estimate
+        sourced from this debrief's fuel/oil cost — never creates an Actual
+        Cost. See docs/archive/design-documents/Instructions/
+        finance_architecture.md "Debrief integration"."""
+        fuel_oil_cost = form_data.get("fuel_oil_cost")
+        fuel_used_gal = form_data.get("fuel_used_gal")
+        if fuel_oil_cost in (None, "", 0, "0"):
+            return
+        try:
+            amount = float(fuel_oil_cost)
+            if amount <= 0:
+                return
+        except (TypeError, ValueError):
+            return
+        try:
+            quantity = float(fuel_used_gal) if fuel_used_gal not in (None, "") else 1.0
+        except (TypeError, ValueError):
+            quantity = 1.0
+        try:
+            from utils import incident_context
+            from modules.finance import services as finance_services
+
+            incident_id = incident_context.get_active_incident_id()
+            if not incident_id:
+                return
+            finance_services.refine_estimate_from_debrief(
+                str(incident_id),
+                debrief_id=str(debrief_id),
+                task_id=str(self._task_id),
+                description=f"Fuel/oil cost — debrief {debrief_id}",
+                category="fuel",
+                quantity=quantity,
+                unit="gallon",
+                amount=amount,
+                changed_by="Debrief",
+            )
+        except Exception:
+            logger.exception("TaskDetailWindow[%s] debrief fuel estimate refinement failed", self._task_id)
+
+    def _flag_debrief_finance_estimate_for_review(self, debrief_id: int) -> None:
+        try:
+            from utils import incident_context
+            from modules.finance import services as finance_services
+
+            incident_id = incident_context.get_active_incident_id()
+            if not incident_id:
+                return
+            finance_services.flag_debrief_estimate_for_review(str(incident_id), str(debrief_id), changed_by="Debrief")
+        except Exception:
+            logger.exception("TaskDetailWindow[%s] flag debrief estimate for review failed", self._task_id)
+
     def load_debriefs(self) -> None:
         err_msg = ""
         try:
@@ -5321,6 +5636,8 @@ class TaskDetailWindow(QWidget):
                     data_local = _gather(widgets)
                     save_debrief_form(int(debrief_id), str(key), dict(data_local))
                     update_debrief_header(int(debrief_id), {"flagged_for_review": 1})
+                    if str(key) == "air_general":
+                        self._refine_fuel_estimate_from_air_general_debrief(int(debrief_id), dict(data_local))
                     self.load_debriefs()
                     try:
                         QMessageBox.information(self, "Debrief", "Saved.")
@@ -5869,6 +6186,7 @@ class TaskDetailWindow(QWidget):
             archive_debrief(int(did))
         except Exception:
             pass
+        self._flag_debrief_finance_estimate_for_review(int(did))
         self.load_debriefs()
 
     def _delete_selected_debrief(self) -> None:
@@ -5886,6 +6204,7 @@ class TaskDetailWindow(QWidget):
             delete_debrief(int(did))
         except Exception:
             pass
+        self._flag_debrief_finance_estimate_for_review(int(did))
         self.load_debriefs()
 
     def _on_team_item_changed(self, item) -> None:

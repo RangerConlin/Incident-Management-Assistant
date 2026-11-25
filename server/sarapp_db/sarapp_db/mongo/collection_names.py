@@ -101,6 +101,13 @@ class MasterCollections:
     STRATEGY_TEMPLATES = "strategy_templates"
     CANNED_COMM_ENTRIES = "canned_comm_entries"
 
+    # Reusable, program-wide standard rate catalog (personnel, aircraft,
+    # vehicle, equipment, fuel, lodging, meals/per diem, rentals/contracted,
+    # other). An incident's Finance Rate Tables window seeds/overrides from
+    # these; see IncidentCollections.FINANCE_RATE_TABLES and
+    # api/routers/finance.py.
+    RATE_TABLE_TEMPLATES = "rate_table_templates"
+
     # Checklist templates — reusable, program-wide catalog of ordered
     # sections/items that any module can instantiate (see IncidentCollections
     # .CHECKLISTS for the per-incident instances, and CHECKLISTS directly
@@ -289,17 +296,27 @@ class IncidentCollections:
     AUDIT_LOGS = "audit_logs"
     STATUS_BOARD_SNAPSHOTS = "status_board_snapshots"
 
-    # Finance/Admin — fuel pricing, forecasts, expenses, funding sources.
-    # finance_approvals is module-specific rather than reusing
-    # APPROVAL_INSTANCES/APPROVAL_RECORDS — see agents.md for the
-    # consolidation note.
+    # Finance/Admin — canonical Budget / Estimate / Actual-Cost model plus
+    # reusable Rate Tables. finance_approvals is module-specific rather than
+    # reusing APPROVAL_INSTANCES/APPROVAL_RECORDS — see agents.md for the
+    # consolidation note. The legacy finance_forecasts / finance_fuel_
+    # forecast_lines / finance_expenses / finance_fuel_price_profiles /
+    # finance_funding_sources collections are migrated into the collections
+    # below by scripts/migrate_finance_v2.py and are no longer written to.
+    FINANCE_RATE_TABLES = "finance_rate_tables"
+    FINANCE_BUDGETS = "finance_budgets"
+    FINANCE_ESTIMATES = "finance_estimates"
+    FINANCE_ACTUAL_COST_DOCUMENTS = "finance_actual_cost_documents"
+    FINANCE_ACTUAL_COST_LINES = "finance_actual_cost_lines"
+    FINANCE_APPROVALS = "finance_approvals"
+    FINANCE_ATTACHMENTS = "finance_attachments"
+    # Legacy, pre-migration collections. Kept only so the migration script
+    # has a name to read from; nothing else may read or write these.
     FINANCE_FUEL_PRICE_PROFILES = "finance_fuel_price_profiles"
     FINANCE_FORECASTS = "finance_forecasts"
     FINANCE_FUEL_FORECAST_LINES = "finance_fuel_forecast_lines"
     FINANCE_FUNDING_SOURCES = "finance_funding_sources"
     FINANCE_EXPENSES = "finance_expenses"
-    FINANCE_APPROVALS = "finance_approvals"
-    FINANCE_ATTACHMENTS = "finance_attachments"
     WEATHER_DATA = "weather_data"  # legacy — location-codes cache only; see WEATHER_CONFIG/WEATHER_HISTORY
     WEATHER_CONFIG = "weather_config"
     WEATHER_HISTORY = "weather_history"

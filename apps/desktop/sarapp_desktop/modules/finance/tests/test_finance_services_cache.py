@@ -6,10 +6,6 @@ from modules.finance import services
 from utils.incident_cache import incident_cache
 
 
-def _failing_get(*args, **kwargs):
-    raise AssertionError("service should use the active incident cache")
-
-
 @pytest.fixture(autouse=True)
 def _clear_incident_cache(monkeypatch):
     incident_cache.clear()
@@ -23,111 +19,100 @@ class _FailingClient:
         raise AssertionError("service should use the active incident cache")
 
 
-def test_list_forecasts_reads_from_cache_sorted():
+def test_list_rate_tables_reads_from_cache_sorted_by_category_then_name():
     incident_cache.load_snapshot(
         "INC-CACHE",
         {
-            "finance_forecasts": [
+            "finance_rate_tables": [
                 {
-                    "_id": "f-1", "int_id": 1, "incident_id": "INC-CACHE",
-                    "forecast_name": "Older", "forecast_type": "Fuel", "category": "Fuel",
-                    "status": "Draft", "total_estimated_cost": 100.0, "total_estimated_gallons": 10.0,
-                    "created_at": "2026-07-01T00:00:00+00:00",
+                    "_id": "r-1", "int_id": 1, "incident_id": "INC-CACHE",
+                    "name": "Z Vehicle", "category": "vehicle", "amount": 0.5, "unit": "mile",
+                    "is_active": True,
                 },
                 {
-                    "_id": "f-2", "int_id": 2, "incident_id": "INC-CACHE",
-                    "forecast_name": "Newer", "forecast_type": "Fuel", "category": "Fuel",
-                    "status": "Submitted", "total_estimated_cost": 200.0, "total_estimated_gallons": 20.0,
-                    "created_at": "2026-07-05T00:00:00+00:00",
+                    "_id": "r-2", "int_id": 2, "incident_id": "INC-CACHE",
+                    "name": "Ground Team Member", "category": "personnel", "amount": 25.0, "unit": "hour",
+                    "is_active": True,
                 },
             ]
         },
     )
 
-    forecasts = services.list_forecasts("INC-CACHE")
-    assert [f.forecast_name for f in forecasts] == ["Newer", "Older"]
+    entries = services.list_rate_tables("INC-CACHE")
+    assert [e.name for e in entries] == ["Ground Team Member", "Z Vehicle"]
 
-    single = services.get_forecast("INC-CACHE", 1)
-    assert single.forecast_name == "Older"
+    personnel_only = services.list_rate_tables("INC-CACHE", category="personnel")
+    assert [e.name for e in personnel_only] == ["Ground Team Member"]
 
 
-def test_list_expenses_and_attachments_from_cache():
+def test_list_estimates_and_attachments_from_cache():
     incident_cache.load_snapshot(
         "INC-CACHE",
         {
-            "finance_expenses": [
+            "finance_estimates": [
                 {
                     "_id": "e-1", "int_id": 1, "incident_id": "INC-CACHE",
-                    "category": "Fuel", "description": "Gas fill-up", "expense_datetime": "2026-07-01T00:00:00+00:00",
-                    "amount_subtotal": 50.0, "amount_tax": 0, "amount_tip": 0, "amount_total": 50.0,
-                    "status": "Draft", "entered_at": "2026-07-01T00:00:00+00:00", "receipt_attached": False,
-                    "expense_number": "EXP-0001",
+                    "description": "2 radios", "category": "equipment", "source_type": "manual",
+                    "task_id": "12", "quantity": 2, "original_amount": 800.0, "satisfied_amount": 0.0,
+                    "remaining_amount": 800.0, "status": "estimated", "closed": False, "satisfied": False,
+                    "calc_method": "manual", "created_at": "2026-07-01T00:00:00+00:00",
                 },
             ],
             "finance_attachments": [
                 {
                     "_id": "a-1", "int_id": 1, "incident_id": "INC-CACHE",
-                    "record_type": "expense", "record_id": 1, "filename": "receipt.pdf",
+                    "record_type": "estimate", "record_id": 1, "filename": "receipt.pdf",
                     "file_path": "/tmp/receipt.pdf", "uploaded_at": "2026-07-01T01:00:00+00:00",
                 },
                 {
                     "_id": "a-2", "int_id": 2, "incident_id": "INC-CACHE",
-                    "record_type": "forecast", "record_id": 9, "filename": "other.pdf",
+                    "record_type": "actual_cost_document", "record_id": 9, "filename": "other.pdf",
                     "file_path": "/tmp/other.pdf", "uploaded_at": "2026-07-01T01:00:00+00:00",
                 },
             ],
         },
     )
 
-    expenses = services.list_expenses("INC-CACHE")
-    assert [e.description for e in expenses] == ["Gas fill-up"]
+    estimates = services.list_estimates("INC-CACHE", task_id="12")
+    assert [e.description for e in estimates] == ["2 radios"]
 
-    expense = services.get_expense("INC-CACHE", 1)
-    assert expense.expense_number == "EXP-0001"
+    estimate = services.get_estimate("INC-CACHE", 1)
+    assert estimate.remaining_amount == 800.0
 
-    attachments = services.list_attachments("INC-CACHE", "expense", 1)
+    attachments = services.list_attachments("INC-CACHE", "estimate", 1)
     assert [a.filename for a in attachments] == ["receipt.pdf"]
 
 
-def test_dashboard_snapshot_aggregates_from_cache():
+def test_list_actual_cost_documents_and_lines_from_cache():
     incident_cache.load_snapshot(
         "INC-CACHE",
         {
-            "finance_forecasts": [
+            "finance_actual_cost_documents": [
                 {
-                    "_id": "f-1", "int_id": 1, "incident_id": "INC-CACHE",
-                    "forecast_name": "Fuel Plan", "category": "Fuel", "status": "Submitted",
-                    "total_estimated_cost": 300.0, "total_estimated_gallons": 30.0,
-                    "created_at": "2026-07-01T00:00:00+00:00",
+                    "_id": "d-1", "int_id": 1, "incident_id": "INC-CACHE",
+                    "vendor": "Acme Radio Co", "document_date": "2026-07-01", "subtotal": 800.0,
+                    "tax": 0.0, "shipping_fees": 0.0, "total": 800.0, "verification_status": "unverified",
+                    "paid": False,
                 },
             ],
-            "finance_expenses": [
+            "finance_actual_cost_lines": [
                 {
-                    "_id": "e-1", "int_id": 1, "incident_id": "INC-CACHE",
-                    "category": "Fuel", "description": "Gas", "expense_datetime": "2026-07-01T00:00:00+00:00",
-                    "amount_subtotal": 40.0, "amount_total": 40.0, "status": "Submitted",
-                    "entered_at": "2026-07-01T00:00:00+00:00", "receipt_attached": False,
-                    "expense_number": "EXP-0001",
+                    "_id": "l-1", "int_id": 1, "incident_id": "INC-CACHE", "document_id": 1,
+                    "description": "2 radios", "category": "equipment", "quantity": 2, "unit_price": 400.0,
+                    "line_subtotal": 800.0, "attributable_extra": 0.0, "linked_estimate_ids": [1],
                 },
             ],
         },
     )
 
-    snapshot = services.get_dashboard_snapshot("INC-CACHE")
-    assert snapshot.total_forecast_cost == 300.0
-    assert snapshot.total_actual_cost == 40.0
-    assert snapshot.fuel_forecast_cost == 300.0
-    assert snapshot.fuel_actual_cost == 40.0
-    assert snapshot.pending_approvals == 2
-    assert snapshot.missing_receipts == 1
-    assert snapshot.forecast_count == 1
-    assert snapshot.expense_count == 1
+    docs = services.list_actual_cost_documents("INC-CACHE")
+    assert [d.vendor for d in docs] == ["Acme Radio Co"]
 
-    pending = services.list_pending_approvals("INC-CACHE")
-    assert {(p.record_type, p.record_id) for p in pending} == {("forecast", 1), ("expense", 1)}
+    lines = services.list_actual_cost_lines("INC-CACHE", 1)
+    assert [l.description for l in lines] == ["2 radios"]
 
 
-def test_list_forecasts_falls_back_to_api_without_active_cache(monkeypatch):
+def test_list_rate_tables_falls_back_to_api_without_active_cache(monkeypatch):
     calls: list[str] = []
 
     class _FakeClient:
@@ -137,5 +122,36 @@ def test_list_forecasts_falls_back_to_api_without_active_cache(monkeypatch):
 
     monkeypatch.setattr(services, "_client", lambda: _FakeClient())
 
-    assert services.list_forecasts("INC-NO-CACHE") == []
-    assert calls == ["/api/incidents/INC-NO-CACHE/finance/forecasts"]
+    assert services.list_rate_tables("INC-NO-CACHE") == []
+    assert calls == ["/api/incidents/INC-NO-CACHE/finance/rate-tables"]
+
+
+def test_dashboard_and_task_summary_always_call_the_api(monkeypatch):
+    # Budget/estimate/actual-cost aggregation math lives server-side only —
+    # the cache fast-path is intentionally not duplicated for these.
+    incident_cache.load_snapshot("INC-CACHE", {"finance_estimates": []})
+    calls: list[str] = []
+
+    class _FakeClient:
+        def get(self, path, params=None):
+            calls.append(path)
+            if "task-summary" in path:
+                return {
+                    "task_id": "12", "estimated_total": 0.0, "committed_total": 0.0,
+                    "remaining_open_estimate": 0.0, "actual_total": 0.0, "shared_actual_total": 0.0,
+                }
+            return {
+                "total_budget": 0.0, "open_estimated_cost": 0.0, "open_committed_cost": 0.0,
+                "actual_cost": 0.0, "projected_incident_cost": 0.0, "remaining_budget": 0.0,
+                "projected_budget_variance": 0.0, "open_estimate_count": 0,
+                "committed_pending_documentation": 0, "estimate_count": 0,
+            }
+
+    monkeypatch.setattr(services, "_client", lambda: _FakeClient())
+
+    services.get_dashboard_snapshot("INC-CACHE")
+    services.get_task_finance_summary("INC-CACHE", "12")
+    assert calls == [
+        "/api/incidents/INC-CACHE/finance/dashboard",
+        "/api/incidents/INC-CACHE/finance/task-summary/12",
+    ]

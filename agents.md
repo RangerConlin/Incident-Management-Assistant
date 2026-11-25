@@ -76,6 +76,7 @@
 - Cloud server hosting architecture: `docs/archive/design-documents/Instructions/cloud_router_architecture.md`
 - VPS deployment packaging and Traefik (per-service Docker packaging, how this VPS's Traefik actually discovers containers, routing conventions): `docs/archive/design-documents/Instructions/vps_deployment.md`
 - Planned Events Toolkit Phase 0 audit (reuse matrix, domain boundaries, hardening backlog): `docs/archive/design-documents/Instructions/planned_events_phase0_audit.md`
+- Finance/Admin architecture (canonical Budget/Estimate/Actual-Cost model, Rate Tables, debrief/Resource Request integration, migration): `docs/archive/design-documents/Instructions/finance_architecture.md`
 
 ## Updating Instructions
 - `AGENTS.md` is the repo-wide entry point. Keep it short, stable, and limited to universal rules plus pointers to focused instruction docs.

@@ -184,6 +184,7 @@ class ResourceRequestDetailPanel(QtWidgets.QWidget):
             record.get("approvals", []),
             available_approval_actions(status),
             status in TERMINAL_STATUSES,
+            record.get("items", []),
         )
         fulfillments = record.get("fulfillments", [])
         self.fulfillment_view.set_fulfillment(fulfillments[-1] if fulfillments else None)

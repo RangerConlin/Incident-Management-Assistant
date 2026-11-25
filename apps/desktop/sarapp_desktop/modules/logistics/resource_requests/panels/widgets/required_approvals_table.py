@@ -57,6 +57,7 @@ class RequiredApprovalsTable(QtWidgets.QTableWidget):
         approvals: List[Dict[str, object]],
         available_actions: List[ApprovalAction],
         terminal: bool,
+        items: Optional[List[Dict[str, object]]] = None,
     ) -> None:
         grouped: Dict[ApprovalSection, List[Dict[str, object]]] = {s: [] for s in ApprovalSection}
         for approval in approvals:
@@ -74,12 +75,24 @@ class RequiredApprovalsTable(QtWidgets.QTableWidget):
                 section = ACTION_SECTION_MAP.get(action, ApprovalSection.LOGISTICS)
             grouped[section].append(approval)
 
+        cost_impact_items = [item for item in (items or []) if item.get("estimated_total_cost") is not None]
+        cost_impact_total = sum(float(item.get("estimated_total_cost") or 0) for item in cost_impact_items)
+        has_estimate = any(item.get("estimate_id") is not None for item in cost_impact_items)
+
         self._note_edits = {}
         self.setRowCount(len(ApprovalSection))
         for row, section in enumerate(ApprovalSection):
             entries = grouped[section]
             latest = entries[-1] if entries else None
-            pending_actions = [a for a in SECTION_PENDING_ACTIONS[section] if a in available_actions]
+            if section is ApprovalSection.FINANCE:
+                # Finance actions are deliberately excluded from
+                # available_approval_actions (they're independent of the
+                # status chain) — show the Approve/Deny control whenever
+                # this request actually has a cost impact, instead of
+                # never showing a control at all.
+                pending_actions = list(SECTION_PENDING_ACTIONS[section]) if cost_impact_items else []
+            else:
+                pending_actions = [a for a in SECTION_PENDING_ACTIONS[section] if a in available_actions]
             show_pending = not terminal and bool(pending_actions)
 
             section_item = QtWidgets.QTableWidgetItem(SECTION_LABELS[section])
@@ -89,8 +102,12 @@ class RequiredApprovalsTable(QtWidgets.QTableWidget):
 
             if latest:
                 status_text = ACTION_LABELS.get(ApprovalAction(str(latest.get("action"))), str(latest.get("action")))
+                if section is ApprovalSection.FINANCE and cost_impact_total:
+                    status_text = f"{status_text} (${cost_impact_total:,.2f})"
             elif section is ApprovalSection.FINANCE:
-                status_text = "Not Required"
+                status_text = f"Pending — ${cost_impact_total:,.2f}" if cost_impact_items and show_pending else (
+                    "Not Required" if not cost_impact_items else "Pending"
+                )
             else:
                 status_text = "Pending" if show_pending else "—"
             self._set_plain(row, 1, status_text)
@@ -103,9 +120,17 @@ class RequiredApprovalsTable(QtWidgets.QTableWidget):
                 self.setCellWidget(row, 4, note_edit)
                 self._note_edits[section] = note_edit
             else:
-                note_text = str(latest.get("note")) if latest and latest.get("note") else (
-                    "No cost impact flagged on this request." if section is ApprovalSection.FINANCE and not latest else "—"
-                )
+                if latest and latest.get("note"):
+                    note_text = str(latest.get("note"))
+                elif section is ApprovalSection.FINANCE and not latest:
+                    if not cost_impact_items:
+                        note_text = "No cost impact flagged on this request."
+                    elif has_estimate:
+                        note_text = "Finance Estimate linked — see Finance/Admin for detail."
+                    else:
+                        note_text = f"{len(cost_impact_items)} item(s) with cost impact, no Estimate yet."
+                else:
+                    note_text = "—"
                 self._set_plain(row, 4, note_text)
 
             if show_pending:

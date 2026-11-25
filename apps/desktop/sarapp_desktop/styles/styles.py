@@ -205,6 +205,9 @@ _CHAT_BUBBLE_DARK: Dict[str, Dict[str, QColor]] = _build_color_groups(_DARK_PROF
 _RESOURCE_STATUS_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "RESOURCE_STATUS")
 _RESOURCE_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "RESOURCE_STATUS")
 
+_FINANCE_ESTIMATE_STATUS_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "FINANCE_ESTIMATE_STATUS")
+_FINANCE_ESTIMATE_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "FINANCE_ESTIMATE_STATUS")
+
 _VALIDATION_STATUS_LIGHT: Dict[str, Dict[str, QBrush]] = _build_status(_LIGHT_PROFILE, "VALIDATION_STATUS")
 _VALIDATION_STATUS_DARK: Dict[str, Dict[str, QBrush]] = _build_status(_DARK_PROFILE, "VALIDATION_STATUS")
 
@@ -407,6 +410,12 @@ def narrative_status_colors() -> Dict[str, Dict[str, QBrush]]:
 
 def resource_status_colors() -> Dict[str, Dict[str, QBrush]]:
     return _RESOURCE_STATUS_LIGHT if THEME_NAME == "light" else _RESOURCE_STATUS_DARK
+
+
+def finance_estimate_status_colors() -> Dict[str, Dict[str, QBrush]]:
+    """Estimated / Committed / Closed row tints for Finance/Admin tables
+    (Estimates, Rate Tables active/inactive)."""
+    return _FINANCE_ESTIMATE_STATUS_LIGHT if THEME_NAME == "light" else _FINANCE_ESTIMATE_STATUS_DARK
 
 
 def validation_status_colors() -> Dict[str, Dict[str, QBrush]]:
@@ -701,4 +710,5 @@ __all__ = [
     "wa_priority_colors",
     "weather_severity_colors",
     "notification_colors",
+    "finance_estimate_status_colors",
 ]
