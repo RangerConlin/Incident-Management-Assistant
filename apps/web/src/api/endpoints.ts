@@ -1,5 +1,6 @@
 import { api } from "./client";
 import type { Dataset, RecordData } from "../modules/workspaces/config";
+import type { PlannedRecord, PlannedTool, ScheduleAction, ScheduleTrigger } from "../modules/plannedEvent/model";
 const datasetUrl=(d:Dataset,id:string)=>d.master?d.endpoint:`/api/incidents/${encodeURIComponent(id)}/${d.endpoint}`;
 const recordUrl=(d:Dataset,id:string,rid:string)=>`${datasetUrl(d,id).split("?")[0]}/${encodeURIComponent(rid)}`;
 
@@ -1150,3 +1151,24 @@ export const downloadAttachment = (incidentId: string, attachmentId: string) =>
 export const deleteAttachment = (incidentId: string, attachmentId: string, purgeFile = false) =>
   api.delete<void>(`${attachmentsBase(incidentId)}/${encodeURIComponent(attachmentId)}${purgeFile ? "?purge_file=true" : ""}`);
 export const deleteIwiReport = (incidentId: string, reportId: string) => api.delete<void>(`${iwiBase(incidentId)}/${encodeURIComponent(reportId)}`);
+
+// ---- Planned Event Toolkit ------------------------------------------------
+const plannedBase = (id: string) => `/api/incidents/${encodeURIComponent(id)}/planned`;
+const scheduleBase = (id: string) => `${plannedBase(id)}/promotions/schedule`;
+const triggerBase = (id: string) => `/api/incidents/${encodeURIComponent(id)}/planned-meta/schedule-triggers`;
+export const listPlannedRecords = (id: string, tool: PlannedTool) => api.get<PlannedRecord[]>(`${plannedBase(id)}/${tool}`);
+export const createPlannedRecord = (id: string, tool: PlannedTool, body: Record<string, unknown>) => api.post<PlannedRecord>(`${plannedBase(id)}/${tool}`, body);
+export const updatePlannedRecord = (id: string, tool: PlannedTool, recordId: number, body: Record<string, unknown>) => api.patch<PlannedRecord>(`${plannedBase(id)}/${tool}/${recordId}`, body);
+export const deletePlannedRecord = (id: string, tool: PlannedTool, recordId: number) => api.delete<void>(`${plannedBase(id)}/${tool}/${recordId}`);
+export const listScheduleItems = (id: string) => api.get<PlannedRecord[]>(scheduleBase(id));
+export const createScheduleItem = (id: string, body: Record<string, unknown>) => api.post<PlannedRecord>(scheduleBase(id), body);
+export const updateScheduleItem = (id: string, recordId: number, body: Record<string, unknown>) => api.patch<PlannedRecord>(`${scheduleBase(id)}/${recordId}`, body);
+export const deleteScheduleItem = (id: string, recordId: number) => api.delete<void>(`${scheduleBase(id)}/${recordId}`);
+export const runScheduleAction = (id: string, recordId: number, action: ScheduleAction, body: Record<string, unknown>) => api.post<PlannedRecord>(`${scheduleBase(id)}/${recordId}/${action}`, body);
+export const correctScheduleItem = (id: string, recordId: number, body: Record<string, unknown>) => api.post<PlannedRecord>(`${scheduleBase(id)}/${recordId}/correct`, body);
+export const createAssignmentFromActivity = (id: string, recordId: number) => api.post<{ schedule_item: PlannedRecord; quick_assignment: PlannedRecord }>(`${scheduleBase(id)}/${recordId}/create-quick-assignment`, {});
+export const promoteAssignment = (id: string, recordId: number, promotedBy: string) => api.post<PlannedRecord>(`${plannedBase(id)}/quick-assignments/${recordId}/promote`, { promoted_by: promotedBy });
+export const listScheduleTriggers = (id: string) => api.get<ScheduleTrigger[]>(triggerBase(id));
+export const createScheduleTrigger = (id: string, body: Record<string, unknown>) => api.post<ScheduleTrigger>(triggerBase(id), body);
+export const updateScheduleTrigger = (id: string, recordId: number, body: Record<string, unknown>) => api.patch<ScheduleTrigger>(`${triggerBase(id)}/${recordId}`, body);
+export const deleteScheduleTrigger = (id: string, recordId: number) => api.delete<void>(`${triggerBase(id)}/${recordId}`);

@@ -290,6 +290,16 @@ Remaining follow-up:
 
 **************************************************************************************************************
 [Planned Event Toolkit]
+  - Desktop planned-toolkit windows (`apps/desktop/sarapp_desktop/modules/plannedtoolkit/windows.py`) predate the
+    current backend (schedule status matrix, revisions, reminders, recurring assignments, promotion) and need to be
+    rebuilt against it. The web screens in `apps/web/src/modules/plannedEvent/` are the current reference design.
+  - Web: Checklists page is not built (there is no web Checklists module yet); linked checklists are not shown on
+    activities or assignments.
+  - Web: assignments can pick a team but not an individual person (`assigned_person_id`); a person or free-text
+    assignee is stored as text only. Recurrence is a free-text rule and the missed-occurrence rule is fixed to
+    `latest_overdue`; add pickers/options once the backend defines the vocabulary.
+  - Web: `apps/web/package-lock.json` still records 0.3.2 while `package.json` is 0.3.13; regenerate it with
+    `npm install` on a machine with network access.
 
 **************************************************************************************************************
 [Initial Response]

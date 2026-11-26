@@ -7,6 +7,8 @@ import {
   liaisonRequestStatusVar,
   liaisonPriorityVar,
   liaisonReportStateVar,
+  plannedScheduleStatusVar,
+  plannedAssignmentStateVar,
   meetingStatusVar,
   objectivePriorityVar,
   objectiveStatusVar,
@@ -40,6 +42,8 @@ type Domain =
   | "liaison-request"
   | "liaison-priority"
   | "liaison-report"
+  | "planned-schedule"
+  | "planned-assignment"
   | "logistics-request"
   | "logistics-priority"
   | "facility"
@@ -68,6 +72,8 @@ const RESOLVERS: Record<Domain, (key: string) => { bg: string; fg: string }> = {
   "liaison-request": liaisonRequestStatusVar,
   "liaison-priority": liaisonPriorityVar,
   "liaison-report": liaisonReportStateVar,
+  "planned-schedule": plannedScheduleStatusVar,
+  "planned-assignment": plannedAssignmentStateVar,
   team: teamStatusVar,
   task: taskStatusVar,
   resource: resourceStatusVar,

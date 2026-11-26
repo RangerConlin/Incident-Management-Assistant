@@ -539,6 +539,24 @@ LIAISON_REQUEST_STATUS: Dict[str, Dict[str, str]] = {
     "Cancelled":   {"bg": "#52525b", "fg": "#f5f5f5"},
 }
 
+# Planned Event Toolkit — schedule activity status and recurring Quick
+# Assignment lifecycle. Delayed is amber (needs a decision), Cancelled/Pending
+# are neutral, and Promoted reuses the violet family so "handed to Operations"
+# reads as distinct from any in-flight status.
+PLANNED_SCHEDULE_STATUS: Dict[str, Dict[str, str]] = {
+    "Scheduled":   {"bg": "#1d4ed8", "fg": "#ffffff"},
+    "In Progress": {"bg": "#0e7490", "fg": "#ffffff"},
+    "Completed":   {"bg": "#0f766e", "fg": "#ffffff"},
+    "Delayed":     {"bg": "#a88f1a", "fg": "#ffffff"},
+    "Cancelled":   {"bg": "#52525b", "fg": "#f5f5f5"},
+}
+
+PLANNED_ASSIGNMENT_STATE: Dict[str, Dict[str, str]] = {
+    "Pending":  {"bg": "#52525b", "fg": "#f5f5f5"},
+    "Active":   {"bg": "#0e7490", "fg": "#ffffff"},
+    "Promoted": {"bg": "#6d28d9", "fg": "#ffffff"},
+}
+
 # Map symbology (Incident Map window) — stroke/fill hue per style_key.
 # Keys match modules/gis/map_window/symbology.py. The basemap is a raster
 # that does not follow the app theme, so light and dark use the same hues.
@@ -694,6 +712,8 @@ __all__ = [
     "NOTIFICATION_SEVERITY",
     "NOTIFICATION_CATEGORY",
     "LIAISON_REQUEST_STATUS",
+    "PLANNED_SCHEDULE_STATUS",
+    "PLANNED_ASSIGNMENT_STATE",
     "WA_PLANNING_STATUS",
     "WA_SAFETY_STATUS",
     "WA_RESOURCE_STATUS",

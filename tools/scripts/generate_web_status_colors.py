@@ -44,6 +44,8 @@ STATUS_DICTS = [
     ("LIAISON_REQUEST_STATUS", "liaison-request"),
     ("LIAISON_PRIORITY", "liaison-priority"),
     ("LIAISON_REPORT_STATE", "liaison-report"),
+    ("PLANNED_SCHEDULE_STATUS", "planned-schedule"),
+    ("PLANNED_ASSIGNMENT_STATE", "planned-assignment"),
     ("LOGISTICS_REQUEST_STATUS", "logistics-request"),
     ("LOGISTICS_REQUEST_PRIORITY", "logistics-priority"),
     ("FACILITY_STATUS", "facility"),

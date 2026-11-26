@@ -62,11 +62,6 @@ test("CAP ORM preserves operational period on record operations and supplies it 
   assert.equal(model.defaultValues(dataset.fields).initial_risk, "");
 });
 
-test("event schedule read DTO maps to its explicit write contract", () => {
-  const dataset = workspace("/toolkits/planned-event").datasets.find(d => d.key === "schedule");
-  assert.deepEqual(model.payloadFor(dataset, { title: "Briefing", summary: "At the command post", status: "Scheduled", id: 3 }, false, "INC"), { name: "Briefing", notes: "At the command post", status: "Scheduled" });
-});
-
 test("new module endpoints honor supported methods and reject unsupported writes", async () => {
   const calls = [];
   const api = Object.fromEntries(["get", "post", "put", "patch", "delete"].map(method => [method, async (...args) => { calls.push([method, ...args]); return []; }]));

@@ -49,6 +49,14 @@ import ReleaseDetailPage from "./modules/publicInformation/ReleaseDetailPage";
 import RecordsBoardPage from "./modules/publicInformation/RecordsBoardPage";
 import RecordDetailPage from "./modules/publicInformation/RecordDetailPage";
 
+import PlannedEventLayout from "./modules/plannedEvent/PlannedEventLayout";
+import PlannedOverviewPage from "./modules/plannedEvent/OverviewPage";
+import PlannedSchedulePage from "./modules/plannedEvent/SchedulePage";
+import PlannedActivityPage from "./modules/plannedEvent/ActivityPage";
+import PlannedAssignmentsPage from "./modules/plannedEvent/AssignmentsPage";
+import PlannedAssignmentPage from "./modules/plannedEvent/AssignmentPage";
+import { RecordsBoard as PlannedRecordsBoard, RecordPage as PlannedRecordPage } from "./modules/plannedEvent/RecordsPage";
+import { RECORD_CONFIGS as PLANNED_RECORD_CONFIGS } from "./modules/plannedEvent/config";
 import LiaisonLayout from "./modules/liaison/LiaisonLayout";
 import LiaisonOverviewPage from "./modules/liaison/LiaisonOverviewPage";
 import LiaisonBoardPage from "./modules/liaison/LiaisonBoardPage";
@@ -173,6 +181,19 @@ export default function App() {
           <Route path="agencies/:agencyId/contacts/new" element={<AgencyContactPage />} />
           <Route path=":section" element={<LiaisonBoardPage />} />
           <Route path=":section/:recordId" element={<LiaisonDetailPage />} />
+        </Route>
+        <Route path="toolkits/planned-event" element={<RequireIncident><PlannedEventLayout /></RequireIncident>}>
+          <Route index element={<PlannedOverviewPage />} />
+          <Route path="schedule" element={<PlannedSchedulePage />} />
+          <Route path="schedule/:recordId" element={<PlannedActivityPage />} />
+          <Route path="assignments" element={<PlannedAssignmentsPage />} />
+          <Route path="assignments/:recordId" element={<PlannedAssignmentPage />} />
+          {Object.values(PLANNED_RECORD_CONFIGS).map((config) => (
+            <Route key={config.path} path={config.path}>
+              <Route index element={<PlannedRecordsBoard config={config} />} />
+              <Route path=":recordId" element={<PlannedRecordPage config={config} />} />
+            </Route>
+          ))}
         </Route>
         <Route path="pio" element={<RequireIncident><PublicInformationLayout /></RequireIncident>}>
           <Route index element={<PioOverviewPage />} />

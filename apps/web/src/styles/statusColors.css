@@ -126,6 +126,18 @@
   --status-liaison-report-ready-bg: #16a34a; --status-liaison-report-ready-fg: #ffffff;
   --status-liaison-report-not_ready-bg: #b45309; --status-liaison-report-not_ready-fg: #ffffff;
 
+  /* PLANNED_SCHEDULE_STATUS */
+  --status-planned-schedule-scheduled-bg: #1d4ed8; --status-planned-schedule-scheduled-fg: #ffffff;
+  --status-planned-schedule-in-progress-bg: #0e7490; --status-planned-schedule-in-progress-fg: #ffffff;
+  --status-planned-schedule-completed-bg: #0f766e; --status-planned-schedule-completed-fg: #ffffff;
+  --status-planned-schedule-delayed-bg: #a88f1a; --status-planned-schedule-delayed-fg: #ffffff;
+  --status-planned-schedule-cancelled-bg: #52525b; --status-planned-schedule-cancelled-fg: #f5f5f5;
+
+  /* PLANNED_ASSIGNMENT_STATE */
+  --status-planned-assignment-pending-bg: #52525b; --status-planned-assignment-pending-fg: #f5f5f5;
+  --status-planned-assignment-active-bg: #0e7490; --status-planned-assignment-active-fg: #ffffff;
+  --status-planned-assignment-promoted-bg: #6d28d9; --status-planned-assignment-promoted-fg: #ffffff;
+
   /* LOGISTICS_REQUEST_STATUS */
   --status-logistics-request-draft-bg: #757575; --status-logistics-request-draft-fg: #f5f5f5;
   --status-logistics-request-submitted-bg: #f9a825; --status-logistics-request-submitted-fg: #1a1a1a;
@@ -350,6 +362,18 @@
   /* LIAISON_REPORT_STATE */
   --status-liaison-report-ready-bg: #2e7d32; --status-liaison-report-ready-fg: #ffffff;
   --status-liaison-report-not_ready-bg: #fb8c00; --status-liaison-report-not_ready-fg: #1a1a1a;
+
+  /* PLANNED_SCHEDULE_STATUS */
+  --status-planned-schedule-scheduled-bg: #1565c0; --status-planned-schedule-scheduled-fg: #ffffff;
+  --status-planned-schedule-in-progress-bg: #0891b2; --status-planned-schedule-in-progress-fg: #ffffff;
+  --status-planned-schedule-completed-bg: #00897b; --status-planned-schedule-completed-fg: #ffffff;
+  --status-planned-schedule-delayed-bg: #ffc107; --status-planned-schedule-delayed-fg: #1a1a1a;
+  --status-planned-schedule-cancelled-bg: #78716c; --status-planned-schedule-cancelled-fg: #ffffff;
+
+  /* PLANNED_ASSIGNMENT_STATE */
+  --status-planned-assignment-pending-bg: #78716c; --status-planned-assignment-pending-fg: #ffffff;
+  --status-planned-assignment-active-bg: #0891b2; --status-planned-assignment-active-fg: #ffffff;
+  --status-planned-assignment-promoted-bg: #7c3aed; --status-planned-assignment-promoted-fg: #ffffff;
 
   /* LOGISTICS_REQUEST_STATUS */
   --status-logistics-request-draft-bg: #90a4ae; --status-logistics-request-draft-fg: #1a1a1a;
